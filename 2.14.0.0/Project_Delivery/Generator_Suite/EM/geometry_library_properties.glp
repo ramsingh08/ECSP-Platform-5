@@ -1,0 +1,700 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<mappings vi_bhs_platform_version="5" project_id="VI_BHS_Platform" iec_version="21" glp_version_GEN="23" glp_version_RAW="21" file_version="%version: 17%" file_date="%date_created: Monday, March 19, 2018 5:10:15 PM %">
+  <mapping id="Proj Def" key="=element_name=&quot;project_definition&quot;" debug="no">
+    <layer_defs id="1" />
+    <layer_filters id="1">
+      <layer_filter id="1" name="ASI">
+        <layer id="1" layer="LG_PEC" />
+        <layer id="2" layer="LG_MTR" />
+        <layer id="3" layer="LG_PPI" />
+        <layer id="4" layer="0" />
+        <layer id="5" layer="LG_BOX" />
+        <layer id="6" layer="LG_ASI" />
+        <layer id="7" layer="LG_LMS" />
+        <layer id="8" layer="LG_PNA" />
+        <layer id="9" layer="LG_ASC" />
+      </layer_filter>
+      <layer_filter id="2" name="Profinet">
+        <layer id="1" layer="0" />
+        <layer id="2" layer="LG_box" />
+        <layer id="3" layer="LG_LMS" />
+        <layer id="4" layer="LG_PNA" />
+        <layer id="5" layer="LG_PNC" />
+        <layer id="6" layer="LG_Profinet" />
+        <layer id="7" layer="LG_CC" />
+        <layer id="8" layer="LG_UQZ" />
+        <layer id="9" layer="LG_PNS" />
+        <layer id="10" layer="LG_SVZ" />
+        <layer id="11" layer="LG_MVZ" />
+        <layer id="12" layer="LG_SBZ" />
+      </layer_filter>
+      <layer_filter id="3" name="Power">
+        <layer id="1" layer="LG_ASC" />
+        <layer id="2" layer="LG_Powerline" />
+        <layer id="3" layer="0" />
+        <layer id="4" layer="LG_box" />
+        <layer id="5" layer="LG_LMS" />
+        <layer id="6" layer="LG_EM_2D" />
+        <layer id="7" layer="LG_Power" />
+        <layer id="8" layer="LG_PNA" />
+        <layer id="9" layer="LG_SBZ" />
+        <layer id="10" layer="LG_SVZ" />
+        <layer id="11" layer="LG_IDZ" />
+      </layer_filter>
+      <layer_filter id="4" name="Conveyors">
+        <layer id="1" layer="0" />
+        <layer id="2" layer="LG_box" />
+      </layer_filter>
+    </layer_filters>
+    <scale id="1" X="1" Y="1" Z="1" text_scale="1:100" id_scale="1:100" id_rotated="no">
+      <override id="1" file="em_pec_refl.dwg" X="1" Y="1" Z="1" />
+      <override id="2" file="em_pec.dwg" X="1" Y="1" Z="1" />
+    </scale>
+  </mapping>
+  <mapping id="GEN" key="=family=&quot;GEN&quot;" debug="no" family="GEN">
+    <mapping id="Add block via cif" key="=OR(&#xD;&#xA;    AND(mark_code=&quot;CCC&quot;;function&lt;&gt;&quot;10&quot;);&#xD;&#xA;    AND(mark_code=&quot;LCC&quot;;function=&quot;21&quot;);&#xD;&#xA;    AND(mark_code=&quot;LCC&quot;;function=&quot;22&quot;);&#xD;&#xA;    AND(mark_code=&quot;LCC&quot;;function=&quot;23&quot;);&#xD;&#xA;    AND(mark_code=&quot;LCC&quot;;function=&quot;29&quot;);&#xD;&#xA;    AND(mark_code=&quot;LCC&quot;;function=&quot;42&quot;);&#xD;&#xA;    AND(mark_code=&quot;SLC&quot;;function=&quot;01&quot;;parent.mark_code&lt;&gt;&quot;ARZ&quot;)&#xD;&#xA;)&#xD;&#xA;/*OR(    &#xD;&#xA;	IF(element_name = &quot;em_object&quot;;OR(mark_code &lt;&gt; &quot;CC&quot;;mark_code &lt;&gt; &quot;CCC&quot;);0);&#xD;&#xA;	AND(mark_code = &quot;BSO&quot;;function&lt;&gt;&quot;60&quot;;function&lt;&gt;&quot;61&quot;;function &lt;&gt; &quot;51&quot;);&#xD;&#xA;  	mark_code = &quot;CBZ&quot;;&#xD;&#xA;	mark_code = &quot;VSO&quot;;&#xD;&#xA;	mark_code = &quot;SBZ&quot;;&#xD;&#xA;	mark_code = &quot;DBZ&quot;;&#xD;&#xA;	mark_code = &quot;UQZn&quot;;&#xD;&#xA;	mark_code = &quot;VMZ&quot;;&#xD;&#xA;	mark_code = &quot;VSZ&quot;;&#xD;&#xA;	mark_code = &quot;WSO&quot;;&#xD;&#xA;	mark_code = &quot;SIO&quot;;&#xD;&#xA;	mark_code = &quot;MCS&quot;;&#xD;&#xA;	mark_code = &quot;MBZ&quot;;&#xD;&#xA;	mark_code = &quot;MBS&quot;;&#xD;&#xA;	mark_code = &quot;UNZn&quot;;&#xD;&#xA;	mark_code = &quot;AOPn&quot;;&#xD;&#xA;	mark_code = &quot;APU&quot;;&#xD;&#xA;	mark_code = &quot;IDO&quot;;&#xD;&#xA;	mark_code = &quot;LSB&quot;;&#xD;&#xA;	mark_code = &quot;SLCn&quot;;&#xD;&#xA;	mark_code = &quot;CCC&quot;;&#xD;&#xA;	AND(mark_code = &quot;ASIn&quot;;parent.mark_code &lt;&gt; &quot;PBB&quot;;parent.mark_code &lt;&gt; &quot;APU&quot;;parent.mark_code &lt;&gt; &quot;SHO&quot;);&#xD;&#xA;	AND(mark_code = &quot;ASI&quot;;parent.mark_code = &quot;CHO&quot;);&#xD;&#xA;	AND(mark_code = &quot;ASI&quot;;parent.mark_code = &quot;CH&quot;);&#xD;&#xA;    AND(mark_code = &quot;CCC&quot;;function = &quot;10&quot;;parent.mark_code = &quot;SVC&quot;);&#xD;&#xA;	AND(mark_code = &quot;VCO&quot;;function = &quot;01&quot;;parent.mark_code = &quot;OAZ&quot;);&#xD;&#xA;	AND(mark_code = &quot;LCC&quot;;function = &quot;21&quot;;parent.mark_code = &quot;OAZ&quot;);&#xD;&#xA;	AND(mark_code = &quot;LCC&quot;;function = &quot;93&quot;;parent.mark_code = &quot;CIZ&quot;);&#xD;&#xA;	AND(mark_code = &quot;LCC&quot;;function = &quot;10&quot;;parent.mark_code = &quot;VDZ&quot;);&#xD;&#xA;	AND(mark_code = &quot;LMS&quot;;function = &quot;05&quot;;parent.mark_code = &quot;ISS&quot;);&#xD;&#xA;	AND(mark_code = &quot;LMS&quot;;function = &quot;02&quot;;parent.mark_code = &quot;TSS&quot;);&#xD;&#xA;	AND(mark_code = &quot;LMS&quot;;function = &quot;04&quot;;parent.mark_code = &quot;TTS&quot;);&#xD;&#xA;	AND(mark_code = &quot;LMS&quot;;function = &quot;02&quot;;parent.mark_code = &quot;USS&quot;);&#xD;&#xA;	AND(mark_code = &quot;PBB&quot;;function = &quot;21&quot;);&#xD;&#xA;	AND(mark_code = &quot;PBB&quot;;function = &quot;24&quot;);&#xD;&#xA;	AND(mark_code = &quot;PBB&quot;;function = &quot;25&quot;);&#xD;&#xA;)*/" debug="no">
+      <block id="0" shape="straight" length="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).length;&#xD;&#xA;    	IFERROR( &#xD;&#xA;        	global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).length;&quot;&quot;))" width="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).width;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).width)" x1="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).x1;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).x1)" y1="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).y1;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).y1)" z1="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).z1;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).z1)" angle1="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).angle1;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).angle1)" x2="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).x2;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).x2)" y2="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).y2;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).y2)" z2="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).z2;&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).z2)" angle2="=IFERROR(&#xD;&#xA;    global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;    	IFERROR( &#xD;&#xA;        	global_find(id=.parent(integration_level=&quot;object&quot;).id).child(element_name=&quot;contour&quot;).angle2;&quot;0&quot;))&#xD;&#xA;&#xD;&#xA;&#xD;&#xA;&#xD;&#xA;&#xD;&#xA;/*&#xD;&#xA;=IFERROR(parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).&#xD;&#xA;child(element_name=&quot;cif&quot;).isc_id).child(AND(element_name=&quot;block&quot;;id=CA_GLP_MaxBlockID)).angle2;&quot;0&quot;)&#xD;&#xA;*/" />
+    </mapping>
+    <mapping id="MTR - with location" key="=AND(&#xD;&#xA;     mark_code=&quot;MTR&quot;;&#xD;&#xA;     CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;;&#xD;&#xA;     parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SKZ&quot;;&#xD;&#xA;     NOT(ISERROR(child(element_name=&quot;location&quot;).x1))&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="=IF(&#xD;&#xA;    OR(parent(integration_level=&quot;element&quot;).function=&quot;02&quot;;parent(integration_level=&quot;section&quot;).child(element_name=&quot;dynamics&quot;).bidirectional = &quot;yes&quot;);&#xD;&#xA;	&quot;em_mtr2.dwg&quot;;&#xD;&#xA;	&quot;em_mtr1.dwg&quot;&#xD;&#xA;)" block_id="=IFERROR(CA_GLP_MotorBlockID;CA_GLP_MaxBlockID)" layer="LG_MTR">
+        <offset id="1" offset_x="=IFERROR(parent(element_name=&quot;isc&quot;).child(element_name=&quot;location&quot;).position;0)" offset_y="=IF(&#xD;&#xA;     ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;     .CA_GLP_SectionWidth / 2;&#xD;&#xA;     .CA_GLP_SectionWidth / 2 * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="=IFERROR(parent.parent.offset_z;0)&#xD;&#xA;&#xD;&#xD;&#xA;" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_MTR">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="MTR id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="MTR - no location" key="=AND(&#xD;&#xA;     mark_code=&quot;MTR&quot;;&#xD;&#xA;     function&lt;&gt;&quot;08&quot;;&#xD;&#xA;     parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;TT&quot;;&#xD;&#xA;     parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SKZ&quot;;&#xD;&#xA;     parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;MVD&quot;;&#xD;&#xA;     parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SVD&quot;;&#xD;&#xA;     CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;;&#xD;&#xA;     ISERROR(child(element_name=&quot;location&quot;).x1)&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="=IF(&#xD;&#xA;    parent(integration_level=&quot;element&quot;).function=&quot;02&quot;;&#xD;&#xA;	&quot;em_mtr2.dwg&quot;;&#xD;&#xA;	&quot;em_mtr1.dwg&quot;&#xD;&#xA;)" block_id="=IFERROR(CA_GLP_MaxBlockID;0)" layer="LG_MTR">
+        <offset id="1" offset_x="=IFERROR(CA_GLP_CADBlockLength - 1;0)" offset_y="=IF(&#xD;&#xA;     ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;     .CA_GLP_SectionWidth / 2;&#xD;&#xA;     .CA_GLP_SectionWidth / 2 * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="=IFERROR(parent.parent.offset_z;0)&#xD;&#xA;&#xD;&#xD;&#xA;" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_MTR">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="MTR id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="PEC of TRS" key="=AND(&#xD;&#xA;    mark_code=&quot;PEC&quot;;&#xD;&#xA;    function=&quot;01&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SKZ&quot;;&#xD;&#xA;    NOT(ISERROR(parent.child(element_name=&quot;block&quot;).id));&#xD;&#xA;    CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_pec_refl.dwg" block_id="=IF(parent.function_abbreviation=&quot;SOS&quot;;0;CA_GLP_MaxBlockID)" layer="LG_PEC">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;BJ&quot;;&#xD;&#xA;    IF(&#xD;&#xA;        parent(integration_level=&quot;element&quot;).function_abbreviation=&quot;SOS&quot;;&#xD;&#xA;        0.3;&#xD;&#xA;        CA_GLP_CADBlockLength - 0.3&#xD;&#xA;    );&#xD;&#xA;    CA_GLP_CADBlockLength - 0.4&#xD;&#xA;)" offset_y="0" offset_z="0" angle="=IF(ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);0;&#xD;&#xA;	IF(parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;BJ&quot;;&#xD;&#xA;        	IF(CA_GLP_MotorPosition= &quot;L&quot;;180;0);&#xD;&#xA;    IF(CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;    parent(NOT(ISERROR(child(element_name=&quot;block&quot;).id))).child(AND(element_name=&quot;block&quot;;id=.CA_GLP_CADBlockID)).angle2+180;&#xD;&#xA;    parent(NOT(ISERROR(child(element_name=&quot;block&quot;).id))).child(AND(element_name=&quot;block&quot;;id=.CA_GLP_CADBlockID)).angle2&#xD;&#xA;)))" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(element_name=&quot;isc&quot;).CA_ID_Element &amp;&quot; id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="PPI" key="=AND( &#xD;&#xA;	mark_code=&quot;PPI&quot;;&#xD;&#xA;	CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_ppi.dwg" block_id="=CA_GLP_MaxBlockID" layer="LG_PPI">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;BJ&quot;;&#xD;&#xA;    CA_GLP_CADBlockLength - 0.6;&#xD;&#xA;    parent(NOT(ISERROR(child(element_name=&quot;block&quot;).id))).child(AND(element_name=&quot;block&quot;;id=.cadsymbol_block_id)).blocklength_bj_shortside - 0.6&#xD;&#xA;)" offset_y="0" offset_z="0" angle="" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PPI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PPI id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="PS" key="=AND(&#xD;&#xA;    mark_code=&quot;PS&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SKZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;MVD&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;SVD&quot;;&#xD;&#xA;    CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_prox.dwg" block_id="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;    0;&#xD;&#xA;    CA_GLP_MaxBlockID&#xD;&#xA;)" layer="LG_PS">
+        <offset id="1" offset_x="=IFERROR(parent(integration_level=&quot;section&quot;).length/2;0)" offset_y="=IF(parent(integration_level=&quot;element&quot;).function_abbreviation=&quot;UP&quot;;-0.3;0.3)" offset_z="0" angle="" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PS">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PS &quot; &amp; parent(integration_level=&quot;element&quot;).CA_ID_Element &amp; &quot;id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="LMS" key="=AND(&#xD;&#xA;	mark_code=&quot;LMS&quot;;&#xD;&#xA;	&#xD;&#xA;	CA_GLP_ParentsSkipChildren=&quot;FALSE&quot;&#xD;&#xA;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).block);&#xD;&#xA;    IF(&#xD;&#xA;        ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;        0;&#xD;&#xA;        CA_GLP_MaxBlockID&#xD;&#xA;    );&#xD;&#xA;    parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).block&#xD;&#xA;)" layer="LG_LMS">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position);&#xD;&#xA;    IF(&#xD;&#xA;        ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;        0;&#xD;&#xA;        IF(&#xD;&#xA;            CA_GLP_CADBlockLength &gt; 1;&#xD;&#xA;            CA_GLP_CADBlockLength - 1;&#xD;&#xA;            0&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position&#xD;&#xA;)" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_LMS">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LMS id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2 + CA_GLP_CFG_LMSSize + CA_GLP_CFG_LabelOffset)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=IF(&#xD;&#xA;    parent(integration_level=&quot;element&quot;).mark_code = &quot;LMS&quot;;&#xD;&#xA;    IF(&#xD;&#xA;        parent(integration_level=&quot;element&quot;).function = &quot;01&quot;;&#xD;&#xA;        &quot;LM1&quot;;&#xD;&#xA;        IF(&#xD;&#xA;            parent(integration_level=&quot;element&quot;).function = &quot;02&quot;;&#xD;&#xA;            &quot;LM2&quot;;&#xD;&#xA;            IF(&#xD;&#xA;                parent(integration_level=&quot;element&quot;).function = &quot;03&quot;;&#xD;&#xA;                &quot;LMV&quot;;&#xD;&#xA;                &quot;LMS&quot;&#xD;&#xA;            )&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    &quot;LMS&quot;&#xD;&#xA;)" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="LCC Network - incl. CCC05" key="=OR(&#xD;&#xA;    AND(&#xD;&#xA;        mark_code=&quot;LCC&quot;;&#xD;&#xA;        OR(&#xD;&#xA;            function=&quot;21&quot;;&#xD;&#xA;            function=&quot;22&quot;;&#xD;&#xA;            function=&quot;23&quot;;&#xD;&#xA;            function=&quot;29&quot;;       &#xD;&#xA;            function=&quot;42&quot;&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    AND(mark_code=&quot;CCC&quot;;&#xD;&#xA;        OR(&#xD;&#xA;           function=&quot;05&quot;;&#xD;&#xA;       function=&quot;07&quot;&#xD;&#xA;		)&#xD;&#xA;))" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).length * &#xD;&#xA;parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(AND(element_name=&quot;cif&quot;;isc_id=.parent(integration_level=&quot;object&quot;).id)).position/100&#xD;&#xA;/*0.3*/" offset_y="=(CA_GLP_SectionWidth/2+0.3)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LCC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent(integration_level=&quot;object&quot;).mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CCC" key="=AND(mark_code=&quot;CCC&quot;;&#xD;&#xA;    function&lt;&gt;&quot;05&quot;;&#xD;&#xA;    function&lt;&gt;&quot;07&quot;;&#xD;&#xA;    function&lt;&gt;&quot;10&quot;&#xD;&#xA;)" debug="no" hide_block="true" conv_id="=IF(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;17&quot;));&#xD;&#xA;IFERROR(global_find(id=.child(element_name=&quot;cif&quot;).isc_id).id;&quot;&quot;)&#xD;&#xA;;global_find(id=.child(element_name=&quot;cif&quot;).isc_id).id&#xD;&#xA;)&#xD;&#xA;/*&#xD;&#xA;If CCC01, 02, 03 or 17 are used and the element &quot;cif&quot; is not available,&#xD;&#xA;the value of &quot;conv_id&quot; wil be &quot;&quot; with result that no &quot;ERROR&quot; will be generated.&#xD;&#xA;In all other cases the value of &quot;conv_id&quot; will be the &quot;id&quot; mentioned in the &quot;cif&quot;.&#xD;&#xA;*/">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_cc.dwg" block_id="0" layer="LG_CC">
+        <offset id="1" offset_x="=IFERROR(global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).length * &#xD;&#xA;global_find(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(AND(element_name=&quot;cif&quot;;isc_id=.parent(integration_level=&quot;object&quot;).id)).position/100;&#xD;&#xA;parent(integration_level=&quot;object&quot;).child(OR(element_name=&quot;contour&quot;;element_name=&quot;block&quot;)).length/2)" offset_y="=(CA_GLP_SectionWidth/2+1)*CA_GLP_MotorAlign" offset_z="0" />
+        <labels id="1" align="right" layer="LG_TEXT_CC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="CC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+3;CA_GLP_CADOffsetY-3)" offset_z="0" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent(integration_level=&quot;object&quot;).mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="Area SLC" key="=AND(&#xD;&#xA;    mark_code=&quot;SLC&quot;;&#xD;&#xA;    function=&quot;01&quot;;&#xD;&#xA;    ISERROR(parent(integration_level=&quot;zone&quot;).id)&#xD;&#xA;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" layer="LG_SLC">
+        <offset id="1" offset_x="=parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).length * &#xD;&#xA;parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).child(element_name=&quot;cif&quot;).isc_id).child(AND(element_name=&quot;cif&quot;;isc_id=.parent(integration_level=&quot;object&quot;).id)).position/100" offset_y="=(CA_GLP_SectionWidth/2+0.3)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=1)).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="0" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="SHO" key="=mark_code=&quot;SHO&quot;" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SHO">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SHO">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A91&quot;" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="LCC" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="BSO" key="=mark_code=&quot;BSO&quot;" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_BSO">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_BSO">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A01&quot;" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="BSO" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="HBO" key="=mark_code=&quot;HBO&quot;" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_HBO">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_HBO">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="HBO" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="WE" key="=AND(mark_code=&quot;WE&quot;;function&lt;&gt;&quot;01&quot;;function&lt;&gt;&quot;04&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_WE">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_WE">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A01&quot;" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="WE" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="WE04" key="=AND(mark_code=&quot;WE&quot;;function=&quot;04&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_WE">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_WE">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="WE id" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A01&quot;" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="WE" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="=parent(integration_level=&quot;object&quot;).child(element_name=&quot;contour&quot;).length*0.5" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A91&quot;" />
+          <offset id="1" offset_x="=parent(integration_level=&quot;object&quot;).child(element_name=&quot;contour&quot;).length*0.5" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="=parent(integration_level=&quot;object&quot;).child(element_name=&quot;contour&quot;).length*0.9" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A92&quot;" />
+          <offset id="1" offset_x="=parent(integration_level=&quot;object&quot;).child(element_name=&quot;contour&quot;).length*0.9" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIO" key="=mark_code=&quot;CIO&quot;" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_CIO">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_CIO">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=LEFT(parent(element_name=&quot;isc&quot;).id;11) &amp; &quot;A01&quot;" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="CIO" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="ASI of section" key="=AND(&#xD;&#xA;	mark_code=&quot;ASI&quot;;&#xD;&#xA;	parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;TT&quot;;&#xD;&#xA;	parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;TF&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;PUZ&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;DPZ&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;UNZ&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;COZ&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;OFZ&quot;;&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;TMZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;OPZ&quot;;&#xD;&#xA;	AND(parent(integration_level=&quot;zone&quot;).mark_code&lt;&gt;&quot;TRZ&quot;;parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;04&quot;);&#xD;&#xA;	NOT(AND(parent(integration_level=&quot;section&quot;).mark_code=&quot;BF&quot;;parent(integration_level=&quot;section&quot;).function=&quot;13&quot;));&#xD;&#xA;	NOT(AND(parent(integration_level=&quot;section&quot;).mark_code=&quot;BF&quot;;parent(integration_level=&quot;section&quot;).function=&quot;15&quot;));&#xD;&#xA;	NOT(ISERROR(parent(integration_level=&quot;section&quot;).id)))" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="=IF(ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;LMS&quot;).id);&#xD;&#xA;	parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).length/3;&#xD;&#xA;	parent(integration_level=&quot;section&quot;).child(mark_code=&quot;LMS&quot;).child(element_name=&quot;cadsymbol&quot;).child(element_name=&quot;offset&quot;).offset_x - CA_GLP_CFG_LMSSize)" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=parent(integration_level=&quot;section&quot;).child(mark_code=&quot;ASI&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="PBB of section" key="=AND(&#xD;&#xA;	mark_code=&quot;ECL&quot;;&#xD;&#xA;	parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;TT&quot;;&#xD;&#xA;	parent(integration_level=&quot;section&quot;).mark_code&lt;&gt;&quot;TF&quot;;&#xD;&#xA;	NOT(ISERROR(parent(integration_level=&quot;section&quot;).id)))" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="=prev(mark_code=&quot;LMS&quot;).child(element_name=&quot;cadsymbol&quot;).child(element_name=&quot;offset&quot;).offset_x - CA_GLP_CFG_LMSSize" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="isc element" text="=parent(integration_level=&quot;section&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="UQZ - PBB" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;UQZ&quot;;mark_code=&quot;PBB&quot;)" debug="no">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).z2" angle2="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).angle2" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" layer="LG_PBB">
+        <offset id="1" offset_x="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).length*8/12" offset_y="=((parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize)/2)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="CC id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=1)).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).child(element_name=&quot;block&quot;).width/2 + CA_GLP_CFG_LMSSize + CA_GLP_CFG_LabelOffset)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+    </mapping>
+  </mapping>
+  <mapping id="RAW" key="=NOT(ISERROR(id))" debug="no">
+    <mapping id="RAW_ISC_tag" key="=AND(element_name=&quot;isc&quot;;integration_level=&quot;section&quot;)" debug="no" ISC_tag="=LEFT(id;11)" />
+    <mapping id="ARZ - PBB" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.7" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="ARZ - PEC_HAC" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;;mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HAC&quot;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_pec.dwg" block_id="=CA_GLP_MaxBlockID" layer="LG_PEC">
+        <offset id="1" offset_x="=CA_GLP_CADBlockLength + 1" offset_y="=-CA_GLP_SectionWidth" offset_z="0" angle="270&#xD;&#xA;" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="1" name="=&quot;PEC &quot; &amp; parent(element_name=&quot;isc&quot;).CA_ID_Element &amp;&quot; id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="ARZ - SLC" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;;mark_code=&quot;SLC&quot;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.1" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="ARZ/MTZ - TT/TF - LMS" key="=AND(OR(parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;;parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;MTZ&quot;);&#xD;&#xA;OR(parent(integration_level=&quot;section&quot;).mark_code=&quot;TT&quot;;parent(integration_level=&quot;section&quot;).mark_code=&quot;TF&quot;);&#xD;&#xA;mark_code=&quot;LMS&quot;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="=IF(ISERROR(parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id);&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;)).id;&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id)" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position);&#xD;&#xA;    IF(&#xD;&#xA;        ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;        0;&#xD;&#xA;        IF(&#xD;&#xA;            CA_GLP_CADBlockLength &gt; 1;&#xD;&#xA;            CA_GLP_CADBlockLength / 2 ;&#xD;&#xA;            0&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position&#xD;&#xA;)" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + 0.6) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + 0.6) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LMS id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=IF(&#xD;&#xA;    parent(integration_level=&quot;element&quot;).mark_code = &quot;LMS&quot;;&#xD;&#xA;    IF(&#xD;&#xA;        parent(integration_level=&quot;element&quot;).function = &quot;01&quot;;&#xD;&#xA;        &quot;LM1&quot;;&#xD;&#xA;        IF(&#xD;&#xA;            parent(integration_level=&quot;element&quot;).function = &quot;02&quot;;&#xD;&#xA;            &quot;LM2&quot;;&#xD;&#xA;            IF(&#xD;&#xA;                parent(integration_level=&quot;element&quot;).function = &quot;03&quot;;&#xD;&#xA;                &quot;LMV&quot;;&#xD;&#xA;                &quot;LMS&quot;&#xD;&#xA;            )&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    &quot;LMS&quot;&#xD;&#xA;)" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="ARZ/MTZ - TT/TF - MTR" key="=AND(OR(parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;;parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;MTZ&quot;);&#xD;&#xA;OR(parent(integration_level=&quot;section&quot;).mark_code=&quot;TT&quot;;parent(integration_level=&quot;section&quot;).mark_code=&quot;TF&quot;);&#xD;&#xA;mark_code=&quot;MTR&quot;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_mtr1.dwg" block_id="=IF(ISERROR(parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id);&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;)).id;&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id)" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position);&#xD;&#xA;    IF(&#xD;&#xA;        ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;        0;&#xD;&#xA;        IF(&#xD;&#xA;            CA_GLP_CADBlockLength &gt; 1;&#xD;&#xA;            CA_GLP_CADBlockLength / 2 ;&#xD;&#xA;            0&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position&#xD;&#xA;)" offset_y="0" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="MTR id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="ARZ/MTZ - TT/TF - PEC_ESAVE" key="=AND(OR(parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;ARZ&quot;;parent.parent(integration_level=&quot;zone&quot;).mark_code=&quot;MTZ&quot;);&#xD;&#xA;OR(parent(integration_level=&quot;section&quot;).mark_code=&quot;TT&quot;;parent(integration_level=&quot;section&quot;).mark_code=&quot;TF&quot;);&#xD;&#xA;mark_code=&quot;PEC&quot;;function_abbreviation=&quot;ESAVE&quot;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_pec.dwg" block_id="=IF(ISERROR(parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id);&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;)).id;&#xD;&#xA;parent(integration_level=&quot;section&quot;).child(AND(shape=&quot;straight&quot;;x1=x2)).id)" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IF(&#xD;&#xA;    ISERROR(parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position);&#xD;&#xA;    IF(&#xD;&#xA;        ISERROR(parent(integration_level=&quot;section&quot;).child(element_name=&quot;block&quot;).x1);&#xD;&#xA;        0;&#xD;&#xA;        IF(&#xD;&#xA;            CA_GLP_CADBlockLength &gt; 1;&#xD;&#xA;            CA_GLP_CADBlockLength / 3 ;&#xD;&#xA;            0.3&#xD;&#xA;        )&#xD;&#xA;    );&#xD;&#xA;    parent(integration_level=&quot;section&quot;).child(mark_code=&quot;MTR&quot;).child(element_name=&quot;location&quot;).position&#xD;&#xA;)" offset_y="0" offset_z="0" angle="=IF( ISERROR(CA_GLP_MotorPosition = &quot;L&quot;);&#xD;&#xA;          0;&#xD;&#xA;          IF(&#xD;&#xA;              CA_GLP_MotorPosition = &quot;L&quot;;&#xD;&#xA;               180;&#xD;&#xA;               0&#xD;&#xA;          )&#xD;&#xA;     )&#xD;&#xA;" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PEC id" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="MTZ - PEC_HAC" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;MTZ&quot;;mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HAC&quot;)" debug="no">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_pec.dwg" block_id="=CA_GLP_MaxBlockID" layer="LG_PEC">
+        <offset id="1" offset_x="=CA_GLP_CADBlockLength + 1" offset_y="=-CA_GLP_SectionWidth" offset_z="0" angle="270&#xD;&#xA;" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="1" name="=&quot;PEC &quot; &amp; parent(element_name=&quot;isc&quot;).CA_ID_Element &amp;&quot; id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="MTZ - SLC" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;MTZ&quot;;mark_code=&quot;SLC&quot;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="=parent(integration_level=&quot;zone&quot;).child(OR(mark_code=&quot;TF&quot;;mark_code=&quot;TT&quot;)).child(AND(shape=&quot;straight&quot;;x1=x2)).id" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.1" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="UQZ - CHO20" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;UQZ&quot;;mark_code=&quot;CHO&quot;;function=&quot;20&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="ASI id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ASI&quot;;index=1)).id" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=2)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="0.6" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC_id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=3)).id" />
+          <offset id="1" offset_x="0.6" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.04&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.3" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;LGTH&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;LGTH&quot;)).id" />
+          <offset id="1" offset_x="-0.3" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.05&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.6" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).id" />
+          <offset id="1" offset_x="-0.6" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="UQZ - CHO10" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;UQZ&quot;;mark_code=&quot;CHO&quot;;function=&quot;10&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="ASI id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ASI&quot;;index=1)).id" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=2)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="0.6" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC_id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=3)).id" />
+          <offset id="1" offset_x="0.6" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.04&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.3" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).id" />
+          <offset id="1" offset_x="-0.3" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="CLZ - CHO10" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;CLZ&quot;;mark_code=&quot;CHO&quot;;function=&quot;10&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="ASI id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ASI&quot;;index=1)).id" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=2)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="0.6" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC_id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=3)).id" />
+          <offset id="1" offset_x="0.6" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.04&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.3" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).id" />
+          <offset id="1" offset_x="-0.3" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="HBZ - CHO10" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;HBZ&quot;;mark_code=&quot;CHO&quot;;function=&quot;10&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="ASI id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ASI&quot;;index=1)).id" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=2)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="0.6" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC_id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=3)).id" />
+          <offset id="1" offset_x="0.6" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.04&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.3" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).id" />
+          <offset id="1" offset_x="-0.3" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="TRZ - CHO10" key="=AND(parent(integration_level=&quot;zone&quot;).mark_code=&quot;TRZ&quot;;mark_code=&quot;CHO&quot;;function=&quot;10&quot;)" debug="no" hide_block="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="LG_ASI">
+        <offset id="1" offset_x="0" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_ASI">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="ASI id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ASI&quot;;index=1)).id" />
+          <offset id="1" offset_x="0" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="ASI" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.02&quot;" file="em_lm1.dwg" block_id="0" layer="LG_PBB">
+        <offset id="1" offset_x="0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PBB">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=2)).id" />
+          <offset id="1" offset_x="0.3" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="PBB" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.03&quot;" file="em_lm1.dwg" block_id="0" layer="LG_SLC">
+        <offset id="1" offset_x="0.6" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_SLC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC_id" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;ECL&quot;;index=3)).id" />
+          <offset id="1" offset_x="0.6" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="SLC" />
+      </cadsymbol>
+      <cadsymbol id="=parent.id&amp;&quot;.04&quot;" file="em_pec_refl.dwg" block_id="0" layer="LG_PEC">
+        <offset id="1" offset_x="-0.3" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="LG_TEXT_PEC">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).CA_ID_Element &amp;&quot; id&quot;" text="=parent(integration_level=&quot;object&quot;).child(AND(mark_code=&quot;PEC&quot;;function_abbreviation=&quot;HGHT&quot;)).id" />
+          <offset id="1" offset_x="-0.3" offset_y="=(CA_GLP_SectionWidth/2+0.8)*CA_GLP_MotorAlign" offset_z="0" angle="90" />
+        </labels>
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - PBB01" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    function=&quot;01&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;CIZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - PBB02" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    function=&quot;02&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;CIZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - LCC01" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;01&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;CIZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - LCC02" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;02&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;CIZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - LCC03" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;03&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;CIZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="CIZ - skip sections" key="=mark_code=&quot;CIZ&quot;" debug="no" skip_sections="true" />
+    <mapping id="MLZ - PBB64" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    function=&quot;64&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;MLZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="MLZ - PCB01" key="=AND(&#xD;&#xA;    mark_code=&quot;PCB&quot;;&#xD;&#xA;    function=&quot;01&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;MLZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="MLZ - SLC02" key="=AND(&#xD;&#xA;    mark_code=&quot;SLC&quot;;&#xD;&#xA;    function=&quot;02&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;MLZ&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=CA_GLP_SectionLength / 2 + 0.3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="MVD - LCC65" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;65&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;MVD&quot;&#xD;&#xA;)" debug="no" skip_sections="true" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;04&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length*0.9;&quot;0.9&quot;)" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LCC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="SVD - LCC65" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;65&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;SVD&quot;&#xD;&#xA;)" debug="no" skip_sections="true" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;02&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length*0.1;&quot;0.1&quot;)" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LCC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="OPZ - SLC" key="=AND(&#xD;&#xA;    mark_code=&quot;SLC&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;OPZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;49&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;50&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.1" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="SLC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="OPZ - OPS" key="=AND(&#xD;&#xA;    mark_code=&quot;OPS&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;OPZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;50&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.4" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="OPS id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="OPZ - PBB" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;OPZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;49&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;50&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 0.7" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="PBB id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="OPZ - BSO" key="=AND(&#xD;&#xA;    mark_code=&quot;BSO&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;OPZ&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).function&lt;&gt;&quot;50&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IFERROR &#xD;&#xA;	(IFERROR ( parent(integration_level=&quot;area&quot;).next(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).length ;&#xD;&#xA;		parent(integration_level=&quot;section&quot;).length) ; &#xD;&#xA;&quot;0&quot;) / 8 + 1" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4;&#xD;&#xA;	((.CA_GLP_SectionWidth + CA_GLP_CFG_LMSSize)+0.4) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="BSO id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="VDZ - LCC12" key="=AND(&#xD;&#xA;    mark_code=&quot;LCC&quot;;&#xD;&#xA;    function=&quot;12&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;VDZ&quot;&#xD;&#xA;)" debug="no" skip_sections="true" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;03&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=parent(integration_level=&quot;zone&quot;).child(id=.parent.parent.conv_id).child(element_name=&quot;block&quot;).length / 3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.parent(integration_level=&quot;zone&quot;).child(id=.parent.parent.conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.parent(integration_level=&quot;zone&quot;).child(id=.parent.parent.conv_id).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LCC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="VDZ - PBB" key="=AND(&#xD;&#xA;    mark_code=&quot;PBB&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;VDZ&quot;&#xD;&#xA;)" debug="no" skip_sections="true" conv_id="=IF(CA_ID_Section=&quot;98&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;02&quot;).id;&#xD;&#xA;    	parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;04&quot;).id)">
+      <block id="0" shape="straight" width="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).width" x1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x1" y1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y1" z1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z1" angle1="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle1" x2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).x2" y2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).y2" z2="=parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).z2" angle2="=IFERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;object&quot;).conv_id).child(element_name=&quot;block&quot;).angle2;&#xD;&#xA;&quot;0&quot;&#xD;&#xA;)" />
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_lm1.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).length / 3" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="LCC id" text="=parent(element_name=&quot;isc&quot;).child(mark_code=&quot;ECL&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent.parent.mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="VDZ - SWS - skip children" key="=AND(&#xD;&#xA;    mark_code=&quot;SWS&quot;;&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;VDZ&quot;&#xD;&#xA;)" debug="no" skip_children="true" />
+    <mapping id="VDZ - BF - skip children" key="=AND(&#xD;&#xA;    mark_code=&quot;BF&quot;;OR(function=&quot;19&quot;;function=&quot;29&quot;);&#xD;&#xA;    parent(integration_level=&quot;zone&quot;).mark_code=&quot;VDZ&quot;&#xD;&#xA;)" debug="no" skip_children="true" />
+    <mapping id="VSB - LS" key="=AND(&#xD;&#xA;    mark_code=&quot;LS&quot;;&#xD;&#xA;    parent(integration_level=&quot;section&quot;).mark_code=&quot;VSB&quot;&#xD;&#xA;)" debug="no" skip_children="true">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_ls.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IF(parent(element_name=&quot;isc&quot;).child(element_name=&quot;symbol&quot;).address_offset=&quot;0.2&quot;;&quot;-0.2&quot;;&#xD;&#xA;IF(parent(element_name=&quot;isc&quot;).child(element_name=&quot;symbol&quot;).address_offset=&quot;0.3&quot;;&quot;0.2&quot;;&quot;0&quot;))" offset_y="=IF(&#xD;&#xA;	ISERROR(CA_GLP_MotorAlign);&#xD;&#xA;	(.parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2;&#xD;&#xA;	((.parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).width + CA_GLP_CFG_LMSSize) / 2 ) * CA_GLP_MotorAlign&#xD;&#xA;)" offset_z="0" angle="90" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;LS &quot; &amp; parent(element_name=&quot;isc&quot;).CA_ID_Element &amp;&quot; id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=IF(CA_GLP_CADOffsetY&gt;0;CA_GLP_CADOffsetY+0.5;CA_GLP_CADOffsetY-0.5)" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent(element_name=&quot;isc&quot;).mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="VSB - PEC" key="=AND(&#xD;&#xA;    mark_code=&quot;PEC&quot;;&#xD;&#xA;    parent(integration_level=&quot;section&quot;).mark_code=&quot;VSB&quot;&#xD;&#xA;)" debug="no" conv_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;02&quot;).id">
+      <cadsymbol id="=parent.id&amp;&quot;.01&quot;" file="em_pec_refl.dwg" block_id="0" layer="=&quot;LG_&quot;&amp;parent.mark_code">
+        <offset id="1" offset_x="=IF(parent(element_name=&quot;isc&quot;).child(element_name=&quot;symbol&quot;).address_offset=&quot;0.0&quot;;&quot;0.3&quot;;&#xD;&#xA;IF(parent(element_name=&quot;isc&quot;).child(element_name=&quot;symbol&quot;).address_offset=&quot;0.1&quot;;&quot;0.6&quot;;&#xD;&#xA;IF(parent(element_name=&quot;isc&quot;).child(element_name=&quot;symbol&quot;).address_offset=&quot;0.2&quot;;&quot;0.9&quot;;&quot;0&quot;&#xD;&#xA;)))" offset_y="0" offset_z="0" angle="=IF(&#xD;&#xA;    ISERROR(CA_GLP_MotorPosition=&quot;L&quot;);&#xD;&#xA;    0;&#xD;&#xA;    IF(&#xD;&#xA;        CA_GLP_MotorPosition= &quot;L&quot;;&#xD;&#xA;        180;&#xD;&#xA;        0&#xD;&#xA;    )&#xD;&#xA;)" />
+        <labels id="1" align="=CA_GLP_LabelAlign" layer="=&quot;LG_TEXT_&quot;&amp;parent.parent.mark_code">
+          <label id="=parent.parent.id&amp;&quot;.L01&quot;" name="=&quot;PEC &quot; &amp; parent(element_name=&quot;isc&quot;).CA_ID_Element &amp;&quot; id&quot;" text="=parent(element_name=&quot;isc&quot;).id" />
+          <offset id="1" offset_x="=CA_GLP_CADOffsetX" offset_y="=parent(integration_level=&quot;zone&quot;).child(mark_code=&quot;BF&quot;).child(element_name=&quot;block&quot;).width*CA_GLP_MotorAlign" offset_z="=CA_GLP_CADOffsetZ" angle="90" />
+        </labels>
+        <cadsymboltag id="=parent.id&amp;&quot;.01&quot;" name="NAME" text="=parent(element_name=&quot;isc&quot;).mark_code" />
+      </cadsymbol>
+    </mapping>
+    <mapping id="SVC - BF - skip children" key="=AND(&#xD;&#xA;    mark_code=&quot;BF&quot;;OR(function=&quot;10&quot;;function=&quot;12&quot;);&#xD;&#xA;    parent(integration_level=&quot;area&quot;).mark_code=&quot;SVC&quot;&#xD;&#xA;)" debug="no" skip_children="true" />
+    <mapping id="skip section" key="=AND(element_name=&quot;isc&quot;;AND(integration_level=&quot;section&quot;;parent.skip_sections=&quot;true&quot;))" debug="no" skip_children="true" />
+    <mapping id="skip object" key="=AND(element_name=&quot;isc&quot;;AND(integration_level=&quot;object&quot;;parent.skip_object=&quot;true&quot;))" debug="no" skip_children="true" />
+  </mapping>
+</mappings>

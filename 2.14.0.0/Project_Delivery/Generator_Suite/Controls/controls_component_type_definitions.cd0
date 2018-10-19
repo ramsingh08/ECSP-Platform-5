@@ -1,0 +1,988 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<mappings vi_bhs_platform_version="5" project_id="VI_BHS_Platform" iec_version="24" cd0_version_GEN="54" cd0_version_RAW="38" cd0_version_SAFE="2" file_version="%version: 17 %" file_date="%date_created: Friday, September 21, 2018 9:02:51 AM %">
+  <mapping id="Add 'cd0_version'" key="=element_name=&quot;project_definition&quot;" debug="no" cd0_version="=SUBSTITUTE(MID(&quot;%version: 54 %&quot;;11;LEN(&quot;%version: 54 %&quot;)-11);&quot; &quot;;&quot;&quot;)" iec_version="=CA_iec_version" />
+  <mapping id="GEN" key="=TRUE" debug="no">
+    <mapping id="Areas" key="=TRUE" debug="no">
+      <mapping id="Add Subnet Mask" key="=AND(element_name=&quot;addressing&quot;;NOT(ISERROR(ip_address));NOT(ISERROR(FIND(&quot;/&quot;;ip_address))))" debug="no" subnet_mask="=CA_IP_SubnetMask" />
+    </mapping>
+    <mapping id="Cif" key="=TRUE" debug="no">
+      <mapping id="Add Mnemonic to cif. Indicate partner MCFV." key="=AND(element_name=&quot;cif&quot;;NOT(ISERROR(global_find(id=.isc_id).id)))" debug="no">
+        <mnemonic id="MCFV" value="=IF(element_name=&quot;mnemonic&quot;&#xD;&#xA;    ;global_find(id=.parent.isc_id).CA_MCFV&#xD;&#xA;    ;global_find(id=.isc_id).CA_MCFV&#xD;&#xA;)" comment="Mark Code Function Variant of linked cif" />
+      </mapping>
+    </mapping>
+    <mapping id="Elements" key="=TRUE" debug="no">
+      <mapping id="ACM01" key="=AND(mark_code=&quot;ACM&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="APU01" key="=AND(mark_code=&quot;APU&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="ASI01" key="=AND(mark_code=&quot;ASI&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="ASI02" key="=AND(mark_code=&quot;ASI&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="BP01" key="=AND(mark_code=&quot;BP&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="CB01" key="=AND(mark_code=&quot;CB&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="CON01" key="=AND(mark_code=&quot;CON&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="CON02" key="=AND(mark_code=&quot;CON&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="CON03" key="=AND(mark_code=&quot;CON&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="ECL01" key="=AND(mark_code=&quot;ECL&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="EIF01" key="=AND(mark_code=&quot;EIF&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="EIF02" key="=AND(mark_code=&quot;EIF&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="EIF03" key="=AND(mark_code=&quot;EIF&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="EIF04" key="=AND(mark_code=&quot;EIF&quot;;function=&quot;04&quot;)" debug="no" />
+      <mapping id="ENC01" key="=AND(mark_code=&quot;ENC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="FBM01" key="=AND(mark_code=&quot;FBM&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="FBM02" key="=AND(mark_code=&quot;FBM&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="FBM03" key="=AND(mark_code=&quot;FBM&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="FBM04" key="=AND(mark_code=&quot;FBM&quot;;function=&quot;04&quot;)" debug="no" />
+      <mapping id="FBM05" key="=AND(mark_code=&quot;FBM&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="FMC01" key="=AND(mark_code=&quot;FMC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="GS01" key="=AND(mark_code=&quot;GS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="GS02" key="=AND(mark_code=&quot;GS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="IBC01" key="=AND(mark_code=&quot;IBC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="IDR01" key="=AND(mark_code=&quot;IDR&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="IPB01" key="=AND(mark_code=&quot;IPB&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="IS01" key="=AND(mark_code=&quot;IS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="IS02" key="=AND(mark_code=&quot;IS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="KS01" key="=AND(mark_code=&quot;KS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="KS02" key="=AND(mark_code=&quot;KS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="LMS01" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="LMS02" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="LMS03" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="LMS05" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="LMS06" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;06&quot;)" debug="no" />
+      <mapping id="LMS07" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;07&quot;)" debug="no" />
+      <mapping id="LMS10" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;10&quot;)" debug="no" />
+      <mapping id="LMS11" key="=AND(mark_code=&quot;LMS&quot;;function=&quot;11&quot;)" debug="no" />
+      <mapping id="LS01" key="=AND(mark_code=&quot;LS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="LS02" key="=AND(mark_code=&quot;LS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="LSC01" key="=AND(mark_code=&quot;LSC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="MTR01" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="MTR02" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="MTR03" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="MTR05" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="MTR07" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;07&quot;)" debug="no" />
+      <mapping id="MTR08" key="=AND(mark_code=&quot;MTR&quot;;function=&quot;08&quot;)" debug="no" />
+      <mapping id="OP01" key="=AND(mark_code=&quot;OP&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PB01" key="=AND(mark_code=&quot;PB&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PEC01" key="=AND(mark_code=&quot;PEC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PEC02" key="=AND(mark_code=&quot;PEC&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="PEC03" key="=AND(mark_code=&quot;PEC&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="PEC04" key="=AND(mark_code=&quot;PEC&quot;;function=&quot;04&quot;)" debug="no" />
+      <mapping id="PEC05" key="=AND(mark_code=&quot;PEC&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="PPI01" key="=AND(mark_code=&quot;PPI&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PPI02" key="=AND(mark_code=&quot;PPI&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="PPI03" key="=AND(mark_code=&quot;PPI&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="PS01" key="=AND(mark_code=&quot;PS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PSU01" key="=AND(mark_code=&quot;PSU&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="SL01" key="=AND(mark_code=&quot;SL&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="SL02" key="=AND(mark_code=&quot;SL&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="SL03" key="=AND(mark_code=&quot;SL&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="SL04" key="=AND(mark_code=&quot;SL&quot;;function=&quot;04&quot;)" debug="no" />
+      <mapping id="SL05" key="=AND(mark_code=&quot;SL&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="SMC01" key="=AND(mark_code=&quot;SMC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="SS01" key="=AND(mark_code=&quot;SS&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="SS02" key="=AND(mark_code=&quot;SS&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="WCD01" key="=AND(mark_code=&quot;WCD&quot;;function=&quot;01&quot;)" debug="no" />
+    </mapping>
+    <mapping id="Objects" key="=TRUE" debug="no">
+      <mapping id="BSO01" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO02" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO03" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO11" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;11&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO12" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;12&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO13" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;13&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO22" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;22&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO23" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;23&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO32" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;32&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO33" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;33&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO40" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;40&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="BSO41" key="=AND(mark_code=&quot;BSO&quot;;function=&quot;41&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="BSO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="CCC01" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;01&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).id);&#xD;&#xA;	1;&#xD;&#xA;	prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).index +1)" />
+      <mapping id="CCC02" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;02&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).id);&#xD;&#xA;	1;&#xD;&#xA;	prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).index +1)" />
+      <mapping id="CCC03" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;03&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).id);&#xD;&#xA;	1;&#xD;&#xA;	prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).index +1)" />
+      <mapping id="CCC05" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="CCC07" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;07&quot;)" debug="no" />
+      <mapping id="CCC08" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;08&quot;)" debug="no" />
+      <mapping id="CCC09" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;09&quot;)" debug="no" />
+      <mapping id="CCC16" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;16&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).id);&#xD;&#xA;	1;&#xD;&#xA;	prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).index +1)" />
+      <mapping id="CCC17" key="=AND(mark_code=&quot;CCC&quot;;function=&quot;17&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).id);&#xD;&#xA;	1;&#xD;&#xA;	prev(AND(mark_code=&quot;CCC&quot;;OR(function=&quot;01&quot;;function=&quot;02&quot;;function=&quot;03&quot;;function=&quot;16&quot;;function=&quot;17&quot;))).index +1)" />
+      <mapping id="CIO01" key="=AND(mark_code=&quot;CIO&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="CIO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HBO01" key="=AND(mark_code=&quot;HBO&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HBO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HBO10" key="=AND(mark_code=&quot;HBO&quot;;function=&quot;10&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HBO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HBO20" key="=AND(mark_code=&quot;HBO&quot;;function=&quot;20&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HBO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HOO01" key="=AND(mark_code=&quot;HOO&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HOO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HOO02" key="=AND(mark_code=&quot;HOO&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HOO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HOO03" key="=AND(mark_code=&quot;HOO&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HOO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="HOO04" key="=AND(mark_code=&quot;HOO&quot;;function=&quot;04&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="HOO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="LCC01" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="LCC02" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="LCC03" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="LCC05" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;05&quot;)" debug="no" />
+      <mapping id="LCC06" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;06&quot;)" debug="no" />
+      <mapping id="LCC10" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;10&quot;)" debug="no" />
+      <mapping id="LCC11" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;11&quot;)" debug="no" />
+      <mapping id="LCC12" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;12&quot;)" debug="no" />
+      <mapping id="LCC15" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;15&quot;)" debug="no" />
+      <mapping id="LCC16" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;16&quot;)" debug="no" />
+      <mapping id="LCC17" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;17&quot;)" debug="no" />
+      <mapping id="LCC18" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;18&quot;)" debug="no" />
+      <mapping id="LCC20" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;20&quot;)" debug="no" />
+      <mapping id="LCC21" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;21&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;LCC&quot;;function=&quot;21&quot;)).id);&#xA;	1;&#xA;	prev(AND(mark_code=&quot;LCC&quot;;function=&quot;21&quot;)).index +1)" />
+      <mapping id="LCC22" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;22&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;LCC&quot;;function=&quot;22&quot;)).id);&#xA;	1;&#xA;	prev(AND(mark_code=&quot;LCC&quot;;function=&quot;22&quot;)).index +1)" />
+      <mapping id="LCC23" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;23&quot;)" debug="no" index="=IF(ISERROR(prev(AND(mark_code=&quot;LCC&quot;;function=&quot;23&quot;)).id);&#xA;	1;&#xA;	prev(AND(mark_code=&quot;LCC&quot;;function=&quot;23&quot;)).index +1)" />
+      <mapping id="LCC24" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;24&quot;)" debug="no" />
+      <mapping id="LCC29" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;29&quot;)" debug="no" />
+      <mapping id="LCC33" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;33&quot;)" debug="no" />
+      <mapping id="LCC34" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;34&quot;)" debug="no" />
+      <mapping id="LCC35" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;35&quot;)" debug="no" />
+      <mapping id="LCC36" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;36&quot;)" debug="no" />
+      <mapping id="LCC40" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;40&quot;)" debug="no" />
+      <mapping id="LCC65" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;65&quot;)" debug="no" />
+      <mapping id="LCC68" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;68&quot;)" debug="no" />
+      <mapping id="LCC69" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;69&quot;)" debug="no" />
+      <mapping id="LCC80" key="=AND(mark_code=&quot;LCC&quot;;function=&quot;80&quot;)" debug="no" />
+      <mapping id="OPS01" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="OPS02" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="OPS03" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="OPS04" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;04&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="OPS05" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;05&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="OPS06" key="=AND(mark_code=&quot;OPS&quot;;function=&quot;06&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="OPS" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="PBB01" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="PBB02" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="PBB03" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;03&quot;)" debug="no" />
+      <mapping id="PBB04" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;04&quot;)" debug="no" />
+      <mapping id="PBB09" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;09&quot;)" debug="no" />
+      <mapping id="PBB10" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;10&quot;)" debug="no" />
+      <mapping id="PBB11" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;11&quot;)" debug="no" />
+      <mapping id="PBB12" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;12&quot;)" debug="no" />
+      <mapping id="PBB14" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;14&quot;)" debug="no" />
+      <mapping id="PBB15" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;15&quot;)" debug="no" />
+      <mapping id="PBB16" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;16&quot;)" debug="no" />
+      <mapping id="PBB17" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;17&quot;)" debug="no" />
+      <mapping id="PBB18" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;18&quot;)" debug="no" />
+      <mapping id="PBB19" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;19&quot;)" debug="no" />
+      <mapping id="PBB20" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;20&quot;)" debug="no" />
+      <mapping id="PBB21" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;21&quot;)" debug="no" />
+      <mapping id="PBB22" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;22&quot;)" debug="no" />
+      <mapping id="PBB23" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;23&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="PBB" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="PBB24" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;24&quot;)" debug="no" />
+      <mapping id="PBB25" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;25&quot;)" debug="no" />
+      <mapping id="PBB26" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;26&quot;)" debug="no" />
+      <mapping id="PBB48" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;48&quot;)" debug="no" />
+      <mapping id="PBB49" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;49&quot;)" debug="no" />
+      <mapping id="PBB64" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;64&quot;)" debug="no" />
+      <mapping id="PBB80" key="=AND(mark_code=&quot;PBB&quot;;function=&quot;80&quot;)" debug="no" />
+      <mapping id="SHO01" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO02" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO03" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO04" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;04&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO05" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;05&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO06" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;06&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO07" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;07&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO08" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;08&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO09" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;09&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO15" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;15&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SHO16" key="=AND(mark_code=&quot;SHO&quot;;function=&quot;16&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SHO" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;HW&quot; &amp; function" mark_code="SW_HW" function="01" function_description="Equipment Layer - Basic" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SLC01" key="=AND(mark_code=&quot;SLC&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SLC" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SLC02" key="=AND(mark_code=&quot;SLC&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="SLC21" key="=AND(mark_code=&quot;SLC&quot;;function=&quot;21&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SLC" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="SSM01" key="=AND(mark_code=&quot;SSM&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="WE01" key="=AND(mark_code=&quot;WE&quot;;function=&quot;01&quot;)" debug="no" />
+      <mapping id="WE02" key="=AND(mark_code=&quot;WE&quot;;function=&quot;02&quot;)" debug="no" />
+      <mapping id="WE03" key="=AND(mark_code=&quot;WE&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="WE" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+      <mapping id="WE04" key="=AND(mark_code=&quot;WE&quot;;function=&quot;04&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="WE" integration_level="software" family="GEN" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="GEN" />
+      </mapping>
+    </mapping>
+    <mapping id="Sections" key="=TRUE" debug="no" />
+    <mapping id="Software" key="=TRUE" debug="no">
+      <mapping id="SW_EQP" key="=AND(mark_code=&quot;SW_EQP&quot;;function=&quot;01&quot;;OR(function_abbreviation=&quot;TRS&quot;;function_abbreviation=&quot;HOO&quot;))" debug="no">
+        <parameter id="i_Minimum_Gap" comment="[cm] Minimum gap length between products (0 = no gap control)" />
+        <parameter id="i_Add_Gap_Stop" comment="[cm] Additional gap after stop of upstream conveyor" />
+        <parameter id="i_Minimum_H2H" comment="[cm] Minimum head to head length (0 = no head to head control)" />
+        <parameter id="i_Add_H2H_Stop" comment="[cm] Additional head to head length after stop of upstream conveyor" />
+      </mapping>
+      <mapping id="SW_TRK" key="=AND(mark_code=&quot;SW_TRK&quot;;function=&quot;01&quot;)" debug="no">
+        <parameter id="i_Length_Dif_Accepted" comment="CFG: [cm] Max allowed length variation (0 = no action)" />
+      </mapping>
+    </mapping>
+    <mapping id="Zones" key="=TRUE" debug="no">
+      <mapping id="Add DTD elements addressing" key="=AND(integration_level=&quot;zone&quot;;NOT(family=&quot;SAFE&quot;))" debug="no">
+        <mapping id="addressing - ASi" key="=NOT(ISERROR(.child_find(AND(element_name=&quot;addressing&quot;;id=&quot;ASi&quot;;parent.integration_level=&quot;section&quot;)).id))" debug="no">
+          <addressing id="ASi" lcc_id="=IFERROR(.parent(integration_level=&quot;zone&quot;).child_find(AND(element_name=&quot;addressing&quot;;id=&quot;ASi&quot;)).parent.CA_ASI_lcc_id;&#xD;&#xA;	&quot;#ERROR: No &lt;addressing&gt; mapping in this zone found with 'lcc_id' information&quot; &amp; id)" asi_channel="=IFERROR(.parent(integration_level=&quot;zone&quot;).child_find(AND(element_name=&quot;addressing&quot;;id=&quot;ASi&quot;)).asi_channel;&#xD;&#xA;	&quot;#ERROR: No addressing mapping in this zone found with 'asi_channel' information&quot;)" profinet_io_system_id="=IFERROR(.parent(integration_level=&quot;zone&quot;).child_find(AND(element_name=&quot;addressing&quot;;id=&quot;ASi&quot;)).profinet_io_system_id;&#xD;&#xA;	&quot;#ERROR: No addressing mapping in this zone found with 'profinet_io_system_id' information&quot;)" />
+        </mapping>
+        <mapping id="addressing - 0" key="=AND(&#xD;&#xA;    ISERROR(.child_find(AND(element_name=&quot;addressing&quot;;id=&quot;ASi&quot;;parent.integration_level=&quot;section&quot;)).id);&#xD;&#xA;    NOT(ISERROR(.child_find(AND(element_name=&quot;addressing&quot;;asi_channel)).id))&#xD;&#xA;)" debug="no">
+          <addressing id="0" lcc_id="=IF(NOT(ISERROR(.parent(integration_level=&quot;zone&quot;).child(integration_level=&quot;section&quot;).CA_ASI_lcc_id));&#xD;&#xA;	.parent(integration_level=&quot;zone&quot;).child(integration_level=&quot;section&quot;).CA_ASI_lcc_id;&#xD;&#xA;	&quot;#ERROR: No &lt;addressing&gt; mapping in this zone found with 'lcc_id' information&quot; &amp; id)" asi_channel="=IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;addressing&quot;).asi_channel)))).child(element_name=&quot;addressing&quot;).asi_channel));&#xD;&#xA;	parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;addressing&quot;).asi_channel)))).child(element_name=&quot;addressing&quot;).asi_channel;&#xD;&#xA;	IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;zone&quot;).lcc_id).mark_code));&#xD;&#xA;		IF(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;zone&quot;).lcc_id).mark_code=&quot;LCC&quot;; /* Check if zone has a zone cabinet present */&#xD;&#xA;			&quot;&quot;; /* Zone cabinet doesn't have an 'asi_channel' */&#xD;&#xA;			&quot;#ERROR: Check configuration of lcc_id&quot;);&#xD;&#xA;		&quot;#ERROR: No addressing mapping in this zone found with 'asi_channel' information&quot;))" profinet_io_system_id="=IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;addressing&quot;).profinet_io_system_id)))).child(element_name=&quot;addressing&quot;).profinet_io_system_id));&#xA;	parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;addressing&quot;).profinet_io_system_id)))).child(element_name=&quot;addressing&quot;).profinet_io_system_id;&#xA;	IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;zone&quot;).lcc_id).mark_code));&#xA;		IF(parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;zone&quot;).lcc_id).mark_code=&quot;LCC&quot;; /* Check if zone has a zone cabinet present */&#xA;			parent(integration_level=&quot;zone&quot;).child(id=.parent(integration_level=&quot;zone&quot;).lcc_id).child(element_name=&quot;addressing&quot;).profinet_io_system_id; &#xA;			&quot;#ERROR: Check configuration of lcc_id&quot;);&#xA;		&quot;#ERROR: No addressing mapping in this zone found with 'profinet_io_system_id' information&quot;))" />
+        </mapping>
+      </mapping>
+      <mapping id="Add DTD elements controls" key="=AND(integration_level=&quot;zone&quot;;NOT(family=&quot;SAFE&quot;))" debug="no">
+        <controls id="0" start_stop_group="=IFERROR(parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;controls&quot;).start_stop_group)))).child(element_name=&quot;controls&quot;).start_stop_group;&#xD;&#xA;	&quot;#ERROR: No controls mapping in this zone found with 'start_stop_group' information&quot;)" />
+        <mapping id="add default_record if available" key="=NOT(ISERROR(.child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;controls&quot;).default_record)))).child(element_name=&quot;controls&quot;).default_record))" debug="no">
+          <controls id="0" default_record="=parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;controls&quot;).default_record)))).child(element_name=&quot;controls&quot;).default_record&#xD;&#xA;" />
+        </mapping>
+      </mapping>
+      <mapping id="Add DTD elements electrics" key="=AND(integration_level=&quot;zone&quot;;NOT(family=&quot;SAFE&quot;))" debug="no">
+        <electrics id="0" power_group="=IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;electrics&quot;).power_group)))).child(element_name=&quot;electrics&quot;).power_group));&#xA;	parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;electrics&quot;).power_group)))).child(element_name=&quot;electrics&quot;).power_group;&#xA;	&quot;#ERROR: No electrics mapping in this zone found with 'power_group' information&quot;)" power_group_ccc_id="=IF(NOT(ISERROR(parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;electrics&quot;).power_group_ccc_id)))).child(element_name=&quot;electrics&quot;).power_group_ccc_id));&#xA;	parent(integration_level=&quot;zone&quot;).child(AND(integration_level=&quot;section&quot;;NOT(ISERROR(child(element_name=&quot;electrics&quot;).power_group_ccc_id)))).child(element_name=&quot;electrics&quot;).power_group_ccc_id;&#xA;	&quot;#ERROR: No electrics mapping in this zone found with 'power_group_ccc_id' information&quot;)" />
+      </mapping>
+    </mapping>
+  </mapping>
+  <mapping id="PRJ_GEN" key="=TRUE" debug="no">
+    <mapping id="Areas" key="=TRUE" debug="no" />
+    <mapping id="Elements" key="=TRUE" debug="no" />
+    <mapping id="Objects" key="=TRUE" debug="no" />
+    <mapping id="Sections" key="=TRUE" debug="no" />
+    <mapping id="Zones" key="=TRUE" debug="no" />
+  </mapping>
+  <mapping id="RAW" key="=OR(family=&quot;RAW&quot;;family=&quot;GEN&quot;) /* Family 'GEN' is addition required for all elements generation */" debug="no">
+    <mapping id="Objects RAW" key="=TRUE" debug="no">
+      <mapping id="CHO10" key="=AND(mark_code=&quot;CHO&quot;;function=&quot;10&quot;)" debug="no" integration_level="object" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="CHO" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CHO20" key="=AND(mark_code=&quot;CHO&quot;;function=&quot;20&quot;)" debug="no" integration_level="object" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="CHO" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+    </mapping>
+    <mapping id="Sections RAW" key="=TRUE" debug="no">
+      <mapping id="BC01" key="=AND(mark_code=&quot;BC&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC02" key="=AND(mark_code=&quot;BC&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC05" key="=AND(mark_code=&quot;BC&quot;;function=&quot;05&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC06" key="=AND(mark_code=&quot;BC&quot;;function=&quot;06&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC08" key="=AND(mark_code=&quot;BC&quot;;function=&quot;08&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC16" key="=AND(mark_code=&quot;BC&quot;;function=&quot;16&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC17" key="=AND(mark_code=&quot;BC&quot;;function=&quot;17&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC22" key="=AND(mark_code=&quot;BC&quot;;function=&quot;22&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BC23" key="=AND(mark_code=&quot;BC&quot;;function=&quot;23&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF01" key="=AND(mark_code=&quot;BF&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF02" key="=AND(mark_code=&quot;BF&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF03" key="=AND(mark_code=&quot;BF&quot;;function=&quot;03&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF04" key="=AND(mark_code=&quot;BF&quot;;function=&quot;04&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF05" key="=AND(mark_code=&quot;BF&quot;;function=&quot;05&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF06" key="=AND(mark_code=&quot;BF&quot;;function=&quot;06&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF07" key="=AND(mark_code=&quot;BF&quot;;function=&quot;07&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF08" key="=AND(mark_code=&quot;BF&quot;;function=&quot;08&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF09" key="=AND(mark_code=&quot;BF&quot;;function=&quot;09&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF10" key="=AND(mark_code=&quot;BF&quot;;function=&quot;10&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF11" key="=AND(mark_code=&quot;BF&quot;;function=&quot;11&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF12" key="=AND(mark_code=&quot;BF&quot;;function=&quot;12&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF13" key="=AND(mark_code=&quot;BF&quot;;function=&quot;13&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF15" key="=AND(mark_code=&quot;BF&quot;;function=&quot;15&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF16" key="=AND(mark_code=&quot;BF&quot;;function=&quot;16&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF17" key="=AND(mark_code=&quot;BF&quot;;function=&quot;17&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF18" key="=AND(mark_code=&quot;BF&quot;;function=&quot;18&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF19" key="=AND(mark_code=&quot;BF&quot;;function=&quot;19&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF20" key="=AND(mark_code=&quot;BF&quot;;function=&quot;20&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF21" key="=AND(mark_code=&quot;BF&quot;;function=&quot;21&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF22" key="=AND(mark_code=&quot;BF&quot;;function=&quot;22&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF23" key="=AND(mark_code=&quot;BF&quot;;function=&quot;23&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF25" key="=AND(mark_code=&quot;BF&quot;;function=&quot;25&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF26" key="=AND(mark_code=&quot;BF&quot;;function=&quot;26&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF27" key="=AND(mark_code=&quot;BF&quot;;function=&quot;27&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF28" key="=AND(mark_code=&quot;BF&quot;;function=&quot;28&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF29" key="=AND(mark_code=&quot;BF&quot;;function=&quot;29&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF30" key="=AND(mark_code=&quot;BF&quot;;function=&quot;30&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF64" key="=AND(mark_code=&quot;BF&quot;;function=&quot;64&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF65" key="=AND(mark_code=&quot;BF&quot;;function=&quot;65&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF66" key="=AND(mark_code=&quot;BF&quot;;function=&quot;66&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF67" key="=AND(mark_code=&quot;BF&quot;;function=&quot;67&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF68" key="=AND(mark_code=&quot;BF&quot;;function=&quot;68&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF69" key="=AND(mark_code=&quot;BF&quot;;function=&quot;69&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BF70" key="=AND(mark_code=&quot;BF&quot;;function=&quot;70&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ01" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ02" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ05" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;05&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ08" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;08&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ71" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;71&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BJ72" key="=AND(mark_code=&quot;BJ&quot;;function=&quot;72&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CH01" key="=AND(mark_code=&quot;CH&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI01" key="=AND(mark_code=&quot;CI&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI03" key="=AND(mark_code=&quot;CI&quot;;function=&quot;03&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI04" key="=AND(mark_code=&quot;CI&quot;;function=&quot;04&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI05" key="=AND(mark_code=&quot;CI&quot;;function=&quot;05&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI06" key="=AND(mark_code=&quot;CI&quot;;function=&quot;06&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI09" key="=AND(mark_code=&quot;CI&quot;;function=&quot;09&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;TRK&quot;&amp; function" mark_code="SW_TRK" function="01" function_description="Tracking Layer" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI10" key="=AND(mark_code=&quot;CI&quot;;function=&quot;10&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="CI11" key="=AND(mark_code=&quot;CI&quot;;function=&quot;11&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="GR01" key="=AND(mark_code=&quot;GR&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="GR" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="GR02" key="=AND(mark_code=&quot;GR&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="GR" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="HBS10" key="=AND(mark_code=&quot;HBS&quot;;function=&quot;10&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="HBS14" key="=AND(mark_code=&quot;HBS&quot;;function=&quot;14&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="HBS20" key="=AND(mark_code=&quot;HBS&quot;;function=&quot;20&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SWS01" key="=AND(mark_code=&quot;SWS&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SWS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SWS03" key="=AND(mark_code=&quot;SWS&quot;;function=&quot;03&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SWS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SWS04" key="=AND(mark_code=&quot;SWS&quot;;function=&quot;04&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SWS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SWS05" key="=AND(mark_code=&quot;SWS&quot;;function=&quot;05&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SWS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SWS06" key="=AND(mark_code=&quot;SWS&quot;;function=&quot;06&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="SWS" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF01" key="=AND(mark_code=&quot;TF&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF02" key="=AND(mark_code=&quot;TF&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF03" key="=AND(mark_code=&quot;TF&quot;;function=&quot;03&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF04" key="=AND(mark_code=&quot;TF&quot;;function=&quot;04&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF12" key="=AND(mark_code=&quot;TF&quot;;function=&quot;12&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF13" key="=AND(mark_code=&quot;TF&quot;;function=&quot;13&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF14" key="=AND(mark_code=&quot;TF&quot;;function=&quot;14&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF21" key="=AND(mark_code=&quot;TF&quot;;function=&quot;21&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF22" key="=AND(mark_code=&quot;TF&quot;;function=&quot;22&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF23" key="=AND(mark_code=&quot;TF&quot;;function=&quot;23&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF24" key="=AND(mark_code=&quot;TF&quot;;function=&quot;24&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF32" key="=AND(mark_code=&quot;TF&quot;;function=&quot;32&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF33" key="=AND(mark_code=&quot;TF&quot;;function=&quot;33&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TF34" key="=AND(mark_code=&quot;TF&quot;;function=&quot;34&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT01" key="=AND(mark_code=&quot;TT&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT02" key="=AND(mark_code=&quot;TT&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT03" key="=AND(mark_code=&quot;TT&quot;;function=&quot;03&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT04" key="=AND(mark_code=&quot;TT&quot;;function=&quot;04&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT12" key="=AND(mark_code=&quot;TT&quot;;function=&quot;12&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT13" key="=AND(mark_code=&quot;TT&quot;;function=&quot;13&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT14" key="=AND(mark_code=&quot;TT&quot;;function=&quot;14&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT21" key="=AND(mark_code=&quot;TT&quot;;function=&quot;21&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT22" key="=AND(mark_code=&quot;TT&quot;;function=&quot;22&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT23" key="=AND(mark_code=&quot;TT&quot;;function=&quot;23&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT24" key="=AND(mark_code=&quot;TT&quot;;function=&quot;24&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT32" key="=AND(mark_code=&quot;TT&quot;;function=&quot;32&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT33" key="=AND(mark_code=&quot;TT&quot;;function=&quot;33&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="TT34" key="=AND(mark_code=&quot;TT&quot;;function=&quot;34&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VB01" key="=AND(mark_code=&quot;VB&quot;;function=&quot;01&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="VB" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VCC76" key="=AND(mark_code=&quot;VCC&quot;;function=&quot;76&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VCC77" key="=AND(mark_code=&quot;VCC&quot;;function=&quot;77&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="TRS" integration_level="software" family="RAW" />
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DAT&quot;&amp; function" mark_code="SW_DAT" function="01" function_description="Data Layer" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VSB02" key="=AND(mark_code=&quot;VSB&quot;;function=&quot;02&quot;)" debug="no" family="RAW">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;EQP&quot;&amp; function" mark_code="SW_EQP" function="01" function_description="Equipment Layer - Basic" function_abbreviation="VB" integration_level="software" family="RAW" />
+      </mapping>
+    </mapping>
+    <mapping id="Zones RAW" key="=TRUE" debug="no">
+      <mapping id="ARZ01" key="=AND(mark_code=&quot;ARZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="ARZ02" key="=AND(mark_code=&quot;ARZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="BSZ01" key="=AND(mark_code=&quot;BSZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <decision_point id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DP&quot;" comment="Decision Point Constraints" integration_level="software" family="RAW">
+          <parameter id="i_CFG_Dir_A_Preference" value="0" comment="CFG: Preference for Direction A (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Dir_B_Preference" value="0" comment="CFG: Preference for Direction B (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Transport_Default" value="0" comment="Transport default direction. (transport technology driven)" />
+          <parameter id="i_CFG_UnSecure_Not_Allow" value="0" comment="CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Dimen_SC_Not_Allow" value="0" comment="CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)" />
+          <parameter id="i_CFG_Local_Unsecure_Dir" value="0" comment="CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Local_Dimensn_Dir" value="0" comment="CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)" />
+        </decision_point>
+      </mapping>
+      <mapping id="CIZ01" key="=AND(mark_code=&quot;CIZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="CIZ02" key="=AND(mark_code=&quot;CIZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="CIZ03" key="=AND(mark_code=&quot;CIZ&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="CIZ10" key="=AND(mark_code=&quot;CIZ&quot;;function=&quot;10&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="HBZ01" key="=AND(mark_code=&quot;HBZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="HBZ10" key="=AND(mark_code=&quot;HBZ&quot;;function=&quot;10&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="HBZ20" key="=AND(mark_code=&quot;HBZ&quot;;function=&quot;20&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="IFZ01" key="=AND(mark_code=&quot;IFZ&quot;;function=&quot;01&quot;)" debug="no">
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="IFZ03" key="=AND(mark_code=&quot;IFZ&quot;;function=&quot;03&quot;)" debug="no">
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="LSZ01" key="=AND(mark_code=&quot;LSZ&quot;;function=&quot;01&quot;)" debug="no">
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="LUZ01" key="=AND(mark_code=&quot;LUZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <decision_point id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DP&quot;" comment="Decision Point Constraints" integration_level="software" family="RAW">
+          <parameter id="i_CFG_Dir_A_Preference" value="0" comment="CFG: Preference for Direction A (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Dir_B_Preference" value="0" comment="CFG: Preference for Direction B (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Transport_Default" value="0" comment="Transport default direction. (transport technology driven)" />
+          <parameter id="i_CFG_UnSecure_Not_Allow" value="0" comment="CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Dimen_SC_Not_Allow" value="0" comment="CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)" />
+          <parameter id="i_CFG_Local_Unsecure_Dir" value="0" comment="CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Local_Dimensn_Dir" value="0" comment="CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)" />
+        </decision_point>
+      </mapping>
+      <mapping id="LUZ02" key="=AND(mark_code=&quot;LUZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="MLZ01" key="=AND(mark_code=&quot;MLZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="MLZ02" key="=AND(mark_code=&quot;MLZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="MLZ03" key="=AND(mark_code=&quot;MLZ&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="MTZ01" key="=AND(mark_code=&quot;MTZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="MVD01" key="=AND(mark_code=&quot;MVD&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ01" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ02" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ03" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ04" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;04&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ05" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;05&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="OPZ06" key="=AND(mark_code=&quot;OPZ&quot;;function=&quot;06&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SCZ01" key="=AND(mark_code=&quot;SCZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SCZ02" key="=AND(mark_code=&quot;SCZ&quot;;function=&quot;02&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SOZ01" key="=AND(mark_code=&quot;SOZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="SVD01" key="=AND(mark_code=&quot;SVD&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <decision_point id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DP&quot;" comment="Decision Point Constraints" integration_level="software" family="RAW">
+          <parameter id="i_CFG_Dir_A_Preference" value="0" comment="CFG: Preference for Direction A (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Dir_B_Preference" value="0" comment="CFG: Preference for Direction B (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Transport_Default" value="0" comment="Transport default direction. (transport technology driven)" />
+          <parameter id="i_CFG_UnSecure_Not_Allow" value="0" comment="CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Dimen_SC_Not_Allow" value="0" comment="CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)" />
+          <parameter id="i_CFG_Local_Unsecure_Dir" value="0" comment="CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Local_Dimensn_Dir" value="0" comment="CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)" />
+        </decision_point>
+      </mapping>
+      <mapping id="TRZ01" key="=UF_MappingKey(&quot;zone&quot;;&quot;TRZ&quot;;&quot;01&quot;)" debug="no">
+        <mapping id="SW_EQP" key="= AND(mark_code=&quot;SW_EQP&quot;;function=&quot;01&quot;;OR(parent.integration_level=&quot;section&quot;;parent.CA_MCFV=&quot;HOO03&quot;;parent.CA_MCFV=&quot;HOO04&quot;))" debug="no">
+          <parameter id="i_CFG_Slave_Mode" comment="CFG: Make this section a slave" />
+        </mapping>
+      </mapping>
+      <mapping id="UQZ01" key="=AND(mark_code=&quot;UQZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VBZ01" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <decision_point id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DP&quot;" comment="Decision Point Constraints" integration_level="software" family="RAW">
+          <parameter id="i_CFG_Dir_A_Preference" value="0" comment="CFG: Preference for Direction A (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Dir_B_Preference" value="0" comment="CFG: Preference for Direction B (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Transport_Default" value="0" comment="Transport default direction. (transport technology driven)" />
+          <parameter id="i_CFG_UnSecure_Not_Allow" value="0" comment="CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Dimen_SC_Not_Allow" value="0" comment="CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)" />
+          <parameter id="i_CFG_Local_Unsecure_Dir" value="0" comment="CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Local_Dimensn_Dir" value="0" comment="CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)" />
+        </decision_point>
+      </mapping>
+      <mapping id="VBZ03" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;03&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <decision_point id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;DP&quot;" comment="Decision Point Constraints" integration_level="software" family="RAW">
+          <parameter id="i_CFG_Dir_A_Preference" value="0" comment="CFG: Preference for Direction A (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Dir_B_Preference" value="0" comment="CFG: Preference for Direction B (0 = No Direction 1 = Preferred)" />
+          <parameter id="i_CFG_Transport_Default" value="0" comment="Transport default direction. (transport technology driven)" />
+          <parameter id="i_CFG_UnSecure_Not_Allow" value="0" comment="CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Dimen_SC_Not_Allow" value="0" comment="CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)" />
+          <parameter id="i_CFG_Local_Unsecure_Dir" value="0" comment="CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)" />
+          <parameter id="i_CFG_Local_Dimensn_Dir" value="0" comment="CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)" />
+        </decision_point>
+      </mapping>
+      <mapping id="VBZ05" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;05&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+        <parameter id="i_CFG_Induct_Number_FWD" value="0" comment="CFG: Induct reference number in forward" />
+        <parameter id="i_CFG_Induct_Number_REV" value="0" comment="CFG: Induct reference number in reverse" />
+      </mapping>
+      <mapping id="VBZ07" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;07&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VBZ08" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;08&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VBZ09" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;09&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VBZ21" key="=AND(mark_code=&quot;VBZ&quot;;function=&quot;21&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VCZ11" key="=AND(mark_code=&quot;VCZ&quot;;function=&quot;11&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VDZ01" key="=AND(mark_code=&quot;VDZ&quot;;function=&quot;01&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VDZ11" key="=AND(mark_code=&quot;VDZ&quot;;function=&quot;11&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VDZ21" key="=AND(mark_code=&quot;VDZ&quot;;function=&quot;21&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+      <mapping id="VDZ24" key="=AND(mark_code=&quot;VDZ&quot;;function=&quot;24&quot;)" debug="no">
+        <plc_object id="=LEFT(parent.id;UF_DelimiterPosition(parent.id;CA_CFG_Delimiter_ID;3)) &amp; &quot;FIX&quot;&amp; function" isc_id="=parent(integration_level=&quot;zone&quot;).child(CA_ID_Section=&quot;01&quot;).id" mark_code="SW_FIX" function="01" function_description="Fixed Part" integration_level="software" family="RAW" />
+      </mapping>
+    </mapping>
+  </mapping>
+  <mapping id="PRJ_RAW" key="=OR(family=&quot;PRJ_RAW&quot;;family=&quot;PRJ_GEN&quot;;family=&quot;GEN&quot;) /* Family 'GEN' is addition required for all elements generation */" debug="no">
+    <mapping id="Areas" key="=TRUE" debug="no" />
+    <mapping id="Objects" key="=TRUE" debug="no" />
+    <mapping id="Sections" key="=TRUE" debug="no" />
+    <mapping id="Zones" key="=TRUE" debug="no" />
+  </mapping>
+</mappings>
