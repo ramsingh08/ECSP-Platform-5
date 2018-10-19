@@ -1,0 +1,31 @@
+DATA_BLOCK "DB_HMI_IF_Mode"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, September 29, 2016 3:49:25 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                      inajos   27-09-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Zone_ID : STRING  [30 ];	//Selected zone ID 
+   Zone_Status : INT ;	//Selected zone Status
+   Zone_Active_No : INT ;	//Active zone Number
+   Zone_Total_No : INT ;	//Total Number of zones with modes
+   Zone_Function_No : INT ;	//Zone Function Number for (up/down or straight divert etc...)
+   Zone_Available_Commands : STRUCT 	//Available Commands for zone
+    Auto : BOOL ;	//Auto
+    Semi_Auto_Fixed_Straight : BOOL ;	//Semi_Auto_Fixed_Straight
+    Semi_Auto_Fixed_Sort1 : BOOL ;	//Semi_Auto_Fixed_Sort1
+    Semi_Auto_Fixed_Sort2 : BOOL ;	//Semi_Auto_Fixed_Sort2 
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

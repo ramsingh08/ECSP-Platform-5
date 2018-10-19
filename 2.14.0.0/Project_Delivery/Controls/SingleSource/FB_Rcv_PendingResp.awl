@@ -1,0 +1,173 @@
+FUNCTION_BLOCK "FB_Rcv_PendingResp"
+TITLE =%version: 0.05 % CN: 32 
+//Function:
+//This function handles the receiving of a Pending Status Response message.
+//
+//History:                                                                        
+//This version   %created_by: inajos %
+//              %date_created: Wednesday, August 01, 2018 1:06:08 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24842: Correction of variable name                 inajos   01-08-18  0.05
+//ra#21133: Screening pending Update                    inajos   18-09-17  0.04
+//ra#22220: Match new UDT_HBS_Record structure          nldy     22-05-17  0.03
+//ra#18904 : Process 4/5 removed ,block updated         inajos   13-12-16  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16  0.01
+//
+//Description:
+//If a valid HBA_LNK is received then the proces status is evaluated.
+//When the response is negative or the TRA_LNK does not match, then
+//the information of the handover data is cleared from the HBS record.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+END_VAR
+VAR_IN_OUT
+  io_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Structure PNPN Received message
+END_VAR
+VAR
+  s_Rcv_PendingResp_Msg : "UDT_Msg_PendingMaint";	//Data structure: Reseived Pending Response message
+  s_PendingRespEnd : BOOL ;	//End message structure indicator
+  s_HBS_Record : "UDT_HBS_Record";	//HBS record
+  s_LNK_Record : "UDT_LNK_Record";	//Link Record
+END_VAR
+VAR_TEMP
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_Base_Address : DWORD ;	//Relative address of instance-DB  
+  t_RET_VAL_INT : INT ;	//Return value function call (INT)
+  t_DB_Event_Num : INT ;	//DB Event Number
+  t_PNPN_Rec_Msg : ANY ;	//Pointer to receveid message data
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+//Get DB number for event
+      OPN   #i_DB_Event; // DB number Event
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+//Check received message type
+      L     #io_PNPN_Received_Message.Message_Type; 
+      L     31; 
+      <>I   ; 
+      BEC   ; 
+NETWORK
+TITLE =BA: Copy received message for handling and logging
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      LAR1  P##io_PNPN_Received_Message; 
+      L     #t_Base_Address; 
+      +AR1  ; 
+      LAR2  P##t_PNPN_Rec_Msg; 
+
+      L     B#16#10; // Copy pointer
+      T     LB [AR2,P#0.0]; //  Byte0=$10 (for S7)
+      L     B#16#2; // Load data type "Bytes" (02 = Byte)
+      T     LB [AR2,P#1.0]; // Byte1=data type
+      L     P##s_PendingRespEnd; 
+      L     P##s_Rcv_PendingResp_Msg; 
+      -D    ; 
+      SRD   3; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#0.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#2.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+
+// Copy received message for handling and logging
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_PNPN_Rec_Msg,//PNPN_Received_Message
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_Rcv_PendingResp_Msg);
+
+NETWORK
+TITLE =CA: Check Process 1
+
+      NOP   0; 
+
+// Verify the HBA_LNK is valid
+//----------------------------------
+      L     #s_Rcv_PendingResp_Msg.Process_1.HBA_LNK; 
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_Rcv_PendingResp_Msg.Process_1.HBA_LNK,
+           i_ANY_Data_Record        := "DB_UDT_LNK_Record",
+           i_ANY_Data               := #s_LNK_Record,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Verifiy a HBS record is available
+//----------------------------------
+      L     #s_LNK_Record.HBS; // Check if LNK contains a HBS record
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_LNK_Record.HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record",
+           i_ANY_Data               := #s_HBS_Record,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Verify the TRA_LNK matches
+// And check confirmation for item under control 
+//----------------------------------
+      O(    ; 
+      L     #s_Rcv_PendingResp_Msg.Process_1.TRA_LNK; 
+      L     #s_HBS_Record.HBS_Process_1.TRA_LNK; // Verify TRA_LNK is equal.
+      <>I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Rcv_PendingResp_Msg.Process_1.Confirmation; 
+      L     1; 
+      <>I   ; 
+      )     ; 
+      JCN   CA99; 
+
+
+// Remove handover information if item is not longer
+// under control, or TRA_LNK not match
+//----------------------------------
+      L     0; // Clear handover data
+      T     #s_HBS_Record.HBS_Process_1.TRA_LNK; 
+      T     #s_HBS_Record.HBS_General.ID_HandOver; 
+      T     #s_HBS_Record.HBS_General.DBNum_FIFO_HandOver; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_General.Item_Lost; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_LNK_Record.HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record",
+           i_ANY_Data               := #s_HBS_Record,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

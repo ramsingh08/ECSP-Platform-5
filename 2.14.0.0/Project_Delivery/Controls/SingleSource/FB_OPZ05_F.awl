@@ -1,0 +1,75 @@
+FUNCTION_BLOCK "FB_OPZ05_F"
+TITLE =%version: 0.02 % CN: 55
+//Function:
+//Handle the fixed part of the OPZ05.
+//
+//
+//History:
+//This version  %created_by: nlpsal %
+//              %date_created: Wednesday, May 03, 2017 1:17:47 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21776 Corrected CN                                 nlpsal   18-04-17   0.02
+//ra#21776 Initial revision                             nlpsal   18-04-17   0.01
+//
+//Description:
+//Handle the fixed part of the OPZ05:
+//
+//- HW Layer for PBB
+//- Set/reset request halt for the TRS1 of the OPZ
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_TRS1 : BLOCK_DB ;	//Data structure: Position datablock
+  i_Available_IO_ASI : BOOL ;	//Signal for indication IO is OK (no ASI or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_IO_PB_Done : BOOL ;	//CMD: PBB Done button (dispatch)
+  i_PBB_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_PBB_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+END_VAR
+VAR_OUTPUT
+  o_TRS1_Req_Halt : BOOL ;	//Request halt for TRS1
+  o_PBB_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_PBB_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+END_VAR
+VAR
+  s_PBB_FB_HW_ASI : "FB_HW_ASi";	//Push Button Box ASI Slave hardware layer
+END_VAR
+VAR_TEMP
+  t_Item_At_Handover : BOOL ;	//Item in handover bit from PLT
+  t_PB_Done : BOOL ;	//Push button done
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retrieve data from PLT
+
+      OPN   #i_DB_PLT_TRS1; 
+      A     DBX   10.6; 
+      =     #t_Item_At_Handover; 
+NETWORK
+TITLE =BA: Hardware layer for Signal Pushbutton box
+
+      CALL #s_PBB_FB_HW_ASI (
+           i_Req_Output_1           := #i_IO_PB_Done,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO_ASI,
+           i_ASI_NotPrsnt           := #i_PBB_ASI_NotPrsnt,
+           i_Slave_Error            := #i_PBB_ASI_Error,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_PBB_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_PBB_ST_ASI_Error,
+           o_IO_Output_1            := #t_PB_Done);
+
+NETWORK
+TITLE =CA: Set/Reset request halt for TRS1
+
+      AN    #t_PB_Done; 
+      AN    #t_Item_At_Handover; 
+      =     #o_TRS1_Req_Halt; 
+END_FUNCTION_BLOCK
+

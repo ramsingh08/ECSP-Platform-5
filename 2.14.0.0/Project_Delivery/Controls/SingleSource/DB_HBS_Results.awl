@@ -1,0 +1,30 @@
+DATA_BLOCK "DB_HBS_Results"
+TITLE =%version: 0.01 % CN: 11
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Monday, May 22, 2017 11:50:05 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version                                       nldy     22-05-17  0.01
+//
+FAMILY : General
+
+  STRUCT 	
+   Process_1 : STRUCT 	
+    Level_1 : INT ;	//Process 1 level 1 screening result (0 = no new information)
+    Level_2 : INT ;	//Process 1 level 2 screening result (0 = no new information)
+    Level_3 : INT ;	//Process 1 level 3 screening result (0 = no new information)
+    Level_4 : INT ;	//Process 1 level 4 screening result (0 = no new information)
+    Level_5 : INT ;	//Process 1 level 5 screening result (0 = no new information)
+   END_STRUCT ;	
+  END_STRUCT ;	
+BEGIN
+   Process_1.Level_1 := 0; 
+   Process_1.Level_2 := 0; 
+   Process_1.Level_3 := 0; 
+   Process_1.Level_4 := 0; 
+   Process_1.Level_5 := 0; 
+END_DATA_BLOCK
+

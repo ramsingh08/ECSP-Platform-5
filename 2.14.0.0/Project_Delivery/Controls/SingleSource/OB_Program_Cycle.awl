@@ -1,0 +1,338 @@
+ORGANIZATION_BLOCK "OB_Program_Cycle"
+TITLE =%version: 0.33 % CN: 90  
+//Function:
+//Main Program Cycle of CPU
+//
+//History: 
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, August 02, 2018 1:29:16 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                  By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29488: OB1 insert init data generation             nlHdL    02-08-18   0.33
+//ra#29488: OB1 insert point for Init data management   nlHdL    01-08-18   0.32
+//ra#29174: Add CCC status TFC communication error      nlHdL    28-05-18   0.31
+//ra#28624: remove common.AreaID will be generated      nlHdL    25-04-18   0.30
+//ina#2677: Remove Profibus DaigN Add insertP for comm  nlHdL    07-03-17   0.29
+//Add HBS init relevant functionality                   inajos   02-12-16   0.28
+//ra#13189: Block call of FC_HMI_Commands_Updated       inajos   15-11-16   0.27
+//ra#18054: FC_HMI_Commands added in OB_Program_Cycle   nlHdL    20-10-16   0.26
+//ra#17133: Handle HLC Msgs as template in OB1          nlHdL    30-09-16   0.25
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.24
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.24
+//7990: Cart Bagtrax Record added to library            nlHdL    01-10-15   0.24
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.23
+//19157: Changed Project dummy info to placeholders     nltny    07-01-15   0.23
+//21710: Add call FC_SCADA_Commands                     nlMRe    18-12-14   0.22
+//18170: Correct compile error                          nltny    11-09-14   0.21
+//18170: Added FB_Diagnose_HW back in                   nltny    09-09-14   0.20
+//12269: Added Default LNK                              nlHdL    09-01-14   0.19
+//16916: Add FC_CHK_Assigned_Rout to library            nlHdL    11-12-13   0.18
+//PR15411 Diagnose ASI replaced by call FC (Code Gen)   nlple    18-09-13   0.17
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.16
+//CR5968 Added block call for FB_Diagnose_PN            nlHHop   17-04-13   0.15
+//PR11918: OB1 Init data management Rep_Route record    nlHdL    03-04-13   0.14
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.13
+//Solve compile error                                   nlLvdG   23-03-12   0.12
+//Init added changed for data management                nlLvdG   23-03-12   0.11
+//Some small changes                                    nlJBax   03-05-11   0.10
+//PR6227 Added network numbering, AA -> ZA              nlMvDo   07-01-11   0.09
+//Updated the block with real calls, including DI's     nlMRe    22-09-10   0.08
+//PR5180 Correct compile error                          nlRSwi   15-09-10   0.07
+//PR5127 Updated block according coding standard        nlRSwi   13-09-10   0.06
+//Added FB_CHK_Assigned_LIC                             inpna    13-09-10   0.05
+//PR5640 Initilisation Data Management change to FC     inpna    09-09-10   0.04
+//PR5325 FC_Force_inputs and outputs is missing         nlMRe    19-07-10   0.03
+//CR5293 Added init function for LNK and LIC            nlHdL    11-06-10   0.02
+//Initial version                                       nlMRe    26-04-10   0.01
+//
+//
+//Description:
+//Provides information about the project and the version history of the 
+//project
+//
+//Main supplier    : VANDERLANDE INDUSTRIES B.V.
+//Project Manager  : [Name manager]
+//Telephone        : +31 413 494949
+//
+//Controls supplier: VI Controls Project Engineering 
+//PLC Engineer     : [Name engineer]
+//Telephone        : +31 413 494949
+//
+//Customer         : [Customer name]
+//Contact Person   : [Contact person name (Contact function)]
+//Telephone        : [International telephone number] 
+//
+//Installation Address 
+// Street          : [Street name and number]
+// Place           : [Place]
+// Country         : [Country]
+//      
+//VI Project Number: [VI project number]
+//
+//System           : Baggage Handling System
+//Sub System       : [Sub system]
+//PLC Number       : [PLC number]
+//Document number  : [Document number]                             
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  OB1_EV_CLASS : BYTE ;	//Bits 0-3 = 1 (Coming event), Bits 4-7 = 1 (Event class 1)
+  OB1_SCAN_1 : BYTE ;	//1 (Cold restart scan 1 of OB 1), 3 (Scan 2-n of OB 1)
+  OB1_PRIORITY : BYTE ;	//1 (Priority of 1 is lowest)
+  OB1_OB_NUMBR : BYTE ;	//1 (Organization block 1, OB1)
+  OB1_RESERVED_1 : BYTE ;	//Reserved for system
+  OB1_RESERVED_2 : BYTE ;	//Reserved for system
+  OB1_PREV_CYCLE : INT ;	//Cycle time of previous OB1 scan (milliseconds)
+  OB1_MIN_CYCLE : INT ;	//Minimum cycle time of OB1 (milliseconds)
+  OB1_MAX_CYCLE : INT ;	//Maximum cycle time of OB1 (milliseconds)
+  OB1_DATE_TIME : DATE_AND_TIME ;	//Date and time OB1 started
+  t_Reset_Buffers : BOOL ;	//Send Event Buffer: Reset Buffers
+  t_ER_No_Connection : BOOL ;	//Send Event Buffer: No Connection Error
+  t_ER_Sending : BOOL ;	//Send Event Buffer: Send Error
+  t_ER_Both_Buffers_Full : BOOL ;	//Send Event Buffer: Both Buffers Full Error
+  t_ER_ST_Connection_Error : BOOL ;	//Status report of Connection Error from CP card
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Force Inputs
+//Inputs that need to be forced during commissioning should be handled in the FC, 
+//called in this network.
+//After handover this FC must be empty again.
+      CALL "FC_Force_Inputs" ;
+
+NETWORK
+TITLE =BA: System Facilities
+//Network reserved for System facilities
+//- Making of one-shots of the clockbits, on MB1
+//- Creating the 'first-scan' bit
+//- Extracting the date and time 
+      CALL "FB_System_Facilities" , "DI_System_Facilities" (
+           OB1_SCAN_1               := #OB1_SCAN_1,
+           OB1_PREV_CYCLE           := #OB1_PREV_CYCLE,
+           OB1_MIN_CYCLE            := #OB1_MIN_CYCLE,
+           OB1_MAX_CYCLE            := #OB1_MAX_CYCLE,
+           OB1_DATE_TIME            := #OB1_DATE_TIME);
+
+NETWORK
+TITLE =CA: Diagnose Profinet-PN and Hardware
+// Profibus network diagnose
+//      CALL  "FB_Diagnose_DP" , "DI_DP_Diagnose"
+//       i_Refresh_Rate         :=
+//       i_DP_Master_System_ID  :=1
+//       i_External_DP_Interface:=FALSE       
+//       i_DP_Not_Present_Bitmap:="DB_Diagnose_DP".Master_System_1.Slave_Not
+//_Present
+//       i_DP_Error_Bitmap      :="DB_Diagnose_DP".Master_System_1.Slave_Error
+      NOP   0; // Hold comments
+// PLC Hardware diagnose
+      CALL "FB_Diagnose_HW" , "DI_HW_Diagnose" (
+           i_Refresh_Rate           := 10,
+           i_HW_Not_Present_Bitmap  := "DB_Diagnose_HW".Module_Not_Present,
+           i_HW_Error_Bitmap        := "DB_Diagnose_HW".Module_Error,
+           i_HW_Power_Supply_Err    := "DB_Diagnose_HW".Power_Supply_Error);
+
+// ProfiNET network diagnose
+      CALL "FB_Diagnose_PN" , "DI_PN_Diagnose" (
+           i_Refresh_Rate           := 10,
+           i_PNIO_System_ID         := 100,
+           i_CFG_Records_Per_Scan   := 15,
+           i_PN_Status_Bitmap       := "DB_Diagnose_PN".PNIO_System_100,
+           i_SFC51_DiagnosticBitmap := "DB_Diag_Profinet".PNIO_Sys_100_SFC51_Diag);
+
+// ASi bus network diagnose
+      CALL "FC_Diagnose_ASI" ;
+
+NETWORK
+TITLE =#Insert# // Insertion point code generator
+//DA: Communication Peri
+//Network reserved for communication blocks, e.g.:
+//- Point to point communication (scanners, weighing scales)
+//- Ethernet communication (Host,SCADA)
+//- Profibus communication (scanners, weighing scales)
+// Ethernet communication HMI
+// INSERT  "FB_Establish_Con_T"
+//
+//      CALL  "FB_Host_Send_Ext" , "DI_Host_Send_Ext"
+//       i_ID_Connection       :=W#16#1
+//       i_LADDR               :="MW_WORD_To_Do"    // Engineering to fill in the 
+//Laddr value from NetPro example W#16#1801
+//       i_Send_Timeout        :=5
+//       i_DB_Send_FIFO        :="DB_Send_FIFO"
+//       o_Connection_Error    :=#t_ER_No_Connection
+//       o_WN_Send_FIFO_PreFull:=
+//
+//      A     #t_ER_No_Connection
+//      =     #t_ER_ST_Connection_Error
+//
+//      CALL  "FB_Host_Recv_Ext" , "DI_Host_Recv_Ext"
+//       i_ID_Connection   :=W#16#2
+//       i_LADDR           :="MW_WORD_To_Do"    // Engineering to fill in the 
+//Laddr value from NetPro example W#16#1801
+//       i_DB_Recv_FIFO    :="DB_RcvN_FIFO"
+//       o_Connection_Error:=#t_ER_No_Connection
+//
+//      A     #t_ER_No_Connection
+//      S     #t_ER_ST_Connection_Error
+//
+//      CALL  "FB_Host_Recv_Ext_T" , "DI_Host_Recv_Ext_T"
+//       i_ID_Connection   :=W#16#3
+//       i_LADDR           :="MW_WORD_To_Do"    // Engineering to fill in the 
+//Laddr value from NetPro example W#16#1801
+//       i_DB_Recv_FIFO    :="DB_RcvT_FIFO"
+//       o_Connection_Error:=#t_ER_No_Connection
+//
+//      A     #t_ER_No_Connection
+//      S     #t_ER_ST_Connection_Error
+//
+//      A     #t_ER_ST_Connection_Error
+//      =     "M_BOOL_To_Do"              // Engineering to fill in the correct 
+//Status bit exmaple DB_Status.CCC.Connection_Error
+//
+//      CALL  "FB_Handle_TableMsgs" , "DI_Handle_TableMsgs"
+//       i_AreaID      :=x //AreaID
+//       i_DB_Recv_FIFO:="DB_RcvT_FIFO"
+//       i_DB_Event    :="DB_Event_System"
+//
+//      CALL  "FB_Handle_NormalMsgs" , "DI_Handle_NormalMsgs"
+//       i_DB_Recv_FIFO          :="DB_RcvN_FIFO"
+//       i_DB_Send_FIFO          :="DB_Send_FIFO"
+//       i_DB_Event              :="DB_Event_System"
+//       i_CFG_LifeSignReq_Interv:=30
+//       i_CFG_LifeSignResp_Time :=30
+//       i_CFG_NumLifeSgnMiss_Err:=3
+//       i_CFG_AreaID            :=x //AreaID
+//       i_CMD_Degraded_Mode     :="M_Comm_Degraded"
+//       o_Err_No_Lifesigns      := status bit of the CCC. example  DB_Status.CCC.HLC_Comm_Fault
+//
+//       o_Err_No_Lifesigns_TFC  := status bit of the CCC. example  DB_Status.CCC.TFC_Comm_Fault
+//
+// INSERT "FB_Sick_Comm"     
+//
+//EA: Init data management
+//Init the header of the DB_LNK_List.
+//Init the header of the DB_ECS_List.
+//Init the header of the DB_LIC_List.
+//Init the header of the DB_TIC_List.
+//Init the header of the DB_NIR_List.
+//If other DB_xxx_List are used also init this header.
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=1
+//       i_DB_List         :="DB_ECS_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=2
+//       i_DB_List         :="DB_LIC_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=3
+//       i_DB_List         :="DB_TIC_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=4
+//       i_DB_List         :="DB_NIR_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=5
+//       i_DB_List         :="DB_Route_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=6
+//       i_DB_List         :="DB_CIC_List"
+//
+//      CALL  "FC_Init_LNK_DBs"
+//       i_Position_UDT_LNK:=7
+//       i_DB_List         :="DB_HBS_List"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_LNK_List"
+//       i_DB_UDT           :="DB_UDT_LNK_Record"
+//       i_DB_Default_Record:="DB_Default_LNK"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_ECS_List"
+//       i_DB_UDT           :="DB_UDT_ECS_Record"
+//       i_DB_Default_Record:="DB_Default_ECS"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_LIC_List"
+//       i_DB_UDT           :="DB_UDT_LIC_Record"
+//       i_DB_Default_Record:="DB_Default_LIC"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_TIC_List"
+//       i_DB_UDT           :="DB_UDT_TIC_Record"
+//       i_DB_Default_Record:="DB_Default_TIC"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_NIR_List"
+//       i_DB_UDT           :="DB_UDT_NIR_Record"
+//       i_DB_Default_Record:="DB_Default_NIR"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_Route_List"
+//       i_DB_UDT           :="DB_UDT_Route_Record"
+//       i_DB_Default_Record:="DB_Dummy"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_CIC_List"
+//       i_DB_UDT           :="DB_UDT_CIC_Record"
+//       i_DB_Default_Record:="DB_Default_CIC"
+//
+//      CALL  "FC_Init_Rec_Header"
+//       i_DB               :="DB_HBS_List"
+//       i_DB_UDT           :="DB_UDT_HBS_Record"
+//       i_DB_Default_Record:="DB_Default_HBS"
+//
+//      CALL  "FB_CHK_Assigned_LNK" , "DI_CHK_Assigned_LNK"
+//       i_DB_Event:="DB_Event_System"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_ECS"
+//       i_DB_List:="DB_ECS_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_LIC"
+//       i_DB_List:="DB_LIC_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_TIC"
+//       i_DB_List:="DB_TIC_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_NIR"
+//       i_DB_List:="DB_NIR_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_Rout"
+//       i_DB_List:="DB_Route_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_CIC"
+//       i_DB_List:="DB_CIC_List"
+//
+//      CALL  "FB_CHK_Assigned_List" , "DI_CHK_Assigned_HBS"
+//       i_DB_List:="DB_HBS_List"
+//
+
+NETWORK
+TITLE =FA: System
+
+      CALL "FC_SCADA_Commands" ;
+
+      CALL "FC_HMI_Commands" (
+           i_DB_HMI_Index           := "DB_HMI_Mode_Index",
+           i_DB_HMI_Commands        := "DB_HMI_Zone_Command");
+
+
+      CALL "FB_System" , "DI_System" ;
+
+NETWORK
+TITLE =GA: Force Output
+//Outputs that need to be forced during commissioning should be handled in the 
+//FC, called in this network.
+//After handover this FC must be empty again.
+      CALL "FC_Force_Outputs" ;
+
+END_ORGANIZATION_BLOCK
+

@@ -1,0 +1,143 @@
+FUNCTION_BLOCK "FB_EQP_Switch_Dir"
+TITLE =%version: 0.13 % CN: 40
+//Function:
+//Module for controlling the request for forward or reverse commands.
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Tuesday, December 12, 2017 12:47:54 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26962: No upstr PLT DB after first scan            nldy     12-12-17   0.13
+//ina#7494: PLT DB flow dir change on first scan cmd    nlHdL    18-10-17   0.12
+//ra#14324: HOO Bi-direction connecting 2 areas         nlHdL    08-12-16   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.10
+//CR7918 Changed initiate cascade startup into cascade  nlHHop   26-03-12   0.09
+//delay time
+//Solved PR5228: Invert PLT switch condition            nllvdg   26-05-10   0.08
+//Solved PR5146: Connect up- and downstream PLT DB      nlMRe    03-05-10   0.07
+//Solved PR5143: only i_CMD_Reverse                     nlMRe    03-05-10   0.06
+//Solved PR5148: Change initiate in init                nlMRe    29-04-10   0.05
+//Modified CN number                                    nlHdL    19-04-10   0.04
+//Solved PR5109: Swap PLT on direction change           nlHdL    16-04-10   0.03
+//Solved PR5106: Block info header to be corrected      nlMRe    16-04-10   0.02
+//Solved PR5102                                         nlMRe    16-04-10   0.01
+//Renamed from FB_Switch_Dir 
+//
+//Description:
+//
+//This blocks creates one shots of the incomming commands for forward and reverse 
+//requests. After that it switches the upstream and downstream DB's in the PLT DB.
+//
+//If a request is given, it requests for a halt for one cycle.
+//
+//During the switch the cascade delay time for both directions is also 
+//copied from the configuration inputs.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock Upstream section
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_CMD_Reverse : BOOL ;	//CMD: Reverse command
+  i_CFG_Cascade_Delay_FWD : INT  := 300;	//CFG: [ms] Cascade delay time in Forward Mode
+  i_CFG_Cascade_Delay_REV : INT  := 300;	//CFG: [ms] Cascade delay time in Reverse Mode
+END_VAR
+VAR_OUTPUT
+  o_OS_Direction_Change : BOOL ;	//OS: when direction changes, this is one cycle set
+  o_CMD_MTR_Reverse : BOOL ;	//CMD: Motor Reverse Command
+  o_Cascade_Delay_Time : INT ;	//Cascade delay time to the Equipment block
+END_VAR
+VAR
+  s_DB_PLT_nr_Upstream : INT ;	//Number of the Upstream PLT DB
+  s_DB_PLT_nr_Downstream : INT ;	//Number of the Downstream PLT DB
+  s_DB_PLT_Num : INT ;	//Number of the PLT DB Block
+  s_FP_Forward_Command : BOOL ;	//Positive flank of forward request
+  s_FP_Reverse_Command : BOOL ;	//Positive flank of reverse request
+  s_FN_First_Scan : BOOL ;	//Negative flank of first scan
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Create oneshots of direction commands
+
+      A     #i_CMD_Reverse; //Create one shot of the positive flank
+      FP    #s_FP_Forward_Command; 
+      O(    ; 
+      A     #i_CMD_Reverse; //Create one shot of the negative flank
+      FN    #s_FP_Reverse_Command; 
+      )     ; 
+      =     #o_OS_Direction_Change; 
+NETWORK
+TITLE =BA: Switch DB numbers in PLT DB
+
+      A     "M_First_Scan"; 
+      FN    #s_FN_First_Scan; //After first scan init PLT DB's
+      JC    BA01; 
+
+      AN    #o_OS_Direction_Change; 
+      BEC   ; 
+
+BA01: OPN   #i_DB_PLT_UpStr; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_nr_Upstream; // Determine upstream PLT DB block number
+
+      OPN   #i_DB_PLT_DwnStr; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_nr_Downstream; // Determine downstream PLT DB block number
+
+      OPN   #i_DB_PLT; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_Num; // Determine PLT DB block number
+
+      AN    #i_CMD_Reverse; //IF the section is in forward mode
+      JCN   BA02; 
+
+      L     #s_DB_PLT_nr_Upstream; //Then switch the PLT DB numbers in the PLT DB
+      T     DBW    6; 
+
+      L     #s_DB_PLT_nr_Downstream; 
+      T     DBW    8; 
+
+      L     #i_CFG_Cascade_Delay_FWD; 
+      T     #o_Cascade_Delay_Time; 
+
+      CLR   ; 
+      =     #o_CMD_MTR_Reverse; 
+
+      JU    BA99; 
+
+BA02: A     #i_CMD_Reverse; //If the section is in reverse mode
+      JCN   BA99; 
+
+      L     #s_DB_PLT_nr_Upstream; 
+      T     DBW    8; 
+
+      L     #s_DB_PLT_nr_Downstream; 
+      T     DBW    6; 
+
+      L     #i_CFG_Cascade_Delay_REV; 
+      T     #o_Cascade_Delay_Time; 
+
+      SET   ; 
+      =     #o_CMD_MTR_Reverse; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Swap PLT DB
+
+      A     #o_OS_Direction_Change; 
+      JCN   CA99; 
+
+      CALL "FC_PLT_SWAP_DB" (
+           i_DB_PLT_Num             := #s_DB_PLT_Num);
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

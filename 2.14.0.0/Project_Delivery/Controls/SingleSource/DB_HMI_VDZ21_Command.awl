@@ -1,0 +1,30 @@
+DATA_BLOCK "DB_HMI_VDZ21_Command"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, May 30, 2017 10:50:57 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#53655: Initial version                              inajos  30-05-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   VDZ_00_01 : "UDT_HMI_VDZ_Command";	//Auto,Semi Auto
+   VDZ_00_02 : "UDT_HMI_VDZ_Command";	//Manual Mode
+   VDZ_00_03 : "UDT_HMI_VDZ_Command";	//Upper Maintenance 
+   VDZ_00_04 : "UDT_HMI_VDZ_Command";	//Lower Maintenance
+   VDZ_00_05 : "UDT_HMI_VDZ_Command";	//Go To Infeed
+   VDZ_00_06 : "UDT_HMI_VDZ_Command";	//Go To Outfeed
+   SWS_00_01 : "UDT_HMI_VDZ_Command";	//Lift Control
+   SWS_00_02 : "UDT_HMI_VDZ_Command";	//Lift Reference Travel
+   TRS_00_03 : "UDT_HMI_VDZ_Command";	//Carrier Conveyor Fwd,Rev,Stop
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

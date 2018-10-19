@@ -1,0 +1,907 @@
+FUNCTION_BLOCK "FB_EQP_PEC_2Dir"
+TITLE =%version: 1.12 % CN: 40 
+//Function:
+//Handle the PEC signal for a 2 Dir section according the configuration
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, October 08, 2018 9:26:27 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10840: Event PEC: Remove entries no run to 3703   nlHdL    08-10-18   1.12
+//ina#9816: PEC wrong check info state                  nlHdL    22-03-18   1.11
+//veg#938: Reset LPOS track And IO_Available PEC Update nlHdL    13-07-17   1.10
+//ina#4402: Remove_Entrie_No_Run prevents FN_PEC_Latch  nlHdL    12-06-17   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.08
+//8963: PEC trigger section out of E-save in reverse    nlHdL    19-10-15   1.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.07
+//22983: Preset not ok when minimum length and reverse  nlHdL    24-02-15   1.07
+//22347: Change comment in network EA Flank Positive    nlHdL    20-01-15   1.06
+//20128: E-save by PEC doesn't write -3 at PEC pos      nltny    27-08-14   1.05 
+//19056: Preset PEC Block after downloading instance DB nlHdL    07-05-14   1.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.03
+//13971: PEC state update and no state on Disable Upd   nlHdL    31-05-13   1.02
+//13971: PEC state in PLT added                         nlHdL    30-05-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.25 of PLT version 0
+//
+//Description:
+//The PEC on signal and the PEC off signal are latched by the delay On and delay 
+//OFF functionalities. To prevent that unwanted triggers and gaps are not 
+//detected 
+//as new items. 
+//The PEC writes the flapped but corrected PEC edges in the PLT DB.
+//The PEC blockage is done with the direct PEC signal and reports a blockage 
+//after 
+//the sett distance is elapsed without a clearence.
+//The PEC calculates it's own position by the received offset and it's own offset 
+//and reports that to the output. The calculated position is used to place items 
+//in the PLT and tracking.
+//- Delay On 
+//- Delay Off
+//- Minimum Product Length
+//- PEC Blockage
+//- Write Leading edge in PLT DB
+//- Write Trailig edge in PLT DB
+//- Calculate PEC Position
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_EQP_PEC_Sett";	//Data structure: Setting Record
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Event : BLOCK_DB ;	//Data structure: Event DB
+  i_Dwnstr_PLT_Pos : INT ;	//CFG: Total offset from downstream datahandling point in [cm] (previous pos)
+  i_CFG_Blockage_Length : INT ;	//CFG: [cm] Delay for detecting a PEC blockage
+  i_CFG_Delay_On_Filter : INT ;	//CFG: [cm] Delay on leading edge of product (flap filter)
+  i_CFG_Delay_Off_Filter : INT ;	//CFG: [cm] Delay off trailing edge of product (flap filter)
+  i_CFG_Min_Product_Length : INT ;	//CFG: [cm] Minimum product length
+  i_CFG_Track_Present : BOOL ;	//CFG: Tracking layer is used for this section
+  i_CFG_Reset_Block_PEC_Oc : BOOL ;	//CFG: TRUE = Allow reset of blockage error with PEC still covered
+  i_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_CFG_Preset_PEC_Latch : BOOL ;	//CFG: Preset the PEC latch signal
+  i_Eqp_Available_IO : BOOL ;	//CMD: Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Disable_Update_Funct : BOOL ;	//CMD: Disable update functie. (Reverse mode)
+END_VAR
+VAR_OUTPUT
+  o_LPOS : INT ;	//Real position of the bag for tracking layer
+  o_PEC_Position : INT ;	//[cm] position of the physical PEC in forward mode
+  o_ST_PEC_Blk : BOOL ;	//ST: PEC blockage
+  o_PEC_Latch : BOOL ;	//Status PEC Latch
+END_VAR
+VAR
+  s_PEC_Position : INT ;	//Info information from the search action
+  s_Cnt_Blockage : INT  := 40;	//Counter blockage
+  s_Cnt_Delay_On : INT ;	//Counter for delay-on
+  s_Cnt_Delay_Off : INT ;	//Counter for delay-off
+  s_Cnt_Minimum_Length : INT ;	//Counter for minimal product length
+  s_Position_Write_Read : INT ;	//Position where to read or write in the PLT DB
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_PLT_DB_Nr : INT ;	//Copy of i_DB_PLT
+  s_State : WORD ;	//State for PLT
+  s_PEC : BOOL ;	//PEC signal (product present)
+  s_PEC_Flap_Filter : BOOL ;	//PEC signal after flap filtering (delay-on and delay-off)
+  s_PEC_Min_Prod_Length : BOOL ;	//PEC signal after flap filtering & minimum product length
+  s_PEC_Latch : BOOL ;	//PEC Latch (shifted)
+  s_Copy_FN_PEC : BOOL ;	//Copy flag Negative edge of PEC signal
+  s_Copy_FP_PEC : BOOL ;	//Copy flag Positive edge of PEC signal
+  s_Copy_FP_PECFlapFilter : BOOL ;	//Copy flag Positive edge of PEC Flap Filter
+  s_Clear_Signals : BOOL ;	//One-shot clear signals
+  s_FP_PEC_Latch : BOOL ;	//Positive flank holder of the PEC
+  s_FN_PEC_Latch : BOOL ;	//Negative flank holder of the PEC
+  s_ST_PEC_Blockage : BOOL ;	//Status Photo Cell blockage
+  s_Reset_PEC_Blockage : BOOL ;	//Reset after the PEC Blockage is cleared
+  s_Remove_Entrie_No_Run : BOOL ;	//Remove entrie in PLT if no run was detected, after leading edge
+  s_Section_Run : BOOL ;	//Section Run signal from the PLT DB
+  s_FP_Reverse_Command : BOOL ;	//Positive flank of the reverse command
+  s_OS_Reverse_Command : BOOL ;	//One shot reverse command
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the event DB
+  t_Return_Value_Word : INT ;	//Return value
+  t_PLT_DB_Nr : INT ;	//DB number of i_DB_PLT
+  t_Info : INT ;	//Temp info from read
+  t_INT_not_used : INT ;	//Temp not used
+  t_Link : INT ;	//LNK found in PLT DB
+  t_Write_E_Save_Pos : INT ;	//Position to write E-save code
+  t_Num_Items_Found : INT ;	//Number of items found
+  t_Length_Section : INT ;	//Length of section
+  t_Info_State : WORD ;	//Info state of read function
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+  t_Check_Position_PEC : INT ;	//Check current PEC position with previous PEC position
+  t_Search_End_Position : INT ;	//t_Search_End_Position = i_Position - Displacement
+  t_Section_Operational_On : BOOL ;	//Section is operational on
+  t_OS_FP_PEC_Latch : BOOL ;	//One shot of Positve flank PEC
+  t_OS_FN_PEC_Latch : BOOL ;	//One shot of Negative flank PEC
+  t_OS_FP_PEC_Flap_Filter : BOOL ;	//One shot Positive flank PEC Flap Filter
+  t_OS_FP_PEC : BOOL ;	//One shot Positive flank of PEC signal	
+  t_OS_FN_PEC : BOOL ;	//One shot Negative flank of PEC signal	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+
+      OPN   #i_DB_Event; // Open Event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; // copy db number
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_PLT_DB_Nr; // Determine tracking block DB number
+      T     #t_PLT_DB_Nr; 
+
+      L     DBW    2; // Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      A     DBX   10.1; // Read the section run signal of the PLT DB.
+      =     #s_Section_Run; 
+      A     DBX   10.5; 
+      =     #t_Section_Operational_On; 
+
+      L     DBW   12; 
+      T     #t_Length_Section; 
+
+NETWORK
+TITLE =BA: One shot reverse command
+
+      A     #i_Disable_Update_Funct; 
+      FP    #s_FP_Reverse_Command; 
+      =     #s_OS_Reverse_Command; 
+NETWORK
+TITLE =CA: Init preset PEC Latch + clear internal signals
+
+      AN    #s_Section_Run; 
+      A     #i_IO_NOT_PEC; 
+      A     #s_PEC_Latch; 
+      A     #i_CMD_Reset; 
+      A     #s_ST_PEC_Blockage; 
+      =     #s_Reset_PEC_Blockage; // Reset after the PEC Blockage is cleared
+
+      A(    ; // IF Preset PEC Latch is active
+      A     #i_CFG_Preset_PEC_Latch; 
+      A     #i_IO_NOT_PEC; 
+      A     #s_PEC_Latch; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Preset_PEC_Latch; 
+      AN    #i_IO_NOT_PEC; 
+      AN    #s_PEC_Latch; 
+      )     ; 
+      O     #s_Reset_PEC_Blockage; // OR Reset after the PEC Blockage is cleared
+      =     #s_Clear_Signals; // THEN Clear Signals and Reset counters
+
+      AN    #i_IO_NOT_PEC; // IF positive edge of PEC
+      A     #i_Eqp_Available_IO; 
+      AN    #s_Clear_Signals; 
+      FP    #s_Copy_FP_PEC; 
+      =     #t_OS_FP_PEC; 
+
+      AN    #i_IO_NOT_PEC; // IF negative edge of PEC
+      A     #i_Eqp_Available_IO; 
+      AN    #s_Clear_Signals; 
+      FN    #s_Copy_FN_PEC; 
+      =     #t_OS_FN_PEC; 
+
+      A     #s_Clear_Signals; // AND One-Shot Clear Signals
+      JCN   CA99; 
+      R     #s_PEC; 
+      R     #s_PEC_Flap_Filter; 
+      R     #s_PEC_Min_Prod_Length; 
+      R     #s_Copy_FN_PEC; 
+      R     #s_Copy_FP_PEC; 
+      R     #s_Copy_FP_PECFlapFilter; 
+
+      L     0; 
+      T     #s_Cnt_Delay_On; 
+      T     #s_Cnt_Delay_Off; 
+      T     #s_Cnt_Minimum_Length; 
+
+CA99: NOP   0; 
+
+NETWORK
+TITLE =DA: Blockage handling
+//If the PEC detects a product longer than a certain length while the motor is 
+//running, an error will be generated.
+      A     #s_OS_Reverse_Command; 
+      AN    #s_ST_PEC_Blockage; 
+      JCN   DA01; 
+
+      L     #i_CFG_Blockage_Length; 
+      T     #s_Cnt_Blockage; 
+
+// Reset of the blockage error
+DA01: A     #i_IO_NOT_PEC; // IF PEC free
+      O     #i_CFG_Reset_Block_PEC_Oc; // OR reset allowed with PEC NOT free
+      A     #s_ST_PEC_Blockage; // AND blockage active
+      A     #i_CMD_Reset; // OR reset from main conveyor
+      JCN   DA02; 
+
+      R     #s_ST_PEC_Blockage; // THEN o_blockage will be reset
+
+      L     #i_CFG_Blockage_Length; 
+      T     #s_Cnt_Blockage; // and preset blockage counter
+
+// Pre-set of the blockage timer
+DA02: A     #i_IO_NOT_PEC; // IF no product detected     
+      O     "M_First_Scan"; // Or first scan detected
+      JCN   DA03; 
+
+      L     #i_CFG_Blockage_Length; 
+      T     #s_Cnt_Blockage; // THEN preset blockage counter
+
+// Countdown of blockage timer
+DA03: AN    #i_IO_NOT_PEC; // IF product detected
+      A     #i_Eqp_Available_IO; // AND I/O are available
+      JCN   DA05; 
+
+      L     #s_Cnt_Blockage; 
+      L     #s_Displacement; // THEN countdown blockage counter
+      -I    ; 
+      JPZ   DA04; 
+      L     0; // IF negative THEN keep counter to zero 
+DA04: T     #s_Cnt_Blockage; 
+
+// Evaluation of blockage timer
+DA05: L     #i_CFG_Blockage_Length; 
+      L     0; // IF pre-set value <> 0 THEN block detection   
+      <>I   ; // THEN block detection is enabled  
+      A(    ; 
+      L     #s_Cnt_Blockage; 
+      L     0; 
+      <=I   ; // AND blockage counter is elapsed
+      )     ; 
+      AN    #i_IO_NOT_PEC; // AND product detected
+      S     #s_ST_PEC_Blockage; // THEN set output blockage  
+NETWORK
+TITLE =EA: Flap Filtering (Delay On/Off handling)
+//To overrule the influence of flaps, the delay ON and/or delay OFF can be 
+//used. 
+//Both delay pre-sets are adjustable through input parameters. 
+//If a value of 0 is pre-set, the latch signal will follow the input immediately. 
+//This function uses displacement for the countdown of the delay. 
+//         
+//                           +--------------------------+                  
+//s_PEC ---------------------+                          +-----------------        
+//                                                         delay OFF
+//                                                       <-----------> 
+//                                                     
+//                            <--------->                             
+//                             delay ON  +----------------------------+
+//s_PEC_Flap_Filter ---------------------+                            +---------
+//
+      A     #t_OS_FP_PEC; // IF positive edge of PEC
+      JCN   EA01; 
+
+      L     #i_CFG_Delay_On_Filter; 
+      T     #s_Cnt_Delay_On; // THEN pre-set counter as Off-Delay 
+
+EA01: L     #s_Cnt_Delay_On; // Load actual value delay counter
+      L     #s_Displacement; // Load displacement of previous scan cycle
+      -I    ; // THEN delay counter := delay counter - previous 'Scan_Time'
+      JPZ   EA02; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+EA02: T     #s_Cnt_Delay_On; 
+
+
+      A     #t_OS_FN_PEC; // IF negative edge of PEC
+      JCN   EA03; 
+
+      L     #i_CFG_Delay_Off_Filter; 
+      T     #s_Cnt_Delay_Off; // THEN pre-set counter as Off-Delay 
+
+EA03: L     #s_Cnt_Delay_Off; // Load actual value delay counter
+      L     #s_Displacement; // Load displacement of previous scan cycle
+      -I    ; // THEN delay counter := delay counter - previous 'Scan_Time'
+      JPZ   EA04; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+EA04: T     #s_Cnt_Delay_Off; 
+
+      A(    ; // IF delay-counter is elapsed
+      L     #s_Cnt_Delay_On; 
+      L     0; 
+      <=I   ; 
+      )     ; 
+      A(    ; // IF delay-counter is elapsed
+      L     #s_Cnt_Delay_Off; 
+      L     0; 
+      <=I   ; 
+      )     ; 
+      O     #s_Clear_Signals; // OR clear signals
+      JCN   EA99; 
+
+      AN    #i_IO_NOT_PEC; 
+      A     #i_Eqp_Available_IO; 
+      =     #s_PEC_Flap_Filter; // THEN assign PEC Flap Filter
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Minimum Product Length
+//To be sure to always get a minimal product length without using the delay-off 
+//function.
+//Example 1, signal is modified:
+//                       +--------------------------+                  
+//s_PEC_Flap_Filter------+                          +-----------------        
+//                                                    added length
+//                                                   <------------> 
+//                                     minimal length
+//                       <-----------------------------------------> 
+//                       +-----------------------------------------+
+//s_PEC_Min_Prod_Length--+                                         +---------
+//
+//Example 2, signal is NOT modified:
+//                       +-----------------------------------------+              
+//s_PEC_Flap_Filter------+                                         +--------      
+//                                minimal length
+//                       <-------------------------------> 
+//                       +-----------------------------------------+
+//s_PEC_Min_Prod_Length--+                                         +---------
+      A     #s_OS_Reverse_Command; 
+      A     #s_PEC_Flap_Filter; 
+      JCN   FA01; 
+
+      L     #i_CFG_Min_Product_Length; 
+      T     #s_Cnt_Minimum_Length; 
+
+// Create One Shot positive edge signal
+FA01: A     #s_PEC_Flap_Filter; // IF positive edge PEC Flap Filter
+      FP    #s_Copy_FP_PECFlapFilter; 
+      =     #t_OS_FP_PEC_Flap_Filter; // THEN make One-Shot positive edge PEC Flap Filter
+
+      L     #i_CFG_Min_Product_Length; // IF setting "minimum length" is 0
+      L     0; 
+      <>I   ; 
+      JCN   FA05; // THEN skip this network
+
+      L     #s_Cnt_Minimum_Length; 
+      L     0; 
+      >I    ; // IF length counter is running
+      A     #s_Section_Run; // AND motor is running
+      JCN   FA03; 
+      L     #s_Cnt_Minimum_Length; 
+      L     #s_Displacement; // THEN decrement counter
+      -I    ; // by  displacement of previous scan
+      JPZ   FA02; 
+      L     0; 
+FA02: T     #s_Cnt_Minimum_Length; 
+
+FA03: L     #s_Cnt_Minimum_Length; 
+      L     0; 
+      <=I   ; // IF length counter is NOT running
+      A     #t_OS_FP_PEC_Flap_Filter; // AND One-Shot positive edge PEC Flap Filter
+      JCN   FA04; 
+      L     #i_CFG_Min_Product_Length; // THEN pre-set counter minimal product length
+      T     #s_Cnt_Minimum_Length; 
+
+FA04: L     #s_Cnt_Minimum_Length; 
+      L     0; 
+      >I    ; // IF length-counter is running
+      O     #s_PEC_Flap_Filter; // OR PEC Flap Filter
+      =     #s_PEC_Min_Prod_Length; // THEN assign to PEC Minimum Product Length
+      JU    FA99; 
+
+FA05: A     #s_PEC_Flap_Filter; // (IF setting "min. length"=0) Assign PEC Flap Filter
+      =     #s_PEC_Min_Prod_Length; // to PEC Minimum Product Length     
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: PEC Latch signal
+
+      A     #s_PEC_Min_Prod_Length; 
+      =     #s_PEC_Latch; 
+
+      A     #s_PEC_Latch; 
+      FP    #s_FP_PEC_Latch; 
+      =     #t_OS_FP_PEC_Latch; 
+
+      A     #s_PEC_Latch; 
+      FN    #s_FN_PEC_Latch; 
+      =     #t_OS_FN_PEC_Latch; 
+
+      L     W#16#1000; 
+      T     #s_State; // no PEC covert & no Latch
+      AN    #i_IO_NOT_PEC; 
+      A     #i_Eqp_Available_IO; 
+      JCN   GA01; 
+
+      L     W#16#1; 
+      L     #s_State; 
+      OW    ; 
+      T     #s_State; // PEC covert
+
+GA01: A     #s_PEC_Latch; 
+      JCN   GA99; 
+
+      L     W#16#2; 
+      L     #s_State; 
+      OW    ; 
+      T     #s_State; // PEC Latch
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Calculated the PEC Position
+
+      L     #i_Dwnstr_PLT_Pos; // Load previous offset
+      L     #i_Setting.PEC_Offset; // .. Add own offset
+      +I    ; 
+      T     #s_PEC_Position; // Is pec position on section
+      T     #o_PEC_Position; // Tell the ouside world
+NETWORK
+TITLE =GB: Read in PLT DB on position PEC
+
+      OPN   DB [#t_PLT_DB_Nr]; // Open PLT DB
+      L     0; 
+      T     #t_Link; 
+      T     #t_Info_State; 
+      T     #t_Info; 
+      T     #s_Position_Write_Read; 
+
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   GB99; //Check if enrties are present
+
+      L     1; 
+      T     #t_Cnt_Entry; 
+
+      L     14; // First entry starts at P#14.0
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+      L     DBW    2; 
+      L     0; 
+      ==I   ; // Check if displacement > 0
+      JCN   GB01; 
+
+      L     #s_PEC_Position; // End search position = position
+      JU    GB02; 
+
+GB01: L     #s_PEC_Position; // End search position = position - correct displacement
+      L     DBW    2; // Correct the displacement with -1
+      -I    ; 
+      L     1; 
+      +I    ; 
+
+GB02: T     #t_Search_End_Position; // Search_Start_Position = Position - (Displacement-1) IF dis<>0
+
+//--------------------------------------------------
+GB11: L     DBW [AR1,P#0.0]; // Actual entry position 
+      L     #s_PEC_Position; // START OF SEARCH-LOOP
+      >I    ; // IF Search-Start-position > read position THEN jump to decrease pointer  
+      JC    GB13; // THEN jump to decrement pointer 
+      L     #t_Search_End_Position; 
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      <=I   ; // ELSE Actual-position <= Search-End-Position jump to make outputs  
+      JC    GB12; // THEN data found  
+
+      JU    GB99; // ELSE jump to no data found end of search-loop
+
+GB12: L     DBW [AR1,P#0.0]; // Store position 
+      T     #s_Position_Write_Read; 
+
+      L     DBW [AR1,P#2.0]; // Store info
+      T     #t_Info_State; 
+
+      L     DBW [AR1,P#4.0]; // Store info
+      T     #t_Info; 
+
+      L     DBW [AR1,P#6.0]; // Store link data
+      T     #t_Link; 
+
+      JU    GB99; 
+
+GB13: L     #t_Cnt_Entry; 
+      L     1; 
+      +I    ; 
+      T     #t_Cnt_Entry; 
+
+// Check loop counter
+      L     #t_Cnt_Entry; 
+      L     DBW    0; 
+      >I    ; 
+      JC    GB99; // IF Entry pointer > 0
+
+      TAR1  ; // Read Entry pointer of address-register
+
+      L     P#8.0; // 8 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#8.0
+
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    GB11; // GOTO START OF SEARCH-LOOP
+
+GB99: NOP   0; 
+NETWORK
+TITLE =IA: PEC signals to PLT
+//The leading [1] and trailing [2] signals are removed and placed in the PLT DB, 
+//but corrected with the delay on/off shiftings. Also the tracking data is 
+//monitored.
+      AN    #i_Disable_Update_Funct; 
+      JCN   IA99; 
+
+      L     #t_Info_State; 
+      L     W#16#C00; 
+      AW    ; 
+      L     0; 
+      >I    ; 
+      JC    IA21; 
+
+      L     #t_Info; 
+      L     0; 
+      >I    ; 
+      JCN   IA21; 
+
+//If Leading edge and No tracking clear entry
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      AN    #i_CFG_Track_Present; 
+      JC    IA13; 
+
+//If Trailing edge and no PEC_Latch clear
+//           Else Hold entry
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      AN    #s_PEC_Latch; 
+      JC    IA13; 
+
+//Hold only if info = 2
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      JCN   IA21; 
+
+      CALL "FC_PLT_State_Info" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_PEC_Position,
+           i_Info_State             := W#16#2090,// 20 Owner and 90 Request Halt
+           i_Info_Physical          := 2);
+
+      JU    IA21; 
+
+IA13: CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Info_Physical          := #t_Info,//Only entry which is active
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Leading edge of an item
+IA21: A     #t_OS_FP_PEC_Latch; 
+      JCN   IA23; 
+
+// copy if leading is written and no run
+      AN    #s_Section_Run; 
+      S     #s_Remove_Entrie_No_Run; 
+
+// No write leading edge when tracking is present
+      AN    #i_CFG_Track_Present; 
+      JCN   IA23; 
+
+      L     #s_PEC_Position; 
+      L     #i_CFG_Delay_On_Filter; 
+      -I    ; 
+      L     1; 
+      -I    ; 
+      T     #s_Position_Write_Read; 
+      L     1; 
+      >I    ; 
+      JCN   IA22; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    IA99; 
+
+// Set position to 1 cm before end
+
+// If the write position is negative (Delay to large) then
+//  event is triggerd and the leading edge is written on 1
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3001,
+           i_Event_value            := #s_Position_Write_Read,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_INT_not_used);
+
+IA22: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 1,// Position = 1
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    IA99; 
+
+IA23: A     #t_OS_FN_PEC_Latch; 
+      JCN   IA99; 
+
+// Treading edge of an item
+      L     #s_PEC_Position; 
+      L     #i_CFG_Delay_Off_Filter; 
+      -I    ; 
+      L     1; 
+      -I    ; 
+      T     #s_Position_Write_Read; 
+      L     1; 
+      >I    ; 
+      JCN   IA24; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    IA99; 
+
+// Set position to 1 cm before end
+
+// If the write position is negative (Delay to large) then
+//  event is triggerd and the trailing edge is written on 1
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3001,
+           i_Event_value            := #s_Position_Write_Read,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_INT_not_used);
+
+IA24: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 1,// Position = 1
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Check if Leading edge can be removed because no run
+
+      AN    #i_Disable_Update_Funct; 
+      JCN   JA99; 
+
+      A     #s_Section_Run; 
+      R     #s_Remove_Entrie_No_Run; 
+
+      L     #s_Displacement; 
+      L     0; 
+      >I    ; 
+      R     #s_Remove_Entrie_No_Run; 
+
+      A     #i_IO_NOT_PEC; 
+      A     #s_Remove_Entrie_No_Run; 
+      JCN   JA99; 
+
+      L     #o_PEC_Position; 
+      L     #i_CFG_Delay_On_Filter; 
+      -I    ; 
+      L     1; 
+      -I    ; 
+      T     #s_Position_Write_Read; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   JA99; 
+
+// Remove entrie and clear counters
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3703,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_INT_not_used);
+
+      L     #o_PEC_Position; 
+      L     #i_CFG_Delay_Off_Filter; 
+      -I    ; 
+      L     1; 
+      -I    ; 
+      T     #s_Position_Write_Read; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Position_Write_Read,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      SET   ; 
+      R     #s_PEC; 
+      R     #s_PEC_Flap_Filter; 
+      R     #s_PEC_Min_Prod_Length; 
+      R     #s_PEC_Latch; 
+      R     #s_Copy_FN_PEC; 
+      R     #s_Copy_FP_PEC; 
+      R     #s_Copy_FP_PECFlapFilter; 
+
+      L     0; 
+      T     #s_Cnt_Delay_On; 
+      T     #s_Cnt_Delay_Off; 
+      T     #s_Cnt_Minimum_Length; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Trigger section out off e_save when delay on is used
+
+      A     #t_Section_Operational_On; 
+      AN    #s_Section_Run; 
+      AN    #i_IO_NOT_PEC; 
+      JCN   KA99; 
+
+      L     #s_PEC_Position; 
+      L     #i_CFG_Delay_On_Filter; 
+      -I    ; 
+      T     #t_Write_E_Save_Pos; 
+
+      AN    #i_Disable_Update_Funct; 
+      JCN   KA01; 
+
+      L     #t_Length_Section; 
+      T     #t_Write_E_Save_Pos; 
+
+//Reset energy saving of Section
+KA01: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := -3,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   KA99; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #t_Write_E_Save_Pos,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Write Info_State of PEC to PLT DB
+
+      AN    #i_Disable_Update_Funct; 
+      JCN   LA99; 
+
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+//Check if entries used > 0 else end network
+      L     DBW    0; 
+      L     0; 
+      ==I   ; 
+      JCN   LA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Position               := #s_PEC_Position,
+           i_Info_State             := W#16#1000,
+           i_Info_Physical          := 0,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+LA01: L     DBW    0; // Number of entries used in PLT DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+LA02: L     DBW [AR1,P#0.0]; 
+      L     #s_PEC_Position; 
+      ==I   ; 
+      JCN   LA03; 
+
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#100F; // Filter the state if PEC state is present 
+      AW    ; 
+      L     0; 
+      >I    ; 
+      JCN   LA03; 
+//Write state to info_state entry
+      L     #s_State; 
+      T     DBW [AR1,P#2.0]; 
+
+      JU    LA99; 
+
+LA03: TAR1  ; // Read Entry pointer of address-register
+      L     P#14.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      -D    ; // Entry pointer = Entry pointer - P#6.0
+      JMZ   LA98; // IF Entry pointer > 0
+
+      L     P#6.0; // THEN Entry pointer = -14 + 8 = -6
+      +D    ; 
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    LA02; // GOTO START OF SEARCH-LOOP
+
+LA98: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Position               := #s_PEC_Position,
+           i_Info_State             := W#16#1000,
+           i_Info_Physical          := 0,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Write to output
+
+      A     #s_PEC_Latch; 
+      =     #o_PEC_Latch; 
+
+      L     #i_Dwnstr_PLT_Pos; 
+      L     0; 
+      ==I   ; 
+      AN    #i_Disable_Update_Funct; 
+      JCN   MA01; // If previous offset =0 then write PEC Latch in PLT header
+
+      OPN   DB [#t_PLT_DB_Nr]; 
+      A     #s_PEC_Latch; 
+      =     DBX   10.7; // Write PEC Latch into PLT Header
+
+MA01: AN    #s_Remove_Entrie_No_Run; 
+      JCN   MA03; 
+
+      L     0; 
+      AN    #s_PEC_Latch; // IF No Pec Latch then write 0 to LPOS
+      JC    MA02; 
+      L     #i_CFG_Delay_On_Filter; // IF Pec Latch then write delay on to LPOS
+      <I    ; 
+      JC    MA02; 
+      L     1; // IF Delay on = 0 then write 1 to LPOS
+MA02: T     #o_LPOS; 
+
+      A     #t_OS_FN_PEC_Latch; 
+      JCN   MA10; 
+
+      L     0; 
+      L     #i_CFG_Delay_Off_Filter; 
+      <I    ; 
+      JC    MA03; // IF Delay off = 0 then write -1 to LPOS
+      L     1; 
+MA03: -I    ; 
+      T     #o_LPOS; // Write - Delay_off to LPOS on FN PEC
+
+MA10: A     #s_ST_PEC_Blockage; 
+      A     #i_Eqp_Available_IO; 
+      =     #o_ST_PEC_Blk; 
+
+END_FUNCTION_BLOCK
+

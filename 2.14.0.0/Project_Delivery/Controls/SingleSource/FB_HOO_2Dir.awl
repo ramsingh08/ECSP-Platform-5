@@ -1,0 +1,452 @@
+FUNCTION_BLOCK "FB_HOO_2Dir"
+TITLE =%version: 0.12 % CN: 44
+//Function: 
+//This block receives handover signals and product data from another transport 
+//controller via a PN/PN coupler.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, September 24, 2018 10:30:09 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#30649: Remove DAT layer from HOO 2Dir              nlHdL    24-09-18   0.12
+//ra#29485: Add i_CFG_Track_Present to FB_HOO_2Dir      nlHdL    18-06-18   0.11
+//ra#27541: HOO 2 Dir Lifesign and restart action       nlHdL    11-04-18   0.10
+//ra#27541: HOO 2 Directions Lifesign                   nlHdL    05-04-18   0.09
+//ra#27541: HOO 2 Directions Lifesign                   nlHdL    05-04-18   0.09
+//ra#27155: clear outputs on dir change                 nlHdL    19-12-17   0.08
+//ra#22201: HOO 2 Dir without IO lifesign Error         nlHdL    01-12-17   0.07
+//ina#8694: symbol i_Dwnstr_ change to i_Upstr_         nlHdL    24-11-17   0.06
+//ina#5033: Update DAT Layer                            nlHdL    01-09-17   0.05
+//ra#19553: Add Add_H2H_Stop and Add_Gap_Stop to TCTC   nlHdL    28-03-17   0.04
+//ra#20702: Add TEP/TOP IO interface on sending side    nlHdL    07-03-17   0.03
+//ra#12091: Add 50% rule to TC-TC                       nlHdL    26-01-17   0.02
+//Initial Revision                                      nlHdL    06-12-16   0.01
+//
+//Description:
+//This block receives handover data from the last transporter in a PLC 
+//(the sending module). This handover data contains lifesign signals, handover 
+//signals and product data. The product data is received via the acyclic part of 
+//a 
+//PN/PN coupler at the start of the item handover. A message identifier is 
+//received with the handover signals to synchronise the product data with the 
+//correct item.
+//
+// --------------------+  Lifesign  +------+            +--------------------
+//                     | ---------> |      |  Lifesign  |                    
+//                     | HO Signals |      | <--------- |                    
+//   Sending Module    | ---------> |      |    RTR     |   Receiving Module 
+//                     | Prod Data  |      | <--------- |                    
+//                     | ---------> |      |            |                    
+// --------------------+            +------+            +--------------------
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_HOO_Rcv_Mode : BOOL ;	//CMD: Hand Over Object in receive mode
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_DB_Send_FIFO_PNPN : BLOCK_DB ;	//Data Structure: TCTC DB send message FIFO for PN/PN coupler
+  i_DB_Recv_HandOver_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive Handover message FIFO
+  i_DB_Handl_Area_TableUpd : BLOCK_DB ;	//DB Handling area table update
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link
+  i_CFG_LM_Border : BOOL ;	//CFG: LM transition
+  i_CFG_Track_Present : BOOL  := TRUE;	// CFG: Tracking layer is used for this section
+  i_CFG_Send_Lifesign_Req : BOOL ;	//CFG: True = send lifesign request, false = send lifesign reply
+  i_RTS : BOOL ;	//Receiver: Ready-To-Send
+  i_RTR_Snd : BOOL ;	//Sender: Ready-To-Reveive
+  i_IHO : BOOL ;	//Receiver: Item Handover
+  i_Motor_Run : BOOL  := TRUE;	//Receiver: Motor Run
+  i_TIP : BOOL ;	//Receiver: Tranfer-In-Progress
+  i_Reset_E_Saving : BOOL ;	//Receiver: Reset Energy Saving
+  i_Lifesign : BOOL ;	//Send/Receive: Lifesign
+  i_Window_Code : BOOL ;	//Receiver: Window code
+  i_ResetRestart : BOOL ;	//Receiver: Reset Restart
+  i_Item_Length : INT ;	//Receiver: [mm] Item length, if not used =0
+  i_Message_Identifier : DINT ;	//Receiver: Message identifier for product data message
+  i_CFG_Slave_Mode : BOOL ;	//CFG: Make this section a slave
+  i_TEP_Snd : INT ;	//Sender: Total Empty Positions
+  i_TOP_Snd : INT ;	//Sender: Total Occupied Positions
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_DB_PLT_TRS : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_PLT_HOO : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_TEP_Downstream : INT ;	//Total Empty Positions Downstream
+  i_TOP_Downstream : INT ;	//Total Occupied Positions Downstream
+  i_Minimum_Gap : INT ;	//SETT: [cm] Minimum gap length between products (0 = no minimum gap control) 
+  i_Add_Gap_Stop : INT ;	//SETT: [cm] Additional gap after stop of upstream conveyor
+  i_Minimum_Head_To_Head : INT ;	//SETT: [cm] Minimum head to head length (0 = no head to head control)
+  i_Add_Head_To_Head_Stop : INT ;	//SETT: [cm] Additional head to head length after stop of upstream conveyor
+  i_Upstr_Cnv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed of Upstream section (Sending TRS), if not used =0
+  i_Upstr_Run_out_Dist : INT  := 14;	//CFG: [cm] Run out distance from nominal speed of upstream section
+  i_Upstr_StartUp_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed of upstream section
+END_VAR
+VAR_OUTPUT
+  o_RTS : BOOL ;	//Sender: Ready-To-Send
+  o_RTR_Rcv : BOOL ;	//Receiver: Ready-To-Receive
+  o_IHO : BOOL ;	//Sender: Item HandOver
+  o_Motor_Run : BOOL ;	//Sender: Motor run
+  o_TIP : BOOL ;	//Sender: Transfer-In-Progress
+  o_Reset_E_Saving : BOOL ;	//Sender: Reset E Saving receiver
+  o_Lifesign : BOOL ;	//Send/Receive: Lifesign pulse
+  o_Window_Code : BOOL ;	//Sender: Window code
+  o_ResetRestart : BOOL ;	//Sender: Reset Restart to receiving
+  o_Item_Length : INT ;	//Sender: [mm] Item length, if not used =0
+  o_Message_Identifier : DINT ;	//Sender: Message identifier for product data message
+  o_TEP_Rcv : INT ;	//Receiver: Total Empty Positions
+  o_TOP_Rcv : INT ;	//Receiver: Total Occupied Positions
+  o_Req_Halt_TRS : BOOL ;	//Request halt section
+  o_Reset_E_Save_Section : BOOL ;	//Reset energy saving section
+  o_ST_Link_Error : BOOL ;	//ST: Link Error
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_TEP_Downstream : INT ;	//Downstream Total Empty Position
+  o_TOP_Downstream : INT ;	//Downstream Total Occupied Positions
+END_VAR
+VAR
+  s_Receive : "FB_TCTC_PNPN_Receive";	//Block call static FB_TCTC_PNPN_Receive	
+  s_Send : "FB_TCTC_PNPN_Send";	//Block call static FB_TCTC_PNPN_Send
+  s_FB_TCTC_Snd_Lifesign : "FB_TCTC_Snd_Lifesign";	//Block call static FB_TCTC_Snd_Lifesign
+  s_FB_TCTC_Rcv_Lifesign : "FB_TCTC_Rcv_Lifesign";	//Block call static FB_TCTC_Rcv_Lifesign
+  s_FP_Copy_CMD_Rcv_Mode : BOOL ;	//Copy Flank Positive CMD for HOO Receive mode
+  s_FN_Copy_CMD_Rcv_Mode : BOOL ;	//Copy Flank Negative CMD for HOO Receive mode
+  s_FP_Rcv_ResetRestart : BOOL ;	//FlankPositive Receiving ResetRestart
+  s_Link_Error : BOOL ;	//Combined link error signal for flow and data interface
+END_VAR
+VAR_TEMP
+  t_Req_Halt_TRS : BOOL ;	//Request halt section
+  t_Reset_E_Save_Section : BOOL ;	//Reset energy saving section
+  t_ST_Link_Error : BOOL ;	//ST: Link Error
+  t_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+  t_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  t_Length_Section : INT ;	//Adress of instance
+  t_PLT_DB_Number : INT ;	//PLT DB Number
+  t_Snd_Started : BOOL ;	//Section is available and Operational
+  t_Snd_Reset_E_Save : BOOL ;	//Reset E-Save if item is present on section
+  t_Int_Not_Used : INT ;	//Int not used
+  t_Num_Found : INT ;	//Number of fiund items
+  t_PLT_DB_HOO : INT ;	//PLT DB Number of the HandOverObject
+  t_LNK_Found : INT ;	//Found LNK or empty window
+  t_FP_CMD_Rcv_Mode : BOOL ;	//Flank Positive CMD for HOO Receive mode
+  t_FN_CMD_Rcv_Mode : BOOL ;	//Flank Negative CMD for HOO Receive mode
+  t_Link_Er_Data_Interface : BOOL ;	//Link error from FIFO DB
+  t_OS_Rcv_ResetRestart : BOOL ;	//One Shot Receive ResetRestart
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init values
+
+      A     #i_CMD_HOO_Rcv_Mode; 
+      FP    #s_FP_Copy_CMD_Rcv_Mode; 
+      =     #t_FP_CMD_Rcv_Mode; 
+
+      A     #i_CMD_HOO_Rcv_Mode; 
+      FN    #s_FN_Copy_CMD_Rcv_Mode; 
+      =     #t_FN_CMD_Rcv_Mode; 
+
+// Initialise some values when switching modes
+      A     #t_FP_CMD_Rcv_Mode; 
+      O     #t_FN_CMD_Rcv_Mode; 
+      JCN   AA99; 
+
+// Reset outputs before calling the correct receive or send block
+// To prevent outputs from the unused block staying high (TRUE)
+      SET   ; 
+      R     #o_RTS; 
+      R     #o_RTR_Rcv; 
+      R     #o_IHO; 
+      R     #o_Motor_Run; 
+      R     #o_TIP; 
+      R     #o_Reset_E_Saving; 
+      R     #o_Window_Code; 
+      R     #o_ResetRestart; 
+      R     #o_Req_Halt_TRS; 
+      R     #o_Reset_E_Save_Section; 
+      R     #o_ST_Link_Error; 
+      R     #o_ST_WN_Restart; 
+      R     #o_Ready_To_Restart; 
+
+      L     0; 
+      T     #o_Item_Length; 
+      T     #o_Message_Identifier; 
+      T     #o_TEP_Rcv; 
+      T     #o_TOP_Rcv; 
+      T     #o_TEP_Downstream; 
+      T     #o_TOP_Downstream; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Lifesign check
+
+      A     #i_ResetRestart; 
+      FP    #s_FP_Rcv_ResetRestart; 
+      =     #t_OS_Rcv_ResetRestart; 
+
+//Retreive error link from FIFO DB
+      OPN   #i_DB_Send_FIFO_PNPN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      R     #t_Link_Er_Data_Interface; 
+      JCN   BA01; 
+
+      A     DBX    1.2; 
+      =     #t_Link_Er_Data_Interface; 
+
+BA01: A     #i_CFG_Send_Lifesign_Req; 
+      JCN   BA02; 
+
+      CALL #s_FB_TCTC_Snd_Lifesign (
+           i_Available_IO           := #i_Available_IO,
+           i_Rcv_Lifesign_Reply     := #i_Lifesign,
+           o_Snd_Lifesign           := #o_Lifesign,
+           o_ST_Link_Error          := #t_ST_Link_Error);
+
+      JU    BA03; 
+
+BA02: CALL #s_FB_TCTC_Rcv_Lifesign (
+           i_Available_IO           := #i_Available_IO,
+           i_Rcv_Lifesign           := #i_Lifesign,
+           o_Snd_Lifesign_Reply     := #o_Lifesign,
+           o_ST_Link_Error          := #t_ST_Link_Error);
+
+BA03: A     #t_OS_Rcv_ResetRestart; 
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #s_Link_Error; 
+
+      A     #t_ST_Link_Error; 
+      O     #t_Link_Er_Data_Interface; 
+      A     #i_Available_IO; 
+      AN    #t_OS_Rcv_ResetRestart; 
+      S     #s_Link_Error; 
+
+      A     #s_Link_Error; 
+      =     #o_ST_Link_Error; 
+NETWORK
+TITLE =CA: Receive
+
+      A     #i_CMD_HOO_Rcv_Mode; 
+      O     #i_CMD_Start; 
+      O     #i_CMD_Reset; 
+      O     #t_OS_Rcv_ResetRestart; 
+      JCN   CA01; 
+
+      CALL #s_Receive (
+           i_TRS_ID                 := #i_ID,
+           i_Available_IO           := #i_Available_IO,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Event_DB               := #i_Event_DB,
+           i_DB_Recv_HandOver_FIFO  := #i_DB_Recv_HandOver_FIFO,
+           i_DB_Handl_Area_TableUpd := #i_DB_Handl_Area_TableUpd,
+           i_CFG_Default_Record     := #i_CFG_Default_Record,
+           i_CFG_LM_Border          := #i_CFG_LM_Border,
+           i_CFG_Track_Present      := #i_CFG_Track_Present,
+           i_Link_Err_Interface     := #s_Link_Error,// Used to reset operational on, restart required
+           i_Rcv_RTS                := #i_RTS,
+           i_Rcv_IHO                := #i_IHO,
+           i_Rcv_Motor_Run          := #i_Motor_Run,
+           i_Rcv_TIP                := #i_TIP,
+           i_Rcv_Reset_E_Saving     := #i_Reset_E_Saving,
+           i_Rcv_Lifesign           := "M_OS_/0.1_sec.",
+           i_Rcv_Window_Code        := #i_Window_Code,
+           i_Rcv_ResetRestart       := #i_ResetRestart,
+           i_Rcv_Item_Length        := #i_Item_Length,
+           i_Rcv_Message_Identifier := #i_Message_Identifier,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_TRS,
+           i_TEP_Downstream         := #i_TEP_Downstream,
+           i_TOP_Downstream         := #i_TOP_Downstream,
+           i_Minimum_Gap            := #i_Minimum_Gap,
+           i_Add_Gap_Stop           := #i_Add_Gap_Stop,
+           i_Minimum_Head_To_Head   := #i_Minimum_Head_To_Head,
+           i_Add_Head_To_Head_Stop  := #i_Add_Head_To_Head_Stop,
+           i_Upstr_Cnv_Speed        := #i_Upstr_Cnv_Speed,
+           i_Upstr_Run_out_Dist     := #i_Upstr_Run_out_Dist,
+           i_Upstr_StartUp_Dist     := #i_Upstr_Run_out_Dist,
+           o_Snd_RTR                := #o_RTR_Rcv,
+           o_Snd_ResetRestart       := #o_ResetRestart,
+           o_Snd_TEP                := #o_TEP_Rcv,
+           o_Snd_TOP                := #o_TOP_Rcv,
+           o_Req_Halt_TRS           := #t_Req_Halt_TRS,
+           o_Reset_E_Save_Section   := #t_Reset_E_Save_Section,
+           o_ST_Link_Error          := #t_ST_Link_Error,
+           o_ST_WN_Restart          := #t_ST_WN_Restart,
+           o_Ready_To_Restart       := #t_Ready_To_Restart);
+
+      AN    #i_CMD_HOO_Rcv_Mode; 
+      R     #o_RTR_Rcv; 
+
+      OPN   #i_DB_PLT_TRS; 
+      A     DBX   10.1; 
+      =     #o_Motor_Run; 
+
+      A     #i_CMD_HOO_Rcv_Mode; 
+      JCN   CA01; 
+      A     #t_Req_Halt_TRS; 
+      =     #o_Req_Halt_TRS; 
+      A     #t_Reset_E_Save_Section; 
+      =     #o_Reset_E_Save_Section; 
+      A     #t_ST_WN_Restart; 
+      =     #o_ST_WN_Restart; 
+      A     #t_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+
+      A     #i_CMD_Enable; 
+      JCN   CA01; 
+
+      OPN   #i_DB_PLT_TRS; 
+      L     1; 
+      T     DBW    6; // If section is receiving no upstream PLT
+
+CA01: NOP   0; 
+NETWORK
+TITLE =DA: Send
+
+      AN    #i_CMD_HOO_Rcv_Mode; 
+      O     #i_CMD_Start; 
+      O     #i_CMD_Reset; 
+      O     #t_OS_Rcv_ResetRestart; 
+      JCN   DA99; 
+
+      OPN   #i_DB_PLT_TRS; 
+      L     DBNO; 
+      T     #t_PLT_DB_Number; 
+
+      A     DBX   10.4; //Section Available
+      A     DBX   10.5; //Section Operational
+      A     DBX   10.3; //Cascade Start Up
+      =     #t_Snd_Started; 
+
+      L     DBW   12; 
+      T     #t_Length_Section; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_DB_Number,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := 1,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Found);
+
+      L     #t_Num_Found; 
+      L     0; 
+      >I    ; 
+      A     #t_Snd_Started; 
+      =     #t_Snd_Reset_E_Save; 
+
+      A     #i_CFG_Slave_Mode; 
+      JCN   DA01; 
+
+      OPN   #i_DB_PLT_TRS; 
+
+      A     DBX   10.5; //Section Operational
+      =     #t_Snd_Started; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_DB_Number,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Found);
+
+      L     #t_Num_Found; 
+      L     0; 
+      >I    ; 
+      A     #t_Snd_Started; 
+      =     #t_Snd_Reset_E_Save; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_DB_Number,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Length_Section,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_LNK_Found,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_LNK_Found; 
+      L     -100; 
+      <I    ; 
+      A     #t_Snd_Started; 
+      S     #t_Snd_Reset_E_Save; 
+
+DA01: CALL #s_Send (
+           i_ID                     := #i_ID,
+           i_Available_IO           := #i_Available_IO,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Event_DB               := #i_Event_DB,
+           i_DB_Send_FIFO_PNPN      := #i_DB_Send_FIFO_PNPN,
+           i_CFG_LM_Border          := #i_CFG_LM_Border,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_Link_Err_Interface     := #s_Link_Error,// Used to reset operational on, restart required
+           i_Snd_Started            := #t_Snd_Started,
+           i_Snd_Reset_E_Saving     := #t_Snd_Reset_E_Save,
+           i_Rcv_RTR                := #i_RTR_Snd,
+           i_Rcv_Lifesign_Reply     := "M_OS_/0.1_sec.",
+           i_Rcv_ResetRestart       := #i_ResetRestart,
+           i_Rcv_TEP                := #i_TEP_Snd,
+           i_Rcv_TOP                := #i_TOP_Snd,
+           i_DB_PLT                 := #i_DB_PLT_TRS,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_HOO,
+           o_Snd_RTS                := #o_RTS,
+           o_Snd_IHO                := #o_IHO,
+           o_Snd_Motor_Run          := #o_Motor_Run,
+           o_Snd_TIP                := #o_TIP,
+           o_Snd_Reset_E_Saving     := #o_Reset_E_Saving,
+           o_Snd_Window_Code        := #o_Window_Code,
+           o_Snd_ResetRestart       := #o_ResetRestart,
+           o_Snd_Message_Identifier := #o_Message_Identifier,
+           o_Snd_Item_Length        := #o_Item_Length,
+           o_Req_Halt_TRS           := #t_Req_Halt_TRS,
+           o_ST_Link_Error          := #t_ST_Link_Error,
+           o_ST_WN_Restart          := #t_ST_WN_Restart,
+           o_Ready_To_Restart       := #t_Ready_To_Restart,
+           o_TEP                    := #o_TEP_Downstream,
+           o_TOP                    := #o_TOP_Downstream);
+
+      AN    #i_CMD_HOO_Rcv_Mode; 
+      JCN   DA99; 
+      A     #t_Req_Halt_TRS; 
+      =     #o_Req_Halt_TRS; 
+      A     #t_ST_WN_Restart; 
+      =     #o_ST_WN_Restart; 
+      A     #t_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+
+      A     #i_CMD_Enable; 
+      JCN   DA99; 
+
+      OPN   #i_DB_PLT_HOO; 
+      L     DBNO; 
+      T     #t_PLT_DB_HOO; 
+      L     #t_PLT_DB_Number; 
+      T     DBW    6; 
+      AN    #i_Motor_Run; 
+      R     DBX   10.1; //Section run in PLT
+
+      OPN   #i_DB_PLT_TRS; 
+      L     #t_PLT_DB_HOO; 
+      T     DBW    8; // If section is sending downstream is HOO PLT
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

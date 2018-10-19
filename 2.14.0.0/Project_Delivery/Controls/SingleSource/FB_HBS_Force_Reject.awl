@@ -1,0 +1,135 @@
+FUNCTION_BLOCK "FB_HBS_Force_Reject"
+TITLE =%version: 0.02 %  CN: 40
+//Function:
+//This block is used to force reject images from the screening machine.
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, February 24, 2017 1:30:31 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20830: Development                                 nldy     24-02-17   0.02
+//Initial version based on SIN_T1_CONV                  inajos   24-11-16   0.01
+//
+//
+//Description:
+//The force reject function uses a fifo buffer, containing the Pseudo ID of the 
+//items to being rejected.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_DB_Fifo_Force_Reject : BLOCK_DB ;	//Fifo DB used to force reject image from scanner
+  i_Forced_Reject_Ack : BOOL ;	//Data[0].9 Forced Reject Acknowledge
+END_VAR
+VAR_OUTPUT
+  o_Force_Reject : BOOL ;	//Clear bag data in case of force reject
+  o_Pseudo_Code_ForceRej : DINT ;	//Pseudo code passed in case of force reject 
+END_VAR
+VAR
+  s_Reject : STRUCT 	//Pseudo ID for reject image
+   Pseudo : DINT ;	
+  END_STRUCT ;	
+  s_Timer_Reject : INT ;	//Timer limit reject active
+  s_Force_Rej_Dly_Cnt : INT ;	//Force reject delay counter
+  s_Force_Reject : BOOL ;	//Clear bag data in case of force reject
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the Local Event DB
+  t_RET_VAL_Word : WORD ;	//Return value function call (word)
+  t_DB_FIFO_FR_Num : INT ;	//Number of the force reject DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read Event DB num and Fifo num
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_Fifo_Force_Reject; // Opn local HLC buffer DB
+      L     DBNO; 
+      T     #t_DB_FIFO_FR_Num; 
+
+      L     #t_DB_FIFO_FR_Num; 
+      L     0; 
+      ==I   ; 
+      BEC   ; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_Force_Reject,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 2,
+           i_Current_Value          := #s_Force_Rej_Dly_Cnt,
+           o_Status                 := #o_Force_Reject,
+           o_Current_Value          := #s_Force_Rej_Dly_Cnt);
+
+// If force reject active then exit sub
+      A     #s_Force_Reject; 
+      AN    #i_Forced_Reject_Ack; 
+      A(    ; 
+      L     #o_Pseudo_Code_ForceRej; 
+      L     0; 
+      <>D   ; 
+      )     ; 
+      JCN   AA01; 
+// Limit timer force reject 
+      L     #s_Timer_Reject; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      T     #s_Timer_Reject; 
+      JMZ   AA01; 
+      BEU   ; 
+// Clear output
+AA01: CLR   ; 
+      =     #s_Force_Reject; 
+
+      L     0; 
+      T     #o_Pseudo_Code_ForceRej; 
+
+      L     1500; // Set start timer
+      T     #s_Timer_Reject; 
+// Wait for acknowledge gone.
+      A     #i_Forced_Reject_Ack; 
+      BEC   ; 
+
+// Check if FIFO is empty
+      OPN   #i_DB_Fifo_Force_Reject; 
+      A     DBX    0.0; 
+      BEC   ; // IF empty, then end force reject function
+
+      L     DBW    6; // Check number of records stored in fifo
+      L     0; 
+      ==I   ; 
+      BEC   ; // IF no records stored, then end force reject function
+NETWORK
+TITLE =BA: Retreive force reject item
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_DB_FIFO_FR_Num,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Reject,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_RET_VAL_Word);
+
+      L     #s_Reject.Pseudo; // Check if Pseudo ID is valid (<> 0)
+      L     0; 
+      ==D   ; 
+      BEC   ; 
+NETWORK
+TITLE =CA: Force reject to screening machine
+
+      L     #s_Reject.Pseudo; 
+      T     #o_Pseudo_Code_ForceRej; 
+
+      SET   ; 
+      =     #s_Force_Reject; 
+
+END_FUNCTION_BLOCK
+

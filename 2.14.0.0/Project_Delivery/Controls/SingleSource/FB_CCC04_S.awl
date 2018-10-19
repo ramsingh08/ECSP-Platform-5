@@ -1,0 +1,483 @@
+FUNCTION_BLOCK "FB_CCC04_S"
+TITLE =%version: 9 % CN: 40
+//Function:
+//Create statuses of all the cabinet equipment
+//
+//Description:
+//This block collects the information which is not covered by the 
+//area, zone or section layers. This is information about the PLC, PROFIBUS, 
+//PROFINET, Safety system and additional equipment located inside the main 
+//cabinet.
+//
+//History:
+//This version  %created_by: nleg %
+//              %date_created: Monday, February 20, 2017 3:27:58 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24098 : Default configuration setting wrong for    nleg     29-03-18   0.09
+// "Fire Alarm" message on HMI
+//ra#20074 : Re-design CCC04                            nleg     17-01-17   0.02
+//Initial version based on FB_CCC91_S YVR v0.08         nlwlu    27-05-16   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_MS_MAIN_PWR : BOOL ;	//CFG: Main switch main power supply present (Reserved)
+  i_CFG_MS_AUX_PWR : BOOL ;	//CFG: Main switch auxiliary power supply present
+  i_CFG_CB_PHASE_CTRL : BOOL ;	//CFG: Circuit breaker phase control present
+  i_CFG_PHASE_CTRL_OK : BOOL ;	//CFG: Phase control present
+  i_CFG_CB_MEASURING : BOOL ;	//CFG: Circuit breaker energy measuring present
+  i_CFG_CB_24V_CTRL : BOOL ;	//CFG: Circuit breaker 24Vdc supply control voltage present
+  i_CFG_CB_24V_OK : BOOL ;	//CFG: Circuit breaker 24Vdc supply units OK present
+  i_CFG_CB_24V_SAFE : BOOL ;	//CFG: Circuit breaker 24Vdc supply safety system present (Reserved)
+  i_CFG_PN_SWITCH_OK : BOOL ;	//CFG: PROFINET switch present
+  i_CFG_CAB_TEMP_OK : BOOL ;	//CFG: Cabinet temperature control present
+  i_CFG_CB_UPS : BOOL ;	//CFG: Circuit breaker uninterrupted power supply present
+  i_CFG_CB_ETH_LINKP : BOOL ;	//CFG: Circuit breaker Ethernet link protector switched present
+  i_CFG_ETH_LINKP_OK : BOOL ;	//CFG: Ethernet link protector present
+  i_CFG_AUX_PG01 : BOOL ;	//CFG: Auxiliary power group 01 present
+  i_CFG_AUX_PG02 : BOOL ;	//CFG: Auxiliary power group 02 present
+  i_CFG_AUX_PG03 : BOOL ;	//CFG: Auxiliary power group 03 present
+  i_CFG_AUX_PG04 : BOOL ;	//CFG: Auxiliary power group 04 present
+  i_CFG_AUX_PG05 : BOOL ;	//CFG: Auxiliary power group 05 present
+  i_CFG_AUX_PG06 : BOOL ;	//CFG: Auxiliary power group 06 present
+  i_CFG_AUX_PG07 : BOOL ;	//CFG: Auxiliary power group 07 present
+  i_CFG_AUX_PG08 : BOOL ;	//CFG: Auxiliary power group 08 present
+  i_CFG_AUX_PG09 : BOOL ;	//CFG: Auxiliary power group 09 present
+  i_CFG_AUX_PG10 : BOOL ;	//CFG: Auxiliary power group 10 present
+  i_MS_MAIN_PWR : BOOL ;	//ST: Main switch main power supply switched on
+  i_MS_AUX_PWR : BOOL ;	//ST: Main switch auxiliary power supply switched on
+  i_CB_PHASE_CTRL : BOOL ;	//ST: Circuit breaker phase control switched on
+  i_PHASE_CTRL_OK : BOOL ;	//ST: Phase control OK
+  i_CB_MEASURING : BOOL ;	//ST: Circuit breaker energy measuring switched on
+  i_CB_24V_CTRL : BOOL ;	//ST: Circuit breaker 24Vdc supply control voltage switched on
+  i_CB_24V_OK : BOOL ;	//ST: Circuit breaker 24Vdc supply units switched on
+  i_CB_24V_SAFE : BOOL ;	//ST: Circuit breaker 24Vdc supply safety system switched on (Reserved)
+  i_PN_SWITCH_OK : BOOL ;	//ST: PROFINET switch OK
+  i_CAB_TEMP_OK : BOOL ;	//ST: Cabinet temperature OK
+  i_CB_UPS : BOOL ;	//ST: Circuit breaker uninterrupted power supply switched on
+  i_CB_ETH_LINKP : BOOL ;	//ST: Circuit breaker Ethernet link protector switched on
+  i_ETH_LINKP_OK : BOOL ;	//ST: Ethernet link protector OK
+  i_CB_AUX_PG01 : BOOL ;	//ST: Circuit breaker auxiliary power group 01 switched on
+  i_CB_AUX_PG02 : BOOL ;	//ST: Circuit breaker auxiliary power group 02 switched on
+  i_CB_AUX_PG03 : BOOL ;	//ST: Circuit breaker auxiliary power group 03 switched on
+  i_CB_AUX_PG04 : BOOL ;	//ST: Circuit breaker auxiliary power group 04 switched on
+  i_CB_AUX_PG05 : BOOL ;	//ST: Circuit breaker auxiliary power group 01 switched on
+  i_CB_AUX_PG06 : BOOL ;	//ST: Circuit breaker auxiliary power group 06 switched on
+  i_CB_AUX_PG07 : BOOL ;	//ST: Circuit breaker auxiliary power group 07 switched on
+  i_CB_AUX_PG08 : BOOL ;	//ST: Circuit breaker auxiliary power group 08 switched on
+  i_CB_AUX_PG09 : BOOL ;	//ST: Circuit breaker auxiliary power group 09 switched on
+  i_CB_AUX_PG10 : BOOL ;	//ST: Circuit breaker auxiliary power group 10 switched on
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_DP_Master_NotPrsnt : BOOL ;	//ST: PROFIBUS: Master not present
+  i_DP_Master_Error : BOOL ;	//ST: PROFIBUS: Master in error
+  i_PN_Master_NotPrsnt : BOOL ;	//ST: PROFINET: Master not present
+  i_PN_Master_Error : BOOL ;	//ST: PROFINET: Master in error
+  i_PN1_NotPrsnt : BOOL ;	//ST: PROFINET: Slave 1 not present
+  i_PN1_Error : BOOL ;	//ST: PROFINET: Slave 1 in error
+  i_OP_Comm_Error : BOOL ;	//ST: Communication with Operator Panel in error
+END_VAR
+VAR_OUTPUT
+  o_ST_MS_MAIN_PWR_OFF : BOOL ;	//ST: Main switch main power supply switched off
+  o_ST_MS_AUX_PWR_OFF : BOOL ;	//ST: Main switch auxiliary power supply switched off
+  o_ST_CB_PHASE_CTRL_OFF : BOOL ;	//ST: Circuit breaker phase control switched off
+  o_ST_PHASE_CTRL_Error : BOOL ;	//ST: Phase control in error
+  o_ST_CB_MEASURING_OFF : BOOL ;	//ST: Circuit breaker energy measuring switched off
+  o_ST_CB_24V_CTRL_OFF : BOOL ;	//ST: Circuit breaker 24Vdc supply control voltage switched off
+  o_ST_CB_24V_OK_OFF : BOOL ;	//ST: Circuit breaker 24Vdc supply units switched off
+  o_ST_CB_24V_SAFE_OFF : BOOL ;	//ST: Circuit breaker 24Vdc supply safety system switched off (Reserved)
+  o_ST_PN_SWITCH_Error : BOOL ;	//ST: PROFINET switch in error
+  o_ST_CAB_TEMP_TOO_HIGH : BOOL ;	//ST: Cabinet temperature too high
+  o_ST_CB_UPS_OFF : BOOL ;	//ST: Circuit breaker uninterrupted power supply switched off
+  o_ST_CB_ETH_LINKP_OFF : BOOL ;	//ST: Circuit breaker Ethernet link protector switched off
+  o_ST_ETH_LINKP_Error : BOOL ;	//ST: Ethernet link protector in error
+  o_ST_CB_AUX_PG01_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 01 switched off
+  o_ST_CB_AUX_PG02_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 02 switched off
+  o_ST_CB_AUX_PG03_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 03 switched off
+  o_ST_CB_AUX_PG04_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 04 switched off
+  o_ST_CB_AUX_PG05_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 01 switched off
+  o_ST_CB_AUX_PG06_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 06 switched off
+  o_ST_CB_AUX_PG07_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 07 switched off
+  o_ST_CB_AUX_PG08_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 08 switched off
+  o_ST_CB_AUX_PG09_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 09 switched off
+  o_ST_CB_AUX_PG10_OFF : BOOL ;	//ST: Circuit breaker auxiliary power group 10 switched off
+  o_ST_DP_Master_NotPrsnt : BOOL ;	//ST: PROFIBUS: Master not present
+  o_ST_DP_Master_Error : BOOL ;	//ST: PROFIBUS: Master in error
+  o_ST_PN_Master_NotPrsnt : BOOL ;	//ST: PROFINET: Master not present
+  o_ST_PN_Master_Error : BOOL ;	//ST: PROFINET: Master in error
+  o_ST_PN1_NotPrsnt : BOOL ;	//ST: PROFINET: Slave 1 not present
+  o_ST_PN1_Error : BOOL ;	//ST: PROFINET: Slave 1 in error
+  o_ST_OP_Comm_Error : BOOL ;	//ST: Communication with Operator Panel in error
+END_VAR
+VAR
+  s_Status : "UDT_CCC04_Stat_S";	//Detailed statuses
+END_VAR
+VAR_TEMP
+  t_Suppress_Errors : BOOL ;	//Suppress other errors
+  t_AUX_Power_Groups_OK : BOOL ;	//All Power Groups OK
+  t_Suppress_Errors_24V_EQ : BOOL ;	//Suppress errors on 24Vdc supply equipment voltage   
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Collect status system guarding
+//Reset status PLC-hardware, main switches and Ethernet link protector
+      A     #i_CMD_Reset; 
+      R     #s_Status.MS_MAIN_PWR_OFF; 
+      R     #s_Status.DP_Master_NotPrsnt; 
+      R     #s_Status.DP_Master_Error; 
+      R     #s_Status.PN_Master_NotPrsnt; 
+      R     #s_Status.PN_Master_Error; 
+      R     #s_Status.ETH_LINKP_Error; 
+
+//Main switch main power supply switched off
+      A     #i_CFG_MS_MAIN_PWR; 
+      AN    #i_MS_MAIN_PWR; 
+      S     #s_Status.MS_MAIN_PWR_OFF; 
+
+//Main switch auxiliary power supply switched off
+      A     #i_CFG_MS_AUX_PWR; 
+      AN    #i_MS_AUX_PWR; 
+      S     #s_Status.MS_AUX_PWR_OFF; 
+
+//PROFIBUS: Master not present
+      A     #i_DP_Master_NotPrsnt; 
+      S     #s_Status.DP_Master_NotPrsnt; 
+
+//PROFIBUS: Master in error
+      A     #i_DP_Master_Error; 
+      AN    #s_Status.DP_Master_NotPrsnt; 
+      S     #s_Status.DP_Master_Error; 
+
+//PROFINET: Master not present
+      A     #i_PN_Master_NotPrsnt; 
+      S     #s_Status.PN_Master_NotPrsnt; 
+
+//PROFINET: Master in error
+      A     #i_PN_Master_Error; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      S     #s_Status.PN_Master_Error; 
+
+//Ethernet Link Protector
+      A     #i_CFG_ETH_LINKP_OK; 
+      AN    #i_ETH_LINKP_OK; 
+      S     #s_Status.ETH_LINKP_Error; 
+
+NETWORK
+TITLE =BA: Suppress errors in first scan
+//PROFIBUS/PROFINET master not present/error or main switch switched off
+      A     "M_First_Scan"; 
+      O     #s_Status.MS_MAIN_PWR_OFF; 
+      O     #s_Status.MS_AUX_PWR_OFF;
+      O     #s_Status.DP_Master_NotPrsnt; 
+      O     #s_Status.DP_Master_Error; 
+      O     #s_Status.PN_Master_NotPrsnt; 
+      O     #s_Status.PN_Master_Error; 
+      =     #t_Suppress_Errors; 
+
+NETWORK
+TITLE =CA: Hardware Control
+//Collect status hardware located in the main cabinet
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.CB_PHASE_CTRL_OFF; 
+      R     #s_Status.CB_MEASURING_OFF;       
+      R     #s_Status.CB_24V_CTRL_OFF;  
+      R     #s_Status.CB_24V_OK_OFF;  
+      R     #s_Status.CB_24V_SAFE_OFF; 
+      R     #s_Status.CAB_TEMP_TOO_HIGH; 
+      R     #s_Status.CB_UPS_OFF; 
+      R     #s_Status.CB_ETH_LINKP_OFF; 
+
+//Circuit breaker phase control switched off
+      A     #i_CFG_CB_PHASE_CTRL; 
+      AN    #i_CB_PHASE_CTRL; 
+      S     #s_Status.CB_PHASE_CTRL_OFF; 
+
+//Phase control in error
+      A     #i_CFG_PHASE_CTRL_OK; 
+      AN    #i_PHASE_CTRL_OK; 
+      S     #s_Status.PHASE_CTRL_Error; 
+
+//Circuit breaker energy measuring switched off
+      A     #i_CFG_CB_MEASURING; 
+      AN    #i_CB_MEASURING; 
+      S     #s_Status.CB_MEASURING_OFF; 
+
+//Circuit breaker 24Vdc supply control voltage switched off
+      A     #i_CFG_CB_24V_CTRL; 
+      AN    #i_CB_24V_CTRL; 
+      S     #s_Status.CB_24V_CTRL_OFF; 
+
+//Circuit breaker 24Vdc supply units switched off
+      A     #i_CFG_CB_24V_OK; 
+      AN    #i_CB_24V_OK; 
+      S     #s_Status.CB_24V_OK_OFF; 
+
+//Circuit breaker 24Vdc supply safety system switched off (Reserved)
+      A     #i_CFG_CB_24V_SAFE; 
+      AN    #i_CB_24V_SAFE; 
+      S     #s_Status.CB_24V_SAFE_OFF; 
+
+//Cabinet temperature too high
+      A     #i_CFG_CAB_TEMP_OK; 
+      AN    #i_CAB_TEMP_OK; 
+      S     #s_Status.CAB_TEMP_TOO_HIGH; 
+
+//Circuit breaker uninterrupted power supply switched off
+      A     #i_CFG_CB_UPS; 
+      AN    #i_CB_UPS; 
+      S     #s_Status.CB_UPS_OFF; 
+
+//Circuit breaker Ethernet link protector switched off
+      A     #i_CFG_CB_ETH_LINKP; 
+      AN    #i_CB_ETH_LINKP; 
+      S     #s_Status.CB_ETH_LINKP_OFF; 
+      
+NETWORK
+TITLE =CB: Suppress errors on 24Vdc supply equipment voltage 
+      A     #t_Suppress_Errors; 
+      O     #s_Status.CB_24V_CTRL_OFF; 
+      O     #s_Status.CB_24V_OK_OFF; 
+      O     #s_Status.CB_24V_SAFE_OFF; 
+      =     #t_Suppress_Errors_24V_EQ; 
+
+NETWORK
+TITLE =DA: Circuit breaker auxiliary power group switched off
+//Reset errors on circuit breaker for all auxiliary power groups
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.CB_AUX_PG01_OFF; 
+      R     #s_Status.CB_AUX_PG02_OFF; 
+      R     #s_Status.CB_AUX_PG03_OFF; 
+      R     #s_Status.CB_AUX_PG04_OFF; 
+      R     #s_Status.CB_AUX_PG05_OFF; 
+      R     #s_Status.CB_AUX_PG06_OFF; 
+      R     #s_Status.CB_AUX_PG07_OFF; 
+      R     #s_Status.CB_AUX_PG08_OFF; 
+      R     #s_Status.CB_AUX_PG09_OFF; 
+      R     #s_Status.CB_AUX_PG10_OFF; 
+
+      A     #t_Suppress_Errors; 
+      JC    DA99; 
+
+//Circuit breaker auxiliary power group 01 switched off 
+      A     #i_CFG_AUX_PG01; 
+      AN    #i_CB_AUX_PG01; 
+      S     #s_Status.CB_AUX_PG01_OFF; 
+
+//Circuit breaker auxiliary power group 02 switched off 
+      A     #i_CFG_AUX_PG02; 
+      AN    #i_CB_AUX_PG02; 
+      S     #s_Status.CB_AUX_PG02_OFF; 
+
+//Circuit breaker auxiliary power group 03 switched off 
+      A     #i_CFG_AUX_PG03; 
+      AN    #i_CB_AUX_PG03; 
+      S     #s_Status.CB_AUX_PG03_OFF; 
+
+//Circuit breaker auxiliary power group 04 switched off 
+      A     #i_CFG_AUX_PG04; 
+      AN    #i_CB_AUX_PG04; 
+      S     #s_Status.CB_AUX_PG04_OFF; 
+
+//Circuit breaker auxiliary power group 05 switched off 
+      A     #i_CFG_AUX_PG05; 
+      AN    #i_CB_AUX_PG05; 
+      S     #s_Status.CB_AUX_PG05_OFF; 
+
+//Circuit breaker auxiliary power group 06 switched off 
+      A     #i_CFG_AUX_PG06; 
+      AN    #i_CB_AUX_PG06; 
+      S     #s_Status.CB_AUX_PG06_OFF; 
+
+//Circuit breaker auxiliary power group 07 switched off 
+      A     #i_CFG_AUX_PG07; 
+      AN    #i_CB_AUX_PG07; 
+      S     #s_Status.CB_AUX_PG07_OFF; 
+
+//Circuit breaker auxiliary power group 08 switched off 
+      A     #i_CFG_AUX_PG08; 
+      AN    #i_CB_AUX_PG08; 
+      S     #s_Status.CB_AUX_PG08_OFF; 
+
+//Circuit breaker auxiliary power group 09 switched off 
+      A     #i_CFG_AUX_PG09; 
+      AN    #i_CB_AUX_PG09; 
+      S     #s_Status.CB_AUX_PG09_OFF; 
+
+//Circuit breaker auxiliary power group 10 switched off 
+      A     #i_CFG_AUX_PG10; 
+      AN    #i_CB_AUX_PG10; 
+      S     #s_Status.CB_AUX_PG10_OFF; 
+
+DA99: AN    #s_Status.CB_AUX_PG01_OFF; 
+      AN    #s_Status.CB_AUX_PG02_OFF; 
+      AN    #s_Status.CB_AUX_PG03_OFF; 
+      AN    #s_Status.CB_AUX_PG04_OFF; 
+      AN    #s_Status.CB_AUX_PG05_OFF; 
+      AN    #s_Status.CB_AUX_PG06_OFF; 
+      AN    #s_Status.CB_AUX_PG07_OFF; 
+      AN    #s_Status.CB_AUX_PG08_OFF; 
+      AN    #s_Status.CB_AUX_PG09_OFF; 
+      AN    #s_Status.CB_AUX_PG10_OFF; 
+      =     #t_AUX_Power_Groups_OK; 
+
+NETWORK
+TITLE =EA: Collect status PROFINET devices
+//Reset errors PROFINET devices
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors_24V_EQ; 
+      R     #s_Status.PN1_Error; 
+      R     #s_Status.PN1_NotPrsnt; 
+      R     #s_Status.OP_Comm_Error; 
+      R     #s_Status.ETH_Switch_Error; 
+
+      A     #t_Suppress_Errors_24V_EQ; 
+      JC    EA99; 
+
+//PROFINET: Slave 1 not present
+      A     #i_PN1_NotPrsnt; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      AN    #s_Status.PN_Master_Error; 
+      S     #s_Status.PN1_NotPrsnt; 
+
+//PROFINET: Slave 1 in error
+      A     #i_PN1_Error; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      AN    #s_Status.PN_Master_Error; 
+      AN    #s_Status.PN1_NotPrsnt; 
+      A     #t_AUX_Power_Groups_OK; 
+      S     #s_Status.PN1_Error; 
+
+//PROFINET switch in error
+      A     #i_CFG_PN_SWITCH_OK; 
+      AN    #i_PN_SWITCH_OK; 
+      AN    #s_Status.PN1_Error; 
+      AN    #s_Status.PN1_NotPrsnt; 
+      AN    #s_Status.CB_24V_OK_OFF; 
+      A     #t_AUX_Power_Groups_OK; 
+      S     #s_Status.PN_SWITCH_Error; 
+
+//Communication with Operator Panel in error
+      A     #i_OP_Comm_Error; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      AN    #s_Status.PN_Master_Error; 
+      AN    #s_Status.PN1_Error;
+      S     #s_Status.OP_Comm_Error; 
+
+EA99: NOP   0;
+ 
+NETWORK
+TITLE =FA: Write system output signals
+//Power supply
+      A     #s_Status.MS_MAIN_PWR_OFF; 
+      =     #o_ST_MS_MAIN_PWR_OFF; 
+
+      A     #s_Status.MS_AUX_PWR_OFF; 
+      =     #o_ST_MS_AUX_PWR_OFF; 
+
+      A     #s_Status.CB_PHASE_CTRL_OFF; 
+      =     #o_ST_CB_PHASE_CTRL_OFF; 
+
+      A     #s_Status.PHASE_CTRL_Error; 
+      =     #o_ST_PHASE_CTRL_Error; 
+
+//Energy measuring
+      A     #s_Status.CB_MEASURING_OFF; 
+      =     #o_ST_CB_MEASURING_OFF; 
+
+//24V supply
+      A     #s_Status.CB_24V_CTRL_OFF; 
+      =     #o_ST_CB_24V_CTRL_OFF; 
+
+      A     #s_Status.CB_24V_OK_OFF; 
+      =     #o_ST_CB_24V_OK_OFF; 
+
+      A     #s_Status.CB_24V_SAFE_OFF; 
+      =     #o_ST_CB_24V_SAFE_OFF; 
+
+//PROFINET Switch
+      A     #s_Status.PN_SWITCH_Error; 
+      =     #o_ST_PN_SWITCH_Error; 
+
+//Temperature cabinet
+      A     #s_Status.CAB_TEMP_TOO_HIGH; 
+      =     #o_ST_CAB_TEMP_TOO_HIGH; 
+
+
+//Uninterrupted power supply
+      A     #s_Status.CB_UPS_OFF; 
+      =     #o_ST_CB_UPS_OFF; 
+
+//Ethernet link protector
+      A     #s_Status.CB_ETH_LINKP_OFF; 
+      =     #o_ST_CB_ETH_LINKP_OFF; 
+
+      A     #s_Status.ETH_LINKP_Error; 
+      =     #o_ST_ETH_LINKP_Error; 
+
+//PROFIBUS master
+      A     #s_Status.DP_Master_NotPrsnt; 
+      =     #o_ST_DP_Master_NotPrsnt; 
+
+      A     #s_Status.DP_Master_Error; 
+      =     #o_ST_DP_Master_Error; 
+
+//PROFINET master
+      A     #s_Status.PN_Master_NotPrsnt; 
+      =     #o_ST_PN_Master_NotPrsnt; 
+
+      A     #s_Status.PN_Master_Error; 
+      =     #o_ST_PN_Master_Error; 
+
+//PROFINET slave
+      A     #s_Status.PN1_NotPrsnt; 
+      =     #o_ST_PN1_NotPrsnt; 
+
+      A     #s_Status.PN1_Error; 
+      =     #o_ST_PN1_Error; 
+
+//Operator panel
+      A     #s_Status.OP_Comm_Error; 
+      =     #o_ST_OP_Comm_Error; 
+
+NETWORK
+TITLE =FB: Write Aux power output signals
+
+      A     #s_Status.CB_AUX_PG01_OFF; 
+      =     #o_ST_CB_AUX_PG01_OFF; 
+
+      A     #s_Status.CB_AUX_PG02_OFF; 
+      =     #o_ST_CB_AUX_PG02_OFF; 
+
+      A     #s_Status.CB_AUX_PG03_OFF; 
+      =     #o_ST_CB_AUX_PG03_OFF; 
+
+      A     #s_Status.CB_AUX_PG04_OFF; 
+      =     #o_ST_CB_AUX_PG04_OFF; 
+
+      A     #s_Status.CB_AUX_PG05_OFF; 
+      =     #o_ST_CB_AUX_PG05_OFF; 
+
+      A     #s_Status.CB_AUX_PG06_OFF; 
+      =     #o_ST_CB_AUX_PG06_OFF; 
+
+      A     #s_Status.CB_AUX_PG07_OFF; 
+      =     #o_ST_CB_AUX_PG07_OFF; 
+
+      A     #s_Status.CB_AUX_PG08_OFF; 
+      =     #o_ST_CB_AUX_PG08_OFF; 
+
+      A     #s_Status.CB_AUX_PG09_OFF; 
+      =     #o_ST_CB_AUX_PG09_OFF; 
+
+      A     #s_Status.CB_AUX_PG10_OFF; 
+      =     #o_ST_CB_AUX_PG10_OFF; 
+      
+END_FUNCTION_BLOCK
+

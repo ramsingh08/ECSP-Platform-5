@@ -1,0 +1,561 @@
+FUNCTION_BLOCK "FB_TRK_Update"
+TITLE = %version: 1.01 % CN: 40
+//Function:
+//Updating the positions at a certain position with PEC info.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, June 04, 2018 11:58:17 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Init version based on track V1.21                     nlHdL    04-06-18   1.01
+//
+//Description:
+//When position information arrives at a PEC, the position information will be 
+//updated.
+//Updating means that the positions of the leading and trailing edges are 
+//compared with the photo-eye signal. Due to for instance belt-slip, it is 
+//possible that the item on a conveyor lack too much behind with information in 
+//the position registers. This is especially the case when positions tracking is 
+//done over several conveyors. 
+//Therefore the positions sometimes needs to be updated.
+//
+//
+//                                        Update Position
+//                                              |                   
+//     Track                                    |                           
+//    +---------------------------------------------------------------------+
+//    | | | | | | | | | | L | | | | | | | | | | | | | | | | | | | | | | | | | 
+//    | | | | | | | | | | N | | | | | | | | | | | | | | | | | | | | | | | | | 
+//    | | | | | | | | | | K | | | | | | | | | | | | | | | | | | | | | | | | |
+//    +---------------------------------------------------------------------+
+//                        |             |  Close_Window_Offset
+//          PEC Trig/Pos  |             |       |<-->|  
+//    |<------------------|-------------|------>|    |
+//    |                   |             |       |    |  
+//    |                   |             |       |  Open_Window_Offset
+//    |                   |           ->|-------|<----------      
+//    |___________________|_____________|_______|____|______________________
+//    | Conveyor  +-------+                     |                           |
+//    |           |Product|                     |                           |
+//    |           +-------+                     |                           |
+//    |_________________________________________|___________________________|
+//                                              ^
+//                                             PEC 
+//- The deviation can be positive or negative.
+// When the offset needs to be corrected the Offset corr. = Offset - deviation 
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_TRK_Track_Sett";	//Data structure: Setting Record
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Position_PEC_Update : INT  := 10;	//SETT: [cm] PEC position where to update in tracking DB
+  i_LPOS : INT ;	//Leading Edge Position of PEC Latch (delay on amount)
+  i_CFG_Num_Missing_Error : INT  := 5;	//CFG: [Num] Value of missing counter to detect error 'Jam due to missing'
+  i_Trigger_Send_Stat : BOOL ;	//CMD: Trigger Send and clear statisticals 
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Disable_Update_Funct : BOOL ;	//CMD: Disable update function. (Reverse mode)
+END_VAR
+VAR_OUTPUT
+  o_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_ST_PEC_BadTrack : BOOL ;	//ST: Warning: Update Tracking Performance is below warning level
+  o_Update_Performance : INT  := 100;	//STAT: [%] Ratio between successful updates and missings
+  o_Average_Slip : INT ;	//STAT: [cm] Average slip
+  o_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  o_Position_Last_Update : INT ;	//Found position of last update (for commissioning purposes)
+END_VAR
+VAR
+  s_Statistical : STRUCT 	//Statisticals
+   Missing : INT ;	//Number of missings due to timeout
+   UFO_Generated : INT ;	//Number of generated UFOs
+   Number_Of_Items : INT ;	//Number of baggage items that reached the update PEC within an deviation period
+   Average_Slip : INT ;	//Running average of the slip
+  END_STRUCT ;	
+  s_FB_Running_AV_Slip : "FB_Running_Average";	//Running average Slip
+  s_FB_Running_AV_Upd_Perf : "FB_Running_Average";	//Running average OK Rate
+  s_LPOS_Temp_Flank : INT ;	//Leading Edge Position of PEC Latch (delay on amount)
+  s_Cnt_Virtual_Position : INT ;	//Counter for virtual position data
+  s_Cnt_Missings : INT ;	//Counter missings for error detection
+END_VAR
+VAR_TEMP
+  t_Total_items_Perfor : DINT ;	//Total number of items for performance calculation
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_DB_PLT_Num : INT ;	//Temp PLT DB number
+  t_Displacement : INT ;	//Temp displacement value
+  t_Displacement_Upstream : INT ;	//Upstream displacement for 50% rule update leading edge
+  t_Conveyor_Length : INT ;	//Length of the own conveyor
+  t_Position_Update_LPOS : INT ;	//Update position with LPOS correction
+  t_Position_Leading : INT ;	//Leading edge position
+  t_Info_Sate : WORD ;	//Info state of found leading edge in open window
+  t_Not_Used : INT ;	//Temp not used only for output connection
+  t_LNK : INT ;	//Data found in open window offset
+  t_DB_PLT_Search : INT ;	//DB PLT number of search function
+  t_DB_PLT_Num_Upstr : INT ;	//DB PLT Number upstream
+  t_Actual_Performance : INT ;	//Temp actual performance
+  t_Slip_Last_Update : INT ;	//Temp slip last update
+  t_Update_Performance : INT ;	//Update performance for BPI
+  t_Position_Search : INT ;	//Temp position search
+  t_Position_Trailing : INT ;	//Temp position found trailing edge
+  t_Found_Entries : INT ;	//Temp number of found entries after search
+  t_FP_PEC_Latch : BOOL ;	//Positive flank PEC latch
+  t_FN_PEC_Latch : BOOL ;	//Negative flank PEC Latch
+  t_Update_Upstream_Sec : BOOL ;	//Update item is on upstream section
+  t_OS_Successful_Update : BOOL ;	//One-shot successful update performed
+  t_OS_Missing : BOOL ;	//One-shot Missing due to timeout
+  t_OS_UFO_Generated : BOOL ;	//One-shot UFO generated
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get info from PLT DB
+//Get displacement from PLT DB
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+      AN    DBX   10.0; 
+      BEC   ; //If not done end function
+
+      L     DBW    2; // Copy displacement to temporary storage 
+      T     #t_Displacement; 
+      T     #t_Displacement_Upstream; 
+
+      L     DBW   12; // Conveyor length from PLT DB
+      T     #t_Conveyor_Length; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Num_Upstr; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_DB_PLT_Num_Upstr]; 
+
+      L     DBW    2; 
+      T     #t_Displacement_Upstream; 
+
+AA01: NOP   0; 
+NETWORK
+TITLE =BA: Handle disable update function with reset error
+
+      A     #o_ST_PEC_Miss; // IF error PEC  Missings
+      A     #i_CMD_Reset; // reset command
+      JCN   BA01; 
+      R     #o_ST_PEC_Miss; // RESET errror
+      L     0; // Clear counter missings
+      T     #s_Cnt_Missings; 
+
+BA01: A     #i_Disable_Update_Funct; 
+      BEC   ; //Block end if function is disabled
+NETWORK
+TITLE =CA: Clear event one-shots, statisticals & average counters
+
+      A     #i_Trigger_Send_Stat; // IF input clear statisticals
+      JCN   CA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2008,
+           i_Event_value            := #s_Statistical.Number_Of_Items,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Not_Used);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2009,
+           i_Event_value            := #s_Statistical.Average_Slip,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Not_Used);
+
+      L     #s_Statistical.Missing; 
+      +D    ; 
+      L     #s_Statistical.Number_Of_Items; 
+      +D    ; 
+      T     #t_Total_items_Perfor; 
+
+      L     #s_Statistical.Number_Of_Items; 
+      L     100; 
+      *D    ; 
+      L     #t_Total_items_Perfor; 
+      /D    ; 
+      T     #t_Update_Performance; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2010,
+           i_Event_value            := #t_Update_Performance,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Not_Used);
+
+      L     0; // THEN Clear statistical data
+      T     #o_Average_Slip; 
+      T     #s_Statistical.Missing; 
+      T     #s_Statistical.UFO_Generated; 
+      T     #s_Statistical.Number_Of_Items; 
+      S     #s_FB_Running_AV_Slip.i_Restart; 
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Create positive and negative flank PEC signal
+
+      L     #i_LPOS; 
+      L     0; 
+      <>I   ; 
+      A(    ; 
+      L     #i_LPOS; // Create postive flank PEC latch
+      L     #s_LPOS_Temp_Flank; 
+      >I    ; 
+      )     ; 
+      =     #t_FP_PEC_Latch; 
+
+      L     #i_LPOS; // Create negative flank PEC latch
+      L     #s_LPOS_Temp_Flank; 
+      <I    ; 
+      =     #t_FN_PEC_Latch; 
+      R     #t_FP_PEC_Latch; 
+
+      L     #i_LPOS; // Copy LPOS to Temp for flank detection
+      T     #s_LPOS_Temp_Flank; 
+NETWORK
+TITLE =EA: Search for data in open window offset
+
+      L     0; 
+      T     #t_Info_Sate; 
+
+// Search open window offset for data entries and extract most downstream entry (if present)
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Window                 := #i_Setting.Open_Window_Offset,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Leading,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_DB_PLT_Search,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      CALL "FC_PLT_Read_State" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Leading,
+           i_Info_Physical          := 1,
+           o_Info_State             := #t_Info_Sate);
+
+      L     #t_DB_PLT_Num_Upstr; 
+      L     #t_DB_PLT_Search; 
+      ==I   ; 
+      =     #t_Update_Upstream_Sec; 
+
+NETWORK
+TITLE =FA: Handle close window position by virtual pos
+//The virtual position counter will count-up every scan on the displacement if
+//there is update data available in the update window. If there is no update data 
+//available the counter will be cleared. The virtual position counter is used to 
+//detect if data leaves the update window and to store the position where the 
+//data was found when a successful update was performed.
+      L     #t_Position_Leading; // IF update data > 0
+      L     0; 
+      >I    ; 
+      JCN   FA98; 
+
+      L     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement of upstream
+      L     0; 
+      ==I   ; 
+      JCN   FA00; 
+      L     #t_Position_Leading; 
+      T     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement of upstream
+
+//Check the info_state for upstream displacement
+FA00: L     #t_Info_Sate; 
+      L     W#16#20; // HEX 0020 = Owner Upstream in Info State
+      AW    ; 
+      L     0; 
+      >I    ; 
+      O     #t_Update_Upstream_Sec; 
+      JCN   FA01; 
+
+      L     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement of upstream
+      L     #t_Displacement_Upstream; 
+      -I    ; 
+      JMZ   FA02; 
+      T     #s_Cnt_Virtual_Position; 
+      JU    FA99; 
+
+FA01: L     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement
+      L     #t_Displacement; 
+      -I    ; 
+      JMZ   FA02; 
+      T     #s_Cnt_Virtual_Position; 
+      JU    FA99; 
+
+FA02: =     #t_OS_Missing; 
+
+      L     #t_DB_PLT_Search; 
+      L     0; 
+      >I    ; 
+      JCN   FA99; 
+
+      CALL "FC_PLT_Clr_Position" (// THEN remove downstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Leading,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+FA98: T     #s_Cnt_Virtual_Position; 
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Update positions
+
+      L     #t_Position_Leading; 
+      L     0; 
+      >I    ; 
+      A     #t_FP_PEC_Latch; // AND a positive flank PEC-latch
+      =     #t_OS_Successful_Update; 
+      JCN   GA99; 
+
+      L     #s_Cnt_Virtual_Position; // Last position = counter value of virtual position counter
+      L     #i_LPOS; 
+      +I    ; 
+      T     #o_Position_Last_Update; // Report position last update to output
+
+      L     #i_Position_PEC_Update; 
+      L     #i_LPOS; 
+      -I    ; 
+      T     #t_Position_Update_LPOS; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Update_LPOS,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #t_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Clr_Position" (// THEN remove downstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Leading,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := -1);// No report #t_DB_Event_Num
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Unexpected item (UFO) detection
+
+      L     #t_Position_Leading; 
+      L     0; 
+      ==I   ; 
+      A     #t_FP_PEC_Latch; // AND a positive flank PEC-latch
+      =     #t_OS_UFO_Generated; 
+      JCN   HA99; 
+
+      L     #i_Position_PEC_Update; 
+      L     1; 
+      -I    ; 
+      L     #t_Displacement; 
+      -I    ; 
+      L     #i_LPOS; 
+      -I    ; 
+      T     #t_Position_Update_LPOS; 
+
+      CALL "FC_PLT_Write" (// Write UFO item in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Update_LPOS,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Handle statistical counters
+
+      A     #t_OS_Successful_Update; // IF a successful update is done
+      JCN   IA01; 
+      L     #s_Statistical.Number_Of_Items; // THEN Increase number of baggage items that reached the update PEC
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Number_Of_Items; 
+
+      L     0; 
+      T     #s_Cnt_Virtual_Position; 
+
+IA01: A     #t_OS_Missing; // IF one-shot event Missing due to timeout
+      JCN   IA02; 
+      L     #s_Statistical.Missing; // THEN Increase number of Missings due to timeout
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Missing; 
+
+IA02: A     #t_OS_UFO_Generated; // IF one-shot event UFO Generated
+      JCN   IA90; 
+      L     #s_Statistical.UFO_Generated; // THEN Increase number of UFO Generated 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Generated; 
+
+IA90: L     #s_Statistical.Number_Of_Items; // Copy statistic to output
+      T     #o_Number_Of_Items; 
+NETWORK
+TITLE =JA: Error due to successive missings
+//If a Missing/UFO Missing is detected the successive-missings counter will be 
+//increased by 1. On a postive flank PEC-latch the counter is cleared. If the 
+//successive-missings counter >= i_Num_Missing_Error a ER_PEC_Missings is 
+//reported to the output. Next to this an error is reported (M_R_Error) and a 
+//request stop is generated (M_SI_Req_Stop). An ER_PEC_Missings can be reset by 
+//means of M_C_Reset. After a reset the counter is cleared.
+      A     #t_FP_PEC_Latch; // IF a positive flank PEC-latch
+      JCN   JA01; 
+      L     0; // Clear counter missings
+      T     #s_Cnt_Missings; 
+
+JA01: O     #t_OS_Missing; // IF one-shot (UFO)Missing   
+      JCN   JA02; 
+      L     #s_Cnt_Missings; // Increase counter missings by 1
+      L     1; 
+      +I    ; 
+      T     #s_Cnt_Missings; 
+
+JA02: L     #i_CFG_Num_Missing_Error; // IF pre-set value > 0 (Error PEC missings enabled)
+      L     0; 
+      >I    ; 
+      A(    ; 
+      L     #s_Cnt_Missings; // AND counter missings >= i_Num_Missing_Error
+      L     #i_CFG_Num_Missing_Error; 
+      >=I   ; 
+      )     ; 
+      S     #o_ST_PEC_Miss; // SET error PEC Missings
+NETWORK
+TITLE =KA: Remove trailing edge if found in open window after PEC Latch
+
+      A     #t_FN_PEC_Latch; 
+      JCN   KA99; 
+
+      L     #i_Position_PEC_Update; 
+      L     #t_Displacement; 
+      +I    ; 
+      T     #t_Position_Search; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Search,
+           i_Window                 := #i_Setting.Open_Window_Offset,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Trailing,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Search,
+           o_Number_Items_Found     := #t_Found_Entries,
+           o_Length_Diff            := #t_Not_Used);
+
+//Check if trailing edge is found in open window
+      L     #t_Found_Entries; 
+      L     0; 
+      >I    ; 
+      JCN   KA99; 
+
+//Check if NO leading edge is found before the trailing edge
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Window                 := #t_Position_Trailing,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Entries);
+
+      L     #t_Found_Entries; 
+      L     0; 
+      ==I   ; 
+      JCN   KA99; 
+
+//Remove the found trailing edge
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Trailing,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Average / SD Slip Calculation
+//- The average slip [cm] is calculated as a running average:
+//
+//                 {Actual} + {Previous_Average_Slip * (n-1)}
+//Average slip :=  ------------------------------------------
+//                                   {n}             
+//
+//Actual = slip at current update 
+//(= Actual update position - Position PEC Update)
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+//- The variance of the slip [cm] is calculated as a running average:
+//
+//                  SQR{Actual Error} + {Previous_Variance_Slip * (n-1)}
+//Variance slip :=  ----------------------------------------------------
+//                                           {n}             
+//
+//Actual Error = Actual slip - Average slip
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+      A     #t_OS_Successful_Update; // IF one-shot successful update
+      JCN   LA99; 
+
+      L     #o_Position_Last_Update; // Determine actual slip
+      L     #i_Position_PEC_Update; 
+      -I    ; 
+      T     #t_Slip_Last_Update; 
+
+      CALL #s_FB_Running_AV_Slip (// Determine running average slip
+           i_New_Value              := #t_Slip_Last_Update,
+           i_Factor                 := 10,// Default weighing factor = 10 %
+           o_Running_Average        := #s_Statistical.Average_Slip);
+
+      L     #s_Statistical.Average_Slip; 
+      T     #o_Average_Slip; 
+
+      A     #s_FB_Running_AV_Slip.i_Restart; 
+      R     #s_FB_Running_AV_Slip.i_Restart; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Update Performance
+//The Update performance [%] is calculated as a running average:
+//
+//               {Actual} + {Previous_OK_Rate * (n-1)}
+//OK_Ratio[%] :=  -------------------------------------
+//                                {n}             
+//
+//Actual = 100[%] for a Successful update
+//           0[%] for a Missing/UFO Missing
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+//The calculation of the running average is done with FB_Running_Average. If the 
+//Update performance < i_Upd_Performan_WN_Level, bad update performance is 
+//reported (o_ST_PEC_BadTrack) as well as a warning.
+      A     #t_OS_Successful_Update; // IF one-shot successful update
+      O     #t_OS_Missing; // OR one-shot Missing
+      JCN   MA50; 
+
+      L     100; // THEN Determine actual performance:
+      A     #t_OS_Successful_Update; // - Successful counts for 100%
+      JC    MA01; // - (UFO) Missing counts for 0%
+      L     0; 
+MA01: T     #t_Actual_Performance; 
+
+      CALL #s_FB_Running_AV_Upd_Perf (// Determine running average Update performance
+           i_New_Value              := #t_Actual_Performance,
+           i_Factor                 := 10,// Default weighing factor = 10 %
+           o_Running_Average        := #o_Update_Performance);
+
+MA50: L     #o_Update_Performance; // IF Update performance < Update performance warning level
+      L     80; // If Performance < 80 % warning
+      <I    ; 
+      =     #o_ST_PEC_BadTrack; // THEN Output bad update performance
+END_FUNCTION_BLOCK
+

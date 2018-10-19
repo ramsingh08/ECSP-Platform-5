@@ -1,0 +1,42 @@
+TYPE "UDT_SVD_MVD_Cmd"
+TITLE =%version: 0.06 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, November 29, 2016 2:02:34 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18563: Aligned for HMI                             inajos   23-11-16   0.06
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.05
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//PR6719 Init value auto as TRUE                        nlHdL    03-10-11  0.03
+//PR6738 Rework interface with OP                       nlple    04-04-11  0.02
+//PR6738 Initial revision                               nlple    01-04-10  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL  := TRUE;	//Auto
+   Fixed_Up : BOOL ;	//Semi automatic fixed Up
+   Fixed_Down : BOOL ;	//Semi automatic fixed Down
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Manual : BOOL ;	//Manual
+   Manual_Up : BOOL ;	//Switch motor manual up
+   Manual_Down : BOOL ;	//Switch motor manual down
+   Manual_TRS1_Start : BOOL ;	//TRS1 conveyor manual run start
+   Manual_TRS1_Stop : BOOL ;	//TRS1 conveyor manual run stop
+   Manual_TRS2_Start : BOOL ;	//TRS2 conveyor manual run start
+   Manual_TRS2_Stop : BOOL ;	//TRS2 conveyor manual run stop
+   Manual_TRS3_Start : BOOL ;	//TRS3 conveyor manual run start
+   Manual_TRS3_Stop : BOOL ;	//TRS3 conveyor manual run stop
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

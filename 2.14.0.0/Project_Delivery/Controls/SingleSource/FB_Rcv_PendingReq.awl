@@ -1,0 +1,194 @@
+FUNCTION_BLOCK "FB_Rcv_PendingReq"
+TITLE =%version: 0.05 % CN: 32 
+//Function:
+//This function handles the receiving of pending request messages.
+//
+//
+//
+//History:                                                                        
+//This version   %created_by: inajos %
+//              %date_created: Wednesday, August 01, 2018 1:08:55 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24842: Correction of variable name                 inajos   01-08-18  0.05
+//ra#21133: Screening pending Update                    inajos   18-09-17  0.04
+//ra#22220: Match new UDT_HBS_Record structure          nldy     22-05-17  0.03
+//ra#18904 : Process 4/5 removed ,block updated         inajos   13-12-16  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16  0.01
+//
+//Description
+//When a Pending Request message is received, then on the HBA_LNK the 
+//the screening status for that item is checked.
+//On a request a response is always send. 
+// The response is positive when:
+// - If the LNK of the HBA_LNK is valid
+// - Then TRA_LNK matches with the HBA_LNK in HBS record
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZS
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_DB_FIFO_Snd : BLOCK_DB ;	//DB Fifo send messages to area of request
+END_VAR
+VAR_IN_OUT
+  io_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Structure PNPN Received message
+END_VAR
+VAR
+  s_Rcv_PendingReq_Msg : "UDT_Msg_PendingMaint";	//Pending message structure 
+  s_PendingReqEnd : BOOL ;	//End Pending
+  s_HBS_Record : "UDT_HBS_Record";	//HBS record
+  s_LNK_Record : "UDT_LNK_Record";	//Link Record
+END_VAR
+VAR_TEMP
+  t_Process_1 : "UDT_Pending_Maint";	//Process 1
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_Base_Address : DWORD ;	//Relative address of instance-DB  
+  t_RET_VAL_INT : INT ;	//Return value function call (INT)
+  t_RET_VAL_Word : WORD ;	//Return value function call (word)
+  t_DB_Event_Num : INT ;	//Event DB Number
+  t_DB_FIFO_Snd_Num : INT ;	//DB Send FIFO number
+  t_Bag_Status : INT ;	//Bag status
+  t_PNPN_Rec_Msg : ANY ;	//Pointer to receveid message data
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+//Get DB number for event
+      OPN   #i_DB_Event; // DB number Event
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+//Get DB number of FIFO to return responce message.
+      OPN   #i_DB_FIFO_Snd; 
+      L     DBNO; 
+      T     #t_DB_FIFO_Snd_Num; 
+
+
+//Check received message type
+      L     #io_PNPN_Received_Message.Message_Type; 
+      L     30; 
+      <>I   ; 
+      BEC   ; 
+NETWORK
+TITLE =BA: Copy received message for handling and logging
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      LAR1  P##io_PNPN_Received_Message; 
+      L     #t_Base_Address; 
+      +AR1  ; 
+      LAR2  P##t_PNPN_Rec_Msg; 
+
+      L     B#16#10; // Copy pointer
+      T     LB [AR2,P#0.0]; //  Byte0=$10 (for S7)
+      L     B#16#2; // Load data type "Bytes" (02 = Byte)
+      T     LB [AR2,P#1.0]; // Byte1=data type
+      L     P##s_PendingReqEnd; 
+      L     P##s_Rcv_PendingReq_Msg; 
+      -D    ; 
+      SRD   3; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#0.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#2.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+
+// Copy received message for handling and logging
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_PNPN_Rec_Msg,//PNPN_Received_Message
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_Rcv_PendingReq_Msg);
+
+NETWORK
+TITLE =CA: Check Process 1
+// Get Request information from received message
+      L     #s_Rcv_PendingReq_Msg.Process_1.HBA_LNK; 
+      T     #t_Process_1.HBA_LNK; 
+
+      L     #s_Rcv_PendingReq_Msg.Process_1.TRA_LNK; 
+      T     #t_Process_1.TRA_LNK; 
+
+//Clear confirmation. This will being filled on excisting record information.
+      L     0; 
+      T     #t_Process_1.Confirmation; 
+
+// Verify HBA_LNK is valid
+// The HBA_LNK contains the LNK-id
+//------------------------------------
+      L     #t_Process_1.HBA_LNK; 
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Process_1.HBA_LNK,
+           i_ANY_Data_Record        := "DB_UDT_LNK_Record",
+           i_ANY_Data               := #s_LNK_Record,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Verifiy that the LNK contains a HBS record
+//-----------------------------------
+      L     #s_LNK_Record.HBS; // Check if LNK contains a HBS record
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_LNK_Record.HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record",
+           i_ANY_Data               := #s_HBS_Record,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Verify the TRA_LNK matches with the 
+// Transport LNK in the HBS record.
+//-----------------------------------
+      L     #s_HBS_Record.HBS_Process_1.TRA_LNK; // Verify TRA_LNK is equal.
+      L     #t_Process_1.TRA_LNK; 
+      ==I   ; 
+      JCN   CA99; 
+
+// Confirm bag is still pending 
+      L     1; 
+      T     #t_Process_1.Confirmation; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Send Response
+
+      CALL "FC_Crt_PendingMaint" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_FIFO_Snd_Num,
+           i_Message_Type           := 31,
+           i_Message_ID             := DW#16#0,
+           i_Process_1              := #t_Process_1);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3006,
+           i_Event_value            := #s_Rcv_PendingReq_Msg.Process_1.TRA_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+
+END_FUNCTION_BLOCK
+

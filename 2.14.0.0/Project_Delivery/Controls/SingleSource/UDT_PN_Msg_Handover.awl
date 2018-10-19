@@ -1,0 +1,36 @@
+TYPE "UDT_PN_Msg_Handover"
+TITLE =%version: 0.06 % CN: 11
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, December 13, 2016 9:38:20 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Screen Pending updates from SIN_T1_CONV_COMPONENT     inajos   13-12-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//23824: Remove station ID                              nlMlaut  29-04-15   0.05
+//20144: PNPN TCTC interface Gen and Vibes not equal    nlHdL    15-08-14   0.04
+//18228: Changed Filler to 22 bytes                     nlHHop   28-02-14   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Header : STRUCT 	//Telegram Header
+    EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+    Message_Type : INT ;	//100 = Handover message, 200 = lifesign request, 201 = lifesign reply
+    Message_Identifier : DINT ;	//Message indentifier SSSTLLLL (SSS = Sequence number T = Type LLLL = LIC number)
+   END_STRUCT ;	
+   BIR : "UDT_BIR";	
+   TIR : "UDT_TIR";	
+   Process_1_HBA_LNK : INT ;	//Screening Process 1, HBS area local identification code (Screening)
+   Process_2_HBA_LNK : INT ;	//Screening Process 2, HBS area local identification code (Customs)
+   Process_3_HBA_LNK : INT ;	//Screening Process 3, HBS area local identification code
+  END_STRUCT ;	
+END_TYPE
+

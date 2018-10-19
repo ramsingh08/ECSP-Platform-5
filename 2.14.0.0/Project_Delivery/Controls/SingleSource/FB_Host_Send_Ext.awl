@@ -1,0 +1,237 @@
+FUNCTION_BLOCK "FB_Host_Send_Ext"
+TITLE =%version: 0.06 %  CN: 40
+//Function:
+//Send messages via TCP/IP Communication according to the protocol.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, July 10, 2017 4:35:49 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#5033: Missing route messages because off log mess nlHdL    10-07-17   0.06
+//ra#9909: Connection ID Snd/Rcv block type word        nlHdL    12-01-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7719: Report if send fifo is full or per full         nlHdL    06-08-15   0.04
+//7530: Chaneg MD_DWORD_To_Do to AreaID as report ID    nlHdL    20-07-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.02
+//Initival version, based on LVT KIEV                   nlHdL    01-10-13   0.01
+//
+//Description:
+//This FB sends data using the Siemens AG_Send. The FB can only be 
+//used with a S7-300 PLC with external network card. 
+//The messages to be sent will be fetched from a FIFO buffer.
+// 
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Connection : WORD ;	//ID Connection number (NETPRO -> Connection properties -> Block parameters)
+  i_LADDR : WORD ;	//Module start address (NETPRO -> Connection properties -> Block parameters)
+  i_Send_Timeout : INT ;	//SETT: [sec] Time after which o_ER_Sending is set when a message can not be sent
+  i_DB_Send_FIFO : BLOCK_DB ;	//SETT: DB of used Send FIFO
+  i_DB_Send_FIFO_Log : BLOCK_DB ;	//Data Structure: DB send FIFO Logging events
+END_VAR
+VAR_OUTPUT
+  o_Connection_Error : BOOL ;	//Connection error
+  o_WN_Send_FIFO_PreFull : BOOL ;	//Warning that send fifo is prefull or full (Messages can be missed)
+END_VAR
+VAR
+  s_Send_Message : STRUCT 	
+   Header : "UDT_Msg_Header";	
+   Body : "UDT_Msg_Snd_Body";	
+   Footer : "UDT_Msg_Footer";	
+  END_STRUCT ;	
+  s_Send_Message_End : BOOL ;	//DO NOT MOVE: Pointer to end of 'Send message' to determine STRUCTURE length
+  s_Send_Active : BOOL ;	//Send action is active
+  s_Appl_Mess_is_Prepared : BOOL ;	//An application message is prepared
+  s_Message_Sent : BOOL  := TRUE;	//Previous message has been sent
+  s_Possible_Send_Error : BOOL ;	//Possibly send error occured 
+  s_ER_No_Connection : BOOL ;	//The TCP/IP connection is not available anymore.
+  s_ER_Sending : BOOL ;	//An error occured while trying to send a message
+  s_ER_Sending_Status : WORD ;	//Status of send block	    
+  s_Send_Timer : INT ;	//Delay counter to detect communication send error
+  s_RET_VAL_Send_FIFO : WORD ;	//Return value in WORD format
+END_VAR
+VAR_TEMP
+  t_STATUS : WORD ;	//The status of the send module
+  t_Send_FIFO_DBNr : INT ;	//DB number of used Send FIFO DB 
+  t_Specified_Msg_Length : INT ;	//Specified message length
+  t_OS_New_Message_Prep : BOOL ;	//A new message is prepared
+  t_DONE : BOOL ;	//Indicates if send module has finished sending
+  t_ERROR : BOOL ;	//Indicates an error with the send module
+  t_ERROR_1 : BOOL ;	//Indicates an error with the send module
+  t_ID_Event : DWORD ;	//The event ID for report
+  t_ID_Connection : INT ;	//ID Connection as integer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Calculate send message length
+//
+//
+      L     P##s_Send_Message_End; // Pointer to end of 'Send message'
+      L     P##s_Send_Message; // Pointer to begin of 'Send message'
+      -D    ; 
+      SRD   3; 
+      T     #t_Specified_Msg_Length; // Length in bits
+// Record length of 'Send message' in bytes
+// Copy Length to t_Specified_Msg_Length  
+
+      L     #i_ID_Connection; 
+      T     #t_ID_Connection; 
+NETWORK
+TITLE =BA: Monitor Send Done status
+
+      A     #s_Send_Active; 
+      O     #s_ER_No_Connection; 
+      O     #s_ER_Sending; 
+      JCN   BA99; 
+
+      CALL "AG_Send_S7_300" (//Always true for always monitoring Done bit
+           ACT                      := TRUE,
+           ID                       := #t_ID_Connection,
+           LADDR                    := #i_LADDR,
+           SEND                     := #s_Send_Message,
+           LEN                      := 0,//Length = 0 to prevent sending a message
+           DONE                     := #t_DONE,
+           ERROR                    := #t_ERROR_1,
+           STATUS                   := #t_STATUS);
+
+      L     W#16#8304; 
+      L     #t_STATUS; 
+      ==I   ; 
+      JCN   BA01; 
+      S     #s_ER_No_Connection; // Set No connection error
+
+BA01: A     #t_DONE; // IF the previous message was send..
+      AN    #t_ERROR_1; //#t_ERROR                    // Without an error
+      A     #s_Send_Active; 
+      R     #s_Send_Active; // THEN send action is finished
+      R     #s_ER_No_Connection; 
+      R     #s_ER_Sending; 
+      S     #s_Message_Sent; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check Routing FIFO for new messages
+
+      OPN   #i_DB_Send_FIFO; //Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #t_Send_FIFO_DBNr; 
+
+      AN    #s_Send_Active; // AND no message is being send
+      AN    #s_ER_No_Connection; 
+      AN    DBX    0.0; // AND Send FIFO not empty (empty bit is first bit in FIFO DB)
+      =     #s_Appl_Mess_is_Prepared; //THEN an application message is prepared
+      JCN   CA99; 
+
+      SET   ; 
+      S     #s_Send_Active; 
+      R     #s_Message_Sent; 
+
+      L     "DB_Outgoing_Msgs".LifeSignRequest.AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID_Event; 
+
+      CALL "FC_FIFO" (//THEN retrieve one message from Send FIFO
+           i_FIFO_DB_Num            := #t_Send_FIFO_DBNr,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Send_Message.Body,
+           i_ID                     := #t_ID_Event,
+           o_RET_VAL_FIFO           := #s_RET_VAL_Send_FIFO);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Check Log FIFO for new messages
+
+      AN    #s_Appl_Mess_is_Prepared; 
+      JCN   DA99; 
+
+      OPN   #i_DB_Send_FIFO_Log; //Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #t_Send_FIFO_DBNr; 
+      L     1; 
+      >I    ; 
+      JCN   DA99; 
+
+      AN    #s_Send_Active; // AND no message is being send
+      AN    #s_ER_No_Connection; 
+      AN    DBX    0.0; // AND Send FIFO not empty (empty bit is first bit in FIFO DB)
+      =     #s_Appl_Mess_is_Prepared; //THEN an application message is prepared
+      JCN   DA99; 
+
+      SET   ; 
+      S     #s_Send_Active; 
+      R     #s_Message_Sent; 
+
+      L     "DB_Outgoing_Msgs".LifeSignRequest.AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID_Event; 
+
+      CALL "FC_FIFO" (//THEN retrieve one message from Send FIFO
+           i_FIFO_DB_Num            := #t_Send_FIFO_DBNr,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Send_Message.Body,
+           i_ID                     := #t_ID_Event,
+           o_RET_VAL_FIFO           := #s_RET_VAL_Send_FIFO);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Prepare Send Message 
+
+      A     #s_Appl_Mess_is_Prepared; 
+      =     #t_OS_New_Message_Prep; 
+NETWORK
+TITLE =FA: S7-300 - Send Message 
+
+      A     #t_OS_New_Message_Prep; 
+      O(    ; 
+      A     #t_ERROR_1; 
+      AN    #s_Message_Sent; 
+      )     ; 
+      JCN   FA99; 
+
+      CALL "AG_Send_S7_300" (
+           ACT                      := TRUE,
+           ID                       := #t_ID_Connection,
+           LADDR                    := #i_LADDR,
+           SEND                     := #s_Send_Message,
+           LEN                      := #t_Specified_Msg_Length,
+           DONE                     := #t_DONE,
+           ERROR                    := #t_ERROR,
+           STATUS                   := #t_STATUS);
+
+      A     #t_DONE; 
+      A     #s_Send_Active; 
+      S     #s_Message_Sent; 
+      R     #s_Send_Active; 
+      R     #s_ER_No_Connection; 
+      R     #s_ER_Sending; 
+
+// Detect and set No_connection_error
+      L     W#16#8304; 
+      L     #t_STATUS; 
+      ==I   ; 
+      JCN   FA99; 
+      =     #s_ER_No_Connection; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Report error Send block
+
+      A     #s_ER_No_Connection; 
+      =     #o_Connection_Error; 
+
+      OPN   DB [#t_Send_FIFO_DBNr]; 
+      A     DBX    0.1; 
+      O     DBX    0.2; 
+      =     #o_WN_Send_FIFO_PreFull; 
+
+END_FUNCTION_BLOCK
+

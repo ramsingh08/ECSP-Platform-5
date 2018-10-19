@@ -1,0 +1,257 @@
+FUNCTION_BLOCK "FB_TCTC_Rcv_Win"
+TITLE =%version: 1.02 % CN: 41
+//Function: 
+//This block receives Empty Window Codes or Reservations
+//
+//History:                                   
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:13:55 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//15969: TCTC windows replaced by reservations          nlHdL    18-12-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.05 of PLT version 0
+//
+//Description:
+//This block receives Empty Window Codes or Reservations
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB	
+  i_DB_Reservation : BLOCK_DB ;	//DB used as reservation FIFO (leave empty if not used)
+  i_Received_Win_Code : INT ;	//Empty Window code
+END_VAR
+VAR_OUTPUT
+  o_Snd_ACK_Window_Code : BOOL ;	//Receive: ACK of sended Window code
+END_VAR
+VAR
+  s_Length_Section : INT ;	//Lenght of section (to define point to write data in PLT)
+  s_DB_Num_PLT : INT ;	//Number of PLT DB
+  s_Window_Code : INT ;	//Copy of the previous empty window
+  s_Entries_Used : INT ;	//Number of entries used in DB_Res
+  s_Offset_FIFO_Data : INT ;	//Constant Offset to fifo record in reservation DB. Value = 14
+  s_Shift_Pointer : INT ;	//Pointer to shift records
+  s_FIFO_Last_Record : INT ;	//FIFO address of last used record
+  s_Curren_Val_Off_Dly : INT ;	//Off delay to acknoledge data
+  s_FP_New_Data_Received : BOOL ;	//Copy one shot on positive flank New data received from upstream area
+  s_Section_Run : BOOL ;	//Section Run Signal sending transporter
+  s_OS_New_Data : BOOL ;	//Copy one shot on positive flank: New data received
+  s_DB_Reservation_Used : BOOL ;	//Reservation DB is used
+  s_FIFO_Entries_Present : BOOL ;	
+  s_New_Data_Received : BOOL ;	//New data received
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the Event DB
+  t_EmptyCode_Is_Own : BOOL ;	//Empty window code is -100
+  t_Int_Not_Used : INT ;	//Integer not used
+  t_Number_Items_Found : INT ;	//Number of founds entries
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB.
+      OPN   #i_DB_PLT_DwnStr; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      A     DBX   10.1; // Copy Section_Run Sending transporter
+      =     #s_Section_Run; 
+
+      L     DBW   12; 
+      T     #s_Length_Section; 
+
+      OPN   #i_DB_Event; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_Reservation; // check if Reservation DB is used
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      =     #s_DB_Reservation_Used; 
+      JCN   AA99; 
+
+      L     DBW    0; // load data from fifo DB on temps
+      T     #s_Entries_Used; 
+
+      L     14; 
+      T     #s_Offset_FIFO_Data; // Offset to fifo record in reservation DB
+
+      L     0; 
+      L     #s_Entries_Used; // Number of entries used in FIFO > 0
+      <I    ; 
+      =     #s_FIFO_Entries_Present; // Used entries present in FIFO
+
+
+      L     #s_Entries_Used; // Load entries used
+      SLW   1; // Multiply by 2
+      L     #s_Offset_FIFO_Data; // Add offset to first FIFO record
+      +I    ; // for pointer to start of last record
+      L     2; // MINUS 2 to compensate for not using 0 in FIFO array 
+      -I    ; 
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Receive empty and/or reservation codes
+
+      L     #i_Received_Win_Code; // Check if new data is received
+      L     0; 
+      <>I   ; 
+      =     #s_New_Data_Received; 
+
+      A     #s_New_Data_Received; // If new data is available
+      A     #s_Section_Run; // and the section is running
+      FP    #s_FP_New_Data_Received; 
+      =     #s_OS_New_Data; // a one-shot is created 
+
+      A     #s_OS_New_Data; // to handle the received data
+      JCN   BA99; 
+
+      L     #i_Received_Win_Code; // If the received window code is smaller than the energy safe code (-3)
+      L     -3; 
+      <I    ; 
+      JCN   BA99; 
+
+      L     #i_Received_Win_Code; // And the received window code is bigger than -100 (default empty window code)
+      L     -100; 
+      >I    ; 
+      JCN   BA01; 
+
+      L     #i_Received_Win_Code; // The window code will be lowered with 1
+      L     1; 
+      -I    ; 
+      JU    BA02; // and it will be used as the window code. 
+
+BA01: L     -100; // If the code received was a reservation of the previous PLC or an empty window (-100), it will be handled as a default empty window
+BA02: T     #s_Window_Code; 
+
+      L     #s_Window_Code; // Check if the window code is -100
+      L     -100; 
+      ==I   ; 
+      =     #t_EmptyCode_Is_Own; // If so, this window code may be used in this area as an empty window or for reservations
+
+// If an empty window is available and one or more entries are present in the
+// reservation DB of this area, all valid (-100) empty window codes are overwritten with the reservation number.
+      A     #s_FIFO_Entries_Present; // if there are entries present in the reservation DB
+      A     #t_EmptyCode_Is_Own; // If the empty window code is -100
+      A     #s_DB_Reservation_Used; 
+      JCN   BA98; // THEN
+
+      OPN   #i_DB_Reservation; // Open FIFO-DB to make reservation
+      L     #s_Offset_FIFO_Data; 
+      SLW   3; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Collect first entry in FIFO
+      T     #s_Window_Code; 
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+BA03: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >=I   ; // IF not last record
+      JCN   BA03; // THEN continue loop
+
+      L     #s_FIFO_Last_Record; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      L     #s_Entries_Used; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO-DB
+      T     #s_Entries_Used; 
+
+BA98: CALL "FC_PLT_Write" (// Write Received Window Code in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #s_Window_Code,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Copy shared data to FIFO DB   
+
+      A     #s_DB_Reservation_Used; // If reservation DB is used
+      JCN   CA99; 
+
+      OPN   #i_DB_Reservation; 
+      L     #s_Entries_Used; //Entries used has to be updated according the handling of reservations.
+      T     DBW    0; // Copy data to FIFO DB
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Handle outputs to Upstream area
+
+      A     #s_OS_New_Data; 
+      JCN   DA02; 
+
+      L     100; //Load timer
+      T     #s_Curren_Val_Off_Dly; 
+
+DA02: L     #s_Curren_Val_Off_Dly; //Count down
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   DA03; //Timer not elapsed
+
+      L     0; 
+DA03: T     #s_Curren_Val_Off_Dly; 
+      L     0; 
+      >I    ; 
+      =     #o_Snd_ACK_Window_Code; // an Acknoledge will be send for 100ms
+NETWORK
+TITLE =EA: Reset E Save if code received and reservation is waiting
+
+      A     #s_New_Data_Received; // If new data is available
+      A     #s_FIFO_Entries_Present; 
+      AN    #s_Section_Run; 
+      JCN   EA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   EA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+EA99: NOP   0; 
+END_FUNCTION_BLOCK
+

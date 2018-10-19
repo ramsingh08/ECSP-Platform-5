@@ -1,0 +1,610 @@
+FUNCTION_BLOCK "FB_Status_Manager"
+TITLE =%version: 0.12 %  CN: 40
+//Function:
+//Detecting changes in the status and offer the changed records to conversion 
+//blocks.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 18, 2018 11:49:46 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27040: Remove StatusReport from library            nlHdL    18-01-18   0.12
+//ra#19212: Change Safety and Status manager            nlHdL    13-12-16   0.11
+//ra#10112: PLC stop when UDT status <> Type DB length  nlHdL    02-05-16   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.09
+//23154: Perform update run on first scan or no done b  nlHdL    02-04-15   0.09
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.08
+//Pointer overflow when components > 512                nlHdL    14-10-14   0.02
+//17292: Add Status report on change based 0.06 General nlHdL    16-12-13   0.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//Source pointers to record in type DB corrected.       nlHdL    04-04-11   0.05
+//Change DB_Event into DB_Event_System                  nlMRe    25-10-10   0.04
+//PR5810: creating statusses is too slow                nlMRe    18-10-10   0.03
+//Removed unused symbols and history                    nlMRe    16-09-10   0.02
+//Initial revision                                      nlMRe    15-03-10   0.01
+//
+//Description:                                  
+//The block compares the current status with the status of the previous scan, 
+//WORD by WORD. 
+//A Status record can be build out of multiple WORDs.
+//If a change is detected in a record, the whole record is updated by the 
+//converison routines.
+//
+//Every cycle one record is updated, even if there is no change. To prevent going 
+//"out of sync".
+//
+//The data of the changed records is offered WORD, by WORD, by means of a Global 
+//DB.
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR
+  s_FB_Convert_DS_GS : "FB_Convert_DS_GS";	//Block Call FB_Convert_DS_GS
+  s_FB_Convert_DS_OS : "FB_Convert_DS_OS";	//Block Call FB_Convert_DS_OS
+  s_FB_Handle_Status : "FB_Handle_Status";	//Block Call FB_Handle_Status
+  s_Cur_DB_Status : WORD ;	//Current DBW from DB_Status
+  s_Cur_DB_Status_Prev_Scn : WORD ;	//Current DBW from DB_Status_Prev_Scan
+  s_Length_DB_Status : INT ;	//Length of DB_Status
+  s_Length_DB_Status_P_Scn : INT ;	//Length of DB_Status_Prev_Scan
+  s_Event_DB_Num : INT ;	//Number of the event DB
+  s_Length_Status_Index : INT ;	//Length of the Status Index DB
+  s_Num_Rec_status_Index : INT ;	//Number of records in the Status Index
+  s_Current_Record : INT ;	//Record which is now checked for changes
+  s_Start_Next_Status : INT ;	//Position in DB_Status where the next record starts
+  s_Current_Status_Word : INT ;	//Current record in DB_Status which is compared
+  s_Address_Next_Status : INT ;	//Address in DB_Status_Index where the end of the current record is in DB_Status
+  s_Start_Adress_DB_Status : INT ;	//Location of the start address in DB_Status for the current record
+  s_Current_Word_In_Record : INT ;	//The current word which is handled in the current record in DB_Status
+  s_Change_Record_Word : INT ;	//The current address of the changed record word
+  s_Record_Check_This_Scan : INT ;	//Which record must be checked this scan
+  s_Return_Val_Event : INT ;	//The return value of FC_Write_Event
+  s_Done : BOOL ;	//Indication that the initialisation is succesfully done
+  s_Record_Is_Changed : BOOL ;	//Indicating that the current record is changed
+  s_New_Changed_Record : BOOL ;	//New record and no changes are made yet.
+  s_UpdateRun_Active : BOOL ;	//After first scan or download instance perform an update run
+END_VAR
+VAR_TEMP
+  t_DI_Backup : INT ;	//Backup of the number of the instace DB
+  t_Current_Comp_Type_Num : INT ;	//Number of the current component type DB
+  t_Last_Record_Comp : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Call Handle Status
+
+      CALL #s_FB_Handle_Status ;
+
+NETWORK
+TITLE =BA: Do the first cycle checks and prepare statics
+
+      A     "M_First_Scan"; 
+      ON    #s_Done; 
+      JCN   BA02; 
+
+      L     1; 
+      T     #s_Record_Check_This_Scan; 
+
+      OPN   "DB_Event_System"; // Take number of the Event DB
+      L     DBNO; 
+      T     #s_Event_DB_Num; 
+
+      OPN   "DB_Status_Index"; // Take the length of the Status Index
+      L     DBLG; 
+      T     #s_Length_Status_Index; 
+
+      L     #s_Length_Status_Index; 
+      L     16; // Default length of the status record
+      /I    ; 
+      T     #s_Num_Rec_status_Index; // Total amount of records in Status Index
+
+      OPN   "DB_Status"; // Take the length of DB_Status
+      L     DBLG; 
+      T     #s_Length_DB_Status; 
+
+      OPN   "DB_Status_Prev_Scan"; // Take the length of DB_Status_Prev_Scan
+      L     DBLG; 
+      T     #s_Length_DB_Status_P_Scn; 
+
+      L     #s_Length_DB_Status; // Check if length is the same
+      L     #s_Length_DB_Status_P_Scn; 
+      <>I   ; 
+      JCN   BA01; 
+
+      CALL "FC_Write_Event" (// If not the same, make an error log
+           i_Message_ID             := 3003,
+           i_Event_value            := 4,
+           i_DB_Event_Num           := #s_Event_DB_Num,
+           o_Return_Value           := #s_Return_Val_Event);
+
+      BE    ; //  ..And end this block
+
+BA01: SET   ; // If equal, set Done
+      =     #s_Done; 
+      R     #s_UpdateRun_Active; 
+
+BA02: NOP   0; 
+
+// Initialize variables
+
+      L     1; // Start scannning with the first record
+      T     #s_Current_Record; 
+
+      L     0; // Word where to start in DB_Status is "0"
+      T     #s_Current_Status_Word; 
+      T     #t_Last_Record_Comp; 
+
+      SET   ; // First record is always a new record
+      =     #s_New_Changed_Record; 
+NETWORK
+TITLE =CA: Check if next record is changed
+
+CA00: OPN   "DB_Status_Index"; 
+
+      L     #s_Current_Record; // The current record
+      L     16; // Length of one record in DB_Status_Index
+      *I    ; 
+      L     16; 
+      -I    ; 
+      T     #s_Address_Next_Status; // Is the start address of the next record
+      SLD   3; // Slide left to make a pointer
+      LAR1  ; // Load in address register 1
+
+      L     DBW [AR1,P#12.0]; // Copy DB number of the Type DB
+      T     #t_Current_Comp_Type_Num; 
+
+      L     DBW [AR1,P#14.0]; // Copy Start Address in DB_Status
+      T     #s_Start_Adress_DB_Status; 
+
+      L     #s_Current_Record; // See if the current record is the last record
+      L     #s_Num_Rec_status_Index; 
+      <I    ; 
+      JCN   CA01; 
+
+// Calculate where the next record starts in DB_Status
+
+      L     DBW [AR1,P#30.0]; 
+      T     #s_Start_Next_Status; // Store the address in static
+
+      JU    CA02; 
+
+CA01: L     #s_Length_DB_Status; // If this is the last record
+      T     #s_Start_Next_Status; // Take the end of DB_Status as start of the next record
+
+// Start compare with "DB_Status_Prev_Scan"
+
+// Read current record in DB_Status
+
+CA02: OPN   "DB_Status"; 
+
+      L     #s_Current_Status_Word; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #s_Cur_DB_Status; 
+
+// Read current record in DB_Status_Prev_Scan
+
+      OPN   "DB_Status_Prev_Scan"; 
+
+      L     #s_Current_Status_Word; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #s_Cur_DB_Status_Prev_Scn; 
+
+// Check if a changed happened
+
+      L     #s_Record_Check_This_Scan; // Check if the current record must be double checked, even without change
+      L     #s_Current_Record; 
+      ==I   ; 
+      JC    CA05; 
+
+      L     #s_Cur_DB_Status; 
+      L     #s_Cur_DB_Status_Prev_Scn; 
+      <>I   ; 
+      ON    #s_UpdateRun_Active; 
+      JCN   CA05; 
+
+// copy current status to DB_Status_Prev_Scan
+
+      L     #s_Cur_DB_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+      SET   ; 
+      =     #s_Record_Is_Changed; 
+      =     #s_New_Changed_Record; 
+
+
+// Loop through the WORDs of the current record
+
+CA05: L     #s_Current_Status_Word; 
+      L     2; 
+      +I    ; 
+      T     #s_Current_Status_Word; 
+
+      L     #s_Current_Status_Word; 
+      L     #s_Start_Next_Status; 
+      <I    ; 
+      JCN   CA06; 
+
+      JU    CA02; 
+
+CA06: NOP   0; 
+
+      L     #s_Current_Record; // If this was NOT the last record
+      L     #s_Num_Rec_status_Index; 
+      <I    ; 
+      AN    #s_Record_Is_Changed; // And no change in this record is detected
+      JCN   CA99; 
+
+      L     #s_Current_Record; // Than increase to the next record
+      L     1; 
+      +I    ; 
+      T     #s_Current_Record; 
+
+      SET   ; // Indicate that we start a new record
+      S     #s_New_Changed_Record; 
+
+      JU    CA00; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Prepare data for convertion
+//The network copys all relevant data to the Global DB
+      A     #s_Record_Is_Changed; // If there are changes detected, than execute network, else jump to end
+      JCN   JA00; 
+
+      L     #s_Start_Adress_DB_Status; // Go to the start of this record
+      T     #s_Change_Record_Word; 
+
+DA01: NOP   0; 
+
+// copy the current word of the record from DB_Status
+
+      OPN   "DB_Status"; 
+
+      L     #s_Change_Record_Word; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #s_Cur_DB_Status; 
+
+// Indicate in the DB with changes that this is a new record (to clear the current information)
+      A     #s_New_Changed_Record; 
+      =     "DB_Status_Changed".New_Record; 
+
+// Copy the contents of the current DB_Status Word and matching Type DB to the change DB.
+      OPN   "DB_Status_Changed"; 
+
+      L     0; 
+      LAR1  ; 
+
+      L     #s_Cur_DB_Status; // Copy the status
+      T     DBW [AR1,P#4.0]; 
+
+      L     #s_Current_Record; // Copy current record number (for calculating offset position)
+      T     "DB_Status_Changed".Current_Record_Num; 
+
+// Calculate the offset from the start of the record for the current WORD
+
+      L     #s_Change_Record_Word; 
+      L     #s_Start_Adress_DB_Status; 
+      -I    ; 
+      T     #s_Current_Word_In_Record; 
+
+// Indicate if this is the first WORD in the record
+// The first WORD contains global data, if the record is for a section
+
+      L     #s_Current_Word_In_Record; 
+      L     0; 
+      ==I   ; 
+      JCN   DA02; 
+
+      S     "DB_Status_Changed".First_Part; 
+
+      JU    DA03; 
+
+DA02: CLR   ; 
+      =     "DB_Status_Changed".First_Part; 
+
+DA03: NOP   0; 
+
+      L     0; 
+      LAR1  ; 
+
+// Copy the data out of the connected Component Type DB
+
+      OPN   DB [#t_Current_Comp_Type_Num]; 
+
+      A     DBX [AR1,P#0.0]; 
+      =     "DB_Status_Changed".Type_Component; 
+
+      L     DINO; 
+      T     #t_DI_Backup; 
+
+      L     #s_Current_Word_In_Record; 
+      L     8; 
+      *I    ; 
+      L     4; 
+      *I    ; 
+      L     2; 
+      +I    ; 
+      SLW   3; 
+      LAR1  ; 
+
+      OPN   DI [#t_Current_Comp_Type_Num]; 
+
+// Copy for the all bits of the WORD (16 bit) the text number, Overall Relation and General Relation to the Gloabal DB.
+
+//-------------------------------------------------------------------------------------------------
+// IF CPU STOPPED AT THIS LOCATION THE DB_STATUS_INDEX has wrong data.
+// Check DB_Status <-> DB_Status_Index
+// Check DB_Status_Index filled int component type DB
+// Check the length of the type DB compared to the offset within DB_Status
+// Upload the DB_Status_Index and compare the Start_Address_DB_Status compared to DB_Status
+// Extra info can be logged with 381x log events
+//-------------------------------------------------------------------------------------------------
+
+// Record 1
+      L     DIW [AR1,P#0.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[1].HMI_Text_Number; 
+
+      L     DIB [AR1,P#2.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[1].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#3.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[1].General_Status_Relation; 
+
+// Record 2
+      L     DIW [AR1,P#4.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[2].HMI_Text_Number; 
+
+      L     DIB [AR1,P#6.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[2].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#7.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[2].General_Status_Relation; 
+
+// Record 3
+      L     DIW [AR1,P#8.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[3].HMI_Text_Number; 
+
+      L     DIB [AR1,P#10.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[3].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#11.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[3].General_Status_Relation; 
+
+// Record 4
+      L     DIW [AR1,P#12.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[4].HMI_Text_Number; 
+
+      L     DIB [AR1,P#14.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[4].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#15.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[4].General_Status_Relation; 
+
+// Record 5
+      L     DIW [AR1,P#16.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[5].HMI_Text_Number; 
+
+      L     DIB [AR1,P#18.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[5].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#19.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[5].General_Status_Relation; 
+
+// Record 6
+      L     DIW [AR1,P#20.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[6].HMI_Text_Number; 
+
+      L     DIB [AR1,P#22.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[6].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#23.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[6].General_Status_Relation; 
+
+// Record 7
+      L     DIW [AR1,P#24.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[7].HMI_Text_Number; 
+
+      L     DIB [AR1,P#26.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[7].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#27.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[7].General_Status_Relation; 
+
+// Record 8
+      L     DIW [AR1,P#28.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[8].HMI_Text_Number; 
+
+      L     DIB [AR1,P#30.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[8].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#31.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[8].General_Status_Relation; 
+
+// Record 9
+      L     DIW [AR1,P#32.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[9].HMI_Text_Number; 
+
+      L     DIB [AR1,P#34.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[9].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#35.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[9].General_Status_Relation; 
+
+// Record 10
+      L     DIW [AR1,P#36.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[10].HMI_Text_Number; 
+
+      L     DIB [AR1,P#38.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[10].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#39.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[10].General_Status_Relation; 
+
+// Record 11
+      L     DIW [AR1,P#40.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[11].HMI_Text_Number; 
+
+      L     DIB [AR1,P#42.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[11].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#43.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[11].General_Status_Relation; 
+
+// Record 12
+      L     DIW [AR1,P#44.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[12].HMI_Text_Number; 
+
+      L     DIB [AR1,P#46.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[12].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#47.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[12].General_Status_Relation; 
+
+// Record 13
+      L     DIW [AR1,P#48.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[13].HMI_Text_Number; 
+
+      L     DIB [AR1,P#50.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[13].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#51.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[13].General_Status_Relation; 
+
+// Record 14
+      L     DIW [AR1,P#52.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[14].HMI_Text_Number; 
+
+      L     DIB [AR1,P#54.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[14].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#55.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[14].General_Status_Relation; 
+
+// Record 15
+      L     DIW [AR1,P#56.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[15].HMI_Text_Number; 
+
+      L     DIB [AR1,P#58.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[15].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#59.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[15].General_Status_Relation; 
+
+// Record 16
+      L     DIW [AR1,P#60.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[16].HMI_Text_Number; 
+
+      L     DIB [AR1,P#62.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[16].Overall_Status_Relation; 
+
+      L     DIB [AR1,P#63.0]; 
+      T     "DB_Status_Changed".Comp_Type_Status[16].General_Status_Relation; 
+
+      OPN   DI [#t_DI_Backup]; 
+
+NETWORK
+TITLE =EA: Create Overall Status
+
+      CALL #s_FB_Convert_DS_OS (
+           i_Event_DB               := "DB_Event_System");
+
+NETWORK
+TITLE =FA: Create General Status
+
+      CALL #s_FB_Convert_DS_GS (
+           i_Event_DB               := "DB_Event_System");
+
+NETWORK
+TITLE =GA: Create Alarm DB
+
+      NOP   0; 
+
+// Not created yet
+NETWORK
+TITLE =HA: Handle BPI Status
+
+      L     #s_Current_Record; 
+      L     #t_Last_Record_Comp; 
+      <>I   ; 
+      JCN   HA99; 
+
+//Previous point where statusreport was add
+
+      L     #s_Current_Record; 
+      T     #t_Last_Record_Comp; 
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Return loop for cycling status records
+// First loop is to update the complete record 
+      L     #s_Change_Record_Word; 
+      L     2; 
+      +I    ; 
+      T     #s_Change_Record_Word; 
+
+      L     #s_Change_Record_Word; 
+      L     #s_Start_Next_Status; 
+      <I    ; 
+      JCN   IA01; 
+
+      CLR   ; 
+      =     #s_New_Changed_Record; 
+
+      JU    DA01; 
+
+// Second Loop is to return to continue the scrolling through DB Status for changes
+
+IA01: L     #s_Current_Record; 
+      L     #s_Num_Rec_status_Index; 
+      AN    #s_Record_Is_Changed; 
+      <I    ; 
+      JCN   IA02; 
+
+      L     #s_Current_Record; 
+      L     1; 
+      +I    ; 
+      T     #s_Current_Record; 
+
+      CLR   ; 
+      =     #s_Record_Is_Changed; 
+
+      JU    CA00; 
+
+// If no records have to be handled anymore, clear the static that a record has changes.
+
+IA02: CLR   ; 
+      =     #s_Record_Is_Changed; 
+NETWORK
+TITLE =JA: Increase check one record each scan
+
+JA00: L     #s_Record_Check_This_Scan; // Update the record which must be checked (even without changes)
+      L     1; 
+      +I    ; 
+      T     #s_Record_Check_This_Scan; 
+
+      L     #s_Record_Check_This_Scan; // If the record is bigger than the total amount of records.
+      L     #s_Num_Rec_status_Index; 
+      >I    ; 
+      JCN   JA99; 
+
+      L     1; // ..Than set back to the first record
+      T     #s_Record_Check_This_Scan; 
+      SET   ; 
+      S     #s_UpdateRun_Active; 
+JA99: NOP   0; 
+END_FUNCTION_BLOCK
+

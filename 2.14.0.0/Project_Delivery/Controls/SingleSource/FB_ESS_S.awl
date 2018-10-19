@@ -1,0 +1,144 @@
+FUNCTION_BLOCK "FB_ESS_S"
+TITLE =%version: 0.05 % CN: 40
+//Function: 
+//Handles the statusses of InterFaCe IN (like a normal Emergency Stop) and 
+//InterFaCe OUT (like a normal contactor with feedback)
+//
+//
+//History:
+//This version  %created_by: nlwlu %
+//              %date_created:  Monday, June 20, 2016 2:20:11 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Changed name input parameters in network AA and DA    nleg     20-02-18   0.05
+//Changed description of some VAR_INPUTS                nleg     20-02-18   0.04
+//Added AUTHOR : VI_SAFE															  nleg     15-11-16   0.03
+//ra#12037: two detailed statusses active contradicting nlwlu    20-06-16   0.02
+//Initial version                                       nlwlu    24-05-16   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ESS_Input : BOOL ;	//Status of the InterFaCe input safety event active
+  i_ESS_QBad : BOOL ;	//QBad signal from hardware DB
+  i_IO_Available : BOOL ;	//IO available signal
+  i_CMD_Reset : BOOL ;	//Reset command
+  i_ESS_Diag : BYTE ;	//Diagnose byte from F_Estop1
+  i_ESS_FBK_Error : BOOL ;	//Feedback error from F_FDBACK
+END_VAR
+VAR_OUTPUT
+  o_ST_ESS_NOK : BOOL ;	//Status: external safety event active
+  o_ST_Reset_Required : BOOL ;	//Status: reset required
+  o_ST_Reset_Permanent : BOOL ;	//Status: reset operated permanent or to early
+  o_ST_IO_Channel_Stopped : BOOL ;	//Status: IO channel passivated
+  o_ST_Invalid_Time_Dly : BOOL ;	//Status: Setting Time Delay is invalid
+  o_ST_Feedback_Error : BOOL ;	//Status: Feedback error
+END_VAR
+VAR
+  s_Status : STRUCT 	//Diagnose status from F_ESTOP1
+   s_Bit0_ER_TIM_DEL : BOOL ;	//Incorrect TIM_DEL setting	
+   s_Bit1_Reserved : BOOL ;	//Reserved	
+   s_Bit2_Reserved : BOOL ;	//Reserved	
+   s_Bit3_Reserved : BOOL ;	//Reserved	
+   s_Bit4_Operated : BOOL ;	//Acknowledgment not possible because emergency STOP is still active
+   s_Bit5_Reset_Permanent : BOOL ;	//Input ACK has a permanent signal state of 1
+   s_Bit6_Reset_Required : BOOL ;	//Acknowledgement required 
+   s_Bit7_OK : BOOL ;	//State of output Q	
+  END_STRUCT ;	
+  s_IO_TON : INT ;	//Counter for time delay IO available
+  s_IO_Available : BOOL ;	//IO available time delayed
+  s_FN_Reset : BOOL ;	//Negative flank merker bit for reset
+END_VAR
+VAR_TEMP
+  t_Reset : BOOL ;	//reset on negative flank safety reset
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA : Copy Diagbyte to struct status
+//structure of DIAG
+//
+//Bit No. Assignment
+//Bit 0   Incorrect TIM_DEL setting
+//Bit 1   Reserved
+//Bit 2   Reserved
+//Bit 3   Reserved
+//Bit 4   Acknowledgment not possible because emergency STOP is still active
+//Bit 5   If enable is missing: input ACK has a permanent signal state of 1
+//Bit 6   Acknowledgement required= state of ACK_REQ
+//Bit 7   State of output Q
+      NOP   0; 
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      L     P##s_Status; // Pointer to status in instance-DB 
+      +D    ; 
+      LAR1  ; // Load pointer to start address of Status in instance-DB
+      L     #i_ESS_Diag; // Load diagnose input byte
+      T     B [AR1,P#0.0]; // Transfer to status byte in Instance DB
+NETWORK
+TITLE =BA: Delay IO available
+//IO available is delayed because it takes time to depassivate a safety module
+      NOP   0; 
+// When IO available again suppress errors for one second it takes time to depassivate
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #i_IO_Available,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 10,
+           i_Current_Value          := #s_IO_TON,
+           o_Status                 := #s_IO_Available,
+           o_Current_Value          := #s_IO_TON);
+
+NETWORK
+TITLE =CA: Reset only on negative flank
+//Reset is only executed on negative flank of reset signal. In this way safety 
+//program is always executed before reset is handled.
+      NOP   0; 
+//Reset on negative flank safety reset in this way we know that safety software is executed
+      A     #i_CMD_Reset; 
+      FN    #s_FN_Reset; 
+      =     #t_Reset; 
+NETWORK
+TITLE =DA: Determinate detailed status
+
+      NOP   0; 
+      A     #t_Reset; // IF Reset
+      R     #o_ST_Reset_Permanent; // THEN Reset all errors
+      R     #o_ST_IO_Channel_Stopped; 
+      R     #o_ST_ESS_NOK; 
+      R     #o_ST_Reset_Required; 
+      R     #o_ST_Invalid_Time_Dly; 
+      R     #o_ST_Feedback_Error; 
+
+      A     #s_Status.s_Bit0_ER_TIM_DEL; // IF time delay is set invalid
+      S     #o_ST_Invalid_Time_Dly; // THEN status time delay is invalid
+
+      A     #s_IO_Available; // IF IO is OK
+      AN    #i_ESS_QBad; // AND NOT channel passivated
+      AN    #i_ESS_Input; // AND NOT InterFace is OK
+      =     #o_ST_ESS_NOK; // THEN InterFaCe Not OK (pressed)
+
+      A     #s_IO_Available; // IF IO is OK
+      A     #s_Status.s_Bit6_Reset_Required; // AND status Reset Required
+      A     #i_ESS_Input; // AND InterFaCe is OK
+      AN    #i_ESS_QBad; // AND NOT channel passivated
+      S     #o_ST_Reset_Required; // THEN SET status Reset Required
+
+      A     #i_ESS_QBad; // IF channel passivated
+      A     #s_IO_Available; // AND IO is OK
+      =     #o_ST_IO_Channel_Stopped; // THEN status IO Channel Stopped
+
+      A     #s_IO_Available; // IF IO is OK
+      AN    #i_ESS_QBad; // AND NOT channel passivated
+      A     #s_Status.s_Bit5_Reset_Permanent; // AND status BIT Reset Permanent
+      S     #o_ST_Reset_Permanent; // THEN SET status Reset Permanent
+
+      A     #s_IO_Available; // IF IO is OK
+      A     #i_ESS_FBK_Error; //AND InterFaCe Out Feedback Error
+      S     #o_ST_Feedback_Error; //THEN status Feedback Error
+
+END_FUNCTION_BLOCK
+

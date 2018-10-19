@@ -1,0 +1,42 @@
+TYPE "UDT_Zone_HMI_IF_Man"
+TITLE =%version: 0.01 % CN: 11
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, November 14, 2016 4:25:58 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189 Initial version                              inajos   27-09-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Display_Bits : STRUCT 	//Enable Disable text based on these bits
+    Par_ID_Name_Bit : BOOL ;	
+    Par_Mode_Name_bit : BOOL ;	
+    Zone_ID_Text_bit : BOOL ;	
+    Zone_ID_Status_Text_bit : BOOL ;	
+    Button1 : BOOL ;	
+    Button2 : BOOL ;	
+    Button3 : BOOL ;	
+    Button4 : BOOL ;	
+   END_STRUCT ;	
+   Par_ID_Name : INT ;	//ID/Carrier ID etc... Parameter Name
+   Par_Mode_Name : INT ;	//Mode,status,Name
+   ID_Text : STRING  [30 ];	//Selected ID
+   Status_Text : INT ;	//Mode/Status text
+   Command_Text : STRUCT 	
+    Button1 : INT ;	//Button 1 Text No
+    Button2 : INT ;	//Button 2 Text
+    Button3 : INT ;	//Button 3 Text
+    Button4 : INT ;	//Button 4 Text
+   END_STRUCT ;	
+   Status_No : INT ;	//Selected Status
+   Active_No : INT ;	//Active Number
+   Total_No : INT ;	//Total Number
+   Function_No : INT ;	//Function Number for (up/down or straight divert etc...)
+  END_STRUCT ;	
+END_TYPE
+

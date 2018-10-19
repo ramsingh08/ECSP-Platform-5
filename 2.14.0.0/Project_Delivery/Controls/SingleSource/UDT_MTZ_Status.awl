@@ -1,0 +1,46 @@
+TYPE "UDT_MTZ_Status"
+TITLE =%version: 0.09 % CN: 10 
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, October 21, 2016 2:45:27 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18049: Add recirculating bags status               nldy     21-10-16   0.09
+//ra#17265: Update UDT Statuses accoording list         nlHdL    21-09-16   0.08
+//ra#15522 : Remove "MTZ" in front of full levels       nlJClo   11-07-16   0.07
+//ra#13939: RAW: Make MTZ configurable according MCFV   nlHdL    23-05-16   0.06
+//ra#13939: RAW: Make MTZ configurable according MCFV   nlHdL    23-05-16   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//CR6774 comment change of induct PEC Blockage          nlHdL    13-04-11   0.05
+//CR6231: Update status                                 nlJBax   10-01-11   0.04
+//History update                                        nlHdL    15-11-10   0.03
+//Renamed to UDT_MTZ_Status                             nlHdL    15-11-10   0.02 
+//Initial version                                       inpna    24-09-10   0.01                                        
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Full_level_1 : BOOL ;	//Carrousel full level 1 reached	
+   Full_level_2 : BOOL ;	//Carrousel full level 2 reached		
+   Full_level_3 : BOOL ;	//Carrousel full level 3 reached		
+   Full_level_4 : BOOL ;	//Carrousel full level 4 reached		
+   Full_Error : BOOL ;	//Carrousel full Error	
+   PEC_Blk_1 : BOOL ;	//Induct-1 PEC Blockage
+   PEC_Blk_2 : BOOL ;	//Induct-2 PEC Blockage
+   PEC_Blk_3 : BOOL ;	//Induct-3 PEC Blockage
+   PEC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PEC_ASI_Error : BOOL ;	//ASI slave error
+   SLC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   SLC_ASI_Error : BOOL ;	//ASI slave error
+   Recirculating_Bags : BOOL ;	//Recirculating bags (Esave not possible)
+   spare_2_5 : BOOL ;	
+   spare_2_6 : BOOL ;	
+   spare_2_7 : BOOL ;	
+  END_STRUCT ;	
+END_TYPE
+

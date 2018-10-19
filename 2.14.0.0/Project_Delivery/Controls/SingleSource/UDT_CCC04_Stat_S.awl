@@ -1,0 +1,70 @@
+TYPE "UDT_CCC04_Stat_S"
+TITLE =%version: 7 % CN: 11
+//History:
+//This version  %created_by: nltre %
+//              %date_created: Monday, September 10, 2018 2:15:17 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#30599: add connection_error                        nltre    10-09-18   0.07
+//ra#24098 : Default configuration setting wrong for    nleg     29-03-18   0.06
+// "Fire Alarm" message on HMI
+//ra#20074 : Re-design CCC04                            nleg     17-01-17   0.02
+//Initial version based on UDT_CCC91_Stat_S v0.05       nlpolm   08-04-15   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+
+  STRUCT
+   MS_MAIN_PWR_OFF : BOOL ;	//Main switch main power supply switched off
+   MS_AUX_PWR_OFF : BOOL ;	//Main switch auxiliary power supply switched off
+   CB_PHASE_CTRL_OFF : BOOL ;	//Circuit breaker phase control switched off
+   PHASE_CTRL_Error : BOOL ;	//Phase control in error
+   CB_MEASURING_OFF : BOOL ;	//Circuit breaker energy measuring switched off
+   CB_24V_CTRL_OFF : BOOL ;	//Circuit breaker 24Vdc supply control voltage switched off
+   CB_24V_OK_OFF : BOOL ;	//Circuit breaker 24Vdc supply units switched off
+   CB_24V_SAFE_OFF : BOOL ;	//Circuit breaker 24Vdc supply safety system switched off (Reserved)
+   PN_SWITCH_Error : BOOL ;	//PROFINET switch in error
+   CAB_TEMP_TOO_HIGH : BOOL ;	//Cabinet temperature too high
+   CB_UPS_OFF : BOOL ;	//Circuit breaker uninterupted power supply switched off
+   CB_ETH_LINKP_OFF : BOOL ;	//Circuit breaker ethernet link protector switched off
+   ETH_LINKP_Error : BOOL ;	//Ethernet link protector in error
+   Connection_Error : BOOL ;	//Connection Error
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+   CB_AUX_PG01_OFF : BOOL ;	//Circuit breaker auxiliary power group 01 switched off
+   CB_AUX_PG02_OFF : BOOL ;	//Circuit breaker auxiliary power group 02 switched off
+   CB_AUX_PG03_OFF : BOOL ;	//Circuit breaker auxiliary power group 03 switched off
+   CB_AUX_PG04_OFF : BOOL ;	//Circuit breaker auxiliary power group 04 switched off
+   CB_AUX_PG05_OFF : BOOL ;	//Circuit breaker auxiliary power group 01 switched off
+   CB_AUX_PG06_OFF : BOOL ;	//Circuit breaker auxiliary power group 06 switched off
+   CB_AUX_PG07_OFF : BOOL ;	//Circuit breaker auxiliary power group 07 switched off
+   CB_AUX_PG08_OFF : BOOL ;	//Circuit breaker auxiliary power group 08 switched off
+   CB_AUX_PG09_OFF : BOOL ;	//Circuit breaker auxiliary power group 09 switched off
+   CB_AUX_PG10_OFF : BOOL ;	//Circuit breaker auxiliary power group 10 switched off
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+   DP_Master_Error : BOOL ;	//PROFIBUS: Master in error
+   DP_Master_NotPrsnt : BOOL ;	//PROFIBUS: Master not present
+   PN_Master_Error : BOOL ;	//PROFINET: Master in error
+   PN_Master_NotPrsnt : BOOL ;	//PROFINET: Master not present
+   PN1_Error : BOOL ;	//PROFINET: Slave 1 in error
+   PN1_NotPrsnt : BOOL ;	//PROFINET: Slave 1 not present
+   ETH_Switch_Error : BOOL ;	//Ethernet switch in error
+   OP_Comm_Error : BOOL ;	//Communication with Operator Panel in error
+   Spare_5_0 : BOOL ;	//Spare_5_0
+   Spare_5_1 : BOOL ;	//Spare_5_1
+   Spare_5_2 : BOOL ;	//Spare_5_2
+   Spare_5_3 : BOOL ;	//Spare_5_3
+   Spare_5_4 : BOOL ;	//Spare_5_4
+   Spare_5_5 : BOOL ;	//Spare_5_5
+   Spare_5_6 : BOOL ;	//Spare_5_6
+   Spare_5_7 : BOOL ;	//Spare_5_7
+  END_STRUCT ;	
+END_TYPE
+

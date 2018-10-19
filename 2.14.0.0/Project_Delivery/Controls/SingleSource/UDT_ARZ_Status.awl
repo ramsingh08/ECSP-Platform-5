@@ -1,0 +1,47 @@
+TYPE "UDT_ARZ_Status"
+TITLE =%version: 0.10 % CN: 10 
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Wednesday, October 12, 2016 5:02:37 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16800: Rename remaining items to recirulating bags nlDY     12-10-16   0.10
+//ra#16800: Report remaining items                      nlDY     28-09-16   0.09
+//ra#17265: Update UDT Statuses accoording list         nlHdL    21-09-16   0.08
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   0.07
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.07
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.06
+//Correct name                                          nlJBax   14-04-11   0.05
+//Update according MTZ                                  nlJBax   14-04-11   0.04
+//Update after comments                                 nlHEb    08-09-10   0.03
+//Correct family name                                   nlMRe    19-08-10   0.02
+//Initial Release                                       nlHEb    26-07-10   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Full_level_1 : BOOL ;	//Carrousel full level 1 reached	
+   Full_level_2 : BOOL ;	//Carrousel full level 2 reached		
+   Full_level_3 : BOOL ;	//Carrousel full level 3 reached		
+   Full_level_4 : BOOL ;	//Carrousel full level 4 reached		
+   Full_Error : BOOL ;	//Carrousel full Error	
+   PEC_Blk_1 : BOOL ;	//Photo Cell Induct-1 blockage
+   PEC_Blk_2 : BOOL ;	//Photo Cell Induct-2 blockage
+   PEC_Blk_3 : BOOL ;	//Photo Cell Induct-3 blockage
+   TS_PEC_Blk : BOOL ;	//Photo Cell Trigger Start blockage
+   PEC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PEC_ASI_Error : BOOL ;	//ASI slave error
+   SLC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   SLC_ASI_Error : BOOL ;	//ASI slave error
+   PBB_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_ASI_Error : BOOL ;	//ASI slave error
+   Recirculating_Bags : BOOL ;	//Recirculating bags (Esave not possible)
+  END_STRUCT ;	
+END_TYPE
+

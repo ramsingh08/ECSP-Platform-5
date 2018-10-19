@@ -1,0 +1,21 @@
+DATA_BLOCK "DB_Int_Prog_Zone"
+TITLE =%version: 0.01 % CN: 20 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, June 06, 2016 1:00:44 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on DB_Int_Prog_Section          nlHdL    06-06-16   0.01                                       
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	// Insertion point for the S7 Code Generator	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

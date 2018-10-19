@@ -1,0 +1,235 @@
+FUNCTION_BLOCK "FB_Rcv_HandAreaTabUp"
+TITLE =%version: 0.04 % CN: 32
+//Function:
+//Handle received message 'HandlingAreaTableUpdate'
+//                                                                        
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, June 08, 2017 2:54:59 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22580: Check DB length for Msgs with tableindex    nlHdL    08-06-17   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.03
+//18385: chenged event number 3206 to 3208 and changed  nlHHop   01-04-14   0.02
+//number of possible entries to 40
+//Initial Version rename from FB_Rcv_TranslTabUp        nlHdL    18-02-14   0.01
+//
+//Description:
+//Handle received message 'HandlingAreaTableUpdate'
+//                                                                        
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//Any pointer to received message body
+  i_DB_Event_Num : INT ;	//Number of the Event DB
+END_VAR
+VAR
+  s_HandAreaTabUpdate : "UDT_Msg_HndAreaTabUp";	//Message Destination reply
+  s_Transl_DB_number : INT ;	
+END_VAR
+VAR_TEMP
+  t_ANY_Rcv_Msg_Body : ANY ;	//ANY pointer to the received message body
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_Area_Zone_Section_ID : DINT ;	//Calculating Area_Zone_Section_ID
+  t_Ret_Val_Int : INT ;	//Return Value (int)
+  t_Destination_1 : INT ;	//First destination
+  t_Destination_2 : INT ;	//Second destination
+  t_Destination_3 : INT ;	//Third destination
+  t_Destination_4 : INT ;	//Fourth destination
+  t_Destination_5 : INT ;	//Fifth destination
+  t_Reject_Reason : INT ;	//Reject reason; 0 = No Fault, 10 = Destination, 11 = Def_Destination_1
+  t_Loop_Counter : INT ;	//Number of entries in TableDB
+  t_DestinationArea : INT ;	//Destination Area number
+  t_Transl_DB_number : INT ;	
+  t_Loop_Count : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy Received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_HandAreaTabUpdate.Body);
+NETWORK
+TITLE =CA: Open Table
+
+      OPN   "DB_HandAreaTabIndex"; 
+
+      L     DBLG; 
+      L     6; //one entry is 6 bytes long
+      /D    ; 
+      T     #t_Loop_Counter; 
+      L     0; 
+      ==I   ; 
+      BEC   ; // End if no entries present
+
+// Calculate Area_Zone_Section_ID                                     
+      L     #s_HandAreaTabUpdate.Body.AreaID; 
+      L     L#10000; 
+      *D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+      L     #s_HandAreaTabUpdate.Body.ZoneID; 
+      L     100; 
+      *D    ; 
+      L     #t_Area_Zone_Section_ID; 
+      +D    ; 
+      L     #s_HandAreaTabUpdate.Body.EquipmentID; 
+      +D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+// Set a pointer to the first entry
+      L     P#DBX 0.0; 
+      LAR1  ; 
+      JU    CA02; 
+
+// Set the pointer to the next entry
+CA01: L     P#6.0; 
+      +AR1  ; 
+
+// Decrease the loop counter
+CA02: L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+
+// Load and compare Area_Zone_Section_ID
+      L     D [AR1,P#0.0]; 
+      L     #t_Area_Zone_Section_ID; 
+      ==D   ; 
+      JC    CA99; 
+
+// Check loop counter
+      L     #t_Loop_Counter; 
+      L     0; 
+      <=I   ; 
+      JCN   CA01; 
+
+// Return no data (0) with failure (RETVAL = -1)
+      L     0; 
+      T     #s_Transl_DB_number; 
+
+      CALL "FC_Write_Event" (// Report event "Received Handling Area Table Update rejected"(3208)
+           i_Message_ID             := 3208,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      BEU   ; 
+
+// Return data with succes (RETVAL = 0)
+CA99: L     W [AR1,P#4.0]; 
+      T     #t_Transl_DB_number; 
+      T     #s_Transl_DB_number; 
+
+NETWORK
+TITLE =DA: Prepare pointer to received entry
+
+      NOP   0; 
+// Preset the maximum number of allowed loops.
+// A message contains a maximum of 40 entries.
+      L     40; 
+      T     #t_Loop_Count; 
+
+// Determine the address of the first entry
+      L     P##s_HandAreaTabUpdate; 
+      TAR2  ; // 'absolute address' Source
+
+      L     P#28.0; // Transl information starts at 28 bytes from start of message
+      JU    DA02; 
+
+DA01: L     P#12.0; // Load the address to the next entry
+DA02: +AR2  ; 
+
+      L     #t_Loop_Count; // Increase loop counter
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Count; 
+
+      L     DIB [AR2,P#0.0]; 
+      T     #t_DestinationArea; 
+      L     0; 
+      ==I   ; 
+      BEC   ; // If destination = 0 the end block
+
+      L     DIW [AR2,P#2.0]; 
+      T     #t_Destination_1; 
+
+      L     DIW [AR2,P#4.0]; 
+      T     #t_Destination_2; 
+
+      L     DIW [AR2,P#6.0]; 
+      T     #t_Destination_3; 
+
+      L     DIW [AR2,P#8.0]; 
+      T     #t_Destination_4; 
+
+      L     #i_DB_Event_Num; 
+      T     #t_Destination_5; 
+
+      CALL "FC_Write_TranslEntry" (
+           i_TranslDB_Nr            := #t_Transl_DB_number,
+           i_Destination            := #t_DestinationArea,
+           i_Def_Dest_1             := #t_Destination_1,
+           i_Def_Dest_2             := #t_Destination_2,
+           i_Def_Dest_3             := #t_Destination_3,
+           i_Def_Dest_4             := #t_Destination_4,
+           i_Def_Dest_5             := #t_Destination_5,
+           o_Result                 := #t_Reject_Reason);
+
+      L     #t_Reject_Reason; 
+      L     0; 
+      ==I   ; 
+      JCN   DA03; 
+
+// Only loop if the destination field of the next entry > 0
+// and loop counter has not reached the allowed number.
+      L     #t_Loop_Count; 
+      L     0; 
+      >I    ; 
+      JC    DA01; 
+
+      BE    ; 
+
+DA03: CALL "FC_Write_Event" (// Report event "Received Handling Area Table Update rejected"(3208)
+           i_Message_ID             := 3208,
+           i_Event_value            := 2,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+END_FUNCTION_BLOCK
+

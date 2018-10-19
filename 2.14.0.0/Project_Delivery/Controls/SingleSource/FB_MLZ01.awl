@@ -1,0 +1,220 @@
+FUNCTION_BLOCK "FB_MLZ01"
+TITLE =%version: 0.07 % CN: 60 
+//Function:
+//This template contains a for MLZ01 , 2 PEC and SLC
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, March 26, 2018 1:57:46 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                  By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27952: No report items on MLZ01                    nlHdL    26-03-18   0.07
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   0.06
+//ra#20277: MLZ no items status                         nlHdL    23-03-17   0.05
+//ra#21373: Deregister item on MLZ01/03                 nlHdL    20-03-17   0.04
+//ra#20419: Add gravity into MLZ01                      nlHdL    14-02-17   0.03
+//ra#16880:add _F for fixed part                        nlJClo   04-10-16   0.02
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   0.01
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   0.01
+//Init version                                          nlHdL    19-11-15   0.01
+//
+//Description:
+//The MLZ01 (GR) has a SOS and EOS PEC. When both the SOS and EOS PEC of the 
+//lateral are blocked,the MLZ will report the warning "full".
+//
+//View from above (conveyor):
+//                                                          
+//                              |        GR             |     
+//                          +---+-----------------------+---+
+//                          |   |                       |   |         
+//                          |   |                       |   |  
+//                          |   |                       |   |  
+//                          +---+-----------------------+---+
+//                              |                       |                 
+//                              ^                       ^      
+//                           SOS PEC                  EOS PEC 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_TRS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS_Basic_Offset_Time : INT  := 100;	//CFG: [0.1 sec] travel time item over gravity
+  i_TRS_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_CFG_UnattendedBag_Time : INT  := 60;	//CFG: [0.1sec] Time to pass before an Unattended Baggage warning is set
+  i_Local_Destination : INT ;	//CFG: Destination of this section. Only needed if upstream has tracking
+  i_PEC_ASI_NotPrsnt : BOOL ;	//ASI module is not present
+  i_PEC_ASI_Error : BOOL ;	//ASI module has an error
+  i_SLC_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_SLC_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_IO_NOT_PEC_SOS : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_IO_NOT_PEC_EOS : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+END_VAR
+VAR_OUTPUT
+  o_TRS_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS_ST_Running : BOOL ;	//ST: Section is running 
+  o_TRS_ST_Started : BOOL ;	//ST: Started
+  o_TRS_ST_Request_Halt : BOOL ;	//ST: Request Halt
+  o_TRS_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_TRS_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_IO_SL_Full : BOOL ;	//HW: Flashlight 
+  o_IO_BP_Full : BOOL ;	//HW: Horn 
+  o_ST_MLZ_Full : BOOL ;	//ST: Status full
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_SLC_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SLC_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_Req_Dis_Send_Infeed : BOOL ;	//Request disable send to infeed
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+END_VAR
+VAR
+  s_TRS_FB_EQP_PEC : "FB_EQP_PEC";	//Instance of Equipment PEC
+  s_TRS_FB_EQP_Gravity : "FB_EQP_Gravity";	//Instance of Equipment Gravity
+  s_TRS_FB_DAT : "FB_DAT";	//Instance of Data Layer for section
+  s_SLC_FB_HW_ASi : "FB_HW_ASi";	//Block call static FB_HW_ASi
+  s_CV_Delay_Time : INT ;	//Dealy time current vaule
+  s_EOS_PEC_Latch : BOOL ;	//EOS PEC Latch
+  s_GR_Full : BOOL ;	//GR full status
+  s_TRS_Request_Stop : BOOL ;	//TRS request stop
+  s_Unattended_Bag : BOOL ;	//Unattended bag
+END_VAR
+VAR_TEMP
+  t_DB_PLT_Num : INT ;	//PLT DB Number
+  t_DB_Event_Num : INT ;	//Event DB section
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: TRS Gravity Roller
+
+      O     #i_CMD_Reset; // OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_NotPrsnt; // RESET Slave not Present
+
+      A     #i_PEC_ASI_NotPrsnt; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt; // SET the Slave not present
+
+      O     #i_CMD_Reset; //OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_Error; // RESET ASI Slave error
+
+      A     #i_PEC_ASI_Error; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error; // SET ASI Slave Error
+
+      CALL #s_TRS_FB_EQP_PEC (
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 0,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Delay_Off_Filter   := 2,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := FALSE,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_IO_NOT_PEC_EOS,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PEC_Latch              := #s_EOS_PEC_Latch);
+
+      A     #o_ST_ASI_NotPrsnt; 
+      O     #o_ST_ASI_Error; 
+      =     #s_TRS_Request_Stop; 
+
+      CALL #s_TRS_FB_EQP_Gravity (
+           i_ID_Section             := #i_TRS_ID,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Basic_Offset_Time      := #i_TRS_Basic_Offset_Time,
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS_Request_Stop,
+           o_ST_Running             := #o_TRS_ST_Running,
+           o_ST_Started             := #o_TRS_ST_Started,
+           o_ST_Request_Halt        := #o_TRS_ST_Request_Halt,
+           o_ST_Request_Stop        := #o_TRS_ST_Request_Stop,
+           o_ST_External_Stop       := #o_TRS_ST_External_Stop,
+           o_Ready_To_Restart       := #o_Ready_To_Restart);
+
+      A     #s_EOS_PEC_Latch; 
+      =     #o_TRS_ST_Items; 
+
+      OPN   #i_TRS_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      CALL "FC_Dereg_LNK_In_PLT" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           i_Arrived_Position       := #i_Local_Destination);
+
+      CALL #s_TRS_FB_DAT (
+           i_ID_Section             := #i_TRS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+NETWORK
+TITLE =BA: Unattended baggage
+
+      AN    #i_IO_NOT_PEC_SOS; 
+      A     #s_EOS_PEC_Latch; 
+      =     #s_GR_Full; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_GR_Full,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #i_CFG_UnattendedBag_Time,
+           i_Current_Value          := #s_CV_Delay_Time,
+           o_Status                 := #s_Unattended_Bag,
+           o_Current_Value          := #s_CV_Delay_Time);
+
+NETWORK
+TITLE =CA: Write output
+
+      A     #s_GR_Full; 
+      =     #o_ST_MLZ_Full; // Status full 
+      =     #o_Req_Dis_Send_Infeed; // If full then also send disable send to upstream
+NETWORK
+TITLE =DA: Call ASI slaves
+//ASI slave for SLC
+      CALL #s_SLC_FB_HW_ASi (
+           i_Req_Output_1           := #s_GR_Full,
+           i_Req_Output_2           := #s_Unattended_Bag,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO,
+           i_ASI_NotPrsnt           := #i_SLC_ASI_NotPrsnt,
+           i_Slave_Error            := #i_SLC_ASI_Error,
+           i_CFG_Delay_Time         := 5,
+           o_ST_ASI_NotPrsnt        := #o_SLC_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_SLC_ST_ASI_Error,
+           o_IO_Output_1            := #o_IO_SL_Full,
+           o_IO_Output_2            := #o_IO_BP_Full);
+
+      A     #i_CMD_Enable; 
+      A     #i_Available_IO; 
+      A(    ; 
+      O     #o_SLC_ST_ASI_NotPrsnt; 
+      O     #o_SLC_ST_ASI_Error; 
+      )     ; 
+      S     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

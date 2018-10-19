@@ -1,0 +1,35 @@
+TYPE "UDT_LSZ_Int_Prog"
+TITLE =%version: 1.03 % CN: 10 
+//History:
+//This version  %created_by:   nldy %
+//              %date_created:   Monday, October 30, 2017 1:57:38 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25877: Add Item_at_Handover                        nldy     26-10-17   1.03
+//ra#54187: Align As per Product Book                   inajos   16-06-17   1.02
+//ra#13806: Initial revision                            nljclo   24-05-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   All_TRS_Started : BOOL ;	//All transport sections started
+   TRS1_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS2_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS3_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS4_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS5_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS6_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS7_Req_MTR_Run : BOOL ;	// Request motor to run
+   TRS8_Req_MTR_Run : BOOL ;	// Request motor to run
+   Req_Dis_Send_Infeed : BOOL ;	// Disable send to infeed LSZ
+   Reset_E_Saving_Down : BOOL ;	// Reset energy save downstream LSZ
+   Enable_Release_request : BOOL ;	//New Release Request
+   Item_at_Handover : BOOL ;	//Item at handover at first LSZ section
+   TEP : INT ;	//Zone Total Empty Positions 
+   TOP : INT ;	//Zone Total Occupied Positions 
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,123 @@
+FUNCTION "FC_Rel_Hist_ECSp_RAW" : VOID
+TITLE =Release 2.14.0 of 'S7 Library ECS-P' CN: 22 
+//Release History of product library 'S7 Library ECS-P General'
+//
+//The blocks belonging to this library do have the block property family: 
+//'General'.
+//
+//This release is archived with document number: A_DOC295942 EN xxx
+//(xxx letter of release).
+//       
+//
+//Release History:                                              Date:     Rel:
+//-------------------------------------------------------------------------------
+//
+//Update release RAW Platfrom 5                                 21-09-18  2.14.0
+//      Solved bugs stacked on SAFE
+//
+//Update release RAW Platfrom 5                                 22-06-18  2.13.0
+//      Solved bugs Add VBZ variant
+//
+//Update release RAW Platfrom 5                                 23-03-18  2.12.0
+//      Solved bugs Add BSZ
+//
+//Update release RAW Platfrom 5                                 09-02-18  2.11.1
+//      Solved bugs CIZ
+//
+//Update release RAW Platfrom 5                                 15-12-17  2.11.0
+//      Zones update VCZ/LSZ/OPZ
+//
+//Update release RAW Platfrom 5                                 03-11-17  2.10.1
+//      Zones VCZ/LSZ/OPZ/Pending 
+//
+//Update release RAW Platfrom 5                                 22-09-17  2.10.0
+//      Zones VDZ/HBZ/OPZ/Pending 
+//
+//Update release RAW Platfrom 5                                 28-06-17  2.9.0
+//      Zones VDZ/HBZ/OPZ/Pending 
+//
+//Update release RAW Platfrom 5                                 31-03-17  2.8.0
+//      Zones VBZ05/HBZ/LUZ01/ 
+//
+//Update release RAW Platfrom 5                                 10-02-17  2.7.1
+//      Zones HBZ/LUZ/ Screenpending 
+//
+//Update release RAW Platfrom 5                                 16-12-16  2.7.0
+//      Zones HBZ/LUZ/ Screenpending 
+//
+//Update release RAW Platfrom 5                                 31-10-16  2.6.0
+//      Zones MVD/SVD/MLZ/OPZ/ update ARZ/UQZ 
+//
+//Second release RAW Platfrom 5                                 26-08-16  2.5.0
+//      Zones MGZ/IFZ/MVD/SVD/CIZ/CLZ/SOZ/VBZ/IDZ
+//
+//First release RAW Platfrom 5                                  17-06-16  2.4.0
+//      Zones ARZ / UQZ / TRZ /MTZ 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =..:Type DBs and general DBs. Needed for code generator
+//When the option within the code generator is active to remove the unused 
+//blocks, the type DB's are not included. 
+//Therefor this list of DB's is added.
+      BE    ; //Block End, no types need to be opened
+      OPN   "DB_BSO_Type"; 
+      OPN   "DB_CCC_Type"; 
+      OPN   "DB_CCC06_Type"; 
+      OPN   "DB_CCC07_Type"; 
+      OPN   "DB_CCC10_Type"; 
+      OPN   "DB_CCC16_Type"; 
+      OPN   "DB_CIO_Type"; 
+      OPN   "DB_FieldB_Type"; 
+      OPN   "DB_HBO_Type"; 
+      OPN   "DB_HOO_Type"; 
+      OPN   "DB_LCC_Type"; 
+      OPN   "DB_OPS_Type"; 
+      OPN   "DB_RCO_Type"; 
+      OPN   "DB_SAC_Type"; 
+      OPN   "DB_SHO_Type"; 
+      OPN   "DB_SLC_Type"; 
+      OPN   "DB_SSM_Type"; 
+      OPN   "DB_SWS_Type"; 
+      OPN   "DB_TRS_Type"; 
+      OPN   "DB_TT_TF_Type"; 
+      OPN   "DB_WE_Type"; 
+//-- General Type DBs
+      OPN   "DB_Event_Zone"; 
+      OPN   "DB_Event_Section"; 
+      OPN   "DB_Event_Area"; 
+      OPN   "DB_Event_System"; 
+      OPN   "DB_Event_Pending"; 
+//-- General Event Db
+      OPN   "DB_ARZ_Type"; 
+      OPN   "DB_BSZ_Type"; 
+      OPN   "DB_CH_Type"; 
+      OPN   "DB_CHO_Type"; 
+      OPN   "DB_CIZ_Type"; 
+      OPN   "DB_HBS_Type"; 
+      OPN   "DB_LSZ_Type"; 
+      OPN   "DB_LUZ_Type"; 
+      OPN   "DB_MGZ_Type"; 
+      OPN   "DB_MLZ_Type"; 
+      OPN   "DB_MTZ_Type"; 
+      OPN   "DB_MVD_Type"; 
+      OPN   "DB_OPZ_Type"; 
+      OPN   "DB_SCZ_Type"; 
+      OPN   "DB_SOZ_Type"; 
+      OPN   "DB_SVD_Type"; 
+      OPN   "DB_SWS_Mvdr_Type"; 
+      OPN   "DB_SWS_SCZ_Type"; 
+      OPN   "DB_UQZ_Type"; 
+      OPN   "DB_VBS_Type";
+      OPN   "DB_VSB02_Type"; 
+      OPN   "DB_VBZ_Type"; 
+      OPN   "DB_VCC_Type"; 
+      OPN   "DB_VCZ_Type"; 
+      OPN   "DB_VDS_Type"; 
+      OPN   "DB_VDZ_Type"; 
+//-- RAW Type DBs
+END_FUNCTION
+

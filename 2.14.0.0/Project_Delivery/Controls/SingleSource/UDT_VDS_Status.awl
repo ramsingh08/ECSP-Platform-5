@@ -1,0 +1,54 @@
+TYPE "UDT_VDS_Status"
+TITLE =%version: 0.02 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, June 06, 2017 2:58:59 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21768: VDZ21 - ECS-P cmd and vds update            nlHdL    06-06-17   0.02
+//Initial version based TRS V0.11                       nlHdL    22-05-17   0.01                                        
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Items : BOOL ;	//Items present on the section
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   spare_0_6 : BOOL ;	//Spare_0_6
+   spare_0_7 : BOOL ;	//Spare_0_7
+   LMS_ASI_Not_Prsnt : BOOL ;	//LMS ASI slave not present
+   LMS_ASI_Error : BOOL ;	//LMS ASI slave error
+   LMS_Error : BOOL ;	//LMS drive error
+   LMS_Not_Hthy : BOOL ;	//LMS not healthy (or not automatic)
+   MS_Not_Auto : BOOL ;	//Maintenance Switch of motor in 'OFF' position
+   THO_Overload : BOOL ;	//Thermal overload 
+   PPI_Error : BOOL ;	//PPI error
+   EOS_PEC_Blk : BOOL ;	//End Of Section PEC blockage
+   EOS_PEC_Miss : BOOL ;	//End Of Section PEC jam due to successive missings
+   EOS_PEC_BadTr : BOOL ;	//End Of Section PEC Performance is below warning level
+   SOS_PEC_Blk : BOOL ;	//Start Of Section PEC blockage  	
+   SOS_PEC_Miss : BOOL ;	//Start Of Section PEC jam due to successive missings
+   SOS_PEC_BadTr : BOOL ;	//Start Of Section PEC Performance is below warning level
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   EOS_PEC_Unexep_Occupied : BOOL ;	//EOS PEC Unexpected Occupied
+   SOS_PEC_Unexep_Occupied : BOOL ;	//SOS PEC Unexpected Occupied
+   Bag_to_long : BOOL ;	//Bag to Long, SOS and EOS PEC are active
+   spare_3_2 : BOOL ;	//Spare_3_2
+   spare_3_3 : BOOL ;	//Spare_3_3
+   spare_3_4 : BOOL ;	//Spare_3_4
+   spare_3_5 : BOOL ;	//Spare_3_5
+   spare_3_6 : BOOL ;	//Spare_3_6
+   spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

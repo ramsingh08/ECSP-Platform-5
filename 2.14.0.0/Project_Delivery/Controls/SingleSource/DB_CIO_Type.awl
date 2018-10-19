@@ -1,0 +1,127 @@
+DATA_BLOCK "DB_CIO_Type"
+TITLE =%version: 0.06 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, March 28, 2018 8:40:42 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29441: Disable object and request halt update      nluhl    25-07-18   0.06
+//veg#1709: CIO type DB update no data warning          nlHdL    28-03-18   0.05
+//veg#1710: CIO01 - Barcode/Volume scanner warning      nlHdL    18-12-17   0.04
+//veg#1682: update type DB CIO                          nlHdL    07-12-17   0.03
+//ina#6088: CIO scanner detailed status                 nlHdL    05-07-17   0.02
+//Initial version based on version 0.07 BSO             nlHdL    22-12-16   0.01                                        
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   Type_Component : BYTE ;	//Type of the component (1 = Section, 0 = Other)
+   Record_Length : BYTE  := B#16#32;	//Number of the Detailed Status in the UDT
+   Status : ARRAY  [1 .. 32 ] OF "UDT_Comp_Status";	
+  END_STRUCT ;	
+BEGIN
+   Type_Component := B#16#0; 
+   Record_Length := B#16#32; 
+   Status[1].HMI_Text_Number := 326; 
+   Status[1].Overall_Status_Relation := B#16#5; 
+   Status[1].General_Status_Relation := B#16#4; 
+   Status[2].HMI_Text_Number := 327; 
+   Status[2].Overall_Status_Relation := B#16#5; 
+   Status[2].General_Status_Relation := B#16#4; 
+   Status[3].HMI_Text_Number := 322; 
+   Status[3].Overall_Status_Relation := B#16#4; 
+   Status[3].General_Status_Relation := B#16#3; 
+   Status[4].HMI_Text_Number := 323; 
+   Status[4].Overall_Status_Relation := B#16#4; 
+   Status[4].General_Status_Relation := B#16#3; 
+   Status[5].HMI_Text_Number := 73; 
+   Status[5].Overall_Status_Relation := B#16#5; 
+   Status[5].General_Status_Relation := B#16#4; 
+   Status[6].HMI_Text_Number := 72; 
+   Status[6].Overall_Status_Relation := B#16#5; 
+   Status[6].General_Status_Relation := B#16#4; 
+   Status[7].HMI_Text_Number := 67; 
+   Status[7].Overall_Status_Relation := B#16#4; 
+   Status[7].General_Status_Relation := B#16#3; 
+   Status[8].HMI_Text_Number := 66; 
+   Status[8].Overall_Status_Relation := B#16#4; 
+   Status[8].General_Status_Relation := B#16#3; 
+   Status[9].HMI_Text_Number := 56; 
+   Status[9].Overall_Status_Relation := B#16#4; 
+   Status[9].General_Status_Relation := B#16#3; 
+   Status[10].HMI_Text_Number := 324; 
+   Status[10].Overall_Status_Relation := B#16#4; 
+   Status[10].General_Status_Relation := B#16#3; 
+   Status[11].HMI_Text_Number := 55; 
+   Status[11].Overall_Status_Relation := B#16#4; 
+   Status[11].General_Status_Relation := B#16#3; 
+   Status[12].HMI_Text_Number := 325; 
+   Status[12].Overall_Status_Relation := B#16#4; 
+   Status[12].General_Status_Relation := B#16#3; 
+   Status[13].HMI_Text_Number := 60; 
+   Status[13].Overall_Status_Relation := B#16#4; 
+   Status[13].General_Status_Relation := B#16#3; 
+   Status[14].HMI_Text_Number := 61; 
+   Status[14].Overall_Status_Relation := B#16#4; 
+   Status[14].General_Status_Relation := B#16#3; 
+   Status[15].HMI_Text_Number := 51; 
+   Status[15].Overall_Status_Relation := B#16#4; 
+   Status[15].General_Status_Relation := B#16#3; 
+   Status[16].HMI_Text_Number := -1; 
+   Status[16].Overall_Status_Relation := B#16#2; 
+   Status[16].General_Status_Relation := B#16#2; 
+   Status[17].HMI_Text_Number := 50; 
+   Status[17].Overall_Status_Relation := B#16#5; 
+   Status[17].General_Status_Relation := B#16#4; 
+   Status[18].HMI_Text_Number := -1; 
+   Status[18].Overall_Status_Relation := B#16#0; 
+   Status[18].General_Status_Relation := B#16#0; 
+   Status[19].HMI_Text_Number := -1; 
+   Status[19].Overall_Status_Relation := B#16#0; 
+   Status[19].General_Status_Relation := B#16#0; 
+   Status[20].HMI_Text_Number := -1; 
+   Status[20].Overall_Status_Relation := B#16#0; 
+   Status[20].General_Status_Relation := B#16#0; 
+   Status[21].HMI_Text_Number := -1; 
+   Status[21].Overall_Status_Relation := B#16#0; 
+   Status[21].General_Status_Relation := B#16#0; 
+   Status[22].HMI_Text_Number := -1; 
+   Status[22].Overall_Status_Relation := B#16#0; 
+   Status[22].General_Status_Relation := B#16#0; 
+   Status[23].HMI_Text_Number := -1; 
+   Status[23].Overall_Status_Relation := B#16#0; 
+   Status[23].General_Status_Relation := B#16#0; 
+   Status[24].HMI_Text_Number := -1; 
+   Status[24].Overall_Status_Relation := B#16#0; 
+   Status[24].General_Status_Relation := B#16#0; 
+   Status[25].HMI_Text_Number := -1; 
+   Status[25].Overall_Status_Relation := B#16#0; 
+   Status[25].General_Status_Relation := B#16#0; 
+   Status[26].HMI_Text_Number := -1; 
+   Status[26].Overall_Status_Relation := B#16#0; 
+   Status[26].General_Status_Relation := B#16#0; 
+   Status[27].HMI_Text_Number := -1; 
+   Status[27].Overall_Status_Relation := B#16#0; 
+   Status[27].General_Status_Relation := B#16#0; 
+   Status[28].HMI_Text_Number := -1; 
+   Status[28].Overall_Status_Relation := B#16#0; 
+   Status[28].General_Status_Relation := B#16#0; 
+   Status[29].HMI_Text_Number := -1; 
+   Status[29].Overall_Status_Relation := B#16#0; 
+   Status[29].General_Status_Relation := B#16#0; 
+   Status[30].HMI_Text_Number := -1; 
+   Status[30].Overall_Status_Relation := B#16#0; 
+   Status[30].General_Status_Relation := B#16#0; 
+   Status[31].HMI_Text_Number := -1; 
+   Status[31].Overall_Status_Relation := B#16#0; 
+   Status[31].General_Status_Relation := B#16#0; 
+   Status[32].HMI_Text_Number := -1; 
+   Status[32].Overall_Status_Relation := B#16#0; 
+   Status[32].General_Status_Relation := B#16#0; 
+END_DATA_BLOCK
+

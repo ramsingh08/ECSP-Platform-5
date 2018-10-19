@@ -1,0 +1,529 @@
+FUNCTION_BLOCK "FB_HW_QuattroSpd_LMS"
+TITLE =%version: 0.06 % CN: 40
+//Function:
+//Hardware driver for Multispeed (4 Speed) 2_Direction LMS.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, September 19, 2017 11:26:34 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#5171: Delay start LMS only when motor stopped     nlHdL    19-09-17   0.06
+//ra#21687: Change timer delay start within LMS         nlJMol   25-04-17   0.05
+//ra#20056: Write RunOut StartUp on selection           nlHdL    14-03-17   0.04
+//ra#13445: Output name of multispeed are not correct   nlHdL    28-04-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//23725: Changed block name to FB_HW_QuattroSpd_LMS     nltny    10-06-15  0.02
+//Initial version based on FB_HW_MultiSpeed_LMS v0.22   nltny    04-05-15  0.01
+//
+//Description:                                  
+//Generating the ASI errors, and thermal overloads. 
+//During the switch of the motor a delay time is taken into account. The previous 
+//conditions of the motor are also taken into account during the switch. 
+//The outputs to select the correct speed are also handled in this block.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_CFG_Speed1 : INT ;	//CFG: [mm/s] Conveyor speed 1
+  i_CFG_Spd1_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance from speed 1
+  i_CFG_Spd1_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to speed 1
+  i_CFG_Speed2 : INT ;	//CFG: [mm/s] Conveyor speed 2
+  i_CFG_Spd2_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance from speed 2
+  i_CFG_Spd2_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to speed 2
+  i_CFG_Speed3 : INT ;	//CFG: [mm/s] Conveyor speed 3
+  i_CFG_Spd3_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance from speed 3
+  i_CFG_Spd3_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to speed 3
+  i_CFG_Speed4 : INT ;	//CFG: [mm/s] Conveyor speed 4
+  i_CFG_Spd4_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance from speed 4
+  i_CFG_Spd4_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to speed 4
+  i_CFG_Motor_Switch_Time : INT ;	//CFG: [ms] Time before the motor is switched from direction
+  i_CMD_Select_Speed : INT ;	//CMD: [1..4] Select which speed for the Motor to run. only 4 speeds are present.
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_LMS_NotPrsnt : BOOL ;	//ASI LMS is not Present
+  i_LMS_Error : BOOL ;	//ASI LMS has an error
+  i_IO_LMS_Auto : BOOL  := TRUE;	//HW: switch of the motor equipment is in 'Automatic' position 
+  i_IO_LMS_Healthy : BOOL  := TRUE;	//HW: Healthy signal from motor equipment 
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Run : BOOL ;	//CMD: Run motor
+  i_CMD_Req_Motor_Reverse : BOOL ;	//CMD: Run motor Reverse Direction
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_IO_Speed_Select1 : BOOL ;	//HW: Speed combination bit-1 
+  o_IO_Speed_Select2 : BOOL ;	//HW: Speed combination bit-2
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_Select_Conveyor_Speed : INT ;	//[mm/s] Selected conveyor speed
+  o_Select_Run_Out_Dist : INT ;	//[cm] Selected run out distance of this speed
+  o_Select_Started_Up_Dist : INT ;	//[cm] selected start up distance of this speed
+  o_Req_Halt : BOOL ;	//Request halt during switch
+END_VAR
+VAR
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+  s_Motor_Run : BOOL ;	//Motor run signal
+  s_FN_Switch : BOOL ;	//Negative edge of switching
+  s_FP_Switch : BOOL ;	//Positive edge of switching 
+  s_Switch_In_Progress : BOOL ;	//Indicating that the motor is switching
+  s_Switch_Action_Started : BOOL ;	//Switch action is started
+  s_No_Run_Timer_Elapsed : BOOL ;	//Status of the not running timer
+  s_Pulse_Timer_Active : BOOL ;	//Signal to indicate pulse timer is active
+  s_FP_Copy_Req_Avail_IO : BOOL ;	//Flank positive copy signal of IO available signal
+  s_Reset_Pulse : BOOL ;	//Pulse for reset to LMS
+  s_TSp_Reset_Pulse : INT ;	//TimeSetpoint of reset pulse
+  s_TSp_Not_Running : INT ;	//TimeSetpoint of not running
+  s_TSp_Switch_Action : INT ;	//TimeSetpoint of switch action
+  s_Request_Speed : INT ;	//Request speed
+  s_Start_Up_Request_Dist : INT ;	//[cm] Start up distance selected speed
+  s_Run_Out_Request_Dist : INT ;	//[cm] Run out distance selected speed
+  s_Delay_Start_Speed_Cnt : INT ;	//Delay start LMS speed to zero counter
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	//Number of times the drive was started counter
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Return_Value_Int : INT ;	//Return value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_Available_IO : BOOL ;	//Available IO signal after error suppression by reset pulse
+  t_FP_IO_Available : BOOL ;	//Flank positive of IO available signal
+  t_No_Run_Timer_Active : BOOL ;	//Signal to indicate not running timer is active
+  t_Pulse_Timer_Elapsed : BOOL ;	//Status of the pulse timer
+  t_Switch_Action_Elapsed : BOOL ;	//Switch action timer is elapsed
+  t_Delay_Speed_Elapsed : BOOL ;	//Delay speed action during start up of LMS
+  t_Motor_Stopped : BOOL ;	//Motor is stopped (speed = 0)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB event number to temp and read info from PLT
+
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT; 
+      A     DBX   11.1; 
+      =     #t_Motor_Stopped; 
+NETWORK
+TITLE =BA: Create reset pulse
+//When a LMS has a technical error this can be resetted with a reset pulse in 
+//milli seconds. This reset pulse is implemented to make sure that after (for 
+//example) an emergency stop all LMS'es that are still automatic can be started 
+//without local action required.
+//
+//The reset pulse will be given on the positive flank of the IO available signal 
+//and is only required when the LMS is not healthy and in automatic mode.
+      NOP   0; 
+
+// Create signal on positive flank of IO available
+      A     #i_Available_IO; 
+      FP    #s_FP_Copy_Req_Avail_IO; 
+      =     #t_FP_IO_Available; 
+
+// Determine when the reset pulse timer needs to be started
+      A     #t_FP_IO_Available; 
+      A     #i_IO_LMS_Auto; 
+      AN    #i_IO_LMS_Healthy; 
+      S     #s_Pulse_Timer_Active; 
+
+// Continue pulse for 250 milli seconds
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Pulse_Timer_Active,
+           i_CFG_Timer_Value        := 250,
+           i_Setpoint               := #s_TSp_Reset_Pulse,
+           o_Setpoint               := #s_TSp_Reset_Pulse,
+           o_Timer_Elapsed          := #t_Pulse_Timer_Elapsed);
+
+// When timer is elapsed reset timer active 
+      A     #t_Pulse_Timer_Elapsed; 
+      R     #s_Pulse_Timer_Active; 
+
+// Invert timer elapsed signal to create pulse
+      A     #s_Pulse_Timer_Active; 
+      =     #s_Reset_Pulse; 
+NETWORK
+TITLE =CA: Handle electrical input statuses
+//Some errors and statuses are coming directly from electrical inputs. If the IO 
+//becomes not available, those inputs must be ignored, to avoid (as consequence 
+//of) all kind of meaningless status changes, which are indicated to HMI.
+//
+//The IO available signal needs to be suppressed when a reset pulse is given 
+//because during the reset pulse the LMS is still not healthy and thus the IO is 
+//still not available.
+      NOP   0; 
+
+// Create IO available signal for suppressing error statusses
+      A     #i_Available_IO; 
+      AN    #s_Reset_Pulse; 
+      =     #t_Available_IO; 
+
+// Reset LMS ASI error
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO; 
+      R     #o_ST_ASI_NotPrsnt; 
+      R     #o_ST_ASI_Err; 
+
+// Reset LMS not healthy
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO; 
+      O     #o_ST_ASI_NotPrsnt; // When an ASI slave is disconnected not healthy is reported before not present, not present shall have proirity
+      O     #o_ST_ASI_Err; 
+      R     #o_ST_LMS_Not_Hthy; 
+
+// LMS ASI not present
+      A     #i_LMS_NotPrsnt; 
+      A     #t_Available_IO; 
+      S     #o_ST_ASI_NotPrsnt; 
+
+// LMS ASI error
+      A     #i_LMS_Error; 
+      A     #t_Available_IO; 
+      S     #o_ST_ASI_Err; 
+
+// LMS not automatic
+      AN    #i_IO_LMS_Auto; 
+      A     #t_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      =     #o_ST_LMS_Not_Auto; 
+
+// LMS not healthy
+      AN    #i_IO_LMS_Healthy; 
+      A     #t_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      S     #o_ST_LMS_Not_Hthy; 
+
+NETWORK
+TITLE =DA: Motor not running timer
+//There is no need for a switch time when the conveyor is not running for a 
+//longer time than the motor switch time. This counter checks how much time is 
+//already elapsed.
+      NOP   0; 
+
+// Start counter when the motor is not running
+      AN    #s_Motor_Run; 
+      =     #t_No_Run_Timer_Active; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #t_No_Run_Timer_Active,
+           i_CFG_Timer_Value        := #i_CFG_Motor_Switch_Time,
+           i_Setpoint               := #s_TSp_Not_Running,
+           o_Setpoint               := #s_TSp_Not_Running,
+           o_Timer_Elapsed          := #s_No_Run_Timer_Elapsed);
+
+NETWORK
+TITLE =EA: Motor switch delay
+
+      NOP   0; 
+
+// Determine when switch action is started
+      A     #i_CMD_Req_Motor_Reverse; 
+      FP    #s_FP_Switch; 
+      O(    ; 
+      A     #i_CMD_Req_Motor_Reverse; 
+      FN    #s_FN_Switch; 
+      )     ; 
+      S     #s_Switch_Action_Started; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Switch_Action_Started,
+           i_CFG_Timer_Value        := #i_CFG_Motor_Switch_Time,
+           i_Setpoint               := #s_TSp_Switch_Action,
+           o_Setpoint               := #s_TSp_Switch_Action,
+           o_Timer_Elapsed          := #t_Switch_Action_Elapsed);
+
+// When timer is elapsed reset timer active 
+      A     #t_Switch_Action_Elapsed; 
+      R     #s_Switch_Action_Started; 
+
+// Switch is in progress when timer is started and the motor is not running for at least the switch time
+      A     #s_Switch_Action_Started; 
+      AN    #s_No_Run_Timer_Elapsed; 
+      =     #s_Switch_In_Progress; 
+
+NETWORK
+TITLE =FA: Input speed request
+//Confirming the input selected speed
+//SPEED COMBINATION BIT 
+//BIT-1:- o_MTR_Speed_Select1 
+//BIT-2:- o_MTR_Speed_Select2
+//
+//                   BIT-1    BIT-2
+//Requested SPEED-1    0       0
+//Requested SPEED-2    1       0
+//Requested SPEED-3    0       1
+//Requested SPEED-4    1       1
+      NOP   0; 
+
+// Determine if selected speed is valid
+      A(    ; 
+      L     #i_CMD_Select_Speed; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #i_CMD_Select_Speed; 
+      L     4; 
+      <=I   ; 
+      )     ; 
+      JCN   FA04; 
+
+// When speed 1 is selected and motor is requested to run request speed 1
+// and copy configured speed 1, run out and start up distance to the requested speed, run out and start up distance
+      L     #i_CMD_Select_Speed; 
+      L     1; 
+      ==I   ; 
+      JCN   FA01; 
+      L     #i_CFG_Speed1; 
+      T     #s_Request_Speed; 
+      L     #i_CFG_Spd1_Run_Out_Dist; 
+      T     #s_Run_Out_Request_Dist; 
+      L     #i_CFG_Spd1_Start_Up_Dist; 
+      T     #s_Start_Up_Request_Dist; 
+
+      A     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Motor_Reverse; 
+      JCN   FA05; 
+      R     #o_IO_Speed_Select1; 
+      R     #o_IO_Speed_Select2; 
+      JU    FA99; 
+
+// When speed 2 is selected and motor is requested to run request speed 2
+// and copy configured speed 2, run out and start up distance to the requested speed, run out and start up distance
+FA01: L     #i_CMD_Select_Speed; 
+      L     2; 
+      ==I   ; 
+      JCN   FA02; 
+      L     #i_CFG_Speed2; 
+      T     #s_Request_Speed; 
+      L     #i_CFG_Spd2_Run_Out_Dist; 
+      T     #s_Run_Out_Request_Dist; 
+      L     #i_CFG_Spd2_Start_Up_Dist; 
+      T     #s_Start_Up_Request_Dist; 
+
+      A     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Motor_Reverse; 
+      JCN   FA05; 
+      S     #o_IO_Speed_Select1; 
+      R     #o_IO_Speed_Select2; 
+      JU    FA99; 
+
+// When speed 3 is selected and motor is requested to run request speed 3
+// and copy configured speed 3 to the requested speed       
+FA02: L     #i_CMD_Select_Speed; 
+      L     3; 
+      ==I   ; 
+      JCN   FA03; 
+      L     #i_CFG_Speed3; 
+      T     #s_Request_Speed; 
+      L     #i_CFG_Spd3_Run_Out_Dist; 
+      T     #s_Run_Out_Request_Dist; 
+      L     #i_CFG_Spd3_Start_Up_Dist; 
+      T     #s_Start_Up_Request_Dist; 
+
+      A     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Motor_Reverse; 
+      JCN   FA05; 
+      R     #o_IO_Speed_Select1; 
+      S     #o_IO_Speed_Select2; 
+      JU    FA99; 
+
+// When speed 4 is selected and motor is requested to run request speed 4
+// and copy configured speed 4 to the requested speed
+FA03: L     #i_CMD_Select_Speed; 
+      L     4; 
+      ==I   ; 
+      JCN   FA04; 
+      L     #i_CFG_Speed4; 
+      T     #s_Request_Speed; 
+      L     #i_CFG_Spd4_Run_Out_Dist; 
+      T     #s_Run_Out_Request_Dist; 
+      L     #i_CFG_Spd4_Start_Up_Dist; 
+      T     #s_Start_Up_Request_Dist; 
+
+      A     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Motor_Reverse; 
+      JCN   FA05; 
+      S     #o_IO_Speed_Select1; 
+      S     #o_IO_Speed_Select2; 
+      JU    FA99; 
+
+// Report log event when the requested speed is not valid
+FA04: CALL "FC_Write_Event" (
+           i_Message_ID             := 3135,// Log error "Multispeed LMS Configuration Error Only 4 speeds can be selected"
+           i_Event_value            := #i_CMD_Select_Speed,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// And reset select speed outputs            
+FA05: R     #o_IO_Speed_Select1; 
+      R     #o_IO_Speed_Select2; 
+
+FA99: NOP   0; 
+
+NETWORK
+TITLE =GA: Delay start within LMS, during time speed = 0
+//For LMS V the motor will start after a magnetisation time has elapsed.
+//During this time motor is not running, but the diplacement is.
+//To prevent wrong displacement, the speed while be set to zero during this time.
+      AN    #i_CMD_Req_Motor_Run; 
+      A     #t_Motor_Stopped; 
+      JCN   GA01; 
+
+      L     70; 
+      T     #s_Delay_Start_Speed_Cnt; 
+      JU    GA02; 
+
+GA01: L     #s_Delay_Start_Speed_Cnt; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      T     #s_Delay_Start_Speed_Cnt; 
+      JPZ   GA02; 
+
+      L     0; 
+      T     #s_Delay_Start_Speed_Cnt; 
+
+GA02: L     #s_Delay_Start_Speed_Cnt; 
+      L     0; 
+      <=I   ; 
+      =     #t_Delay_Speed_Elapsed; 
+
+// Check timer elapsed
+      AN    #t_Delay_Speed_Elapsed; 
+      A     #i_CMD_Req_Motor_Run; 
+      JCN   GA99; 
+
+      L     0; 
+      T     #s_Request_Speed; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Motor run signal
+
+      NOP   0; 
+
+// Determine when the motor should run
+      A     #i_CMD_Req_Motor_Run; 
+      A     #i_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #o_ST_LMS_Not_Hthy; 
+      AN    #s_Switch_In_Progress; 
+      =     #s_Motor_Run; 
+
+// Determine when the motor forward output should be true
+// When a reset pulse is active make motor forward output true to reset the LMS
+      A     #i_CMD_Req_Motor_Run; 
+      AN    #i_CMD_Req_Motor_Reverse; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #o_ST_LMS_Not_Hthy; 
+      AN    #s_Switch_In_Progress; 
+      O     #s_Reset_Pulse; 
+      =     #o_IO_MTR_Fwd; 
+
+// Determine when the motor reverse output should be true
+// When a reset pulse is active make motor reverse output true to reset the LMS
+      A     #i_CMD_Req_Motor_Run; 
+      A     #i_CMD_Req_Motor_Reverse; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #o_ST_LMS_Not_Hthy; 
+      AN    #s_Switch_In_Progress; 
+      O     #s_Reset_Pulse; 
+      =     #o_IO_MTR_Rev; 
+
+// Halt the transport section when a switch is in progress
+      A     #s_Switch_In_Progress; 
+      =     #o_Req_Halt; 
+
+// Copy the requested speed, run out and start up to the selected speed, run out and start up output
+      L     #s_Request_Speed; 
+      T     #o_Select_Conveyor_Speed; 
+      L     #s_Run_Out_Request_Dist; 
+      T     #o_Select_Run_Out_Dist; 
+      L     #s_Start_Up_Request_Dist; 
+      T     #o_Select_Started_Up_Dist; 
+
+NETWORK
+TITLE =IA: Determine and send statistical values
+
+      NOP   0; 
+
+// When motor forward and motor reverse are both true (e.g. when reset pulse is given) 
+// the motor is not running and the statisticals counters should not be increased.
+      A     #o_IO_MTR_Fwd; 
+      A     #o_IO_MTR_Rev; 
+      JC    IA02; 
+
+// Determine the number of seconds that the motor is running 
+      A     #o_IO_MTR_Fwd; 
+      O     #o_IO_MTR_Rev; 
+      A     "M_OS_New_Second"; 
+      JCN   IA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+// Determine the number of times the motor starts/stops
+IA01: A     #o_IO_MTR_Fwd; 
+      O     #o_IO_MTR_Rev; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   IA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report Hardware: Motor Stopped (3902)
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Send statistical values
+IA02: A     #i_CMD_Send_Stat; 
+      JCN   IA99; 
+
+      CALL "FC_Write_Event" (// Report statistical start/stop information
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of times the motor starts/stops after message has been send
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report statistical started time information
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of seconds that the motor is running after message has been send
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+IA99: NOP   0; 
+END_FUNCTION_BLOCK
+

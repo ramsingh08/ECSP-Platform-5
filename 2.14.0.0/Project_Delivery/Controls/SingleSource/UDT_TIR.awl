@@ -1,0 +1,44 @@
+TYPE "UDT_TIR"
+TITLE =%version: 0.06 % CN: 10 
+//
+//History:
+//This version  %created_by: nlsdw %
+//              %date_created: Tuesday, June 20, 2017 9:29:07 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23480: Alligned VI_GEN version with VI_TTT v1.05   nlSdW    20-06-17   0.06
+//ina#5591: Added signal Stacked_Carrier_ID             nltsil   16-06-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.01 ECS-P TTT       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   ID : INT ;	//Carrier ID number
+   Status_Empty : BOOL ;	//Status is "Empty"
+   Status_Loaded : BOOL ;	//Status is "Loaded"
+   Status_Loaded_High : BOOL ;	//Status is "Loaded High"
+   Class_SBT : BOOL ;	//Carrier type is SBT, standard
+   Class_OBT : BOOL ;	//Carrier type is OBT, oversized
+   Inspection_Required : BOOL ;	//Inspection is required for the carrier
+   Maintenance_Required : BOOL ;	//Maintenance is required for the carrier
+   Duplicate_ID : BOOL ;	//Carrier detected in the area/system with an identical ID
+   Contour_Fault : BOOL ;	//Contour Fault
+   Last_IDO_No_Data : BOOL ;	//No carrier ID read by last ID reader
+   Requested_TFC : BOOL ;	//Carrier is requested by TFC
+   Requested_Operator : BOOL ;	//Carrier is requested by operator
+   Requested_Loader : BOOL ;	//Carrier is requested by loader
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Status_Unknown : BOOL ;	//Status is "Unknown"
+   Stacked_Carrier_ID : INT ;	//Carrier ID number of the stacked carrier
+  END_STRUCT ;	
+END_TYPE
+

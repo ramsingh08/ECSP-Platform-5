@@ -1,0 +1,178 @@
+FUNCTION_BLOCK "FB_VDZ_Interface"
+TITLE =%version: 0.06 % CN: 30
+//Function:
+//Module to combine commands from HMI and SCADA to VDZ.
+//
+//History:
+//This version  %created_by:    nlhdl %
+//              %date_created:    Tuesday, January 02, 2018 9:30:45 AM %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26495: Rename UDT_VDZ_CMD Fixed_Infeed_1           nlHdL    02-01-18   0.06
+//ra#23302: VDZ24 command update                        nlHdL    08-08-17   0.05
+//ra#21752:Remove PBB and Lamp Indications               inajos  22-06-17   0.04
+//ra#53817:Update Rev Number                             inajos  07-06-17   0.03
+//ra#53817:Update Interlocks                             inajos  07-06-17   0.02
+//ra#53655: Initial version                              inajos  30-05-17   0.01
+//
+//Description:
+//This function combines the commands coming from the SCADA and 
+//the operator panel for the VDZ  zone block.
+//The status given to the operator panel are also made in this function
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_SCADA_Auto : BOOL ;	//CMD: From SCADA Auto
+  i_CMD_SCADA_Fixed_Inf : BOOL ;	//CMD: From SCADA Fixed Infeed
+  i_CMD_SCADA_Fixed_Inf2 : BOOL ;	//CMD: From SCADA Fixed Infeed2
+  i_CMD_OP_Auto : BOOL ;	//CMD: From OP Auto
+  i_CMD_OP_Fixed_Infeed : BOOL ;	//CMD: From OP Fixed Infeed
+  i_CMD_OP_Fixed_Infeed2 : BOOL ;	//CMD: From OP Fixed Infeed2
+  i_CMD_OP_Manual : BOOL ;	//CMD: From OP Manual
+  i_CMD_OP_Manual_Jog_Up : BOOL ;	//CMD: From OP Manual Up
+  i_CMD_OP_Manual_Jog_Down : BOOL ;	//CMD: From OP Manual Down
+  i_CMD_OP_ManTRS_FWD : BOOL ;	//CMD: From OP Manual TRS Forward
+  i_CMD_OP_ManTRS_REV : BOOL ;	//CMD: From OP Manual TRS Reverse
+  i_CMD_OP_ManTRS_Stop : BOOL ;	//CMD: From OP Manual TRS Stop
+  i_CMD_OP_Start_Reference : BOOL ;	//CMD: From OP Manual Reference travel
+  i_CMD_OP_Req_Infeed : BOOL ;	//CMD: From OP Manual Request Infeed
+  i_CMD_OP_Req_Infeed2 : BOOL ;	//CMD: From OP manual Request Infeed2
+  i_CMD_OP_Req_Outfeed : BOOL ;	//CMD: From OP manual Request Outfeed
+  i_CMD_OP_Req_Maint_Up : BOOL ;	//CMD: From OP manual Request Maintenance Up
+  i_CMD_OP_Req_Maint_Down : BOOL ;	//CMD: From OP manual Request Maintenance Down
+  i_CMD_OP_Req_stop : BOOL ;	//CMD: From OP manual TRS stop
+  i_ST_Manual : BOOL ;	//ST: Mode Disabled (Offline or Manual)
+  i_ST_Fixed_Infeed : BOOL ;	//ST: Fixed Infeed mode activated
+  i_ST_Fixed_Infeed2 : BOOL ;	//ST: Fixed Infeed2 mode activated
+  i_ST_Pos_Infeed : BOOL ;	//ST: Hoist at Infeed
+  i_ST_Pos_Infeed2 : BOOL ;	//ST: Hoist at Infeed2
+  i_ST_Pos_Outfeed : BOOL ;	//ST: Hoist at Outfeed 
+  i_ST_Pos_Maint_Up : BOOL ;	//ST: Hoist at upper maintenance position
+  i_ST_Pos_Maint_Down : BOOL ;	//ST: Hoist at lower maintenance position
+END_VAR
+VAR_OUTPUT
+  o_Command : "UDT_VDZ_CMD";	//Command to VDZ block
+  o_OP_Status : "UDT_VDZ_CMD_Status";	//Status to OP
+END_VAR
+VAR
+  s_OP_Man_TRS_FWD : BOOL ;	//Start conveyer Forward from OP
+  s_OP_Man_TRS_REV : BOOL ;	//Start conveyer Reverse from OP
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Commands From SCADA, PBB or OP to VDZ
+
+      A     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_OP_Auto; 
+      =     #o_Command.Auto; 
+
+      A     #i_CMD_OP_Manual; 
+      =     #o_Command.Manual; 
+
+      A     #i_CMD_SCADA_Fixed_Inf; 
+      O     #i_CMD_OP_Fixed_Infeed; 
+      =     #o_Command.Fixed_Infeed; 
+
+      A     #i_CMD_SCADA_Fixed_Inf2; 
+      O     #i_CMD_OP_Fixed_Infeed2; 
+      =     #o_Command.Fixed_Infeed2; 
+
+// Manual Jog commands          
+
+      A     #i_CMD_OP_Manual_Jog_Up; 
+      =     #o_Command.Manual_Jog_Up; 
+
+      O     #i_CMD_OP_Manual_Jog_Down; 
+      =     #o_Command.Manual_Jog_Down; 
+
+// Manual TRS commands from OP
+      A     #i_CMD_OP_ManTRS_FWD; 
+      S     #s_OP_Man_TRS_FWD; 
+      R     #s_OP_Man_TRS_REV; 
+
+      A     #i_CMD_OP_ManTRS_REV; 
+      R     #s_OP_Man_TRS_FWD; 
+      S     #s_OP_Man_TRS_REV; 
+
+      A     #i_CMD_OP_ManTRS_Stop; 
+      R     #s_OP_Man_TRS_FWD; 
+      R     #s_OP_Man_TRS_REV; 
+
+
+// Manual TRS forward
+      A     #s_OP_Man_TRS_FWD; 
+      =     #o_Command.Manual_TRS_FWD; 
+
+// Manual TRS reverse
+      O     #s_OP_Man_TRS_REV; 
+      =     #o_Command.Manual_TRS_REV; 
+
+// Request reference travel
+      A     #i_CMD_OP_Start_Reference; 
+      =     #o_Command.Manual_Start_Ref_Travel; 
+
+// Request Positions                
+      A     #i_CMD_OP_Req_Infeed; 
+      =     #o_Command.Manual_Req_Infeed1; 
+
+      A     #i_CMD_OP_Req_Infeed2; 
+      =     #o_Command.Manual_Req_Infeed2; 
+
+      A     #i_CMD_OP_Req_Outfeed; 
+      =     #o_Command.Manual_Req_Outfeed; 
+
+      A     #i_CMD_OP_Req_Maint_Up; 
+      =     #o_Command.Manual_Req_Maint_Up; 
+
+      A     #i_CMD_OP_Req_Maint_Down; 
+      =     #o_Command.Manual_Req_Maint_Down; 
+
+      A     #i_CMD_OP_Req_stop; 
+      =     #o_Command.Manual_Req_Stop; 
+
+
+NETWORK
+TITLE =BA: Status to operator panel
+
+      AN    #o_OP_Status.Manual; 
+      AN    #o_OP_Status.Fixed_Infeed; 
+      AN    #o_OP_Status.Fixed_Infeed2; 
+      =     #o_OP_Status.Auto; 
+
+      A     #i_ST_Manual; 
+      =     #o_OP_Status.Manual; 
+
+      A     #i_ST_Fixed_Infeed; 
+      =     #o_OP_Status.Fixed_Infeed; 
+
+      A     #i_ST_Fixed_Infeed2; 
+      =     #o_OP_Status.Fixed_Infeed2; 
+
+      A     #i_ST_Pos_Infeed; 
+      =     #o_OP_Status.Pos_Infeed; 
+
+      A     #i_ST_Pos_Infeed2; 
+      =     #o_OP_Status.Pos_Infeed2; 
+
+      A     #i_ST_Pos_Outfeed; 
+      =     #o_OP_Status.Pos_Outfeed; 
+
+      A     #i_ST_Pos_Maint_Up; 
+      =     #o_OP_Status.Pos_Maint_Up; 
+
+      A     #i_ST_Pos_Maint_Down; 
+      =     #o_OP_Status.Pos_Maint_Down; 
+
+      A     #o_Command.Manual_TRS_FWD; 
+      =     #o_OP_Status.TRS_Manual_Fwd; 
+
+      A     #o_Command.Manual_TRS_REV; 
+      =     #o_OP_Status.TRS_Manual_Rev; 
+
+END_FUNCTION_BLOCK
+

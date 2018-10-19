@@ -1,0 +1,57 @@
+TYPE "UDT_MGZ_Int_Prog"
+TITLE =%version: 1.04 % CN: 11 
+//History:
+//This version  %created_by:   inajos %
+//              %date_created:   Wednesday, April 12, 2017 4:59:31 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#51963:Initial Alignment                            inajos   12-04-17   1.04
+//ra#20083: Flow control configuration                  nlJClo   01-02-17   1.03
+//ra#19406: Add TransportDirReport to 2 dir merge zone  nlJClo   20-12-16   1.02
+//ra#14943: Initial revision                            nljclo   06-07-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Redundant : BOOL ;	//Redundant mode active
+   Normal : BOOL  := TRUE;	//Normal mode active
+   Halt_Window_Gen : BOOL ;	//Halt window generator
+   Restart_TranspDir_Tim : BOOL ;	//Restart Transport Direction Report
+   FP_TransportDir_Report : BOOL ;	//FP Send TransportDirection Report
+   Calculated_H2H_Length : INT ;	//calculated head to head length
+   Search_Window : INT ;	//Calculated length of search window
+   Number_Items_Found : INT ;	//Number of Items found at search functions
+   Capacity_Actual_Value : INT ;	//Capacity [items per hour] Actual Value
+   Event_Zone : INT ;	//DB Event Zone
+   TransportDirection : INT ;	//Direction of transport 1 = Normal, 2 = Reverse
+   Restart_TranspDirRep : INT ;	//Timer value restart transport direction report
+   TRS1_Available_IO : BOOL ;	// TRS1 for indication IO is OK (no Fieldbus or IO error)
+   TRS1_Delay_Start : BOOL ;	//Delayed start set for next startup
+   TRS1_Num_DB_PLT : INT ;	// DB number from PLT DB TRS1
+   TRS1_Search_Position : INT ;	//Search window to check items at a delayed start-up
+   TRS1_Section_Length : INT ;	//Section length of TRS1
+   TRS1_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS1_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS1_Basic_Offset : INT ;	// TRS1 basic offset
+   TRS2_Available_IO : BOOL ;	// TRS2 for indication IO is OK (no Fieldbus or IO error)
+   TRS2_Delay_Start : BOOL ;	//Delayed start set for next startup
+   TRS2_Num_DB_PLT : INT ;	// DB number from PLT DB TRS2
+   TRS2_Search_Position : INT ;	//Search window to check items at a delayed start-up
+   TRS2_Section_Length : INT ;	//Section length of TRS2
+   TRS2_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS2_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS2_Basic_Offset : INT ;	// TRS2 basic offset
+   TRS3_Available_IO : BOOL ;	// TRS3 for indication IO is OK (no Fieldbus or IO error)
+   TRS3_Delay_Start : BOOL ;	//Delayed start set for next startup
+   TRS3_Num_DB_PLT : INT ;	// DB number from PLT DB TRS3
+   TRS3_Search_Position : INT ;	//Search window to check items at a delayed start-up
+   TRS3_Section_Length : INT ;	//Section length of TRS3
+   TRS3_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS3_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS3_Basic_Offset : INT ;	// TRS3 basic offset
+  END_STRUCT ;	
+END_TYPE
+

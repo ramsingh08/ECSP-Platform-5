@@ -1,0 +1,36 @@
+TYPE "UDT_GatePF_Send"
+TITLE =%version: 0.03 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:23:15 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//Copied from SSS                                       nlRSwi   02-09-10   0.01
+//Based on UDT_GatePF_Send version 1.3 library BH  
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Command_Code : BYTE ;	//Command code for VGB-PB-K20-DMD Gateway (change starts command)
+   Circuit_Toggle_Flag : BYTE ;	//Circuit/Toggle Flag (A toggle of LS-bit restarts command)
+   Write_Data_Byte_1 : BYTE ;	
+   Write_Data_Byte_2 : BYTE ;	
+   Write_Data_Byte_3 : BYTE ;	
+   Write_Data_Byte_4 : BYTE ;	
+   Write_Data_Byte_5 : BYTE ;	
+   Write_Data_Byte_6 : BYTE ;	
+   Write_Data_Byte_7 : BYTE ;	
+   Write_Data_Byte_8 : BYTE ;	
+   Write_Data_Byte_9 : BYTE ;	
+   Write_Data_Byte_10 : BYTE ;	
+  END_STRUCT ;	
+END_TYPE
+

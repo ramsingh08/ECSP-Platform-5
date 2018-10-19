@@ -1,0 +1,521 @@
+FUNCTION_BLOCK "FB_Res_Balance"
+TITLE =%version: 0.04 % CN: 30
+//Function:
+//Balances the reservations over multiple CLZ's in the same area
+//
+//
+//
+//History:
+//This version  %created_by:   nljclo %
+//              %date_created:   Thursday, February 16, 2017 7:24:21 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20522: Update block                              nlJClo    16-02-17   0.04
+//ra#19481: Coding standard and comment updated       nlHdL     31-01-17   0.03
+//ra#19481:Add Win gen position calculation           nlJclo    16-01-17   0.02
+//Initial version                                     nlJclo    22-12-16   0.01
+//
+//Description:
+//When the function is enabled the reservation from the source will be added 
+//within the destination and vice versa.
+//
+//
+FAMILY : GEN
+VERSION : 0.0
+
+VAR_INPUT
+  i_DB_Res_Source : BLOCK_DB ;	//DB used as reservation FIFO
+  i_DB_Res_Destination : BLOCK_DB ;	//DB used as reservation FIFO
+  i_Balance_Res_Enable : BOOL ;	//Enable the function
+END_VAR
+VAR
+  s_Reservation_Code : INT ;	//Reservation-code = - (Induct-number  * 100)
+  s_Shift_Pointer : INT ;	//Pointer to shift records
+  s_Source_DB_Last_Record : INT ;	//FIFO address of last used record
+  s_DB_Des_Prev_Lenght : INT ;	//Pointer to shift records
+  s_DBSo_Lght_to_Win_Gen : INT ;	//Lenght to window generator in source DB
+  s_DBDes_Lght_to_Win_Gen : INT ;	//Lenght to window generator in destination DB	
+  s_Last_entry_modified : INT ;	//Last entry written in source previous
+  s_Last_entry_mod_Des : INT ;	//Last entry written in destination previous
+  s_Shift_Pointer_Scr : INT ;	//Pointer to shift records
+END_VAR
+VAR_TEMP
+  t_Offset_FIFO_DB : INT ;	//Offset to fifo record in reservation DB
+  t_FIFO_Last_Record_Des : INT ;	//FIFO address of last used record Destination
+  t_FIFO_Last_Record_Src : INT ;	//FIFO address of last used record Source
+  t_Shift_Pointer : INT ;	//Pointer to shift records
+  t_Source_res : INT ;	//Reservation from source
+  t_First_Entry_found : BOOL ;	//First Entry found in destination
+  t_Last_Entry_found : BOOL ;	//Last Entry found in destination
+  t_Check_Last : BOOL ;	//Check last entry
+  t_Add_Counter : INT ;	//Number of entries to be added
+  t_AR1_BackUp : DWORD ;	//Back Up of AR1
+  t_Add_Counter_Des : INT ;	//Number of entries to be added
+  t_Destination_Res : INT ;	//Reservation from Destination
+  t_Shift_Pointer_Des : INT ;	//Pointer to shift records
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initialisation Offset
+// Initialisation Offset and lenght to windowgenerator in reservation DB's
+      L     14; 
+      T     #t_Offset_FIFO_DB; // offset to first record in reservation DB
+
+      AN    #i_Balance_Res_Enable; // init lenght to window gen in source DB
+      JCN   AA01; 
+      OPN   #i_DB_Res_Source; 
+      L     DBW   10; // lenght to Win Gen in source DB
+      T     #s_DBSo_Lght_to_Win_Gen; 
+
+      L     0; 
+      T     #s_Last_entry_modified; 
+
+AA01: AN    #i_Balance_Res_Enable; 
+      BEC   ; // Balance not enabled...End Block
+
+      OPN   #i_DB_Res_Destination; 
+      L     DBW   10; // lenght to Win Gen in Destination DB
+      T     #s_DBDes_Lght_to_Win_Gen; 
+
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #t_FIFO_Last_Record_Des; // FIFO address of last record
+
+      OPN   #i_DB_Res_Source; 
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #t_FIFO_Last_Record_Src; // FIFO address of last record
+
+      L     #s_DBDes_Lght_to_Win_Gen; 
+      L     #s_DB_Des_Prev_Lenght; 
+      <>I   ; // If lenght is changed
+      JCN   AA99; 
+      L     #s_DBDes_Lght_to_Win_Gen; 
+      L     #s_DBSo_Lght_to_Win_Gen; 
+      +I    ; 
+      T     DBW   10; // write new lenght in source DB
+
+      L     #s_DBDes_Lght_to_Win_Gen; // make new lenght previous lenght
+      T     #s_DB_Des_Prev_Lenght; 
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =AB:Check entry[1] and [last] from source with destination
+
+      SET   ; 
+      R     #t_First_Entry_found; 
+      R     #t_Last_Entry_found; 
+      R     #t_Check_Last; 
+
+      L     #s_Last_entry_modified; 
+      L     0; 
+      >I    ; 
+      JCN   AB99; //No entries
+
+
+      OPN   #i_DB_Res_Source; 
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Source_res; 
+      L     0; 
+      <>I   ; 
+      JCN   AB99; //If no entry present end check
+      OPN   #i_DB_Res_Destination; 
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #t_Shift_Pointer; // with start address entries
+
+AB03: L     #t_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #t_Source_res; // Load search reservation
+      ==I   ; // IF found then goto
+      JC    AB14; 
+      L     #t_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #t_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Des; 
+      >I    ; // IF not last record
+      JCN   AB03; // THEN continue loop
+
+      AN    #t_Check_Last; // Last check no remove
+      JCN   AB99; 
+
+//If entry not found remove from source
+//-------------------------------------------------------------------------------
+      OPN   #i_DB_Res_Source; 
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+
+AB04: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #t_Source_res; // Load reservation code not found
+      <>I   ; // IF reservation code not found
+      JCN   AB05; 
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Src; 
+      >I    ; // IF not last record
+      JCN   AB04; // THEN continue loop
+      JU    AB99; // ELSE reservation code not found and end loop
+
+// ELSE IF reservation code found
+
+AB05: L     #t_FIFO_Last_Record_Src; 
+      L     #s_Shift_Pointer; // Start Loop
+      ==I   ; 
+      JC    AB06; // Only remove last entrie
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Src; 
+      >=I   ; // IF not last record
+      JCN   AB05; // THEN continue loop
+
+AB06: L     #t_FIFO_Last_Record_Src; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO
+      JM    AB99; 
+      T     DBW    0; 
+      L     #s_Last_entry_modified; 
+      L     1; 
+      -I    ; 
+      JM    AB99; 
+      T     #s_Last_entry_modified; 
+
+      JU    AB99; 
+//-------------------------------------------------------------------------------
+AB14: AN    #t_Check_Last; 
+      S     #t_First_Entry_found; 
+      A     #t_Check_Last; 
+      S     #t_Last_Entry_found; 
+      JC    AB99; 
+
+//Check last entry
+      OPN   #i_DB_Res_Source; 
+      L     #t_FIFO_Last_Record_Src; // Add offset to first FIFO record 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Source_res; 
+      L     0; 
+      >I    ; 
+      JCN   AB99; //If no entry present end check
+      OPN   #i_DB_Res_Destination; 
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #t_Shift_Pointer; // with start address entries
+      SET   ; 
+      S     #t_Check_Last; 
+      JU    AB03; //Search for entry
+
+AB99: NOP   0; 
+NETWORK
+TITLE =AC: Check if changes are detected
+
+      OPN   #i_DB_Res_Source; 
+      L     0; 
+      L     DBW    0; // look for entry's
+      ==I   ; 
+      JC    AE99;  
+      L     #s_Last_entry_modified; 
+      ==I   ; 
+      A     #t_First_Entry_found; 
+      A     #t_Last_Entry_found; 
+      JC    AE99; 
+//No action required
+NETWORK
+TITLE =AD:Add new entries from source to destination
+
+      NOP   0; 
+//Add new reservation from source after previous entry change
+      OPN   #i_DB_Res_Source; 
+      L     DBW    0; // look for entry's
+      L     #s_Last_entry_modified; 
+      -I    ; 
+      T     #t_Add_Counter; 
+      L     0; 
+      >I    ; 
+      JCN   AD99; 
+
+      L     #s_Last_entry_modified; 
+      SLW   1; // Multiply by 2 byte to int
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      +I    ; 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+
+AD01: L     DBW [AR1,P#0.0]; 
+      T     #t_Source_res; 
+
+      TAR1  #t_AR1_BackUp; 
+//--------------------------------------------------------------------------
+//Add entries to destination
+      OPN   #i_DB_Res_Destination; 
+
+      L     DBW    2; // Maximum number of entries
+      L     DBW    0; // Number of entries used
+      >I    ; // IF maximum of entries not reached
+      JCN   AD99; // THEN
+
+      L     DBW    0; // Number of entries
+      SLW   4; // Shift bytes to make pointer to last entry
+      L     #t_Offset_FIFO_DB; // Offset to fifo record in reservation DB
+      SLW   3; 
+      +D    ; // Add Header-length to jump over header
+      LAR1  ; // Pointer to last used entry
+
+      L     #t_Source_res; // Write reservation code in resevation DB
+      T     DBW [AR1,P#0.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      +I    ; // Increment Number of entries
+      T     DBW    0; 
+
+      L     #t_Add_Counter; 
+      L     1; 
+      -I    ; 
+      JMZ   AD99; 
+      T     #t_Add_Counter; 
+
+      OPN   #i_DB_Res_Source; 
+
+      LAR1  #t_AR1_BackUp; 
+      L     P#2.0; 
+      +AR1  ; 
+      JU    AD01; //Loop next 
+
+//Add new reservation from source to destination
+//-------------------------------------------------------------------------
+AD99: NOP   0; 
+NETWORK
+TITLE =AE:Check first entry source with destination
+
+      L     #s_Last_entry_modified; 
+      L     0; 
+      >I    ; 
+      JCN   AE99; //No entries
+
+AE01: OPN   #i_DB_Res_Source; 
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Source_res; 
+      L     0; 
+      <>I   ; 
+      JCN   AE99; //If no entry present end check
+      OPN   #i_DB_Res_Destination; 
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #t_Shift_Pointer; // with start address entries
+
+AE03: L     #t_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #t_Source_res; // Load search reservation
+      ==I   ; // IF found then goto
+      JC    AE99; 
+      L     #t_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #t_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Des; 
+      >I    ; // IF not last record
+      JCN   AE03; // THEN continue loop
+
+//If entry not found remove from source
+//-------------------------------------------------------------------------------
+      OPN   #i_DB_Res_Source; 
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+
+AE04: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #t_Source_res; // Load reservation code not found
+      <>I   ; // IF reservation code not found
+      JCN   AE05; 
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Src; 
+      >I    ; // IF not last record
+      JCN   AE04; // THEN continue loop
+      JU    AE99; // ELSE reservation code not found and end loop
+
+// ELSE IF reservation code found
+
+AE05: L     #t_FIFO_Last_Record_Src; 
+      L     #s_Shift_Pointer; // Start Loop
+      ==I   ; 
+      JC    AE06; // Only remove last entrie
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #t_FIFO_Last_Record_Src; 
+      >=I   ; // IF not last record
+      JCN   AE05; // THEN continue loop
+
+AE06: L     #t_FIFO_Last_Record_Src; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO
+      JM    AE99; 
+      T     DBW    0; 
+
+      JU    AE01; //Repeat until first entry found are no entries
+
+AE99: NOP   0; 
+NETWORK
+TITLE =AF: write last entry modified
+
+      OPN   #i_DB_Res_Source; 
+      L     DBW    0; 
+      T     #s_Last_entry_modified; 
+
+
+NETWORK
+TITLE =AG: Check if new entry Destination DB
+
+      OPN   #i_DB_Res_Destination; 
+      L     0; 
+      L     DBW    0; // look for entry's
+      ==I   ; 
+      BEC   ; 
+      L     #s_Last_entry_mod_Des; 
+      ==I   ; 
+      BEC   ; 
+//No action required
+NETWORK
+TITLE =AH:Add new entries from destination to source
+
+      NOP   0; 
+//Add new reservation from destination after previous entry change
+      OPN   #i_DB_Res_Destination; 
+
+
+      L     #t_FIFO_Last_Record_Des; // Add offset to last FIFO record 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Destination_Res; // last reservation
+      L     0; 
+      <>I   ; 
+      JCN   AH99; 
+
+// Search for Reservation in Source DB
+
+
+      OPN   #i_DB_Res_Source; 
+
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #t_Offset_FIFO_DB; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #t_FIFO_Last_Record_Src; // FIFO address of last record
+
+      L     #t_Offset_FIFO_DB; // Initialize pointer
+      T     #s_Shift_Pointer_Scr; // with start address entries
+
+AH03: L     #s_Shift_Pointer_Scr; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #t_Destination_Res; // Load reservation code found
+      ==I   ; // IF reservation code found
+      JC    AH99; // MA04
+      L     #s_Shift_Pointer_Scr; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer_Scr; 
+
+      L     #s_Shift_Pointer_Scr; 
+      L     #t_FIFO_Last_Record_Src; 
+      >I    ; // IF not last record
+      JCN   AH03; // THEN continue loop
+
+
+//Add entries to source
+      NOP   0; 
+
+      OPN   #i_DB_Res_Source; 
+
+      L     DBW    2; // Maximum number of entries
+      L     DBW    0; // Number of entries used
+      >I    ; // IF maximum of entries not reached
+      JCN   AH99; // THEN
+
+      L     DBW    0; // Number of entries
+      SLW   4; // Shift bytes to make pointer to last entry
+      L     #t_Offset_FIFO_DB; // Offset to fifo record in reservation DB
+      SLW   3; 
+      +D    ; // Add Header-length to jump over header
+      LAR1  ; // Pointer to last used entry
+
+      L     #t_Destination_Res; // Write reservation code in resevation DB
+      T     DBW [AR1,P#0.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      +I    ; // Increment Number of entries
+      T     DBW    0; 
+      T     #s_Last_entry_mod_Des; // Last entry written
+
+
+      L     #s_Last_entry_modified; // prevent double entrys
+      L     1; 
+      +I    ; 
+      T     #s_Last_entry_modified; 
+
+AH99: NOP   0; 
+END_FUNCTION_BLOCK
+

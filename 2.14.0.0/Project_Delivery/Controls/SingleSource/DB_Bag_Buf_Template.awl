@@ -1,0 +1,31 @@
+DATA_BLOCK "DB_Bag_Buf_Template"
+TITLE =%version: 0.01 % CN: 20 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, October 06, 2016 3:06:11 PM %
+//              %release:  VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on Version 0.01 VI_TTC          nlHdL    06-10-16   0.01
+//
+//Description:
+//Template for a bag buffer DB which is send within a bagsreport to high level
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entries_Used : INT ;	
+   Item_Info : ARRAY  [1 .. 150 ] OF //Item information
+   STRUCT 	
+    Tubclass : INT ;	//Tub class, 1 = SBT, 2 = OBT
+    Destination : INT ;	//Destination of bag
+   END_STRUCT ;	
+   Item_LNK : ARRAY  [1 .. 150 ] OF //Link numbers of item information records
+   INT ;	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

@@ -1,0 +1,529 @@
+FUNCTION_BLOCK "FB_Displacement"
+TITLE =%version: 0.19 % CN: 40 
+//Function:
+//This block calculates the amount of displacement during the time
+//that the motor is running.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, January 20, 2017 11:49:43 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20061: Section stopped with remaining act run out  nlHdL    20-01-17   0.19
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.18
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.18
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.18
+//23610: Remaining mm of PPI puls added                 nlHdL    03-06-15   0.18
+//23610: PPI resolution to cm is missing mm remainder   nlHdL    28-05-15   0.17
+//22514: hicking of section with LMS-V flowcontrol      nlHdL    19-01-15   0.16
+//20821: Check motor on speed if speed not 0            nlHdL    17-10-14   0.15
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.14
+//14909: Deceleration calculated on act speed & runout  nlHdL    02-09-13   0.13
+//PR10014 Add Start-up distance to displacement block   nlHdL    10-09-12   0.12
+//CR9822 Remove i_DB_PLT_num not used                   nlple    08-05-12   0.11
+//CR8095 Comments input CFG changed                     nlple    06-01-12   0.10
+//PR7361 Actuele run out decelerating + 1, displ remain nlHdL    07-07-11   0.09
+//Corrected PPI displacement and check neg displacment  nlHdL    15-02-11   0.08
+//Major Update changes                                  nlMRe    16-09-10   0.07
+//Solved PR5144: Smart blocks can not write in PLT      nlMRe    03-05-10   0.06
+//Corrections made after code review                    nllvdg   16-04-10   0.05
+//I/O naming corrected and sorted                       nllvdg   12-04-10   0.04
+//Displacement functionalty updated and run-out         nllvdg   09-04-10   0.03
+//distance added
+//Solved PR 4948: PPI does not work                     nlMRe    09-04-10   0.02
+//Initial revision                                      nlMRe    05-03-10   0.01
+//
+//Description:                                  
+//This block calculates the amount of displacement during the time
+//that the motor is running.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Conveyor_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_CFG_Run_Out_Distance : INT ;	//CFG: [cm] Run out distance for the section
+  i_CFG_Start_Up_Distance : INT ;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_PPI_Displacement : INT ;	//Displacement coming from the external PPI block in [mm]
+  i_Section_Run : BOOL ;	//Section Run signal
+END_VAR
+VAR_OUTPUT
+  o_Motor_On_Speed : BOOL ;	//Conveyor is on speed
+  o_Motor_Stopped : BOOL ;	//Conveyor motor is stopped
+  o_Displacement : INT ;	//Displacement of the section in [cm]
+  o_Act_Run_Out_Distance : INT ;	//Actual run-out distance in [cm]
+  o_Act_Start_Up_Distance : INT ;	//Actual StartUp distance in [cm]
+END_VAR
+VAR
+  s_Motor_Not_Stopped : BOOL ;	//Conveyor is running
+  s_Accelerating : BOOL ;	//Conveyor is acceleration
+  s_Decelerating : BOOL ;	//Conveyor is deceleration
+  s_Target_Speed : INT ;	//Set target speed in [mm/sec]
+  s_Curr_Conveyor_Speed : INT ;	//Current conveyor speed used for calculation
+  s_Curr_Run_Out_Distance : INT ;	//Current run out distance used for calculation
+  s_Curr_Start_Up_Distance : INT ;	//Current start up distance used for calculation
+  s_Actual_Speed : INT ;	//Actual speed after last PLC cycle in [mm/sec]
+  s_PrevScan_Actual_Speed : INT ;	//Previous PLC cycle time in [mm/sec]
+  s_Displacement : INT ;	//Displacement in [cm]
+  s_Displacement_PPI : INT ;	//Displacement PPI in [cm]
+  s_Previous_Displ_PPI : INT ;	//Previous displacement of the PPI in [cm]
+  s_Total_Disp_Till_Next_P : INT ;	//Displacement till next PPI
+  s_Acceleration : DINT ;	//Acceleration speed in [mm/sec^2]
+  s_Deceleration : DINT ;	//Deceleration speed in [mm/sec^2]
+  s_Remainder_Speed : DINT ;	//Remainder of division for calculation of acceleration
+  s_Remainder_Displacement : DINT ;	//Remainder of division for calculation of displacement
+  s_Remainder_PPI_mm : INT ;	//Remainder of PPI in mm
+END_VAR
+VAR_TEMP
+  t_PPI_Displacement : BOOL ;	//There is displacement of the PPI
+  t_New_Speed : INT ;	//New speed
+  t_Lower_Part_Fraction : DINT ;	//Lower part of fraction
+  t_Displacement : DINT ;	//Displacement in calculation
+  t_Calculated_Speed : DINT ;	//Speed in calcualation
+  t_StartUp_Distance_mm : INT ;	//Start Up distance in [mm]
+  t_Remain_Speed : DINT ;	//Remaining Speed
+  t_Calculated_act_Speed : INT ;	//New calculated speed during acceleration/deceleration in [mm/sec]
+  t_Displacement_Diff : INT ;	//Difference in previous and current PPI Displacement
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine Target Speed
+
+      L     #i_CFG_Conveyor_Speed; // [mm/sec]
+
+      AN    #i_Section_Run; // IF Conveyor is running
+      JCN   AA01; // THEN set conveyor speed as target speed
+      L     0; // ELSE Target speed is 0
+AA01: T     #s_Target_Speed; 
+NETWORK
+TITLE =BA: Determine if accelerating or decelerating
+
+      L     #s_Actual_Speed; 
+      L     #s_Target_Speed; 
+      <I    ; // IF actual speed is less then target speed
+      =     #s_Accelerating; // THEN Accelerating
+
+      L     #s_Actual_Speed; 
+      L     #s_Target_Speed; 
+      >I    ; // IF actual speed is greater then target speed
+      =     #s_Decelerating; // THEN Decelerating
+NETWORK
+TITLE =CA: Save Actual speed from previous PLC cycle
+//The actual speed from the previous cycle will be saved into a static for later 
+//usage.
+      L     #s_Actual_Speed; 
+      T     #s_PrevScan_Actual_Speed; 
+NETWORK
+TITLE =DA: Hold setpoint
+//Hold configured speed and configured run out distance setpoints until new speed 
+//is reached for calculation of deceleration.
+      A     #s_Decelerating; 
+      JCN   DA01; 
+
+      L     #i_CFG_Conveyor_Speed; // If configured speed
+      L     #s_Curr_Conveyor_Speed; // is not equal to current speed
+      <>I   ; 
+      JCN   DA99; 
+
+      L     #i_CFG_Conveyor_Speed; // If configured speed 
+      L     #s_Actual_Speed; // is equal to the actual speed
+      ==I   ; 
+      JCN   DA99; 
+
+DA01: L     #i_CFG_Conveyor_Speed; // Then use configured speed
+      T     #s_Curr_Conveyor_Speed; // for calculating deceleration
+
+      L     #i_CFG_Run_Out_Distance; // Use configured run out distance
+      T     #s_Curr_Run_Out_Distance; // for calculating deceleration
+
+      L     #i_CFG_Start_Up_Distance; 
+      T     #s_Curr_Start_Up_Distance; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Calculate Decelaration in mm/sec^2
+//Formula for deceleration calculation at nominal speed and given run-out distance
+//
+//    V^2                    Conveyor_Speed^2
+//  ------- = a     =     --------------------- = Accelaration
+//   2 x s                 2 x RunOut_Distance
+//
+// 
+      A     #s_Accelerating; 
+      O     #s_Decelerating; 
+      JCN   EA99; 
+
+// Data conversion for calculation in mm/sec
+      L     #s_Curr_Run_Out_Distance; // Run-out distance in cm
+      L     10; 
+      *I    ; // Run-out distance in mm
+// Lower part of fraction
+      L     2; 
+      *I    ; 
+      T     #t_Lower_Part_Fraction; // Store result for later usage
+
+// Upper part of fraction
+      L     #s_Curr_Conveyor_Speed; // Nominal conveyor speed squared
+      L     #s_Curr_Conveyor_Speed; 
+      *D    ; 
+      L     #t_Lower_Part_Fraction; // Divided by lower part of fraction
+      /D    ; 
+      T     #s_Deceleration; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Calculate Accelaration in mm/sec^2
+//Formula for acceleration calculation at nominal speed and given start-up 
+//distance
+//
+//    V^2                    Conveyor_Speed^2
+//  ------- = a     =     --------------------- = Accelaration
+//   2 x s                 2 x RunOut_Distance
+//
+      A     #s_Accelerating; 
+      O     #s_Decelerating; 
+      JCN   FA99; 
+
+// Data conversion for calculation in mm/sec
+      L     #s_Curr_Start_Up_Distance; // Start-Up distance in cm
+      L     10; 
+      *I    ; // Start-Upt distance in mm
+      T     #t_StartUp_Distance_mm; // Modified Run-out distance with acceleration factor
+
+// Lower part of fraction
+      L     #t_StartUp_Distance_mm; 
+      L     2; 
+      *I    ; 
+      T     #t_Lower_Part_Fraction; // Store result for later usage
+
+// Upper part of fraction
+      L     #s_Curr_Conveyor_Speed; // Nominal conveyor speed squared
+      L     #s_Curr_Conveyor_Speed; 
+      *D    ; 
+      L     #t_Lower_Part_Fraction; // Divided by lower part of fraction
+      /D    ; 
+      T     #s_Acceleration; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Reset speed remainder when not accelerating/decelerating
+//When there is no acceleration or deceleration action running, the remainder 
+//speed value must be reset.
+      AN    #s_Accelerating; 
+      AN    #s_Decelerating; 
+      JCN   GA99; 
+
+      L     0; 
+      T     #s_Remainder_Speed; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Recalculate Actual speed during accelerating
+//Formula for new Actual speed calculation during accelaration
+//
+//   V_start - V_end = t x a
+//
+//   Actual_Speed - Speed_Previous_Cycle = PLC_Cycle_Time x Deceleration
+//
+      A     #s_Accelerating; 
+      JCN   HA99; 
+
+      L     #s_Acceleration; // Deceleration in mm/sec^2
+      L     "MW_Prev_Cycle_Time"; // Previous PLC cycle time in msec
+      *D    ; 
+      L     #s_Remainder_Speed; // Add remainder speed previous cycle
+      +D    ; 
+      T     #t_Calculated_Speed; 
+
+      L     #t_Calculated_Speed; // Get remainder of division for next PLC cycle
+      L     1000; 
+      MOD   ; 
+      T     #s_Remainder_Speed; 
+
+      L     #t_Calculated_Speed; // Calculate new speed with previous speed
+      L     1000; 
+      /D    ; 
+      L     #s_PrevScan_Actual_Speed; 
+      +I    ; 
+      T     #t_Calculated_act_Speed; 
+
+      L     #t_Calculated_act_Speed; // Check if new calculated speed is still under the target speed
+      L     #s_Target_Speed; 
+      <=I   ; 
+      JCN   HA01; // Motor is still accelerating
+      L     #t_Calculated_act_Speed; 
+HA01: T     #s_Actual_Speed; // Transfer new actual speed
+      JU    HA99; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Recalculate Actual speed during decelerating
+//Formula for new Actual speed calculation during decelaration
+//
+//   V_start - V_end = t x a
+//
+//   Speed_Previous_Cycle - Actual_Speed = PLC_Cycle_Time x Deceleration
+//
+      A     #s_Decelerating; 
+      JCN   IA99; 
+
+      L     #s_Deceleration; // Deceleration in mm/sec^2
+      L     "MW_Prev_Cycle_Time"; // Previous PLC cycle time in msec
+      *D    ; 
+      L     #s_Remainder_Speed; // Add remainder speed previous cycle
+      +D    ; 
+      T     #t_Calculated_Speed; 
+
+      L     #t_Calculated_Speed; // Get remainder of division for next PLC cycle
+      L     1000; 
+      MOD   ; 
+      T     #s_Remainder_Speed; 
+
+      L     #t_Calculated_Speed; // Calculate new speed with previous speed
+      L     1000; 
+      /D    ; 
+      T     #t_New_Speed; 
+
+      L     #s_PrevScan_Actual_Speed; 
+      L     #t_New_Speed; 
+      -I    ; 
+      T     #t_Calculated_act_Speed; 
+
+      L     #t_Calculated_act_Speed; // Check if new calculated speed is still above target speed
+      L     #s_Target_Speed; 
+      >=I   ; 
+      JCN   IA01; // Motor is still decelerating
+      L     #t_Calculated_act_Speed; 
+IA01: T     #s_Actual_Speed; // Transfer new actual speed
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Safeguard when run-out distance is zero or lower.
+//When the run-out distance is 0 or lower the actual speed is the target speed.
+      L     #i_CFG_Run_Out_Distance; 
+      L     0; 
+      <=I   ; 
+      JCN   JA99; 
+
+      L     #s_Target_Speed; 
+      T     #s_Actual_Speed; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Set speed status outputs
+//Determaine motor status of conveyor for reporting on outputs.
+      L     #s_Actual_Speed; 
+      L     0; 
+      <>I   ; 
+      =     #s_Motor_Not_Stopped; 
+
+      L     #s_Actual_Speed; 
+      L     #i_CFG_Conveyor_Speed; 
+      ==I   ; 
+      A     #i_Section_Run; 
+      A     #s_Motor_Not_Stopped; 
+      =     #o_Motor_On_Speed; 
+NETWORK
+TITLE =MA: Recalculate start-up distance
+//Formula for Start-Up distance calculation
+//
+//    V^2                  Conveyor_Speed^2
+//  ------- = a     =     ------------------ = StartUp_Distance
+//   2 x s                 2 x Remain Speed
+//
+      NOP   0; 
+
+// Lower part of fraction
+      L     0; 
+      L     #i_CFG_Conveyor_Speed; 
+      <I    ; 
+      JCN   MA99; 
+      L     #s_Actual_Speed; 
+      -D    ; 
+      T     #t_Remain_Speed; 
+
+      L     #s_Acceleration; 
+      L     2; 
+      *D    ; 
+      T     #t_Lower_Part_Fraction; 
+
+// Upper part of fraction
+      L     #t_Remain_Speed; 
+      L     #t_Remain_Speed; 
+      *D    ; 
+      L     #t_Lower_Part_Fraction; // Divided by lower part of fraction
+      /D    ; 
+      L     10; 
+      /I    ; 
+      T     #o_Act_Start_Up_Distance; // Strat-Up distance in cm
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Calculate displacement during last scan
+
+      L     #s_Actual_Speed; // Actual speed of last PLC cycle
+      L     "MW_Prev_Cycle_Time"; 
+      *I    ; 
+      L     #s_Remainder_Displacement; // Add remainder displacement previous cycle
+      +D    ; 
+      T     #t_Displacement; 
+      L     10000; 
+      /D    ; // : 10000 to convert to cm
+      T     #s_Displacement; 
+
+      L     #t_Displacement; 
+      L     10000; 
+      MOD   ; // Get remainder of division for next PLC cycle
+      T     #s_Remainder_Displacement; 
+NETWORK
+TITLE =OA: Check if there is any PPI displacement
+// Convert to cm
+      L     #i_PPI_Displacement; 
+      L     10; 
+      /I    ; // : 10 to convert to cm
+      T     #s_Displacement_PPI; 
+
+// Compare PPI displacement
+      A(    ; //Check if there is PPI Displacement
+      L     #s_Displacement_PPI; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #s_Previous_Displ_PPI; // Or if there has been any PPI displacement at all
+      L     0; 
+      >I    ; 
+      )     ; 
+      =     #t_PPI_Displacement; 
+
+      A     #t_PPI_Displacement; 
+      JCN   OA99; 
+
+// Determine the millimetres of PPI displacement that remain after this scan
+      L     #i_PPI_Displacement; 
+      L     10; 
+      MOD   ; // Remainder after convertion to [cm]
+      L     #s_Remainder_PPI_mm; 
+      +I    ; 
+      T     #s_Remainder_PPI_mm; 
+      L     10; 
+      >=I   ; 
+      JCN   OA99; // If Remainder is 1 cm then add to PPI displacment
+
+      L     #s_Displacement_PPI; 
+      L     1; 
+      +I    ; 
+      T     #s_Displacement_PPI; 
+
+      L     #s_Remainder_PPI_mm; 
+      L     10; 
+      -I    ; 
+      T     #s_Remainder_PPI_mm; 
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Compare with PPI Displacement
+
+      A     #t_PPI_Displacement; 
+      A     #s_Motor_Not_Stopped; 
+      JCN   PA99; 
+
+      L     #s_Displacement_PPI; // Check if there is PPI displacement this cycle
+      L     0; 
+      >I    ; 
+      JCN   PA01; 
+
+      L     #s_Displacement_PPI; // Compare current since last PPI pulse
+      L     #s_Total_Disp_Till_Next_P; // With the current displacement
+      -I    ; 
+      T     #t_Displacement_Diff; // Store the difference in displacement
+
+      L     #s_Displacement_PPI; // Store the current displacement for later usage 
+      T     #s_Previous_Displ_PPI; 
+
+      L     #s_Displacement; // Preset with current displacement
+      T     #s_Total_Disp_Till_Next_P; // Clear the total displacement since last PPI pulse
+
+      L     #s_Displacement; // Add the displacement with the displacement difference.
+      L     #t_Displacement_Diff; 
+      +I    ; 
+      JMZ   PA02; 
+      T     #s_Displacement; 
+
+      JU    PA99; 
+
+PA01: L     #s_Total_Disp_Till_Next_P; // check if the total displacement since last PPI pulse
+      L     #s_Previous_Displ_PPI; // is not bigger than the PPI displacement
+      <I    ; 
+      JCN   PA02; 
+
+      L     #s_Displacement; // Add the current displacement
+      L     #s_Total_Disp_Till_Next_P; // to the displacement since last PPI pulse
+      +I    ; 
+      T     #s_Total_Disp_Till_Next_P; 
+
+      JU    PA99; 
+
+PA02: L     0; // If the displacement since the last PPI pulse is bigger 
+      T     #s_Displacement; // than the last PPI displacement, than no displacement.
+
+PA99: NOP   0; 
+NETWORK
+TITLE =KA: Calculate run-out distance
+//During deceleration fase the actuele run out is decreased with the current 
+//displacement.
+//
+//During acceleration fase the actuel run out is increased with the current 
+//displacement.
+//
+//Because off rounding off remaining figures a mismatch can occur.
+//
+//Formula for Run-Out distance calculation
+//
+//    V^2                  Conveyor_Speed^2
+//  ------- = a     =     ------------------ = RunOut_Distance
+//   2 x s                 2 x Deceleration
+//
+//
+      A     #o_Motor_On_Speed; 
+      JCN   KA01; 
+
+      L     #i_CFG_Run_Out_Distance; 
+      T     #o_Act_Run_Out_Distance; 
+
+      JU    KA99; 
+
+KA01: A     #s_Decelerating; 
+      JCN   KA02; 
+
+      L     #o_Act_Run_Out_Distance; 
+      L     #s_Displacement; 
+      -I    ; 
+      T     #o_Act_Run_Out_Distance; 
+
+KA02: A     #s_Accelerating; 
+      JCN   KA03; 
+
+      L     #o_Act_Run_Out_Distance; 
+      L     #s_Displacement; 
+      +I    ; 
+      T     #o_Act_Run_Out_Distance; 
+
+KA03: AN    #s_Motor_Not_Stopped; 
+      JCN   KA99; 
+
+      L     0; 
+      T     #o_Act_Run_Out_Distance; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =QA: Write outputs
+
+      L     #s_Displacement; // Transfer displacement 
+      T     #o_Displacement; 
+
+      AN    #s_Motor_Not_Stopped; 
+      =     #o_Motor_Stopped; 
+END_FUNCTION_BLOCK
+

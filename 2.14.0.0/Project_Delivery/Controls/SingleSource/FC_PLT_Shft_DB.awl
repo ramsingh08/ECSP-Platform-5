@@ -1,0 +1,669 @@
+FUNCTION "FC_PLT_Shft_DB" : VOID
+TITLE =%version: 1.06 % CN: 33
+//Function:
+//Shift the items present in the PLT DB with the displacement. Remove the items 
+//when they have reached the end of the conveyor.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:08:28 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//24157: Shft_DB creates multiple leading edges         nlHdL    28-05-15   1.06
+//23247: Trailing edge in Runout section no IHO bit     nlHdL    13-03-15   1.05
+//19835: Request PEC state on restart                   nlHdL    14-08-14   1.04
+//19300: Shift DB not shifting claimed entry past next  nlHdL    02-06-14   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//13805: Tracking update from upstream section          nlHdL    28-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.10 of PLT version 0
+//
+//Description:
+//This function addresses each entry, starting at the most downstream entry of 
+//the tracking DB, according to the following steps:
+//
+//1) When the actual position of the entry > input end-position then the entry is 
+//removed from tracking and the function jumps to step 6.
+//2) Update the actual position with the displacement
+//3) When the actual position + displacement > input end-position, the position 
+//of the entry is set to the end-position (data kept at end-position).
+//4) When the difference between two succesive entries < displacement (if the 
+//entry has a previous entry) the previous entry is removed from tracking.
+//5) Save the data/position from the current entry for the next check and reset 
+//the first update loop variable (last entry has no previous entry).
+//6) Set the pointer to the next entry upstream (if there is another entry).
+//                                                                          
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_OS_Operational : BOOL ;	//One Shot Operational 
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Displacement : INT ;	//Displacement
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Up_displacement : INT ;	//Upstream displacement
+  t_Dwn_displacement : INT ;	//Downstream displacement
+  t_Entries_Used : BOOL ;	//Entries used in tracking DB
+  t_Dis_Up : BOOL ;	//Use upstream displacment
+  t_Dis_Dwn : BOOL ;	//Use downstream displacment
+  t_No_Dis : BOOL ;	//Entrie is halted
+  t_Info : STRUCT 	//Struct of Info State
+   Spare_W01 : BOOL ;	//Spare W01
+   Spare_W02 : BOOL ;	//Spare W02
+   Claimend : BOOL ;	//Claimend entry
+   Virtual : BOOL ;	//Virtual item 
+   PEC : BOOL ;	//PEC entry
+   Owner : BOOL ;	//Entry with Owner state
+   Spare_W4 : BOOL ;	//Spare W04
+   Spare_W8 : BOOL ;	//Spare W08
+   PEC_IO : BOOL ;	//PEC State IO
+   PEC_Latch : BOOL ;	//PEC State Latch
+   PEC_Request : BOOL ;	//PEC Request (Check if PEC is still active)
+   Spare_PEC_B3 : BOOL ;	//Spare B3
+   Owner_Halted : BOOL ;	//Owner State Halted entry
+   Owner_Up : BOOL ;	//Owner State Upstream displacement entry
+   Owner_Dwn : BOOL ;	//Owner State Downstream displacement entry
+   Owner_Request : BOOL ;	//Owner State requested
+  END_STRUCT ;	
+  t_Entry_Pos : INT ;	//Position of entry
+  t_Entry_Info : INT ;	//Info of entry
+  t_Entry_Physical : INT ;	//Physical entry
+  t_Entry_Link : INT ;	//Link of entry
+  t_Nr_Entries_Used : INT ;	//Number of Entries used in PLT
+  t_Entry_Pos_Prev : INT ;	//Position of previous entry
+  t_Sort_Owner : BOOL ;	//Sort list when Owner state is active
+  t_LAR1 : DWORD ;	//Back up AR1
+  t_Bag_Info : BOOL ;	//Bag on negative position
+  t_Clear_Owner : BOOL ;	//Clear owner if no request and owner is active
+  t_Virtual_Info_Prev : BOOL ;	//Previous info was a virtual item
+  t_Sort_Active : BOOL ;	//Check if first sort was started to actived the second sort
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init: displacement, max nr of entries and entries used
+//- Calculate the number of possible entries in the tracking DB and write this 
+//value in the tracking DB on DBW4.
+//- Write the displacement value in the tracking DB on DBW2 and report if there 
+//is displacement.
+//- Report if there are entries used in the tracking DB
+      SET   ; 
+      R     #t_Sort_Owner; 
+      R     #t_Virtual_Info_Prev; 
+
+      L     #i_DB_PLT_Num; // Open tracking DB
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+      L     DBLG; // Load tracking DB length
+      L     14; // - 14 (start adress first entry)
+      -I    ; 
+      L     8; // Divide by the record length in byte 
+      /I    ; 
+      T     DBW    4; // = Max number of entries in the tracking DB 
+
+      A     #i_OS_Operational; 
+      JCN   AA01; 
+
+      L     0; 
+      T     #i_Displacement; //Clear displacement on one shot operational
+
+AA01: L     #i_Displacement; // Copy displacement to tracking DB
+      T     DBW    2; 
+
+      L     DBW    0; // IF entries used in PLT DB 
+      L     0; 
+      >I    ; 
+      =     #t_Entries_Used; // THEN set temp entries used  
+
+      L     0; 
+      T     #t_Up_displacement; 
+      T     #t_Dwn_displacement; 
+
+//Retreive upstream PLT and displacement
+      L     DBW    6; 
+      L     1; 
+      >I    ; 
+      JCN   AA02; 
+
+      OPN   DB [DBW 6]; 
+      L     DBW    2; 
+      T     #t_Up_displacement; 
+
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+AA02: L     DBW    8; 
+      L     1; 
+      >I    ; 
+      JCN   AA99; 
+
+      OPN   DB [DBW 8]; 
+      L     DBW    2; 
+      T     #t_Dwn_displacement; 
+
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Update PLT entries with displacement 
+
+      A     #t_Entries_Used; // IF entries used in PLT DB
+      JCN   BA90; 
+
+//Preset temp var
+      L     -900; 
+      T     #t_Entry_Pos_Prev; 
+
+// Determine pointer to last entry
+      L     DBW    0; // Number of entries used in PLT DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; // Header offset
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+// LOOP
+
+
+// 1) Check if up are downstream is active or entrie is halted
+BA01: LAR2  P##t_Info; 
+      L     DBW [AR1,P#2.0]; // Load info_sate of the entrie
+      T     LW [AR2,P#0.0]; 
+
+//------------------Check PEC State Used after restart ---------------------------
+      A     #t_Info.PEC; 
+      A     #t_Info.PEC_Request; 
+      JCN   BA02; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Entry_Pos; 
+
+//Remove entry if PEC state is not reset by PEC block
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #t_Entry_Pos,
+           i_Info_Physical          := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      BE    ; 
+//Entrie is halted no displacement
+BA02: A     #t_Info.Owner_Request; 
+
+      O     #t_Info.PEC; 
+      =     #t_No_Dis; 
+
+//Check owner correct
+      A     #t_Info.Owner_Up; 
+      AN    #t_Info.Owner; 
+      R     #t_Info.Owner_Up; 
+
+      A     #t_Info.Owner_Dwn; 
+      AN    #t_Info.Owner; 
+      R     #t_Info.Owner_Dwn; 
+
+      A     #t_Info.Owner_Halted; 
+      AN    #t_Info.Owner; 
+      R     #t_Info.Owner_Halted; 
+
+      A     #t_Info.Owner_Request; 
+      AN    #t_Info.Owner; 
+      R     #t_Info.Owner_Request; 
+
+//Entrie is shifted by upstream displacement
+      A     #t_Info.Owner_Request; 
+      A     #t_Info.Owner_Up; 
+      AN    #t_Info.PEC; 
+      =     #t_Dis_Up; 
+
+//Entrie is shifted by downstream displacement
+      A     #t_Info.Owner_Request; 
+      A     #t_Info.Owner_Dwn; 
+      AN    #t_Info.PEC; 
+      =     #t_Dis_Dwn; 
+
+      A     #t_Info.Owner; 
+      AN    #t_Info.Owner_Request; 
+      =     #t_Clear_Owner; 
+
+//Change request to owner
+      A     #t_Info.Spare_W4; 
+      JCN   BA11; 
+
+      L     W#16#2010; 
+      T     DBW [AR1,P#2.0]; // R     #t_Info.Spare_W4
+
+BA11: NOP   0; 
+
+// 2) Update actual position with upstream displacement
+      A     #t_Dis_Up; 
+      JCN   BA03; 
+
+      SET   ; 
+      =     #t_Sort_Owner; 
+
+      L     DBW [AR1,P#0.0]; // New position = position - upstream displacement
+      L     #t_Up_displacement; 
+      -I    ; 
+      T     #t_Entry_Pos; 
+      L     #t_Entry_Pos_Prev; 
+      >I    ; 
+      O     #t_Info.Claimend; 
+      JCN   BA42; 
+
+//If calculated pos > previous then write current
+      L     #t_Entry_Pos; 
+
+BA42: T     DBW [AR1,P#0.0]; 
+
+//Clear the request
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#FF7F; 
+      AW    ; 
+      T     DBW [AR1,P#2.0]; 
+
+//Next loop
+      JU    BA40; 
+
+// 3) Update actual position with downstream displacement
+BA03: A     #t_Dis_Dwn; 
+      JCN   BA04; 
+
+      SET   ; 
+      =     #t_Sort_Owner; 
+
+      L     DBW [AR1,P#0.0]; // New position = position - Dwnstream displacement
+      L     #t_Dwn_displacement; 
+      -I    ; 
+      T     #t_Entry_Pos; 
+      L     #t_Entry_Pos_Prev; 
+      >I    ; 
+      O     #t_Info.Claimend; 
+      O     #t_Virtual_Info_Prev; 
+      JCN   BA43; 
+
+//If calculated pos > previous then write current
+      L     #t_Entry_Pos; 
+BA43: T     DBW [AR1,P#0.0]; 
+
+//Clear the request
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#FF7F; 
+      AW    ; 
+      T     DBW [AR1,P#2.0]; 
+
+//Next loop
+      JU    BA40; 
+
+// 4) Update actual position with displacement
+BA04: A     #t_No_Dis; 
+      JCN   BA46; 
+
+      SET   ; 
+      =     #t_Sort_Owner; 
+
+      A     #i_OS_Operational; 
+      A     #t_Info.PEC; 
+      JCN   BA07; 
+
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#4; 
+      OW    ; 
+      T     DBW [AR1,P#2.0]; 
+
+BA07: A     #t_Info.Owner_Request; 
+      JCN   BA40; 
+
+//Only clear the request no displacement
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#FF7F; 
+      AW    ; 
+      T     DBW [AR1,P#2.0]; 
+
+//Next loop
+      JU    BA40; 
+
+BA46: A     #t_Clear_Owner; 
+      JCN   BA06; 
+
+//Clear the owner
+      L     DBW [AR1,P#2.0]; 
+      L     W#16#DF00; 
+      AW    ; 
+      T     DBW [AR1,P#2.0]; 
+
+BA06: L     DBW [AR1,P#0.0]; // New position = position - displacement
+      L     #i_Displacement; 
+      -I    ; 
+      T     #t_Entry_Pos; 
+      L     #t_Entry_Pos_Prev; 
+      <I    ; 
+      =     #t_Bag_Info; 
+
+      A(    ; 
+      L     DBW [AR1,P#4.0]; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      AN    #t_Info.Virtual; 
+      AN    #t_Info.Claimend; 
+      A     #t_Bag_Info; 
+      JC    BA45; 
+
+//If calculated pos > previous then write current
+      L     #t_Entry_Pos; 
+      T     DBW [AR1,P#0.0]; 
+
+//Check info virtual and pos < previous
+      A     #t_Bag_Info; 
+      A(    ; 
+      L     DBW [AR1,P#4.0]; 
+      L     0; 
+      <I    ; 
+      )     ; 
+      JCN   BA40; 
+
+      TAR1  #t_LAR1; 
+      JU    CA00; 
+
+BA45: L     #t_Entry_Pos_Prev; 
+      T     DBW [AR1,P#0.0]; 
+
+// 5) Set pointer to next entry
+//Sort list when owner state is active
+BA40: A     #t_Sort_Owner; 
+      JCN   BA41; 
+
+      TAR1  #t_LAR1; 
+      JU    DA00; //Sort list
+
+BA41: L     DBW [AR1,P#0.0]; 
+      T     #t_Entry_Pos_Prev; 
+
+      L     DBW [AR1,P#4.0]; 
+      L     0; 
+      <I    ; 
+      =     #t_Virtual_Info_Prev; 
+
+      TAR1  ; 
+      L     P#14.0; // Pointer > header 14 bytes
+      -D    ; 
+      JMZ   BA90; 
+
+      L     P#6.0; // THEN set pointer to next entry 
+      +D    ; // ( -14 bytes + 8 bytes = -6 bytes = next entry)
+      LAR1  ; 
+
+      JU    BA01; // AND loop
+
+BA90: SET   ; 
+      R     #t_Bag_Info; 
+      JU    CA00; 
+NETWORK
+TITLE =CA: Check sorted list first
+//After the position updates, the list needs to be checked if it is still sorted.
+//The list is sorted from high position to low position.
+//
+CA00: A     #t_Entries_Used; // IF entries used in PLT DB
+      R     #t_Sort_Active; 
+      JCN   CA99; 
+
+//Check if more then 1 entry is used
+      L     DBW    0; // Number of entries used in PLT DB
+      T     #t_Nr_Entries_Used; 
+      L     1; 
+      >I    ; 
+      JCN   CA90; 
+
+// Determine pointer to first entry
+      L     14; // byte 14 is first entry
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+// LOOP
+
+// Check if entries are 2
+CA01: L     #t_Nr_Entries_Used; 
+      L     2; 
+      >=I   ; 
+      JCN   CA02; 
+
+//If current pos < next pos
+      L     DBW [AR1,P#0.0]; 
+      L     DBW [AR1,P#8.0]; 
+      <I    ; 
+      JCN   CA02; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Entry_Pos; 
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Entry_Info; 
+      L     DBW [AR1,P#4.0]; 
+      T     #t_Entry_Physical; 
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Entry_Link; 
+
+      L     DBD [AR1,P#8.0]; 
+      T     DBD [AR1,P#0.0]; 
+      L     DBD [AR1,P#12.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     #t_Entry_Pos; 
+      T     DBW [AR1,P#8.0]; 
+      L     #t_Entry_Info; 
+      T     DBW [AR1,P#10.0]; 
+      L     #t_Entry_Physical; 
+      T     DBW [AR1,P#12.0]; 
+      L     #t_Entry_Link; 
+      T     DBW [AR1,P#14.0]; 
+
+      SET   ; 
+      S     #t_Sort_Active; 
+
+// Next
+CA02: L     #t_Nr_Entries_Used; 
+      L     1; 
+      -I    ; 
+      JMZ   CA90; 
+      T     #t_Nr_Entries_Used; 
+
+      TAR1  ; 
+
+      L     P#8.0; // THEN set pointer to next entry 
+      +D    ; // + 8 bytes = next entry)
+      LAR1  ; 
+
+      JU    CA01; 
+
+CA90: NOP   0; 
+      LAR1  #t_LAR1; 
+      A     #t_Bag_Info; 
+      JC    BA40; //Sort list
+
+//If sort was started then actived the second sort
+      A     #t_Sort_Active; 
+      JC    DA00; 
+
+CA99: BE    ; 
+NETWORK
+TITLE =DA: Check sorted list second.
+//After the position updates, the list needs to be checked if it is still sorted.
+//The list is sorted from high position to low position.
+//
+DA00: A     #t_Entries_Used; // IF entries used in PLT DB
+      JCN   DA91; 
+
+//Check if more then 1 entry is used
+      L     DBW    0; // Number of entries used in PLT DB
+      T     #t_Nr_Entries_Used; 
+      L     1; 
+      >I    ; 
+      JCN   DA91; 
+
+// Determine pointer to first entry
+      L     14; // byte 14 is first entry
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+// LOOP
+
+// Check if entries are 2
+DA01: L     #t_Nr_Entries_Used; 
+      L     2; 
+      >=I   ; 
+      JCN   DA02; 
+
+//If current pos < next pos
+      L     DBW [AR1,P#0.0]; 
+      L     DBW [AR1,P#8.0]; 
+      <I    ; 
+      JCN   DA02; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Entry_Pos; 
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Entry_Info; 
+      L     DBW [AR1,P#4.0]; 
+      T     #t_Entry_Physical; 
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Entry_Link; 
+
+      L     DBD [AR1,P#8.0]; 
+      T     DBD [AR1,P#0.0]; 
+      L     DBD [AR1,P#12.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     #t_Entry_Pos; 
+      T     DBW [AR1,P#8.0]; 
+      L     #t_Entry_Info; 
+      T     DBW [AR1,P#10.0]; 
+      L     #t_Entry_Physical; 
+      T     DBW [AR1,P#12.0]; 
+      L     #t_Entry_Link; 
+      T     DBW [AR1,P#14.0]; 
+
+// Next
+DA02: L     #t_Nr_Entries_Used; 
+      L     1; 
+      -I    ; 
+      JMZ   DA91; 
+      T     #t_Nr_Entries_Used; 
+
+      TAR1  ; 
+
+      L     P#8.0; // THEN set pointer to next entry 
+      +D    ; // + 8 bytes = next entry)
+      LAR1  ; 
+
+      JU    DA01; 
+
+
+DA91: NOP   0; 
+      A     #t_Sort_Owner; 
+      JCN   DA99; 
+
+      SET   ; 
+      R     #t_Sort_Owner; 
+
+      LAR1  #t_LAR1; 
+      JU    BA41; //Sort list
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Check if entries on same position have same physical
+//Check if more then 1 entry is used
+      L     DBW    0; // Number of entries used in PLT DB
+      T     #t_Nr_Entries_Used; 
+      L     1; 
+      >I    ; 
+      JCN   EA99; 
+
+// Determine pointer to first entry
+      L     14; // byte 14 is first entry
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+// LOOP
+
+// Check if entries are 2
+EA01: L     #t_Nr_Entries_Used; 
+      L     2; 
+      >=I   ; 
+      JCN   EA12; 
+
+//If current pos < next pos
+      L     DBW [AR1,P#0.0]; 
+      L     DBW [AR1,P#8.0]; 
+      ==I   ; 
+      JCN   EA12; 
+
+      L     DBW [AR1,P#4.0]; 
+      L     DBW [AR1,P#12.0]; 
+      ==I   ; 
+      JCN   EA12; 
+
+//loop
+//Check if still 2 entries are left to shift
+EA02: L     #t_Nr_Entries_Used; 
+      L     2; 
+      >=I   ; 
+      JCN   EA03; 
+
+//shift entries 1 up
+      L     DBD [AR1,P#8.0]; 
+      T     DBD [AR1,P#0.0]; 
+      L     DBD [AR1,P#12.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+// Next
+      L     #t_Nr_Entries_Used; 
+      L     1; 
+      -I    ; 
+      JMZ   EA03; 
+      T     #t_Nr_Entries_Used; 
+
+      TAR1  ; 
+      L     P#8.0; 
+      +D    ; 
+      LAR1  ; // AND set pointer to next entry to handle 
+
+      JU    EA02; // AND loop
+
+//Reset entries used
+EA03: L     0; 
+      T     DBD [AR1,P#0.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; // decrease entry counter
+
+      JU    EA99; 
+
+EA12: L     #t_Nr_Entries_Used; 
+      L     1; 
+      -I    ; 
+      JMZ   EA99; 
+      T     #t_Nr_Entries_Used; 
+
+      TAR1  ; 
+
+      L     P#8.0; // THEN set pointer to next entry 
+      +D    ; // + 8 bytes = next entry)
+      LAR1  ; 
+
+      JU    EA01; 
+
+
+EA99: NOP   0; 
+END_FUNCTION
+

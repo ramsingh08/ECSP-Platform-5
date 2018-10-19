@@ -1,0 +1,28 @@
+TYPE "UDT_EQP_2D_PEC_Sett"
+TITLE =%version: 0.05 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 18, 2018 8:26:31 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20342: Int Prg PEC Offset_FWD & Offset_REV         nlHdL    18-01-18   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//CR8095 Comments changed                               nlple    06-01-12   0.02
+//Solved PR5102                                         nlMRe    16-04-10   0.01
+//Renamed from UDT_2Dir_PEC_Sett
+//
+FAMILY : General
+
+
+  STRUCT 	
+   PEC_Offset_FWD : INT  := 60;	//[cm] Distance between PEC downstream and end of conveyor (FWD)
+   PEC_Offset_REV : INT  := 60;	//[cm] Distance between PEC upstream and end of conveyor (REV)
+  END_STRUCT ;	
+END_TYPE
+

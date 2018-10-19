@@ -1,0 +1,91 @@
+DATA_BLOCK "DB_CIZ_Type"
+TITLE =%version: 0.15 % CN: 20 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, October 19, 2017 2:19:49 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#6985: CIZ type DB Desk disabled is state offline  nlHdL    19-10-17   0.15
+//ra#19309: bag overlength changed to Warning           nlHdL    10-01-17   0.14
+//ra#18174: DI NON_RETAIN PLC Memory                    nlHdL    14-12-16   0.13
+//ra#18945: new alarm text numbers                      nlJClo   12-12-16   0.12
+//ra#18699: allign with status UDT CIZ                  nlJClo   28-11-16   0.11
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   0.10
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//15797: Keyword release added                          nlwwij   26-09-13   0.10
+//14493: ASI Slave errors on 62 and 63                  nlHdL    02-07-13   0.09
+//CR10485 Removed comment from type DB                  nlHHop   25-06-12   0.08
+//Adding history rev 0.06                               nlple    11-01-10   0.07
+//CR6232 Modified according CTCL                        nlple    10-01-10   0.06
+//CR5712 Not used errors have number -1                 nlHdL    24-09-10   0.05
+//WP5669 Included error numbers and status numbers      nlHdL    17-09-10   0.04
+//updated to the new component type layout              nlMRe    16-09-10   0.03
+//Decrease Status definition                            nllvdg   16-07-10   0.02
+//Initial revision                                      nllvdg   30-06-10   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   Type_Component : BYTE ;	//Type of the component (1 = Section, 0 = Other)
+   Record_Length : BYTE ;	//Number of the Detailed Status in the UDT
+   Status : ARRAY  [1 .. 16 ] OF "UDT_Comp_Status";	
+  END_STRUCT ;	
+BEGIN
+   Type_Component := B#16#0; 
+   Record_Length := B#16#16; 
+   Status[1].HMI_Text_Number := 62; 
+   Status[1].Overall_Status_Relation := B#16#4; 
+   Status[1].General_Status_Relation := B#16#3; 
+   Status[2].HMI_Text_Number := 63; 
+   Status[2].Overall_Status_Relation := B#16#4; 
+   Status[2].General_Status_Relation := B#16#3; 
+   Status[3].HMI_Text_Number := 182; 
+   Status[3].Overall_Status_Relation := B#16#4; 
+   Status[3].General_Status_Relation := B#16#3; 
+   Status[4].HMI_Text_Number := 183; 
+   Status[4].Overall_Status_Relation := B#16#4; 
+   Status[4].General_Status_Relation := B#16#3; 
+   Status[5].HMI_Text_Number := 184; 
+   Status[5].Overall_Status_Relation := B#16#4; 
+   Status[5].General_Status_Relation := B#16#3; 
+   Status[6].HMI_Text_Number := 185; 
+   Status[6].Overall_Status_Relation := B#16#4; 
+   Status[6].General_Status_Relation := B#16#3; 
+   Status[7].HMI_Text_Number := 186; 
+   Status[7].Overall_Status_Relation := B#16#4; 
+   Status[7].General_Status_Relation := B#16#3; 
+   Status[8].HMI_Text_Number := 187; 
+   Status[8].Overall_Status_Relation := B#16#4; 
+   Status[8].General_Status_Relation := B#16#3; 
+   Status[9].HMI_Text_Number := 360; 
+   Status[9].Overall_Status_Relation := B#16#4; 
+   Status[9].General_Status_Relation := B#16#3; 
+   Status[10].HMI_Text_Number := 361; 
+   Status[10].Overall_Status_Relation := B#16#4; 
+   Status[10].General_Status_Relation := B#16#3; 
+   Status[11].HMI_Text_Number := 145; 
+   Status[11].Overall_Status_Relation := B#16#4; 
+   Status[11].General_Status_Relation := B#16#3; 
+   Status[12].HMI_Text_Number := 192; 
+   Status[12].Overall_Status_Relation := B#16#5; 
+   Status[12].General_Status_Relation := B#16#4; 
+   Status[13].HMI_Text_Number := 80; 
+   Status[13].Overall_Status_Relation := B#16#2; 
+   Status[13].General_Status_Relation := B#16#2; 
+   Status[14].HMI_Text_Number := -1; 
+   Status[14].Overall_Status_Relation := B#16#0; 
+   Status[14].General_Status_Relation := B#16#0; 
+   Status[15].HMI_Text_Number := -1; 
+   Status[15].Overall_Status_Relation := B#16#0; 
+   Status[15].General_Status_Relation := B#16#0; 
+   Status[16].HMI_Text_Number := -1; 
+   Status[16].Overall_Status_Relation := B#16#0; 
+   Status[16].General_Status_Relation := B#16#0; 
+END_DATA_BLOCK
+

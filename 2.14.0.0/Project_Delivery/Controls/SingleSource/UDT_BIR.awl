@@ -1,0 +1,54 @@
+TYPE "UDT_BIR"
+TITLE =%version:  0.06 % CN: 11 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 15:52:13 %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7632: Add blocks BIR12 for platform 4                 nlHdL    29-07-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//23859: Create and add BIR12 to the Vibes interface    nlHdL    30-04-15   0.10 ECS_BHS
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.05
+//18060: Update messages ID's for Vibes 3.2             nlHdL    01-04-14   1.10
+//Initial revision BIR11.2                              nlHdL    07-11-13   1.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   PID : DINT ;	//Logistic Manager Baggage ID
+   Destination_1 : INT ;	//Value >0 compulsory
+   Destination_2 : INT ;	//Value (>0) optionally	
+   Destination_3 : INT ;	//Value (>0) optionally		
+   Destination_4 : INT ;	//Value (>0) optionally		
+   Destination_5 : INT ;	//Value (>0) optionally		
+   BID : DINT ;	//Logistic control layer ID 
+   BID_Extension : ARRAY  [1 .. 2 ] OF CHAR ;	//BID Extension
+   LPN : ARRAY  [1 .. 10 ] OF CHAR ;	//Licence Plate Number (bag label)
+   LPN_Extension : INT ;	//LPN Extension, RFID ready - due data
+   Physical_Class_ST : BOOL ;	//Standard, normal conveyable baggage
+   Physical_Class_SC : BOOL ;	//Semi-conveyable baggage (ST baggage which cannot be transported through a CTX s
+   Physical_Class_OG : BOOL ;	//Out of gauge baggage (OOG baggage)
+   Physical_Class_OS : BOOL ;	//Out of size baggage (ODD-size baggage)
+   Physical_Class_SP : BOOL ;	//Special, non-conveyable baggage 
+   Virt_Bag_Indicator : BOOL ;	//Virtual bag indicator, 0 = real bag, 1 = virtual bag
+   Priority_Indicator : BOOL ;	//Deprecated: Priority indicator, 0 = low prio, 1= high prio
+   Assignment_Reason : BYTE ;	//The reason why the bag has been assigned to the specified destination location 
+   Bag_Status : INT; //Actual screening status of the bag
+   Process_1 : "UDT_Screen_Result";	//Screening Process 1 (Screening)
+   Process_2 : "UDT_Screen_Result";	//Screening Process 2 (Customs)
+   Process_3 : "UDT_Screen_Result";	//Screening Process 3
+   Process_4 : "UDT_Screen_Result";	//Screening Process 4
+   Process_5 : "UDT_Screen_Result";	//Screening Process 5
+   Flight : "UDT_Flight_Info";	//Optional: Flight information, e.g. for early bag store 
+   Bag : "UDT_Bag_Charact";	//Optional: Baggage characteristics, e.g. for volume scanners 
+   Carrier : "UDT_Carrier_Info";	//Optional: Carrier information, e.g. for dcv systems or sorters 
+   Dest_Handling_Area : BYTE ;	//Optional: Destination Handling Area, e.g. for multiple handling areas
+   Segregation : "UDT_Segr_Info";	//Optional: Segregation information, e.g. for batching 
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,23 @@
+DATA_BLOCK "DB_Tem_Rout_ZZ_SS"
+TITLE =%version: 0.02 % CN: 20
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 11, 2018 11:11:03 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//change DB_Routing_3Dir to DB_Tem_Rout_ZZ_SS           nlHdL    11-01-18   0.02
+//Init version based on verion 0.04 of 2 Dir            nlHdL    18-05-16   0.01
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entry : ARRAY  [1 .. 300 ] OF "UDT_Rout_Table_Line3";	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

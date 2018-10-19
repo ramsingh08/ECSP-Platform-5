@@ -1,0 +1,21 @@
+TYPE "UDT_MGZ_Sett"
+TITLE =%version: 0.01 % CN: 10
+//History:
+//This version  %created_by: nluhl %
+//              %date_created: Monday, July 30, 2018 2:49:12 PM %
+//
+//Modification History:                                 By:     Date:     Rev:
+//Project
+//----------------------------------------------------  -------  --------  -----
+//Initial Revision                                      nluhl    30-07-18   0.01
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Capacity_Primary_Dir : INT  := 1200;	//[items per hour] Capacity for the primary/forward direction 
+   Capacity_Secundary_Dir : INT  := 1200;	//[items per hour] Capacity for the secundary/reverse direction 
+  END_STRUCT ;	
+END_TYPE
+

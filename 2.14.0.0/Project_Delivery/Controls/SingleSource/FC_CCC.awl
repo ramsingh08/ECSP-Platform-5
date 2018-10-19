@@ -1,0 +1,30 @@
+FUNCTION "FC_CCC" : VOID
+TITLE =%version: 0.01 % CN: 60
+//Function:
+//Temporary  function to all the cabinet blocks CCC for the FB_System
+//
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, October 27, 2016 10:23:00 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17517 Initial revision                             nlHdL    27-10-16   0.01
+//
+//Description:
+//Added all CCC's to the system.
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =#Insert# //Insertion point code generator
+//The generated source will be added overhere.
+
+
+END_FUNCTION
+

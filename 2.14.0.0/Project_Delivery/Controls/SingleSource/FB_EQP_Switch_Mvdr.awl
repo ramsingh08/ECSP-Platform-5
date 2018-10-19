@@ -1,0 +1,615 @@
+FUNCTION_BLOCK "FB_EQP_Switch_Mvdr"
+TITLE =%version: 0.02 % CN: 40
+//Function:                         
+//Control a device that switches between three positions using a movidrive
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Thursday, June 15, 2017 1:21:25 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21768: VDZ21 - ECS-P update zone test              nlHdL    15-06-17   0.02
+//Initial version based on PL4 0.13                     nlHdL    22-05-17   0.01
+//
+//
+//Description:
+//Control a device that switches between three positions using a movidrive
+//with one proximity switch for reference and two limit switches for error 
+//control. 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Manual_Mode : BOOL ;	//CMD: Activate manual mode
+  i_CMD_Manual_Up : BOOL ;	//CMD: Manual switch command Up (True = Active)
+  i_CMD_Manual_Down : BOOL ;	//CMD: Manual switch command Down (True = Active)
+  i_CMD_Start_Ref_Travel : BOOL ;	//CMD: Start reference travel
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_CMD_Goto_Position : BOOL ;	//CMD: Request to go to the Infeed position
+  i_LADDR_MVDRV : INT ;	//Begin addres of profibus node from Movidrive
+  i_Position : INT  := 50;	//CFG: Position Infeed
+  i_CFG_Default_Speed : INT  := 1500;	//CFG: Speed of the Down movement
+  i_CFG_Manual_Speed : INT  := 500;	//CFG: Speed for moving in manual mode
+  i_CFG_Homing_Speed : INT  := 500;	//CFG: Speed for moving to Home position
+  i_CFG_TO_Percentage : INT ;	//CFG: Percentage to add to timeout
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Actual_Position : INT ;	//Actual position of the SWS
+  o_ST_Running : BOOL ;	//ST: Section is running
+  o_ST_Started : BOOL ;	//ST: Started
+  o_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Homing_Active : BOOL ;	//ST: Indicate that homing routine is active
+  o_ST_Homing_Done : BOOL ;	//ST: Indicate that homing routine is done
+  o_ST_Move_Time_Out : BOOL ;	//ST: Switch direction down time out
+  o_ST_Pos_Reached : BOOL ;	//ST: Position is Reached
+  o_ST_LS_Limit_Up : BOOL ;	//ST: Limit switch direction 2
+  o_ST_LS_Limit_Down : BOOL ;	//ST: Limit switch direction 1
+  o_ST_Mvdrv_Comm_Error : BOOL ;	//ST: Movidrive communication error
+  o_ST_Mvdrv_Error : BOOL ;	//ST: Movidrive error
+  o_ST_Mvdrv_Warning : BOOL ;	//ST: Movidrive warning
+  o_Extended_Reset : BOOL ;	//Extended reset for Resetting FC errors
+END_VAR
+VAR
+  s_SWS_PI_Data : "UDT_SWS_Mvdr_PI_Data";	//Input data from movidrive
+  s_SWS_PO_Data : "UDT_SWS_Mvdr_PO_Data";	//Output data to movidrive
+  s_Total_Time_Out : DINT ;	//SWS has a time-out while moving (msec)
+  s_RET_VAL_Read : INT ;	//Return value function call read
+  s_RET_VAL_Write : INT ;	//Return value function call write
+  s_Cnt_Time_Out_Position : DINT ;	//Current time-out value for going to positon
+  s_Extend_Reset_to_Mvdrv : INT ;	//Extend counter for the reset to the movidrive
+  s_Height_Difference : INT ;	//Calculated height difference between current and next position (mm)
+  s_CMD_Reference_Tmr : INT ;	//Timer before starting the referencing
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	//Number of times the drive was started counter
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+  s_EQP_Operational_On : BOOL ;	//Section is Operational On
+  s_ST_FieldB_NotPrsnt : BOOL ;	//Status Fieldbus Slave not present
+  s_ST_FieldB_Error : BOOL ;	//Status Fieldbus Slave error
+  s_Movidrive_Comm_Error : BOOL ;	//Communication error when communicating with the movidrive
+  s_Homing_Ok : BOOL ;	//Homing is OK
+  s_Homing : BOOL ;	//Busy with Homing
+  s_Move_Position : BOOL ;	//SWS move to Position
+  s_Error_Present : BOOL ;	//Error status present
+  s_FP_Move : BOOL ;	//Flank Positive Command Goto Position Move is activated
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+  s_MEM_Mode_Change : BOOL ;	
+  s_MEM_Extended_Reset : BOOL ;	
+  s_CMD_Start : BOOL ;	//Start commando
+END_VAR
+VAR_TEMP
+  t_LADDR : WORD ;	//Begin addres of profibus node from Movidrive
+  t_Time_Out_msec : DINT ;	//Calculated time-out for moving (sec)
+  t_Time_Out_multiplier : INT ;	//Multiplier for time out sec to total timeout
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_Return_Value_Int : INT ;	//Return value
+  t_FP_Mode_Changed : BOOL ;	//Positive flank of mode change Automatic/Manual
+  t_FN_Extended_Reset : BOOL ;	//Negative flank of extended reset
+  t_Cmd_Start_Reference : BOOL ;	
+  t_Enable_Start_Ref_Tmr : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get Input/Output start address of the Movidrive
+//Set temps from Input area pointer
+      L     #i_LADDR_MVDRV; 
+      T     #t_LADDR; 
+
+//Extend Start reference travel command.
+//The movidrive needs some time to accept the command and give the PLC the feedback that the drive is not referenced anymore so referencing will start.
+
+      AN    #i_Ext_Req_Stop; 
+      AN    #i_Ext_Req_Halt; 
+      =     #t_Enable_Start_Ref_Tmr; 
+
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #i_CMD_Start_Ref_Travel,
+           i_Enable_Dly             := #t_Enable_Start_Ref_Tmr,
+           i_Time_Value             := 10,
+           i_Current_Value          := #s_CMD_Reference_Tmr,
+           o_Status                 := #t_Cmd_Start_Reference,
+           o_Current_Value          := #s_CMD_Reference_Tmr);
+NETWORK
+TITLE =AB: Load DB event number to temp
+
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Read data from drive control (SEW) + Handle Errors
+//The Movidrive uses peripheral IO at address i_Mvdrv_IO_Address for 
+//communication. The Pheriperal IO is copied to s_Receive_Buffer (they must have 
+//the same size). The status of copying is checked to be OK.
+      NOP   0; 
+// Reset Movidrive Errors
+// 5 second reset due to the fact that the drive needs some time to get up and running again
+      A     #i_CMD_Reset; 
+      JCN   BA01; 
+
+      L     5000; 
+      T     #s_Extend_Reset_to_Mvdrv; 
+
+      SET   ; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Fault_Reset; 
+      =     #o_Extended_Reset; 
+
+BA01: L     #s_Extend_Reset_to_Mvdrv; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JP    BA02; 
+
+      CLR   ; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Fault_Reset; 
+      =     #o_Extended_Reset; 
+
+      L     0; 
+BA02: T     #s_Extend_Reset_to_Mvdrv; 
+
+      O     #o_Extended_Reset; // Reset errors
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; // OR Safety system Not OK
+      R     #s_Movidrive_Comm_Error; 
+      R     #o_ST_Mvdrv_Comm_Error; 
+      R     #o_ST_Mvdrv_Error; 
+      R     #o_ST_LS_Limit_Down; 
+      R     #o_ST_LS_Limit_Up; 
+      R     #s_ST_FieldB_Error; 
+      R     #s_ST_FieldB_NotPrsnt; 
+
+// Fieldbus statuses
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_NotPrsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_Error; 
+
+// Limit Switch Down
+      A     #s_SWS_PI_Data.PI1_Status_word.Limit_switch_CCW; 
+      A     #s_Homing_Ok; 
+      S     #o_ST_LS_Limit_Down; 
+
+// Limit Switch Up     
+      A     #s_SWS_PI_Data.PI1_Status_word.Limit_switch_CW; 
+      A     #s_Homing_Ok; 
+      S     #o_ST_LS_Limit_Up; 
+
+
+// Copy data from peripheral IO to Receive Buffer
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_LADDR,
+           RET_VAL                  := #s_RET_VAL_Read,
+           RECORD                   := #s_SWS_PI_Data);
+
+      L     #s_RET_VAL_Read; //IF s_RET_VAL_Read <> 0
+      L     0; 
+      <>I   ; 
+      S     #s_Movidrive_Comm_Error; //THEN an error occurred communicating with the Movidrive
+
+// Movidrive Communication Error
+      A     #s_Movidrive_Comm_Error; //IF communication error 
+      A     #i_Available_IO; //AND IO available
+      A     #i_Safety_OK; //AND Safety system OK
+      S     #o_ST_Mvdrv_Comm_Error; //SET Communication error
+
+      AN    #s_Movidrive_Comm_Error; //IF NOT communication error
+      A     #s_SWS_PI_Data.PI1_Status_word.Fault_warning; //AND fault or warning
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND Inverter Ready
+      =     #o_ST_Mvdrv_Warning; //SET Movidrive Warning
+
+      AN    #s_Movidrive_Comm_Error; //IF NOT communication error
+      A     #s_SWS_PI_Data.PI1_Status_word.Fault_warning; //AND fault or warning
+      AN    #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND NOT Inverter Ready
+      S     #o_ST_Mvdrv_Error; //SET Movidrive Error
+
+      NOP   0; 
+
+NETWORK
+TITLE =JA: Determine what position the SWS is at
+// Check if at Position
+      A     #s_SWS_PI_Data.PI1_Status_word.IPOS_in_Position; 
+      =     #o_ST_Pos_Reached; 
+
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      T     #o_Actual_Position; 
+NETWORK
+TITLE =CA: Determine Up or Down movement and calculate TimeOut
+//Determine if location is higher than current location
+      A     #i_CMD_Goto_Position; 
+      AN    #i_CMD_Reset; 
+      FP    #s_FP_Move; 
+      JCN   CA99; 
+
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      L     #i_Position; 
+      <I    ; 
+      JCN   CA01; 
+
+      L     #i_Position; 
+      L     #s_SWS_PI_Data.PI3_Act_Position; 
+      -I    ; 
+      T     #s_Height_Difference; 
+      JU    CA02; 
+
+//Determine if location is lower than current location
+CA01: L     #s_SWS_PI_Data.PI3_Act_Position; 
+      L     #i_Position; 
+      -I    ; 
+      T     #s_Height_Difference; 
+
+
+// mm*1000 devide by mm*1000/sec = msec
+CA02: L     #s_Height_Difference; 
+      L     1000; 
+      *D    ; 
+      L     #i_CFG_Default_Speed; 
+      /D    ; 
+      L     1000; // ADD 1 sec for the brake to release and get moving
+      +D    ; 
+      T     #t_Time_Out_msec; 
+
+// Calculate the timeout in ms with 
+// Add configurable to the total time out
+//( sec*120/100 => total*1000)  
+
+      L     #i_CFG_TO_Percentage; 
+      L     100; 
+      +I    ; 
+      T     #t_Time_Out_multiplier; 
+
+      L     #t_Time_Out_msec; 
+      L     #t_Time_Out_multiplier; 
+      *D    ; 
+      L     100; 
+      /D    ; 
+      T     #s_Total_Time_Out; 
+      T     #s_Cnt_Time_Out_Position; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =CA: Error Time-out detection
+
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_Move_Time_Out; 
+
+// Evaluation time out movement to Position
+      A     #s_Move_Position; //If the motor is running towards position  
+      AN    #i_CMD_Manual_Mode; 
+      JCN   DA99; //Then Reset timer.
+
+      L     #s_Cnt_Time_Out_Position; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -D    ; 
+      T     #s_Cnt_Time_Out_Position; 
+      L     0; 
+      <=D   ; 
+      S     #o_ST_Move_Time_Out; //.. And set DS error Time_Out
+
+DA99: NOP   0; 
+NETWORK
+TITLE =GA: Create error status
+
+      NOP   0; 
+// When the status display of the drive says that it has no 400V (Status '0').
+      A     #o_ST_Move_Time_Out; 
+      O     #o_ST_Mvdrv_Comm_Error; 
+      O     #o_ST_Mvdrv_Error; 
+      =     #s_Error_Present; 
+
+NETWORK
+TITLE =HA: Determine 'Operational_ON' status
+
+      A     #i_CMD_Start; 
+      S     #s_CMD_Start; 
+
+      A     #o_Extended_Reset; 
+      FN    #s_MEM_Extended_Reset; 
+      =     #t_FN_Extended_Reset; 
+
+      AN    #o_Extended_Reset; 
+      O     #t_FN_Extended_Reset; 
+      A     #s_CMD_Start; 
+      S     #s_EQP_Operational_On; 
+      R     #s_CMD_Start; 
+
+      AN    #i_CMD_Enable; 
+      O     #i_CMD_Manual_Mode; 
+      ON    #i_Available_IO; 
+      O     #i_Ext_Req_Stop; 
+      ON    #i_Safety_OK; 
+      O     #s_Error_Present; 
+      O     #o_ST_LS_Limit_Down; 
+      O     #o_ST_LS_Limit_Up; 
+      R     #s_EQP_Operational_On; 
+      R     #s_CMD_Start; 
+NETWORK
+TITLE =IA: Position to movidrive
+
+      A     #s_EQP_Operational_On; 
+      O(    ; 
+      A     #i_CMD_Manual_Mode; 
+      A     #i_Available_IO; 
+      )     ; 
+      AN    #i_Ext_Req_Halt; 
+      AN    #s_Error_Present; 
+      AN    #o_ST_LS_Limit_Down; 
+      AN    #o_ST_LS_Limit_Up; 
+      A     #i_CMD_Goto_Position; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; 
+      A     #s_Homing_Ok; 
+      A     #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      =     #s_Move_Position; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; 
+
+NETWORK
+TITLE =DA: Reset Movidrive signals
+
+      SET   ; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Reserved_2; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      R     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+
+//Reset Homing if IPOS not in reference
+      ON    #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      O     #o_ST_LS_Limit_Down; 
+      O     #o_ST_LS_Limit_Up; 
+      O(    ; 
+      A     #t_Cmd_Start_Reference; 
+      A     #i_CMD_Manual_Mode; 
+      )     ; 
+      R     #s_Homing_Ok; 
+      R     #o_ST_Homing_Done; 
+
+//Set Inverter to AUTO mode
+      CLR   ; 
+      A     #i_CMD_Enable; 
+      A     #s_Homing_Ok; 
+      AN    #i_Ext_Req_Stop; 
+      AN    #i_Ext_Req_Halt; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Reserved_2; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter 
+NETWORK
+TITLE =EA: Homing the movidrive
+//When the movidrive has no error and the section is operational and no IPOS 
+//reference (StatusWord Bit2) then start the homing function.
+      AN    #s_Homing_Ok; 
+      AN    #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      A     #s_EQP_Operational_On; 
+      A     #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; //AND Inverter Ready
+      AN    #o_ST_Mvdrv_Error; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+
+      A     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      A     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      A     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+      A     #s_SWS_PI_Data.PI1_Status_word.Motor_running; 
+      S     #s_Homing; //Set Mode to homing 
+
+//Homing function is OK
+      A     #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      AN    #t_Cmd_Start_Reference; 
+      O(    ; 
+      AN    #s_EQP_Operational_On; 
+      AN    #i_CMD_Manual_Mode; 
+      )     ; 
+      R     #s_Homing; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+
+      A     #s_SWS_PI_Data.PI1_Status_word.IPOS_Reference; 
+      AN    #t_Cmd_Start_Reference; 
+      S     #s_Homing_Ok; 
+      S     #o_ST_Homing_Done; 
+
+NETWORK
+TITLE =FA: Move manual Up/Down and Referencing
+
+      A     #i_CMD_Manual_Mode; 
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      S     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+
+      A     #i_CMD_Manual_Up; 
+      A     #i_CMD_Manual_Mode; 
+      AN    #o_ST_LS_Limit_Up; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Start_Manual_Up; //Manual Up command
+
+      A     #i_CMD_Manual_Down; 
+      A     #i_CMD_Manual_Mode; 
+      AN    #o_ST_LS_Limit_Down; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Start_Manual_Down; //Manual Down command
+
+      A     #i_CMD_Manual_Mode; 
+      A     #t_Cmd_Start_Reference; 
+      AN    #o_ST_Mvdrv_Error; 
+      AN    #o_Extended_Reset; // During Reset dont allow any commands, Can be that the drive is still recovering from the error
+      AN    #o_ST_LS_Limit_Down; 
+      AN    #o_ST_LS_Limit_Up; //Set Mode to homing 
+      S     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+
+      A     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      A     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; //AND enable Inverter
+      A     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; //AND enable Inverter
+      A     #s_SWS_PI_Data.PI1_Status_word.Motor_running; 
+      S     #s_Homing; //Set Mode to homing 
+
+NETWORK
+TITLE =Suppress commands when drive is in error
+//Suppress all commands when drive has an error. So when the drive is OK again 
+//the VDZ will not start immidiatlly. Also reset commands when there is an 
+//modechange done or when the area is stopped.
+      ON    #i_CMD_Manual_Mode; 
+      FP    #s_MEM_Mode_Change; 
+      =     #t_FP_Mode_Changed; 
+
+      A     #s_Error_Present; 
+      O     #t_FP_Mode_Changed; 
+      O     #i_Ext_Req_Stop; 
+      O(    ; 
+      AN    #s_EQP_Operational_On; 
+      AN    #i_CMD_Manual_Mode; 
+      )     ; 
+      R     #s_Homing; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Start_Reference_Travel; 
+      R     #s_SWS_PO_Data.PO1_Control_word.Go_To_Position; 
+
+NETWORK
+TITLE =KA: Speed for drive control (SEW)
+
+      A     #i_CMD_Manual_Mode; 
+      JCN   KA01; 
+
+      L     #i_CFG_Manual_Speed; 
+      JU    KA03; 
+
+KA01: A     #s_Homing; 
+      JCN   KA02; 
+
+      L     #i_CFG_Homing_Speed; 
+      JU    KA03; 
+
+KA02: L     #i_CFG_Default_Speed; 
+KA03: T     #s_SWS_PO_Data.PO2_Set_Speed; 
+
+NETWORK
+TITLE =LA: Position for drive control (SEW)
+
+      L     #i_Position; 
+      T     #s_SWS_PO_Data.PO3_Set_Position; 
+
+NETWORK
+TITLE =OA: Write data to drive control (SEW)
+//Copy data from peripheral IO to Receive Buffer
+      CALL "DPWR_DAT" (
+           LADDR                    := #t_LADDR,
+           RECORD                   := #s_SWS_PO_Data,
+           RET_VAL                  := #s_RET_VAL_Write);
+
+      L     #s_RET_VAL_Write; //IF s_RET_VAL_Read <> 0
+      L     0; 
+      <>I   ; 
+      S     #s_Movidrive_Comm_Error; //THEN an error occurred communicating with the Movidrive
+
+NETWORK
+TITLE =PA: Ready to restart indication to Equipment Control
+
+      AN    #s_EQP_Operational_On; 
+      AN    #s_Error_Present; 
+      AN    #o_ST_LS_Limit_Down; 
+      AN    #o_ST_LS_Limit_Up; 
+      AN    #i_CMD_Manual_Mode; 
+      A     #i_CMD_Enable; 
+      AN    #i_Ext_Req_Stop; 
+      A     #i_Safety_OK; 
+      A     #i_Available_IO; 
+      =     #o_Ready_To_Restart; 
+
+NETWORK
+TITLE =QA: Status running
+
+      O     #s_Move_Position; 
+      O     #s_Homing; 
+      O     ; 
+      A(    ; 
+      O     #i_CMD_Manual_Up; 
+      O     #i_CMD_Manual_Down; 
+      )     ; 
+      A     #i_CMD_Manual_Mode; 
+      =     #o_ST_Running; 
+NETWORK
+TITLE =RA: Statuses
+
+      A     #s_ST_FieldB_NotPrsnt; 
+      =     #o_ST_FieldB_NotPrsnt; 
+
+      A     #s_ST_FieldB_Error; 
+      =     #o_ST_FieldB_Error; 
+
+      A     #s_Homing; 
+      =     #o_ST_Homing_Active; 
+
+      A     #s_EQP_Operational_On; 
+      =     #o_ST_Started; 
+
+      AN    #i_Safety_OK; 
+      ON    #i_Available_IO; 
+      =     #o_ST_External_Stop; 
+NETWORK
+TITLE =SA: Determine and send statistical values
+
+      NOP   0; 
+
+// Determine the number of seconds that the motor is running 
+      A     #o_ST_Running; 
+      A     "M_OS_New_Second"; 
+      JCN   SA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+// Determine the number of times the motor starts/stops
+SA01: A     #o_ST_Running; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   SA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report Hardware: Motor Stopped (3902)
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Send statistical values
+SA02: A     #i_CMD_Send_Stat; 
+      JCN   SA99; 
+
+      CALL "FC_Write_Event" (// Report statistical start/stop information
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of times the motor starts/stops after message has been send
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report statistical started time information
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of seconds that the motor is running after message has been send
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+SA99: NOP   0; 
+END_FUNCTION_BLOCK
+

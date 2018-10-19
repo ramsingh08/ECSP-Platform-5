@@ -1,0 +1,25 @@
+TYPE "UDT_SCZ_Settings"
+TITLE =%version: 0.01 % CN: 10
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Tuesday, June 20, 2017 8:04:13 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version for PF5                               inrjoi   20-06-17   0.01                                                                                                                         
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Dist_Switch_Area : INT  := 30;	//[cm] Area after gap-clear PEC that must be clear before switching 
+   Flow_Ratio_High : INT  := 1;	//Amount of bags before switching to upper infeed [0 = Priority low infeed]
+   Flow_Ratio_Low : INT  := 1;	//Amount of bags before switching to lower infeed [0 = Priority high infeed]
+   Ratio_TimeOut_Time : INT  := 4000;	//[ms] Time-out time for ratio handling
+   Dir_Not_Allowed_Timeout : INT  := 600;	//[0.1s] Time-Out for direction not allowed
+   UFO_On_Up_Infeed_Dir : INT ;	//Direction UFO bag detected on up infeed belt (1=Up/2=Down)
+   UFO_On_Down_Infeed_Dir : INT ;	//Direction UFO bag detected on down infeed belt (1=Up/2=Down)
+  END_STRUCT ;	
+END_TYPE
+

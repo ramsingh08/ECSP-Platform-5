@@ -1,0 +1,116 @@
+FUNCTION_BLOCK "FB_PNPN_Pending_Msgs"
+TITLE =%version: 0.02 % CN: 33
+//Function:
+//This function handels pending messages on PNPN connections area.
+//
+//
+//History:                                                                        
+//This version   %created_by: inajos %
+//              %date_created: Tuesday, December 13, 2016 10:01:45 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18904 : Block updated                              inajos   13-12-16   0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16   0.01
+//
+//Description:
+//The function handels the following messages:
+//  -> 10 - Screening Update
+//  -> 20 - Update Pending Status
+//  -> 30 - Pending Status Request
+//  -> 31 - Pending Status Respons
+//- Sending Pending Status Request on interval based
+//  (Not Impleneted yet)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZS
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Structure PNPN Received message
+  i_New_Message_Received : BOOL ;	//New message received
+  i_DB_FIFO_Snd_Pending : BLOCK_DB ;	//DB Fifo send pending messages
+END_VAR
+VAR
+  s_FB_Msg_PendingUpdate : "FB_Rcv_PendingUpd";	//Receive Pending Update
+  s_FB_Msg_PendingRequest : "FB_Rcv_PendingReq";	//Receive Pending Status Request (Send bag a Pending Status Response)
+  s_FB_Msg_PendingResponse : "FB_Rcv_PendingResp";	//Receive Pending Status Response
+  s_FB_Msg_ScreeningUpdate : "FB_Rcv_ScreenUpd";	//Receive Screening Update status
+  s_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Structure PNPN Received message
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB  
+  t_RET_VAL_INT : INT ;	//Return value function call (INT)
+  t_DB_Event_Num : INT ;	
+  t_DB_FIFO_Snd_Pending : INT ;	//DB number FIFO sending messages to downstream area
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      OPN   #i_DB_Event; // DB number Event
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_FIFO_Snd_Pending; // DB number FIFO sending messages to downstream area
+      L     DBNO; 
+      T     #t_DB_FIFO_Snd_Pending; 
+
+      AN    #i_New_Message_Received; 
+      BEC   ; 
+
+NETWORK
+TITLE =BA: Kopie message for internal use
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #i_PNPN_Received_Message,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_PNPN_Received_Message);
+
+NETWORK
+TITLE =CA: Handling screening update message
+//Handle received screening update message
+      CALL #s_FB_Msg_ScreeningUpdate (
+           i_DB_Send_FIFO_Pend      := #i_DB_FIFO_Snd_Pending,
+           i_DB_Event               := #i_DB_Event,
+           io_PNPN_Received_Message := #s_PNPN_Received_Message);
+
+NETWORK
+TITLE =DA: Handling Pending update message
+
+      CALL #s_FB_Msg_PendingUpdate (
+           i_DB_Event               := #i_DB_Event,
+           io_PNPN_Received_Message := #s_PNPN_Received_Message);
+
+NETWORK
+TITLE =EA: Handling Pending Status Request
+//On the status request a status Responce is returned.
+      CALL #s_FB_Msg_PendingRequest (
+           i_ID                     := #i_ID,
+           i_DB_Event               := #i_DB_Event,
+           i_DB_FIFO_Snd            := #i_DB_FIFO_Snd_Pending,
+           io_PNPN_Received_Message := #s_PNPN_Received_Message);
+
+NETWORK
+TITLE =FA: Handling Pending Status Response
+
+      CALL #s_FB_Msg_PendingResponse (
+           i_DB_Event               := #i_DB_Event,
+           io_PNPN_Received_Message := #s_PNPN_Received_Message);
+
+END_FUNCTION_BLOCK
+

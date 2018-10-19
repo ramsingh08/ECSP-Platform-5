@@ -1,0 +1,99 @@
+FUNCTION_BLOCK "FB_DAT"
+TITLE =%version: 0.07 % CN: 42 
+//Function:
+//Collect all HLC data
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, September 01, 2017 2:12:05 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#5033: Update DAT Layer                            nlHdL    01-09-17   0.07
+//ina#5033: Missing route messages because off log mess nlHdL    11-07-17   0.06
+//ra#11147: FB_DAT_SAC changed to FB_DAT_Routing        nlHdL    28-04-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//15425: Added input No messeges SAC or BPI             nlHdL    04-09-13   0.03
+//CR11399 Comment change only                           nlHdL    11-09-12   0.02 
+//Init version                                          nlRWwi   29-09-10   0.01 
+//
+//Description:
+//Collect all HLC data
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Section : DWORD ;	//ID of Section ID Record HEX AAAA - ZZSS.
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_PLC_Log_FIFO_DB : BLOCK_DB ;	//Data structure: PLC FIFO Log DB
+  i_CFG_BPI_Log_Level : INT ;	//CFG: [0..10] Log level to BPI (0 = no logging)
+  i_CFG_PLC_Log_Level : INT ;	//CFG: [0..10] Log level to BPI (0 = no logging)
+  i_CFG_PLC_Log_Route_Msgs : BOOL ;	//CFG: Log Routing messages (If TRUE = Messages are logged)
+  i_CFG_PLC_LOG_BPI_Stat : BOOL ;	//CFG: Log BPI statisticals (If TRUE = Messages are logged)
+  i_CFG_PLC_No_Msg_To_Rout : BOOL ;	//CFG: Send No messages to Routing (If TRUE = No Messages are send to SAC)
+  i_CFG_PLC_No_Msg_To_BPI : BOOL ;	//CFG: Send No messages to BPI (If TRUE = No Messages are send to BPI)
+END_VAR
+VAR
+  s_FB_DAT_Routing : "FB_DAT_Routing";	//Block call static FB_DAT_Routing
+  s_FB_DAT_BPI_Stat : "FB_DAT_BPI_Stats";	//Block call static FB_DAT_BPI_Stats
+  s_FB_DAT_BPI_Log : "FB_DAT_BPI_Log";	//Block call static FB_DAT_BPI_Log
+  s_FB_DAT_PLC_Log : "FB_DAT_PLC_Log";	//Block call static FB_DAT_PLC_Log
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Routing DATA
+
+      NOP   0; // Hold comments
+
+      AN    #i_CFG_PLC_No_Msg_To_Rout; // If TRUE = No Messages are send to Routing
+      JCN   AA99; 
+
+      CALL #s_FB_DAT_Routing (
+           i_ID                     := #i_ID_Section,
+           i_Local_Buffer           := #i_DB_Event,
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_PLC_FIFO_DB            := "DB_Send_FIFO");
+
+AA99: NOP   0; 
+NETWORK
+TITLE =AB: BPI Statisticals
+
+      NOP   0; // Hold comments
+
+      AN    #i_CFG_PLC_No_Msg_To_BPI; // If TRUE = No Messages are send to BPI
+      JCN   AB99; 
+
+      CALL #s_FB_DAT_BPI_Stat (
+           i_ID                     := #i_ID_Section,
+           i_Local_Buffer           := #i_DB_Event,
+           i_PLC_FIFO_DB            := "DB_Send_FIFO");
+
+AB99: NOP   0; 
+NETWORK
+TITLE =AC: BPI Logging
+
+      CALL #s_FB_DAT_BPI_Log (
+           i_ID                     := #i_ID_Section,
+           i_Local_Buffer           := #i_DB_Event,
+           i_PLC_FIFO_DB            := "DB_Send_FIFO_Log",
+           i_CFG_Log_Level          := #i_CFG_BPI_Log_Level);
+
+NETWORK
+TITLE =AD: PLC Logging
+
+      CALL #s_FB_DAT_PLC_Log (
+           i_ID                     := #i_ID_Section,
+           i_Local_Buffer           := #i_DB_Event,
+           i_PLC_Log_FIFO_DB        := #i_PLC_Log_FIFO_DB,
+           i_CFG_Log_Level          := #i_CFG_PLC_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := #i_CFG_PLC_Log_Route_Msgs,
+           i_CFG_LOG_BPI_Statistics := #i_CFG_PLC_LOG_BPI_Stat);
+
+END_FUNCTION_BLOCK
+

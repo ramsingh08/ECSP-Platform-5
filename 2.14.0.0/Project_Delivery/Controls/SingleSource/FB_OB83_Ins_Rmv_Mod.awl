@@ -1,0 +1,292 @@
+FUNCTION_BLOCK "FB_OB83_Ins_Rmv_Mod"
+TITLE =%version: 0.02 % CN: 30
+//Function: 
+//Module for acyclic diagnose of main rack module not present and configuration 
+//error.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:01:04 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description: 
+//On the basis of OB83 Event class, Fault ID, module address and rack number the 
+//main rack module not present and error bitmaps are updated dependent on the 
+//type of event.                       
+//
+//IMPORTANT: This module must be called from within OB83 and could not be used on 
+//another location!
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_HW_Not_Present_Bitmap : ANY ;	//ANY pointer to HW Not Present Bitmap
+  i_HW_Error_Bitmap : ANY ;	//ANY pointer to HW Error Bitmap
+END_VAR
+VAR
+  s_Error : BOOL ;	//Error during execution
+END_VAR
+VAR_TEMP
+  t_RET_VAL : INT ;	//Temp return value SFC49
+  t_AREA : BYTE ;	//Temp AREA SFC49
+  t_RACK : WORD ;	//Temp RACK SFC49
+  t_SLOT : WORD ;	//Temp SLOT SFC49
+  t_SUBADDR : WORD ;	//Temp SUBADDR SFC49
+  t_Module_Not_Present : BOOL ;	//Temp module not present
+  t_Module_Present_OK : BOOL ;	//Temp module present and OK
+  t_Module_Present_Fault : BOOL ;	//Temp module present and not OK
+  t_DB_num : INT ;	//Temp DB number bitmaps
+  t_OB83_EV_CLASS : BYTE ;	//Temp Event Class OB83
+  t_OB83_FLT_ID : BYTE ;	//Temp Fault identification OB83
+  t_OB83_MDL_ADDR : WORD ;	//Temp Module Address OB83
+  t_OB83_RACK_NUM : WORD ;	//Temp Rack Number OB83
+  t_OB83_RESERVED_1 : BYTE ;	//Temp Reserved OB83
+  t_OB83_EV_CLASS_FLT_ID : WORD ;	//Temp Event Class + Fault Identification OB83
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+NETWORK
+TITLE =BA: Load local data OB83
+//Load EV_CLASS, FLT_ID, MDL_ADDR, RACK_NUM and RESERVED_1 from OB83 local data 
+//stack
+      L     DW#16#87000000; // Load local data OB83
+      LAR1  ; 
+      L     B [AR1,P#0.0]; // Load EV_CLASS
+      T     #t_OB83_EV_CLASS; // Transfer to temp
+      L     B [AR1,P#1.0]; // Load FLT_ID
+      T     #t_OB83_FLT_ID; // Transfer to temp
+      L     W [AR1,P#6.0]; // Load MDL_ADDR
+      T     #t_OB83_MDL_ADDR; // Transfer to temp
+      L     W [AR1,P#8.0]; // Load RACK_NUM
+      T     #t_OB83_RACK_NUM; // Transfer to temp
+      L     B [AR1,P#4.0]; // Load RESERVED_1
+      T     #t_OB83_RESERVED_1; // Transfer to temp
+
+NETWORK
+TITLE =CA: Retrieve rack number and slot number
+//If the ID is a rack number (OB83_RESERVED_1 = B#16#C4) and the main rack is 
+//addressed (OB83_RACK_NUM = 0) the logical address of the module is converted to 
+//the geographical address (slot number). If this conversion is correctly 
+//executed (RET_VAL = 0) and the slot number is valid (<= 18) the function block 
+//continues. Otherwise an error is generated (s_error SET) and the block ends 
+//(BEU). If the ID is not a rack number or the main rack is not addressed the 
+//function block ends (BEU) without an error.
+      A(    ; // IF Reserved_1 = B#16#C4 (ID is Rack number)
+      L     #t_OB83_RESERVED_1; 
+      L     B#16#C4; 
+      ==I   ; 
+      )     ; 
+      A(    ; // AND rack number = 0 
+      L     #t_OB83_RACK_NUM; 
+      L     W#16#0; 
+      ==I   ; 
+      )     ; // ..THEN continue 
+      JCN   CA01; // ..ELSE end without error
+
+      CALL "LGC_GADR" (// Retrieve slot number
+           IOID                     := B#16#54,
+           LADDR                    := #t_OB83_MDL_ADDR,
+           RET_VAL                  := #t_RET_VAL,
+           AREA                     := #t_AREA,
+           RACK                     := #t_RACK,
+           SLOT                     := #t_SLOT,
+           SUBADDR                  := #t_SUBADDR);
+
+
+      L     #t_SLOT; // IF slot number <= 18 (valid slot number)
+      L     18; 
+      >I    ; 
+      O(    ; // AND return value = 0 (no conversion error)..
+      L     #t_RET_VAL; 
+      L     0; 
+      <>I   ; 
+      )     ; 
+      JCN   CA99; // ..THEN continue
+
+// ************** TODO: Error handling **************
+      SET   ; // ..ELSE end with error
+      =     #s_Error; 
+
+CA01: BEU   ; // End block
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: EV_CLASS and FLT_ID --> status module
+//The incoming EV_CLASS and FLT_ID are merged and on the basis of this 
+//combination the status of the module is determined. If no used combination is 
+//coming in the function block ends (BEU) without error.
+//
+      CLR   ; // Reset temp variables   
+      =     #t_Module_Not_Present; 
+      =     #t_Module_Present_OK; 
+      =     #t_Module_Present_Fault; 
+
+// Merge B#16#EV_CLASS and B#16#FLT_ID to W#16#EV_CLASS_FLT_ID
+      L     #t_OB83_EV_CLASS; 
+      SLW   8; 
+      L     #t_OB83_FLT_ID; 
+      OW    ; 
+      T     #t_OB83_EV_CLASS_FLT_ID; 
+
+// Module removed or not responding (3961, 3966, 3984) --> Module Not Present
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3961; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3966; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3984; 
+      ==I   ; 
+      )     ; 
+      S     #t_Module_Not_Present; 
+      JC    DA99; 
+
+// Module inserted OK or responds again (3861, 3866, 3884)
+// or Module Re-configuration OK (3267) --> Module Present and OK
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3861; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3866; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3884; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3267; 
+      ==I   ; 
+      )     ; 
+      S     #t_Module_Present_OK; 
+      JC    DA99; 
+
+
+// Module inserted but error (3863, 3864, 3865)
+// or Module reconfiguration but error (3968) --> Module Present and Fault
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3863; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3864; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3865; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3968; 
+      ==I   ; 
+      )     ; 
+      S     #t_Module_Present_Fault; 
+      JC    DA99; 
+
+// Start of module reconfiguration (3367): Not Used
+
+      L     #t_OB83_EV_CLASS_FLT_ID; 
+      L     W#16#3367; 
+      <>I   ; 
+
+      JCN   DA01; 
+
+// ************** TODO: Error handling **************
+      SET   ; 
+      =     #s_Error; 
+DA01: BEU   ; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Update HW Not present Bitmap
+//If the module is not present a flag is SET in the HW Not Present Bitmap on the 
+//slot number of the module. If the module is present (OK or Fault) a flag is 
+//RESET in the HW Not Present Bitmap on the slot number of the module.
+      L     #t_SLOT; // Decrease slot number by 1 for correct 
+      DEC   1; // positioning in HW status bitmaps
+      T     #t_SLOT; 
+
+      L     P##i_HW_Not_Present_Bitmap; // Load pointer to HW Not Present bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number HW Not Present bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of HW Not Present bitmap in DB
+      L     #t_SLOT; // And add Offset in HW Not Present bitmap (=slot number)
+      +D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of HW Not Present bitmap (temp DB number)
+      A     #t_Module_Not_Present; // IF module not present..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Not Present bitmap on module slot position (AR1)
+
+      O     #t_Module_Present_Fault; // IF module present and OK
+      O     #t_Module_Present_OK; // OR module present and Fault..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Not Present bitmap on module slot position (AR1)
+NETWORK
+TITLE =FA: Update HW Error Bitmap
+//If the module is present and Fault a flag is SET in the HW Error Bitmap on the 
+//slot number of the module. If the module is not present or present and OK a 
+//flag is RESET in the HW Error Bitmap on the slot number of the module.
+      L     P##i_HW_Error_Bitmap; // Load pointer to HW Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number HW Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of HW Error bitmap in DB
+      L     #t_SLOT; // And add Offset in HW Error bitmap (=slot number)
+      +D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of HW Error bitmap (temp DB number)
+      A     #t_Module_Present_Fault; // IF module present and Fault..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on module slot position (AR1)
+
+      O     #t_Module_Present_OK; // IF module present and OK
+      O     #t_Module_Not_Present; // OR module not present..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on module slot position (AR1)   
+NETWORK
+TITLE =GA: SET Global merker: M_HW_Diag_Interrupt
+
+      SET   ; 
+      S     "M_HW_Diag_Interrupt"; 
+
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,39 @@
+TYPE "UDT_VDZ_Int_Prog"
+TITLE =%version: 0.04 % CN: 11 
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Wednesday, November 08, 2017 2:47:18 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24084: ESCP: LCC12 VDZ ASI Diagnosed               nlHdL    09-11-17   0.04
+//ra#21768: VDZ21 - ECS-P update zone test              nlHdL    15-06-17   0.03
+//ra#53655:VDZ24 Updates                                inajos   30-05-17   0.02
+//ra#52789: Initial revision                            nlHdL    08-05-17   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   TRS_Num_DB_PLT : INT ;	//Carrier TRS DB number from PLT DB  
+   TRS_PEC_Offset : INT ;	//Carrier TRS Position of the beginning of the conveyor
+   TRS_Basic_Offset : INT ;	//Carrier TRS basic offset
+   TRS_Speed_Setpoint : INT ;	//Carrier TRS Speed setpoint
+   TRS_Request_Stop : BOOL ;	//Carrier TSR Requested stop
+   TRS_Request_Halt : BOOL ;	//Carrier TRS Requested halt
+   TRS_PEC_Latch_EOS : BOOL ;	//Carrier TRS Pec latch End Of Section
+   TRS_PEC_Latch_SOS : BOOL ;	//Carrier TRS PEC latch Start Of Section
+   TRS_Disable_Send : BOOL ;	//Carrier TRS Disable Send
+   TRS_Manual_Run : BOOL ;	//Carrier TRS request manual run
+   PBB_Inf_IO_Avail : BOOL ;	//PBB Infeed IO Available
+   PBB_Inf2_IO_Avail : BOOL ;	//PBB Infeed2 IO Available
+   PBB_Outf_IO_Avail : BOOL ;	//PBB Outfeed IO Available
+   TRS_Inf_Req_Dis_Send : BOOL ;	//TRS Infeed Request Disable Send
+   TRS_Inf2_Req_Dis_Send : BOOL ;	//TRS Infeed2 Request Disable Send
+   TRS_Inf_Request_Halt : BOOL ;	//TRS Infeed Requested halt
+   TRS_Inf2_Request_Halt : BOOL ;	//TRS Infeed2 Requested halt
+   ASI_Gateway_CH_OK : BOOL ;	//ASI Gateway Channel OK
+  END_STRUCT ;	
+END_TYPE
+

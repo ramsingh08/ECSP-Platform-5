@@ -1,0 +1,256 @@
+FUNCTION "FC_Wrt_SrtCtrlEntr_T" : VOID
+TITLE =%version: 0.05 % CN: 30
+//Function:
+//Transfer capacity control information into capacity control table
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, March 30, 2018 9:44:12 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#6135: SortControl number of tubs as INT value nlHdL    30-03-18   0.05
+//ra#24258: Number of tubs from TFC are not divided     nlJMol   10-08-17   0.04
+//ina#5119: Convert to stack size wrong for sortcontr   nlJMol   18-04-17   0.03
+//ra#19599: Update Sort Control message stack height    nlJMol   31-01-17   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.01
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on version 0.02 TTC            nlHdL    26-02-14   0.01
+//
+//Description:
+//Transfer capacity control information into capacity control table
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_SrtCtrlDB_Nr : INT ;	//Sort control DB nr	
+  i_Stack_Size : INT ;	//Stack size (Default 1 = Single carrier)
+  i_Tub_Type : INT ;	//[1..2] TUB Type which is processed. 1=SBT 2=OBT
+  i_Tub_Status : INT ;	//[1..4] TUB Status. 1=Empty 2=Loaded
+  i_Number_Of_Tubs : INT ;	//[0..999] Number of Tubs
+  i_TrainLength : INT ;	//[0..10] Ratio X
+  i_AllowedSorting : INT ;	//[0..10] Ratio Y
+END_VAR
+VAR_TEMP
+  t_AR1_Store_Restore : DWORD ;	//Backup addres register AR1
+  t_Tub_Type_Pointer : DWORD ;	//Pointer to tub type part
+  t_Tub_Status_Pointer : DWORD ;	//Pointer to  tub status part	
+  t_ANY_Pointer : DWORD ;	//ANY pointer to the start of the DB	
+  t_Stack_Size : REAL ;	//Stack size (Real)
+  t_TrainLength : REAL ;	//Convert ratio X (check sign)	
+  t_AllowedSorting : REAL ;	//Convert ratio Y (check sign)	
+  t_NumberOfTubs : REAL ;	//Convert Number Of tubs (check sign)	
+  t_Max_Tub_Type_Value : INT ;	//Define max. tub type value
+  t_Max_Tub_Status_Value : INT ;	//Define max. tub status value	
+  t_Line_Pointer_Length : INT ;	//Decfine line pointer lentgh (bytes)
+  t_SrtCtrlDB_Nr : INT ;	//Sort control DB nr	
+  t_TrainLength_Int : INT ;	//Calculated ratio X (Integer)
+  t_AllowedSorting_Int : INT ;	//Calculated ratio y (Integer)
+  t_NumberOfTubs_Int : INT ;	//Calculated Number Of Tubs (Integer)
+  t_TrainLength_Calc : BYTE ;	//Calculated ratio X (check sign)	
+  t_AllowedSorting_Calc : BYTE ;	//Calculated ratio Y (check sign)	
+  t_NumberOfTubs_Calc : WORD ;	//Calculated Number Of Tubs (check sign)	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Write constant values
+
+      L     2; // Write max. tub type value
+      T     #t_Max_Tub_Type_Value; 
+
+      L     2; // Write max. tub status value
+      T     #t_Max_Tub_Status_Value; 
+
+      L     4; // Write line pointer length (number of bytes)
+      T     #t_Line_Pointer_Length; 
+NETWORK
+TITLE =AB: Check Tub Type and Tub Status values
+// 
+      NOP   0; 
+// Tub type value must be greater than or equal to 1 and less than or equal to max. tub type value
+// 1 = SBT
+// 2 = OBT
+
+      A(    ; 
+      L     #i_Tub_Type; // IF Tub type value >= 1
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; // AND Tub type value <= max. tub type value
+      TAK   ; 
+      L     #t_Max_Tub_Type_Value; 
+      <=I   ; 
+      )     ; 
+      JC    AB01; // THEN Tub type value is ok
+      BEU   ; // ELSE Tub type value is not ok: end block
+
+// Tub status value must be greater than or equal to 1 and less than or equal to max. tub status value
+// 1 = Empty
+// 2 = Loaded
+
+AB01: A(    ; 
+      L     #i_Tub_Status; // IF Tub status value >= 1
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; // AND Tub status value <= max. tub status value
+      TAK   ; 
+      L     #t_Max_Tub_Status_Value; 
+      <=I   ; 
+      )     ; 
+      JC    AB99; // THEN Tub status value is ok
+      BEU   ; // ELSE Tub status value is not ok: end block
+
+AB99: NOP   0; 
+NETWORK
+TITLE =AC: Convert values from INT to REAL 
+
+      NOP   0; 
+
+// Convert stack size INT to REAL
+      L     #i_Stack_Size; 
+      ITD   ; 
+      DTR   ; 
+      T     #t_Stack_Size; 
+
+// Convert ratio X (check sign)
+      L     0; 
+      L     #i_TrainLength; // IF Ratio X < 0 (negative)
+      >I    ; 
+      JCN   AC01; 
+      L     0; // THEN Force it to 0
+AC01: T     #t_TrainLength_Int; // ELSE Copy it to INT
+
+      L     #t_TrainLength_Int; //Convert INT to REAL
+      ITD   ; 
+      DTR   ; 
+      T     #t_TrainLength; 
+
+// Convert ratio Y (check sign)
+      L     0; 
+      L     #i_AllowedSorting; // IF Ratio Y < 0 (negative)
+      >I    ; 
+      JCN   AC02; 
+      L     0; // THEN Force it to 0
+AC02: T     #t_AllowedSorting_Int; // ELSE Copy it to INT
+
+      L     #t_AllowedSorting_Int; //Convert INT to REAL
+      ITD   ; 
+      DTR   ; 
+      T     #t_AllowedSorting; 
+
+// Convert Number Of Tubs (check sign)
+      L     0; 
+      L     #i_Number_Of_Tubs; // IF Number Of Tubs < 0 (negative)
+      >I    ; 
+      JCN   AC03; 
+      L     0; // THEN Force it to 0
+AC03: T     #t_NumberOfTubs_Int; // ELSE Copy it to INT
+
+      L     #t_NumberOfTubs_Int; //Convert INT to REAL
+      ITD   ; 
+      DTR   ; 
+      T     #t_NumberOfTubs; 
+
+NETWORK
+TITLE =AD: Convert to stack size ratios
+
+      NOP   0; 
+
+//Ratio X
+      L     #t_TrainLength; 
+      L     #t_Stack_Size; 
+      /R    ; 
+      RND+  ; 
+      T     #t_TrainLength_Calc; 
+
+//Ratio Y
+      L     #t_AllowedSorting; 
+      L     #t_Stack_Size; 
+      /R    ; 
+      RND+  ; 
+      T     #t_AllowedSorting_Calc; 
+
+//Number Of Tubs
+      L     #t_NumberOfTubs; 
+      L     #t_Stack_Size; 
+      /R    ; 
+      RND+  ; 
+      T     #t_NumberOfTubs_Calc; 
+
+NETWORK
+TITLE =BA: Store the contents of the address register AR1
+
+      TAR1  #t_AR1_Store_Restore; 
+
+NETWORK
+TITLE =CA: Calculate pointer to correct line within sort control DB
+//Layout capacity control DB:
+//-SBT Empty
+//-SBT Loaded
+//-OBT Empty
+//-OBT Loaded
+      L     #i_SrtCtrlDB_Nr; 
+      T     #t_SrtCtrlDB_Nr; 
+      OPN   DB [#t_SrtCtrlDB_Nr]; // Open sort control DB
+
+// Calculate pointer to correct line (Tub type - Tub status combination)
+// Pointer to correct line is calculated like:
+// Pointer := ((TubType-1)*MaxTubStatusValue*LinePointerLength) + ((TubStatus-1)*LinePointerLength)
+
+// Determine tub type pointer part
+      L     #i_Tub_Type; // Load tub type
+      L     1; 
+      -I    ; 
+      L     #t_Max_Tub_Status_Value; // Load max. tub status value
+      *I    ; 
+      L     #t_Line_Pointer_Length; // Load line pointer length
+      *D    ; 
+      T     #t_Tub_Type_Pointer; 
+
+// Determine tub status pointer part
+      L     #i_Tub_Status; // Load tub status
+      L     1; 
+      -I    ; 
+      L     #t_Line_Pointer_Length; // Load line pointer length
+      *D    ; 
+      T     #t_Tub_Status_Pointer; 
+
+// Determine total pointer to correct line
+      L     #t_Tub_Type_Pointer; 
+      L     #t_Tub_Status_Pointer; 
+      +D    ; 
+      L     2; // Add header
+      +D    ; 
+      SLD   3; // Conversion to pointer format
+      L     P#DBX 0.0; // Pointer to the start of the open DB
+      +D    ; 
+      T     #t_ANY_Pointer; 
+
+NETWORK
+TITLE =CB: Copy data to correct line within sort control DB
+
+      L     #t_ANY_Pointer; 
+      LAR1  ; // Initialize address register 1 with pointer 
+
+      L     #t_NumberOfTubs_Calc; // Copy Number Of Tubs
+      T     W [AR1,P#0.0]; 
+
+      L     #t_TrainLength_Calc; // Copy Ratio X 
+      T     B [AR1,P#2.0]; 
+
+      L     #t_AllowedSorting_Calc; // Copy Ratio Y 
+      T     B [AR1,P#3.0]; 
+
+NETWORK
+TITLE = DA: Restore the contents of the address register AR1
+
+      LAR1  #t_AR1_Store_Restore; 
+
+END_FUNCTION
+

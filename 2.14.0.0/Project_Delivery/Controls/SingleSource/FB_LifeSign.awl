@@ -1,0 +1,325 @@
+FUNCTION_BLOCK "FB_LifeSign"
+TITLE =%version: 0.06 %  CN: 50
+//Function:
+//Send LifeSignRequest, and handle LifeSignResponse.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:15:43 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.06
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.04 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Send LifeSignRequest, and handle LifeSignResponse.
+//
+//Note: The No Communication error is also referred to as a Life Sign Time Out 
+//error in some documentation.
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//ANY pointer to the body of the message that has been received
+  i_CFG_LifeSignReq_Interv : INT ;	//CFG: [sec] Interval for sending a LifeSignRequest msg (0 = send no LifeSigns)
+  i_CFG_LifeSignResp_Time : INT ;	//CFG: [sec] Time after sending Request that Response must be received
+  i_CFG_NumLifeSgnMiss_Err : INT ;	//CFG: [Num] Number of Lifesign responses to be missed before an error is set
+  i_CFG_AreaID : INT ;	//CFG: Area ID number
+  i_CFG_LifeSignReq_MsgID : INT  := 1;	//CFG: ID of the LifeSignRequest message
+  i_CFG_LifeSignResp_MsgID : INT  := 2;	//CFG: ID of the LifeSignResponse message
+  i_InitSync_MsgID : INT  := 3;	//CFG: ID of the InitSync message
+  i_DB_Num_Send_FIFO : INT ;	//Number of DB of Send FIFO
+  i_Message_Received : BOOL ;	//A message has been received. See i_ANY_RCV_Msg_Body for message content.
+  i_Degraded_Mode : BOOL ;	//CMD: The system is running in degraded mode
+END_VAR
+VAR_OUTPUT
+  o_Err_No_Lifesigns : BOOL ;	//DS: A predefined number of LifeSignResponses have not been received
+  o_OS_Comm_Restored : BOOL ;	//Communication has been restored (and should be synchronized)
+END_VAR
+VAR
+  s_LifeSignResponse : "UDT_Msg_LifeSignResp";	//Content of LifeSignResponse message that was received
+  s_Copy : STRUCT 	//Copy bits for flank detection
+   FN_Degraded_Mode : BOOL ;	//Copy bit for FN detection of i_Degraded_Mode
+   FN_ER_No_Communication : BOOL ;	//Copy bit for FN detection of 'no communicaiton' error
+   FP_LifeSign_Missed : BOOL ;	//Copy bit for FP detection of a LifeSign missed
+   FP_Message_Received : BOOL ;	//Copy bit for FP detection of i_Message_Received
+  END_STRUCT ;	
+  s_Base_Address : DWORD ;	//Relative address of instance-DB
+  s_Last_Sent_Seq_Num : INT ;	//Sequence number of the last Life Sign Request that was sent
+  s_Timer_LifeSign_Send : INT ;	//Current value of the timer that is used to send the LifeSignRequest
+  s_Cnt_LifeSigns_Missed : INT ;	//Number of consequetive LifeSignResponses not received from LM
+  s_AreaID : INT ;	//Area ID for LifeSignRequest message
+  s_Ret_Val_Int : INT ;	//Return Value of Block Move module (not analyzed in this module)
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_LifeSignResp_Received : BOOL  := TRUE;	//A correct Life Sign Response was received to our Life Sign Request
+  s_OS_Send_LifeSignReq : BOOL ;	//One shot 'send life sign request'
+  s_No_Lifesign_Received : BOOL ;	//No lifesign received from LM
+  s_OS_Comm_Restored : BOOL ;	//Communication has been restored (and should be synchronized)
+END_VAR
+VAR_TEMP
+  t_ANY_Rcv_Msg_Body : ANY ;	//ANY pointer to the received message body
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initialisation
+
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #s_Base_Address; // 'relative address'
+
+      SET   ; // Initially set LifeSign error
+      =     #s_No_Lifesign_Received; 
+
+      L     #i_CFG_LifeSignReq_Interv; 
+      L     1; 
+      -I    ; 
+      T     #s_Timer_LifeSign_Send; 
+
+      SET   ; // Set bit to indicate that this network has been called
+      =     #s_Done; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Copy ANY pointer to received message
+//ANY pointer has to be copied to local structure in order to use the message 
+//content.
+      A     #i_Message_Received; // IF a message has been received
+      FP    #s_Copy.FP_Message_Received; 
+      JCN   DA99; // THEN analyze the incomming message
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #s_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+// Copy ANY pointer
+
+      L     D [AR1,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      T     LD [AR2,P#0.0]; // Byte2..3=Repetition factor
+
+      L     D [AR1,P#4.0]; // Byte4..5=DB number
+      T     LD [AR2,P#4.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      L     W [AR1,P#8.0]; 
+      T     LW [AR2,P#8.0]; 
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =CA: Copy received message body to local structure
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #s_Ret_Val_Int,
+           DSTBLK                   := #s_LifeSignResponse);
+
+NETWORK
+TITLE =DA: Handle the received message
+//If the received message is a Life Sign Response to the Life Sign Request that 
+//was last sent for this area and the Life Sign was received before the maxiumum 
+//response time is elapsed:
+//(1) Set the Life Sign Response received bit. 
+//(2) Reset the No Communicatio error.
+//(3) Reset the LifeSigns-missed counter.
+      L     #i_CFG_LifeSignResp_MsgID; // IF the received message is a...
+      L     #s_LifeSignResponse.Body.MessageID; // Life Sign Response message
+      ==I   ; 
+      JCN   DA99; // and...
+
+      L     #i_CFG_AreaID; // IF the Life Sign Response message... 
+      L     #s_LifeSignResponse.Body.AreaID; // is ment for this area
+      ==I   ; 
+      JCN   DA99; // and...
+
+      L     #s_Last_Sent_Seq_Num; // IF the Life Sign Response message...
+      L     #s_LifeSignResponse.Body.Signature; // has the correct sequence number
+      ==I   ; 
+      JCN   DA99; 
+
+// IF a LifeSign response has not been received in time
+      L     #i_CFG_LifeSignReq_Interv; 
+      L     #i_CFG_LifeSignResp_Time; 
+      -I    ; 
+      L     #s_Timer_LifeSign_Send; 
+      <=I   ; 
+      JCN   DA99; // THEN...
+
+      S     #s_LifeSignResp_Received; // announce that a correct LifeSign response has been received
+      R     #s_No_Lifesign_Received; // and reset the No Communication error
+
+      L     0; // AND reset the LifeSigns missed counter
+      T     #s_Cnt_LifeSigns_Missed; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: One-shot communication restored
+//Make the one-shot output bit 'communication restored'
+      A     #s_No_Lifesign_Received; 
+      FN    #s_Copy.FN_ER_No_Communication; 
+      =     #s_OS_Comm_Restored; 
+NETWORK
+TITLE =FA: Run Life Sign Request timer
+//A timer is run to be able to send a Life Sign Request message every x seconds.
+//
+//Note that the order of the sections in this network may not be altered. The 
+//functionality depends on the fact that the check for an elapsed timer is placed 
+//before the decrement of the current timer value. If this order is altered, the 
+//networks below will never see a timer-current-value of 0.
+      CLR   ; 
+      =     #s_OS_Send_LifeSignReq; // Initialize
+
+      L     #i_CFG_LifeSignReq_Interv; 
+      L     0; 
+      <>I   ; 
+      JCN   FA99; // Never send a LifeSignRequest message if interval = 0
+
+      NOP   0; 
+// Check if the timer has elapsed
+
+      L     #s_Timer_LifeSign_Send; 
+      L     0; 
+      <=I   ; 
+      S     #s_OS_Send_LifeSignReq; 
+      JCN   FA01; 
+
+// Restart the timer
+
+      L     #i_CFG_LifeSignReq_Interv; 
+      T     #s_Timer_LifeSign_Send; 
+
+// Run the timer
+
+FA01: A     "M_OS_New_Second"; 
+      JCN   FA99; 
+
+      L     #s_Timer_LifeSign_Send; 
+      L     1; 
+      -I    ; 
+      T     #s_Timer_LifeSign_Send; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Send Life Sign Request message
+//Send the Life Sign Request message on que from the timer or when the system 
+//leaves the degraded mode.
+      A     #s_OS_Send_LifeSignReq; 
+      A     #s_Done; 
+      JCN   GA99; 
+
+// Update the sequence number
+      L     #s_Last_Sent_Seq_Num; 
+      +     1; 
+      T     #s_Last_Sent_Seq_Num; 
+
+      L     #s_Last_Sent_Seq_Num; 
+      L     9999; 
+      >I    ; 
+      JCN   GA01; 
+
+      L     0; 
+      T     #s_Last_Sent_Seq_Num; 
+
+// Get content for LifeSignRequest message
+
+GA01: L     #i_CFG_AreaID; 
+      T     #s_AreaID; 
+
+// Send the Life Sign Request message
+
+      CALL "FC_Snd_LifeSignReq" (
+           i_DB_send_FIFO_Num       := #i_DB_Num_Send_FIFO,
+           i_Sequence_Number        := #s_Last_Sent_Seq_Num,
+           i_AreaID                 := #s_AreaID,
+           i_Message_ID             := #i_CFG_LifeSignReq_MsgID);
+
+// No response has been received yet on the message
+
+      CLR   ; 
+      =     #s_LifeSignResp_Received; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Check if error needs to be set
+//Handle the communication error indication.
+//
+//Send Log message to MIS when a LifeSignResponse message was not received in 
+//time. Count the number of LifeSignResponses that was not received. Set the 
+//communication error when a preset number of LifeSignResponses was missed.
+      NOP   0; 
+
+// IF a LifeSign response has not been received in time
+      L     #i_CFG_LifeSignReq_Interv; 
+      L     #i_CFG_LifeSignResp_Time; 
+      -I    ; 
+      L     #s_Timer_LifeSign_Send; 
+      >=I   ; 
+      AN    #s_LifeSignResp_Received; 
+      FP    #s_Copy.FP_LifeSign_Missed; 
+      JCN   HA01; 
+
+// AND also IF the communication is not in error  
+
+      AN    #s_No_Lifesign_Received; 
+      JCN   HA01; 
+
+// THEN the LifeSigns missed counter is increased.
+
+      L     #s_Cnt_LifeSigns_Missed; 
+      L     1; 
+      +I    ; 
+      T     #s_Cnt_LifeSigns_Missed; 
+
+// IF the number of LifeSigns missed is equal to or higher than the number at which
+// an error should be set, set the 'no communication' error.
+
+HA01: L     #s_Cnt_LifeSigns_Missed; 
+      L     #i_CFG_NumLifeSgnMiss_Err; 
+      >=I   ; 
+      S     #s_No_Lifesign_Received; 
+NETWORK
+TITLE =IA: Init Sync
+//Send an Init-Sync message when one of the following conditions are met:
+//(1) The system has just left degraded mode and communication with LM is 
+//possible;
+//(2) Communication has just been restored and system is not in degraded 
+//mode.
+//
+      A     #i_Degraded_Mode; //IF the system has just left degraded mode
+      FN    #s_Copy.FN_Degraded_Mode; 
+      AN    #s_No_Lifesign_Received; //and communication with LM is possible
+      O     #o_OS_Comm_Restored; //or IF communication has just been restored
+      AN    #i_Degraded_Mode; 
+      JCN   IA99; 
+
+      CALL "FC_Snd_InitSync" (//THEN send an Init-Sync message
+           i_DB_send_FIFO           := #i_DB_Num_Send_FIFO,
+           i_AreaID                 := #i_CFG_AreaID,
+           i_ProcessID              := #i_CFG_AreaID,
+           i_MessageID              := #i_InitSync_MsgID);
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Handle status
+//The report of the error "No_lifesigns".
+      A     #s_No_Lifesign_Received; 
+      =     #o_Err_No_Lifesigns; 
+
+      A     #s_OS_Comm_Restored; 
+      =     #o_OS_Comm_Restored; 
+END_FUNCTION_BLOCK
+

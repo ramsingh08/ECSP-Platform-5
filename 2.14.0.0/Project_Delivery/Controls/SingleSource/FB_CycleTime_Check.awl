@@ -1,0 +1,158 @@
+FUNCTION_BLOCK "FB_CycleTime_Check"
+TITLE =%version: 0.01 % CN: 31
+//Function:
+//Count the number of times the PLC cycle time exceeds a maximum value, within a 
+//fixed time, and calculate the average cycle time over the same period.
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, December 06, 2016 11:19:33 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#10464:Initial version based on VI_TTC/RA_Dev_15.3  inajos   05-12-16   0.01
+//
+//Description:                                  
+//Check and count (statistical counter) the number of times the PLC cycle time 
+//exceeds a maximum (input) value. Next to this, also determine the average cycle 
+//time over the period.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Cycle_Time_Limit : INT ;	//CFG: Limit value to check PLC cycle time
+END_VAR
+VAR
+  s_Statistical : STRUCT 	//Statisticals
+   Max_Cycle_Time : INT ;	//Number of times that the PLC cycle time was exceeded
+  END_STRUCT ;	
+  s_SendDataCounter : INT ;	//Counter to send statistical data
+  s_Avr_CycleTime : INT ;	//Average PLC cycle time in [ms]
+  s_Total_CycleTime : DINT ;	//Total PLC cycle time in [ms]
+  s_PLC_CycleCount : DINT ;	//PLC cycle counter for average calculations
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the Event DB
+  t_Ret_Val_Int : INT ;	//Return value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read Event DB number
+
+      NOP   0; 
+
+//Store the DB Number of event section
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Count Statistical data
+//Every time the cycle time exceeds a threshold limit, the statistical counter is 
+//incremented by one. If the maximum cycle time is exceeded a log event with the
+//measured cycle time is send.
+      NOP   0; 
+
+//Check PLC Scan Time exceeds threshold value
+      L     "MW_Prev_Cycle_Time"; 
+      L     #i_CFG_Cycle_Time_Limit; 
+      >I    ; 
+      JCN   BA99; 
+
+//Send message with cycletime if > threshold value
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3701,
+           i_Event_value            := "MW_Prev_Cycle_Time",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      L     #s_Statistical.Max_Cycle_Time; 
+      L     32767; 
+      <>I   ; 
+      JCN   BA99; 
+
+      L     #s_Statistical.Max_Cycle_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Max_Cycle_Time; 
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Average cycle time calculation
+//All PLC cycles are counter and the last cycle time is added up and an average 
+//is calculated.
+      NOP   0; 
+
+//Add the current Cycle time to the total
+      L     #s_Total_CycleTime; 
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_Total_CycleTime; 
+
+//Update the cycle counter
+      L     #s_PLC_CycleCount; 
+      L     1; 
+      +D    ; 
+      T     #s_PLC_CycleCount; 
+
+//Calculate the average Cycle time
+      L     #s_Total_CycleTime; 
+      L     #s_PLC_CycleCount; 
+      /D    ; 
+      T     #s_Avr_CycleTime; 
+
+NETWORK
+TITLE =DA: Sent Statistical data
+//After a fixed time interval the counted PLC cycles greater than the threshold 
+//values are sent. Next to that, a log event is send with the average cycle time 
+//over the same period. When the messages are send, the data is (p)reset for the 
+//next measurement.
+      NOP   0; 
+
+//Count time for sending statistical data message
+      A     "M_OS_/1.0_sec."; 
+      JCN   DA99; 
+
+      L     #s_SendDataCounter; 
+      L     1; 
+      -I    ; 
+      T     #s_SendDataCounter; 
+      JPZ   DA99; 
+
+//Write the statistical data to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Max_Cycle_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+//Send log event with the average cycle time
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3702,
+           i_Event_value            := #s_Avr_CycleTime,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+//Reset the statistical counter
+      L     0; 
+      T     #s_Statistical.Max_Cycle_Time; 
+
+//Preset the statistical counter
+      L     600; //600sec = 10 minutes
+      T     #s_SendDataCounter; 
+
+//Reset average calculation values
+      L     0; 
+      T     #s_Total_CycleTime; 
+      T     #s_PLC_CycleCount; 
+      T     #s_Avr_CycleTime; 
+
+DA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

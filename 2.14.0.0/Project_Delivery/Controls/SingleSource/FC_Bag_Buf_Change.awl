@@ -1,0 +1,359 @@
+FUNCTION "FC_Bag_Buf_Change" : VOID
+TITLE =%version: 0.02 % CN: 32
+//Function:
+//Removing bag info for upstream to downstream buffer DB.
+//
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, February 15, 2018 1:40:17 PM %
+//              %release:  VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27643: FC_Bag_Buf_Change report event 3300         nlHdL    15-02-18   0.02
+//Initial version based on Version 0.01 VI_TTC          nlHdL    06-10-16   0.01
+//
+//Description:
+//This function is used to generate and clear bag buffer DB's. It must
+//be implemented at every node in a system and must be run once for
+//each bag which is passing. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Upstr_Bag_Buf_Num : INT ;	//Number of DB upstream bag buffer
+  i_DB_Dwnstr_Bag_Buf_Num : INT ;	//Number of DB downstream bag buffer
+  i_LNK : INT ;	//Link number of item
+  i_DB_Event_Num : INT ;	//DB event number
+END_VAR
+VAR_TEMP
+  t_LIC : INT ;	//LIC record number
+  t_Bag_Length_From_BIR : INT ;	//Bag length found in BIR record
+  t_Destination : INT ;	//Destination from BIR record
+  t_Std_Bag_Length : INT ;	//Standard size bag length [mm]
+  t_DB_Upstr_Bag_Buf_Num : INT ;	//Number of DB upstream bag buffer
+  t_DB_Dwnstr_Bag_Buf_Num : INT ;	//Number of DB downstream bag buffer
+  t_Number_Of_Entries : INT ;	//Number of entries in segment DB
+  t_Array_Length : INT ;	//Array length of segment info
+  t_Entry_Number_LNK : INT ;	//Link array number of current entry
+  t_Entry_Number_Bag : INT ;	//Bag info array number of current entry
+  t_Loop_Number : INT ;	//Loop number
+  t_Return_Value : INT ;	//Temp Return Value of FC_Write_Event
+  t_Tub_Class : BYTE ;	//Tub class of bag
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Collect info from LIC record
+//Collect the item information which is stored in the segment buffers. This 
+//information contains the tub class (BYTE) and bag destination (INT).
+      NOP   0; 
+// Initialize temp values (tub class is 1/SBT by default)
+      L     1; 
+      T     #t_Tub_Class; 
+      L     0; 
+      T     #t_Destination; 
+      T     #t_Bag_Length_From_BIR; 
+      T     #t_Destination; 
+
+      L     100; 
+      T     #t_Std_Bag_Length; 
+
+// Read LIC number from link list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+// Determine if LIC number is valid
+      L     #t_LIC; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; 
+
+// Read first destination from BIR
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+// Read bag length from BIR
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Length,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Bag_Length_From_BIR);
+
+      L     #t_Bag_Length_From_BIR; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; 
+
+// Determine if the bag length from the BIR is smaller then or equal to the configured standard bag length
+      L     #t_Std_Bag_Length; 
+      L     10; 
+      *I    ; // Converter cm to mm
+      L     #t_Bag_Length_From_BIR; 
+      >I    ; 
+      JCN   AA02; 
+
+// When the BIR bag length is smaller then or equal to the configured standard bag length the tub class is 1/SBT
+      L     1; 
+      T     #t_Tub_Class; 
+
+      JU    AA99; 
+
+AA02: L     2; // Else Bag length is 2/OBT
+      T     #t_Tub_Class; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Delete LNK number from bag buffer DB
+
+      L     #i_DB_Upstr_Bag_Buf_Num; 
+      T     #t_DB_Upstr_Bag_Buf_Num; 
+      L     1; 
+      >I    ; 
+      JCN   BA99; // End clear function when no DB connected
+
+      OPN   DB [#t_DB_Upstr_Bag_Buf_Num]; //Open PLT DB
+
+      L     DBLG; 
+      L     2; 
+      -I    ; 
+      L     6; 
+      /I    ; 
+      T     #t_Number_Of_Entries; 
+
+      L     4; 
+      *I    ; 
+      T     #t_Array_Length; 
+
+      L     DBW    0; // Number of entries used in DB
+      T     #t_Entry_Number_LNK; 
+
+      L     0; 
+      >I    ; 
+      JCN   BA99; // End clear function when no entries to clear
+
+// Search Link number
+BA01: L     #t_Entry_Number_LNK; // Number of entries used in DB
+      L     2; // 2 bytes for each entry
+      *I    ; 
+      L     #t_Array_Length; // Add bag info length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+      L     #t_Entry_Number_LNK; 
+      T     #t_Entry_Number_Bag; 
+
+      L     DBW [AR1,P#0.0]; 
+      L     #i_LNK; 
+      <>I   ; 
+      JCN   BA02; 
+
+      L     #t_Entry_Number_LNK; 
+      L     1; 
+      -I    ; 
+      T     #t_Entry_Number_LNK; 
+
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+      JU    BA01; 
+
+// Clear Link numbers
+BA02: L     0; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Entry_Number_LNK; 
+      L     DBW    0; 
+      <I    ; 
+      JCN   BA03; 
+
+      L     #t_Entry_Number_LNK; 
+      L     1; 
+      +I    ; 
+      T     #t_Entry_Number_LNK; 
+
+      L     P#2.0; 
+      +AR1  ; 
+      JU    BA02; 
+
+// Clear item info
+BA03: L     #t_Entry_Number_Bag; // Number of entries used in DB
+      L     4; // 4 bytes for each entry
+      *I    ; 
+      L     2; // Correct header length
+      -I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+      L     0; 
+      T     DBD [AR1,P#0.0]; 
+
+// Decrease entry counter
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; 
+
+      L     #t_Entry_Number_Bag; 
+      L     #t_Entry_Number_LNK; 
+      <I    ; 
+      JCN   BA99; 
+
+      L     #t_Entry_Number_Bag; 
+      L     1; 
+      +I    ; 
+      T     #t_Entry_Number_Bag; 
+
+      L     P#4.0; 
+      +AR1  ; 
+      JU    BA03; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Shift and create record in bag buffer DB
+
+      L     #i_DB_Dwnstr_Bag_Buf_Num; 
+      T     #t_DB_Dwnstr_Bag_Buf_Num; 
+      L     1; 
+      >I    ; 
+      JCN   CA99; // End write function when no DB connected
+
+// Only write into downstream buffer when Destination is valid
+      L     #t_Destination; 
+      L     0; 
+      >I    ; 
+      JCN   CA99; 
+
+      OPN   DB [#t_DB_Dwnstr_Bag_Buf_Num]; //Open PLT DB
+
+      L     DBLG; 
+      L     2; // Correct header length
+      -I    ; 
+      L     6; 
+      /I    ; 
+      T     #t_Number_Of_Entries; 
+
+      L     4; 
+      *I    ; 
+      T     #t_Array_Length; 
+
+      L     DBW    0; 
+      T     #t_Loop_Number; 
+
+      L     0; 
+      >I    ; 
+      JCN   CA01; // Don't shift DB when no entries present
+
+      L     #t_Loop_Number; 
+      L     #t_Number_Of_Entries; 
+      >=I   ; 
+      JCN   CA02; // Continue when there is space in the buffer DB to shift and write
+
+      CALL "FC_Write_Event" (// Report event: Segment buffer DB full (3300)
+           i_Message_ID             := 3300,
+           i_Event_value            := #t_DB_Dwnstr_Bag_Buf_Num,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value);
+
+      JU    CA99; 
+
+// Loop to check if link number is not already present in buffer
+CA02: L     #t_Loop_Number; 
+      L     2; // 2 bytes for each entry
+      *I    ; 
+      L     #t_Array_Length; // Add bag info length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+// Check if link number found in buffer is different then input link number (found in PLT DB)
+      L     DBW [AR1,P#0.0]; 
+      L     #i_LNK; 
+      <>I   ; 
+      JCN   CA99; 
+
+      L     #t_Loop_Number; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Number; 
+
+      L     0; 
+      <=I   ; 
+      JCN   CA02; 
+
+// Loop to shift all entries down and add entry on first position
+      L     DBW    0; 
+      T     #t_Loop_Number; 
+
+CA03: L     #t_Loop_Number; 
+      L     2; // 2 bytes for each entry
+      *I    ; 
+      L     #t_Array_Length; // Add bag info length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     DBW [AR1,P#2.0]; // Shift entry to next entry in PLT DB
+
+      L     #t_Loop_Number; 
+      L     4; // 4 bytes for each entry
+      *I    ; 
+      L     2; // Correct header length
+      -I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+
+      L     DBB [AR1,P#0.0]; // Copy current entry data to next entry
+      T     DBB [AR1,P#4.0]; 
+      L     DBB [AR1,P#1.0]; 
+      T     DBB [AR1,P#5.0]; 
+      L     DBW [AR1,P#2.0]; 
+      T     DBW [AR1,P#6.0]; 
+
+      L     #t_Loop_Number; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Number; 
+
+      L     0; 
+      <=I   ; 
+      JCN   CA03; 
+
+CA01: L     #t_Array_Length; 
+      L     2; // Add 2 bytes for header
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to first entry
+      LAR1  ; 
+
+      L     #i_LNK; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     2; // 2 bytes for header
+      SLW   3; 
+      LAR1  ; 
+
+      L     #t_Tub_Class; 
+      T     DBW [AR1,P#0.0]; // Tub class in first entry 
+      L     #t_Destination; 
+      T     DBW [AR1,P#2.0]; // Destination in first entry 
+
+      L     DBW    0; 
+      L     1; 
+      +I    ; 
+      T     DBW    0; // Increase entry counter
+
+CA99: NOP   0; 
+END_FUNCTION
+

@@ -1,0 +1,825 @@
+FUNCTION_BLOCK "FB_Convert_DS_OS"
+TITLE =%version: 0.10 % CN: 31 
+//Function:
+//Converts the Status into the Overall status
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:41 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//17783: Convert Hex to Int when using bytenumbers      nlHdL    10-02-14   0.10
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.09
+//PR12611 Add Items & Ready_to_Restart DB Overall stat  nlHdL    24-1-13   0.08
+//Added the halted status                               nlHdL    04-04-12   0.07
+//Changed some comments                                 nlJBax   06-10-11   0.06
+//For bit 0_5 was 0_2 checked                           nlHdL    24-03-11   0.05
+//PR5810: creating statusses is too slow                nlMRe    18-10-10   0.04
+//Update due to change DB_Status_Index                  nlMRe    21-09-10   0.03
+//Change compile number from CN: 30 -> CN: 31           nlMRe    16-09-10   0.02
+//Initial Revision                                      nlMRe    15-09-10   0.01
+//
+//Description:
+//This routine converts changes in the global DB into an Overall status in 
+//DB_Overall_Status. There may be multiple status active at the time.
+//
+//First the position in DB_Ovarall_Status is calculated. 
+//If the offered status word is the first part of a record and the record belongs 
+//to a section. Than the general statusses are made.
+//
+//Than for every bit of the WORD it is checked if it belongs to a Overall status, 
+//and the status is set to "TRUE".
+//
+//The next numbering is done for the Overall Status
+//
+// 1 = Semi Automatic
+// 2 = Disabled
+// 3 = Safety Stop
+// 4 = Error
+// 5 = Warning
+// 6 = Stopped
+// 7 = Stopping
+// 8 = Starting
+// 9 = Full
+//10 = Die Back
+//11 = Energy Saving
+//12 = Started
+//
+//This number need to be used in the Component Type DB for the "Overall Status 
+//Relation" as well.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+END_VAR
+VAR
+  s_Done : BOOL ;	//Only First Cycle or when DB is downloaded again
+  s_Length_Overall_Status : INT ;	//Total Length of DB_General_Status
+  s_Num_Rec_Overall_Status : INT ;	//Number of records in DB_General_Status
+  s_Length_Status_Index : INT ;	//Total Length of DB_Status_Index
+  s_Num_Rec_status_Index : INT ;	//Number of records in DB_Status_Index
+  s_Event_DB_Num : INT ;	//Number of the event DB
+  s_Return_Event_Unequal : INT ;	//Return value of event Lengths not equal
+END_VAR
+VAR_TEMP
+  t_AR2_Backup : DWORD ;	//Backup of AR2
+  t_Backup_DI : INT ;	//backup of the DI number
+  t_DB_Num_Overall_Status : INT ;	//Number of the DB Overall Status
+  t_Comp_Type_Relation : INT ;	//Convert byte to int
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: First Cycle initialisation
+
+      A     "M_First_Scan"; 
+      ON    #s_Done; 
+      JCN   AA99; 
+
+      OPN   #i_Event_DB; // Take number of the Event DB
+      L     DBNO; 
+      T     #s_Event_DB_Num; 
+
+      OPN   "DB_Overall_Status"; // Take length of the Overall Status
+      L     DBLG; 
+      T     #s_Length_Overall_Status; 
+
+      L     #s_Length_Overall_Status; 
+      L     2; // Length of the Overall status is two byte
+      /I    ; 
+      T     #s_Num_Rec_Overall_Status; // Total amount of Overall status records
+
+
+      OPN   "DB_Status_Index"; // Take the length of the Status Index
+      L     DBLG; 
+      T     #s_Length_Status_Index; 
+
+      L     #s_Length_Status_Index; 
+      L     16; // Default length of the status record
+      /I    ; 
+      T     #s_Num_Rec_status_Index; // Total amount of records in Status Index
+
+      L     #s_Num_Rec_Overall_Status; // Check if DB_Overall_Status and DB_Status_Index are equal
+      L     #s_Num_Rec_status_Index; 
+      ==I   ; 
+      JCN   AA01; 
+
+      SET   ; // If equal, set Done
+      =     #s_Done; 
+
+      JU    AA99; 
+
+AA01: CALL "FC_Write_Event" (// Report event "The length of Overall Status and Status Index is not Equal" (3004)
+           i_Message_ID             := 3004,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #s_Event_DB_Num,
+           o_Return_Value           := #s_Return_Event_Unequal);
+
+      BE    ; // End routine if not equal
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Calculate start position in DB_Overall_Status
+
+      TAR2  #t_AR2_Backup; 
+
+      L     DINO; 
+      T     #t_Backup_DI; 
+
+      OPN   "DB_Overall_Status"; 
+      L     DBNO; 
+      T     #t_DB_Num_Overall_Status; 
+
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      LAR2  ; 
+
+      OPN   DI [#t_DB_Num_Overall_Status]; 
+NETWORK
+TITLE =CA: standard handling 
+
+      NOP   0; 
+
+// Clear current data in DB_Overall status if new item
+      A     "DB_Status_Changed".New_Record; 
+      JCN   CA01; 
+
+
+
+      L     0; 
+      T     DIW [AR2,P#0.0]; 
+
+CA01: A     "DB_Status_Changed".Type_Component; // If this is a Section
+      A     "DB_Status_Changed".First_Part; // And the first part of the section
+      JCN   CA99; 
+
+// Stopped
+      AN    "DB_Status_Changed".Status_Bit_0_2; // If Not started
+      =     DIX [AR2,P#0.5]; // Then set stopped
+
+// Halted
+      A     "DB_Status_Changed".Status_Bit_0_3; // If halted 
+      =     DIX [AR2,P#1.1]; // Then set halted
+
+// Die-Back
+
+      A     "DB_Status_Changed".Status_Bit_0_0; // If there are items
+      AN    "DB_Status_Changed".Status_Bit_0_1; // And not running
+      A     "DB_Status_Changed".Status_Bit_0_2; // And started
+      =     DIX [AR2,P#1.2]; // Then set die-back
+
+// Energy-Saving
+
+      AN    "DB_Status_Changed".Status_Bit_0_0; // If there are no items
+      AN    "DB_Status_Changed".Status_Bit_0_1; // And the conveyor is NOT running
+      A     "DB_Status_Changed".Status_Bit_0_2; // And started
+      =     DIX [AR2,P#1.3]; // Then set energy-saving
+
+// Started
+
+      A     "DB_Status_Changed".Status_Bit_0_2; // If Started
+      =     DIX [AR2,P#1.4]; // Then set Started
+
+// Items
+
+      A     "DB_Status_Changed".Status_Bit_0_0; // If Items
+      AN    "DB_Status_Changed".Status_Bit_0_2; // And Stopped
+      =     DIX [AR2,P#1.5]; // Then set Items
+
+// Ready_to_Restart
+
+//      =     DIX [AR2,P#1.6]             // Then set Ready_to_Restart
+//Ready to Restart is not programmed within this function!
+//Bit in DB_Overall_Status needs to be programmed manually!
+
+CA99: NOP   0; 
+
+//      JU    ZA01
+NETWORK
+TITLE =DA: Handle Status Bit 0.0
+
+      A     "DB_Status_Changed".Status_Bit_0_0; 
+      JCN   DA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[1].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   DA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Handle Status Bit 0.1
+
+      A     "DB_Status_Changed".Status_Bit_0_1; 
+      JCN   EA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[2].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   EA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Handle Status Bit 0.2
+
+      A     "DB_Status_Changed".Status_Bit_0_2; 
+      JCN   FA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[3].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   FA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Handle Status Bit 0.3
+
+      A     "DB_Status_Changed".Status_Bit_0_3; 
+      JCN   GA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[4].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   GA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Handle Status Bit 0.4
+
+      A     "DB_Status_Changed".Status_Bit_0_4; 
+      JCN   HA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[5].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   HA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Handle Status Bit 0.5
+
+      A     "DB_Status_Changed".Status_Bit_0_5; 
+      JCN   IA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[6].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   IA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Handle Status Bit 0.6
+
+      A     "DB_Status_Changed".Status_Bit_0_6; 
+      JCN   JA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[7].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   JA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Handle Status Bit 0.7
+
+      A     "DB_Status_Changed".Status_Bit_0_7; 
+      JCN   KA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[8].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   KA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Handle Status Bit 1.0
+
+      A     "DB_Status_Changed".Status_Bit_1_0; 
+      JCN   LA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[9].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   LA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Handle Status Bit 1.1
+
+      A     "DB_Status_Changed".Status_Bit_1_1; 
+      JCN   MA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[10].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   MA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Handle Status Bit 1.2
+
+      A     "DB_Status_Changed".Status_Bit_1_2; 
+      JCN   NA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[11].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   NA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Handle Status Bit 1.3
+
+      A     "DB_Status_Changed".Status_Bit_1_3; 
+      JCN   OA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[12].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   OA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Handle Status Bit 1.4
+
+      A     "DB_Status_Changed".Status_Bit_1_4; 
+      JCN   PA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[13].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   PA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+PA99: NOP   0; 
+NETWORK
+TITLE =QA: Handle Status Bit 1.5
+
+      A     "DB_Status_Changed".Status_Bit_1_5; 
+      JCN   QA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[14].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   QA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+QA99: NOP   0; 
+NETWORK
+TITLE =RA: Handle Status Bit 1.6
+
+      A     "DB_Status_Changed".Status_Bit_1_6; 
+      JCN   RA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[15].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   RA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+RA99: NOP   0; 
+NETWORK
+TITLE =SA: Handle Status Bit 1.7
+
+      A     "DB_Status_Changed".Status_Bit_1_7; 
+      JCN   SA99; 
+
+      L     "DB_Status_Changed".Comp_Type_Status[16].Overall_Status_Relation; 
+      BTI   ; 
+      T     #t_Comp_Type_Relation; 
+
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Comp_Type_Relation; 
+      L     16; 
+      <=I   ; 
+      )     ; 
+      JCN   SA99; 
+
+      L     "DB_Status_Changed".Current_Record_Num; 
+      L     2; 
+      *I    ; 
+      L     2; 
+      -I    ; 
+      SLW   3; 
+      L     #t_Comp_Type_Relation; 
+      +I    ; 
+      L     1; 
+      -I    ; 
+      LAR2  ; 
+
+      SET   ; 
+      =     DIX [AR2,P#0.0]; 
+
+SA99: NOP   0; 
+NETWORK
+TITLE =ZA: Restore AR2 and DI
+
+      LAR2  #t_AR2_Backup; 
+
+      OPN   DI [#t_Backup_DI]; 
+END_FUNCTION_BLOCK
+

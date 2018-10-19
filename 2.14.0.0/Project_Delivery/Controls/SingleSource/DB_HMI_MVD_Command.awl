@@ -1,0 +1,27 @@
+DATA_BLOCK "DB_HMI_MVD_Command"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, November 09, 2017 6:08:57 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24205:Initial revision                             inajos   09-11-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   MVD_00_01 : "UDT_HMI_SVD_Command";	
+   MVD_00_02 : "UDT_HMI_SVD_Command";	
+   SWS_01 : "UDT_HMI_SVD_Command";	
+   TRS_02 : "UDT_HMI_SVD_Command";	
+   TRS_03 : "UDT_HMI_SVD_Command";	
+   TRS_04 : "UDT_HMI_SVD_Command";	
+  END_STRUCT ;	
+BEGIN
+  END_DATA_BLOCK
+

@@ -1,0 +1,261 @@
+FUNCTION_BLOCK "FB_OPZ06_F"
+TITLE =%version: 0.02 % CN: 55
+//Function:
+//Handle the fixed part of the OPZ06.
+//
+//
+//History:
+//This version  %created_by: nlpsal %
+//              %date_created: Monday, May 08, 2017 11:02:15 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21780 Removed unused variable                      nlpsal   08-05-17   0.02
+//ra#21780 Initial revision                             nlpsal   02-05-17   0.01
+//
+//Description:
+//Handle the fixed part of the OPZ06:
+//- Get PLT data
+//- HW Layer for PBB
+//- Set/reset request halt for the TRS1 of the OPZ
+//- Control the outputs for the SL and BP
+//- HW Layer for SLC
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_TRS1 : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Event : BLOCK_DB ;	//Data structure: Event datablock
+  i_CFG_UnattendedBag_Time : INT ;	//[s] Time after which a unattended bag warning is set when a bag is present
+  i_CFG_Arrived_Position : INT ;	//Arrived position used in the deregister
+  i_Available_IO_ASI : BOOL ;	//Signal for indication IO is OK (no ASI or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_IO_PB_Done : BOOL ;	//CMD: PBB Done button (bag removed)
+  i_PBB_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_PBB_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_SLC_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_SLC_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+END_VAR
+VAR_OUTPUT
+  o_TRS1_Req_Halt : BOOL ;	//Request halt for TRS1
+  o_PBB_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_PBB_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_SLC_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SLC_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_ST_Unattended_Bag : BOOL ;	//ST: Unattended Bag warning
+  o_IO_SL_Bag_Present : BOOL ;	//IO: Signal Light bag present/unattended bag warning
+  o_IO_BP_Bag_Waiting : BOOL ;	//IO: Beeper bag waiting
+END_VAR
+VAR
+  s_PBB_FB_HW_ASI : "FB_HW_ASi";	//Push Button Box ASI Slave hardware layer
+  s_SLC_FB_HW_ASI : "FB_HW_ASi";	//Signal Light Collom ASI Slave hardware layer
+  s_Cnt_Unattended_bag : INT ;	//Timer value of the Unattended bag warning
+  s_IO_BP_Bag_Waiting : BOOL ;	//Beeper of the SLC used for the Unattended bag warning
+  s_FP_Done : BOOL ;	//Positive flank of the done button
+  s_FP_Mem_Done : BOOL ;	//Memory bit used for positive flank detection of the done button
+END_VAR
+VAR_TEMP
+  t_PLT_DB_TRS1_Nr : INT ;	//Position datablock number
+  t_DB_Event_Nr : INT ;	//Event datablock number
+  t_Section_Length : INT ;	//Length of section
+  t_Bag_Position : INT ;	//Position of the leading edge of the found bag
+  t_Found_LNK_Nr : INT ;	//LNK number of the found bag
+  t_ECS_Record : INT ;	//ECS record of the found bag
+  t_Not_Used : INT ;	//Not used
+  t_PB_Done : BOOL ;	//Push button done from HW Layer
+  t_SL_Bag_Present : BOOL ;	//Signal light bag present
+  t_Start_Tim_Unattended : BOOL ;	//Start timer signal for the unattended bag warning
+  t_CMD_Deregister_Bag : BOOL ;	//Command to deregister bag
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retrieve data from PLT
+
+      OPN   #i_DB_PLT_TRS1; 
+      L     DBNO; 
+      T     #t_PLT_DB_TRS1_Nr; 
+
+      L     DBW   12; 
+      T     #t_Section_Length; 
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Nr; 
+
+NETWORK
+TITLE =BA: Hardware layer for Signal Pushbutton box
+
+      CALL #s_PBB_FB_HW_ASI (
+           i_Req_Output_1           := #i_IO_PB_Done,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO_ASI,
+           i_ASI_NotPrsnt           := #i_PBB_ASI_NotPrsnt,
+           i_Slave_Error            := #i_PBB_ASI_Error,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_PBB_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_PBB_ST_ASI_Error,
+           o_IO_Output_1            := #t_PB_Done);
+
+NETWORK
+TITLE =CA: Set/Reset request halt for TRS1
+
+// detect positive edge on done button IO from HW layer
+      A     #t_PB_Done; 
+      FP    #s_FP_Mem_Done; 
+      =     #s_FP_Done; 
+
+// When PEC is triggered halt TRS1 
+      AN    #i_IO_NOT_PEC; 
+      S     #o_TRS1_Req_Halt; 
+
+// When TRS1 is halted AND PEC is free AND positive edge on done button:
+// - reset request halt for TRS1
+// - start deregister routine
+      A     #o_TRS1_Req_Halt; 
+      A     #i_IO_NOT_PEC; 
+      A     #s_FP_Done; 
+      R     #o_TRS1_Req_Halt; 
+      =     #t_CMD_Deregister_Bag; 
+NETWORK
+TITLE =DA: Handle Deregister 
+
+
+// When deregister command is true do deregister routine else skip network
+      A     #t_CMD_Deregister_Bag; 
+      JCN   DA99; 
+
+// Find LNK nummer in PLT
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_PLT_DB_TRS1_Nr,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Bag_Position,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Found_LNK_Nr,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+// When LNK is found start deregister else skip network
+
+      L     #t_Found_LNK_Nr; 
+      L     0; 
+      <>I   ; 
+      JCN   DA99; 
+
+// Read ECS number in LNK DB
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Found_LNK_Nr,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_INT                    := #t_ECS_Record);
+
+      L     #t_ECS_Record; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_ECS_Record,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".Routing_Result.Arrived_Location,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #i_CFG_Arrived_Position,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_Event" (// Package report "Arrived"
+           i_Message_ID             := 1211,
+           i_Event_value            := #t_Found_LNK_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Not_Used);
+
+// Write correct deregister reason in CIR
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS_Record,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_Not_Used);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS_Record,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS_Record,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #t_Found_LNK_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Not_Used);
+
+// Remove 1 from PLT
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_PLT_DB_TRS1_Nr,
+           i_Position               := #t_Bag_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Set/Reset SLC Outputs
+
+// When TRS1 is halted, start the timer for the unattended bag warning
+      A     #o_TRS1_Req_Halt; 
+      =     #t_Start_Tim_Unattended; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_Tim_Unattended,
+           i_CFG_Timer_Value        := #i_CFG_UnattendedBag_Time,
+           i_Setpoint               := #s_Cnt_Unattended_bag,
+           o_Setpoint               := #s_Cnt_Unattended_bag,
+           o_Timer_Elapsed          := #o_ST_Unattended_Bag);
+
+// When TRS1 is halted AND unattended bag warning is NOT SET = bag present -> SL continuously on
+// When TRS1 is halted AND unattended bag warning is SET = blinking SL
+      A     #o_TRS1_Req_Halt; 
+      A(    ; 
+      ON    #o_ST_Unattended_Bag; 
+      O     ; 
+      A     #o_ST_Unattended_Bag; 
+      A     "M_System_Clock_1.0_sec."; 
+      )     ; 
+      =     #t_SL_Bag_Present; 
+
+// When unattended bag warning is set sound the beeper
+      A     #o_ST_Unattended_Bag; 
+      =     #s_IO_BP_Bag_Waiting; 
+NETWORK
+TITLE =FA: Hardware layer for Signal Light Column
+
+      CALL #s_SLC_FB_HW_ASI (
+           i_Req_Output_1           := #t_SL_Bag_Present,
+           i_Req_Output_2           := #s_IO_BP_Bag_Waiting,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO_ASI,
+           i_ASI_NotPrsnt           := #i_SLC_ASI_NotPrsnt,
+           i_Slave_Error            := #i_SLC_ASI_Error,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_SLC_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_SLC_ST_ASI_Error,
+           o_IO_Output_1            := #o_IO_SL_Bag_Present,
+           o_IO_Output_2            := #o_IO_BP_Bag_Waiting);
+
+
+END_FUNCTION_BLOCK
+

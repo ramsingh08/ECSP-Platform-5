@@ -1,0 +1,588 @@
+FUNCTION_BLOCK "FB_System_Facilities"
+TITLE = %version: 0.11 % CN: 30
+//Function:
+//Creating time and date one-shots
+//
+//History:                                                                        
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:01:15 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.11
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.11
+//14162: Update comment of variable                     nlHdL    17-06-15   0.11
+//21571: Add overflow cycle time > remain setpnt value  nlHdL    03-11-14   0.10
+//17934: Added milliseonds and minutes counter          nlHHop   07-02-14   0.09
+//16236: Comment change HEX to BCD format               nlHdL    28-10-13   0.08
+//15797: Keyword release added                          nlwwij   26-09-13   0.07
+//14756: Set M_Init_Setting after first scan            nlHdL    02-09-13   0.06
+//CR5968 Added MB_Hour, MB_Minute and MB_Second         nlHHop   17-04-13   0.05
+//PR10310 Removed done bit DB_Sett add M_Init_Setting   nlHdL    29-06-12   0.04
+//CR6909 Added NW NA: set done bit for common settings  nlHHop   27-03-12   0.03
+//Added toggle bit for timer                            nlHdL    03-10-11   0.02
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description:                                                                
+//This FB has the following functions:
+//- Making of one-shots of the clockbits, on MB1
+//- Creating the 'first-scan' bit
+//- Extracting the date and time from an input parameter of the Date_And_Time 
+//  type
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  OB1_SCAN_1 : BYTE ;	//Status in 1st scan
+  OB1_PREV_CYCLE : INT ;	//Scan time previous cycle (msec)
+  OB1_MIN_CYCLE : INT ;	//Minimum scan time since last restart (msec)
+  OB1_MAX_CYCLE : INT ;	//Maximum scan time since last restart (msec)
+  OB1_DATE_TIME : DATE_AND_TIME ;	//Date and time (8 bytes)
+END_VAR
+VAR
+  s_Date_Time : STRUCT 	//Data Structure Date and Time
+   Year : BYTE ;	//System Year [00.99]
+   Month : BYTE ;	//System Month [01..12]
+   Day : BYTE ;	//System Day [01..31]
+   Hour : BYTE ;	//System Hour [00..23]
+   Minute : BYTE ;	//System Minute [00..59]
+   Second : BYTE ;	//System Second [00..59]
+   mSeconds : WORD ;	//System mSecond [00..999]
+   Week_Day : BYTE ;	//System Day of the Week [1=Sunday...7=Saturday]
+  END_STRUCT ;	
+  s_Date_Time_Prev : STRUCT 	//Data Structure previous Date and Time
+   Year : BYTE ;	//System Year [00.99]
+   Month : BYTE ;	//System Month [01..12]
+   Day : BYTE ;	//System Day [01..31]
+   Hour : BYTE ;	//System Hour [00..23]
+   Minute : BYTE ;	//System Minute [00..59]
+   Second : BYTE ;	//System Second [00..59]
+   mSeconds : WORD ;	//System mSecond [00..999]
+   Week_Day : BYTE ;	//System Day of the Week [1=Sunday...7=Saturday]
+  END_STRUCT ;	
+  s_Cntr_PLC_Cycles : INT ;	//This counter is incremented each PLC cycle.
+  s_Prev_Cycle_Time : INT ;	//Scan time previous cycle (msec) with resolution of SFC64 TIME_TCK
+  s_Cycle_Time : ARRAY  [1 .. 10 ] OF //Cycle time array
+  INT ;	
+  s_Pntr_Offset_Values : DWORD ;	//Pointer offset to Cycle time array
+  s_Scan_Cycle_Time : STRUCT 	//Data Structure Scan Cycle time
+   First_Cycle : INT ;	//Scantime of first scan (equal to OB1_MAX_CYCLE)
+   Maximum : INT ;	//Maximum scantime after complete PLC startup
+   Average : INT ;	//Average scantime of latest scan cyles
+   Minimum : INT ;	//Minimum scantime after complete PLC startup
+  END_STRUCT ;	
+  s_Prev_System_Time : TIME ;	//Previous value of system time
+  s_Milli_Seconds : INT ;	//Actual milli seconds
+  s_Sec_In_Hour : INT ;	//Actual seconds in hour
+  s_Seconds : INT ;	//Actual seconds
+  s_Min_In_Day : INT ;	//Actual minutes in day
+  s_Minutes : INT ;	//Actual minutes
+  s_Copy_MB0 : BYTE ;	//Copy MB0 to create One shots
+  s_PLC_Start_Up : BOOL ;	//Startup of PLC the first 10 scan cycles
+  s_Set_Done_Next_Scan : BOOL ;	//Remember to set done bit in next scan
+  s_OS_New_MSec_Count : BOOL ;	//One-shot to indicate counting of milli seconds has started again at 0
+END_VAR
+VAR_TEMP
+  t_Pointer : DWORD ;	//Temp pointer
+  t_No_Toggle : BOOL ;	//No toggle
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check clock memory bits existance
+//The existance of the memory bits is checked by restarting a 5s timer on the 
+//negative flank of the 1s one-shot. If the timer reaches zero, the one-shot 
+//is not active and the PLC is stopped. IF THE PLC HAS GONE INTO STOP AT THIS
+//NETWORK THEN THE CLOCKBITS ARE NOT ENABLED IN THE PLC HARDWARE CONFIGURATION!   
+//                      
+      AN    "M_OS_/1.0_sec."; 
+      L     S5T#5S; 
+      SS    "T_Check_For_Clock_MB"; // Start on delay timer
+
+      A     "T_Check_For_Clock_MB"; // IF timer is low
+      JCN   AA99; // THEN jump to next
+      CALL "STP" ;// ELSE stop the PLC
+///////////////////////////////////////////////////////////////////////////
+//                                                                       //
+// IF THE PLC HAS GONE INTO STOP AT THIS NETWORK                         //
+// THEN THE CLOCKBITS ARE NOT ENABLED IN THE PLC HARDWARE CONFIGURATION! //
+//                                                                       //
+///////////////////////////////////////////////////////////////////////////
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: One shots on clock memory bits
+//One-Shots are generated on MB0, containing the clock memory bits, and 
+//transfered onto MB1.
+//Remark: The clock memory byte must be enabled in the CPU ! !
+//        The memory byte used is MB0.
+//
+//Overview Clock-Bits:
+//M 1.0 One-Shot each 0.05 sec. 
+//M 1.1 One-Shot each 0.1  sec.     (F2.2 in S5)
+//M 1.2 One-Shot each 0.2  sec.
+//M 1.3 One-Shot each 0.25 sec.
+//M 1.4 One-Shot each 0.4  sec.
+//M 1.5 One-Shot each 0.5  sec.
+//M 1.6 One-Shot each 0.8  sec.
+//M 1.7 One-Shot each 1.0  sec.
+//
+      L     #s_Copy_MB0; 
+      L     "MB_Clock_Sysbits"; 
+      XOW   ; 
+      T     "MB_One-shots_Sysbits"; 
+      L     "MB_Clock_Sysbits"; 
+      T     #s_Copy_MB0; 
+NETWORK
+TITLE =CA: Divide "M_OS_/0.1_sec." over 8 pulses
+//Overview of division of "M_OS_/0.1_sec.":
+//M 4.0 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_0") 
+//M 4.1 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_1")     
+//M 4.2 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_2") 
+//M 4.3 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_3") 
+//M 4.4 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_4") 
+//M 4.5 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_5") 
+//M 4.6 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_6") 
+//M 4.7 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_7") 
+      L     "MB_One-shots_100ms"; // Shift the OS 100 ms pulse for 8 positions
+      SLW   1; 
+      T     "MB_One-shots_100ms"; 
+
+      A     "M_OS_/0.1_sec."; // Preset first bit
+      =     "M_OS_/0.1_sec_0"; 
+NETWORK
+TITLE =DA: Divide "M_OS_/1.0_sec." over 32 pulses
+//Overview of division of "M_OS_/1.0_sec.":
+//M 12.0 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_0") 
+//M 12.1 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_1")     
+//M 12.2 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_2") 
+//
+//M 16.7 One-Shot each 0.1 sec. ("M_OS_/0.1_sec_31") 
+      L     "MD_One_shots_1.0_Sec"; // Shift the OS 1 sec pulse for 32 positions
+      SLD   1; 
+      T     "MD_One_shots_1.0_Sec"; 
+
+      A     "M_OS_/1.0_sec."; // Preset first bit
+      =     "M_OS_/1.0_sec_0"; 
+NETWORK
+TITLE =EA: First scan bit, always true/false bits
+//#OB1_SCAN_1 is a temp of OB1. 
+//It indicates in the first scan the type of restart which was performed.
+//The first scan can be detected by checking this temp on being equal to zero.
+//Clear always false bit, set always true bit.
+      CLR   ; 
+      =     "M_First_Scan"; 
+      =     "M_OB100_Warm_Restart"; 
+      =     "M_OB101_Hot_Restart"; 
+      =     "M_OB102_Cold_Restart"; 
+
+      L     #OB1_SCAN_1; 
+      JL    EA01; 
+      JU    EA05; 
+      JU    EA02; // IF OB1_SCAN_1 = 1 (warm restart) OR..
+      JU    EA03; // IF OB1_SCAN_1 = 2 (Hot restart)  OR..
+      JU    EA05; 
+      JU    EA04; // IF OB1_SCAN_1 = 4 (Cold restart) THEN..
+
+EA01: JU    EA05; 
+
+EA02: SET   ; // M_First_Scan := TRUE
+      =     "M_First_Scan"; 
+      =     "M_OB100_Warm_Restart"; 
+      JU    EA05; 
+EA03: SET   ; // M_First_Scan := TRUE
+      =     "M_First_Scan"; 
+      =     "M_OB101_Hot_Restart"; 
+      JU    EA05; 
+EA04: SET   ; // M_First_Scan := TRUE
+      =     "M_First_Scan"; 
+      =     "M_OB102_Cold_Restart"; 
+      JU    EA05; 
+
+EA05: CLR   ; 
+      =     "M_Always_FALSE"; 
+      SET   ; 
+      =     "M_Always_TRUE"; 
+NETWORK
+TITLE =FA: Date and Time_of_day
+//In this network the Data and Time_of_day are extracted from the Date_and_time 
+//and put on global merkers 
+      CALL "DT to DATE" (
+           IN                       := #OB1_DATE_TIME,
+           RET_VAL                  := "MW_Date");
+
+      CALL "DT to TOD" (
+           IN                       := #OB1_DATE_TIME,
+           RET_VAL                  := "MD_Time_Of_Day");
+NETWORK
+TITLE =GA: Save the previous date and time
+//Previous values of the various date and time variables are saved to be able 
+//creating One Shots.
+      L     #s_Date_Time.Year; 
+      T     #s_Date_Time_Prev.Year; 
+
+      L     #s_Date_Time.Month; 
+      T     #s_Date_Time_Prev.Month; 
+
+      L     #s_Date_Time.Day; 
+      T     #s_Date_Time_Prev.Day; 
+
+      L     #s_Date_Time.Hour; 
+      T     #s_Date_Time_Prev.Hour; 
+
+      L     #s_Date_Time.Minute; 
+      T     #s_Date_Time_Prev.Minute; 
+
+      L     #s_Date_Time.Second; 
+      T     #s_Date_Time_Prev.Second; 
+
+      L     #s_Date_Time.mSeconds; 
+      T     #s_Date_Time_Prev.mSeconds; 
+
+      L     #s_Date_Time.Week_Day; 
+      T     #s_Date_Time_Prev.Week_Day; 
+NETWORK
+TITLE =HA: Extract Date_Time to static variable
+//In this network all specific Data and Time information is extracted from the 
+//Date_and_time by means of a structure stat variable
+//and put on statics. 
+      LAR1  P##OB1_DATE_TIME; 
+      L     B [AR1,P#0.0]; // Tranfer System Date-Year [00..99] BCD
+      T     #s_Date_Time.Year; 
+
+      L     B [AR1,P#1.0]; // Tranfer System Date-Month [01..12] BCD
+      T     #s_Date_Time.Month; 
+
+      L     B [AR1,P#2.0]; // Tranfer System Date-Day [01..31] BCD
+      T     #s_Date_Time.Day; 
+
+      L     B [AR1,P#3.0]; // Tranfer System Time-Hour [00..23] BCD
+      T     #s_Date_Time.Hour; 
+      T     "MB_Hour"; 
+
+      L     B [AR1,P#4.0]; // Tranfer System Time-Minutes [00..59] BCD
+      T     #s_Date_Time.Minute; 
+      T     "MB_Minute"; 
+
+      L     B [AR1,P#5.0]; // Tranfer System Time-Seconds [00..59] BCD
+      T     #s_Date_Time.Second; 
+      T     "MB_Second"; 
+
+      L     W [AR1,P#6.0]; // Tranfer System Time-mSeconds [000..999] BCD
+      SRW   4; 
+      T     #s_Date_Time.mSeconds; 
+
+      L     B [AR1,P#7.0]; // Tranfer System Date-Day of the week [01..07] BCD
+      L     2#1111; // (1=Sunday/7=Saturday)
+      AW    ; 
+      T     #s_Date_Time.Week_Day; 
+NETWORK
+TITLE =IA: Create One Shots on date and time
+//Create One Shots on date and time, by checking if s_Date_Time differs from 
+//t_Date_Time_Prev.
+      L     #s_Date_Time.Year; 
+      L     #s_Date_Time_Prev.Year; 
+      <>I   ; 
+      =     "M_OS_New_Year"; 
+
+      L     #s_Date_Time.Month; 
+      L     #s_Date_Time_Prev.Month; 
+      <>I   ; 
+      =     "M_OS_New_Month"; 
+
+      L     #s_Date_Time.Week_Day; 
+      L     #s_Date_Time_Prev.Week_Day; 
+      <I    ; 
+      =     "M_OS_New_Week"; 
+
+      L     #s_Date_Time.Day; 
+      L     #s_Date_Time_Prev.Day; 
+      <>I   ; 
+      =     "M_OS_New_Day"; 
+
+      L     #s_Date_Time.Hour; 
+      L     #s_Date_Time_Prev.Hour; 
+      <>I   ; 
+      =     "M_OS_New_Hour"; 
+
+      L     #s_Date_Time.Minute; 
+      L     #s_Date_Time_Prev.Minute; 
+      <>I   ; 
+      =     "M_OS_New_Minute"; 
+
+      L     #s_Date_Time.Second; 
+      L     #s_Date_Time_Prev.Second; 
+      <>I   ; 
+      =     "M_OS_New_Second"; 
+NETWORK
+TITLE =JA: Calculate Cycle Time
+//In this network the previous cycle time is calculated by comparing the current 
+//system time with the previous system time. At first scan the previous cycle 
+//time is set to 0. The OB1-cycle-time is used when the calculated cycle time is 
+//greater than the maximum cycle time or when the previous system time is 
+//greater than the current system time.
+//
+      L     "MD_Time_Of_Day"; // IF current system time >= Previous system time
+      L     #s_Prev_System_Time; 
+      >=D   ; 
+      JCN   JA01; 
+
+      L     "MD_Time_Of_Day"; // THEN previous cycle time is
+      L     #s_Prev_System_Time; // system time - previous system time
+      -D    ; 
+      T     #s_Prev_Cycle_Time; 
+      L     #s_Scan_Cycle_Time.Maximum; // IF Calculated cycle time > Max cycle time
+      >D    ; 
+      JCN   JA02; 
+
+JA01: L     #OB1_PREV_CYCLE; // THEN previous cycle time is OB1-value
+      T     #s_Prev_Cycle_Time; 
+
+JA02: A     "M_First_Scan"; // IF first scan
+      JCN   JA03; 
+
+      L     0; // THEN use 0 for previous cycle
+      T     #s_Prev_Cycle_Time; 
+
+JA03: L     "MD_Time_Of_Day"; // Store current system time for next cycle
+      T     #s_Prev_System_Time; 
+
+      L     #s_Prev_Cycle_Time; 
+      T     "MW_Prev_Cycle_Time"; 
+NETWORK
+TITLE =KA: Statisticals on the Scan Cycle Time
+
+      A     "M_First_Scan"; // Initialisation of first scan
+      JCN   KA01; 
+
+      S     #s_PLC_Start_Up; // The PLC Starts up
+
+      L     0; 
+      T     #s_Scan_Cycle_Time.Maximum; // Pre-set the Maximum and Minimum values
+
+      L     9999; 
+      T     #s_Scan_Cycle_Time.Minimum; 
+
+      L     0; 
+      T     #s_Cntr_PLC_Cycles; 
+
+KA01: L     1; 
+      L     #s_Cntr_PLC_Cycles; // Increment the PLC scan counter
+      +I    ; 
+      JM    KA02; // Stop incrementing when result negative
+      T     #s_Cntr_PLC_Cycles; 
+KA02: L     2; // 2nd. scan cycle
+      ==I   ; 
+      A     #s_PLC_Start_Up; 
+      JCN   KA03; 
+
+      L     #s_Prev_Cycle_Time; // The first scan cycle is probably eaual to OB1_MAX_CYCLE
+      T     #s_Scan_Cycle_Time.First_Cycle; // which can be read out via PLC diagnose of PG
+
+KA03: NOP   0; 
+
+      L     #s_Cntr_PLC_Cycles; // Starting up the PLC takes more then 1 scan cycle
+      L     10; // after 10 it should be completed
+      >I    ; 
+      R     #s_PLC_Start_Up; 
+
+      AN    #s_PLC_Start_Up; // After starting up handle the statisticals
+      JCN   KA99; 
+
+      L     #s_Scan_Cycle_Time.Maximum; // Check on Maximum Scan Cycle Time
+      L     #s_Prev_Cycle_Time; 
+      <I    ; 
+      JCN   KA04; 
+      T     #s_Scan_Cycle_Time.Maximum; 
+
+KA04: NOP   0; 
+
+      L     #s_Scan_Cycle_Time.Minimum; // Check on Minimum Scan Cycle Time
+      L     #s_Prev_Cycle_Time; 
+      >I    ; 
+      JCN   KA05; 
+      T     #s_Scan_Cycle_Time.Minimum; 
+
+KA05: NOP   0; 
+
+      L     #s_Pntr_Offset_Values; 
+      L     P##s_Cycle_Time; 
+      +D    ; 
+      T     #t_Pointer; 
+
+      L     #s_Prev_Cycle_Time; // Store the Previous cycle time in the value array
+      T     DIW [#t_Pointer]; // at the pointer position
+
+      L     #s_Pntr_Offset_Values; // Increment offset pointer to next entry
+      L     P#2.0; 
+      +D    ; 
+      T     #s_Pntr_Offset_Values; 
+
+      L     #s_Pntr_Offset_Values; // maximum 10 entries in array 
+      L     P#20.0; 
+      >=D   ; 
+      JCN   KA06; 
+
+      L     P#0.0; 
+      T     #s_Pntr_Offset_Values; 
+
+KA06: NOP   0; 
+
+      L     #s_Cycle_Time[1]; // Calculate the average Scan_Cyle_Time 
+      L     #s_Cycle_Time[2]; // out of the 10 last values stored in the array
+      +I    ; 
+      L     #s_Cycle_Time[3]; 
+      +I    ; 
+      L     #s_Cycle_Time[4]; 
+      +I    ; 
+      L     #s_Cycle_Time[5]; 
+      +I    ; 
+      L     #s_Cycle_Time[6]; 
+      +I    ; 
+      L     #s_Cycle_Time[7]; 
+      +I    ; 
+      L     #s_Cycle_Time[8]; 
+      +I    ; 
+      L     #s_Cycle_Time[9]; 
+      +I    ; 
+      L     #s_Cycle_Time[10]; 
+      +I    ; 
+      L     10; 
+      /I    ; 
+      T     #s_Scan_Cycle_Time.Average; 
+      SRD   16; // Check if the remainder of the ivision 
+      L     5; // is larger then 10/2
+      >=I   ; 
+      JCN   KA99; 
+
+      L     #s_Scan_Cycle_Time.Average; // Then increment result with one.
+      INC   1; 
+      T     #s_Scan_Cycle_Time.Average; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Convert CPU cycle time into 0 - 29999 milli seconds counter
+
+      NOP   0; 
+
+// Preset OS new milli seconds count 
+      CLR   ; 
+      =     #s_OS_New_MSec_Count; 
+
+// Increase milli seconds counter with previous cycle time
+      L     "MW_Min_MSec"; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     "MW_Min_MSec"; 
+
+// Check if counter value is greater then 30000
+      L     30000; 
+      >I    ; 
+      JCN   LA99; 
+
+// Decrease with 30000
+      L     "MW_Min_MSec"; 
+      L     30000; 
+      -I    ; 
+      T     "MW_Min_MSec"; 
+
+// Set one-shot new milli seconds count started
+      S     #s_OS_New_MSec_Count; 
+
+LA99: NOP   0; 
+
+NETWORK
+TITLE =MA: Toggle bit new milli seconds count
+
+      AN    "M_Toggle_MSecTimer"; 
+      A     #s_OS_New_MSec_Count; 
+      S     "M_Toggle_MSecTimer"; 
+      =     #t_No_Toggle; 
+
+      A     "M_Toggle_MSecTimer"; 
+      A     #s_OS_New_MSec_Count; 
+      AN    #t_No_Toggle; 
+      R     "M_Toggle_MSecTimer"; 
+
+NETWORK
+TITLE =NA: Convert CPU minutes and seconds to 0 - 3599 seconds
+
+      L     #s_Date_Time.Minute; // actual minutes
+      BTD   ; 
+      L     60; // * 60 seconds
+      *I    ; 
+      T     #s_Sec_In_Hour; 
+      L     #s_Date_Time.Second; // + actual seconds
+      BTD   ; 
+      T     #s_Seconds; 
+      L     #s_Sec_In_Hour; 
+      L     #s_Seconds; 
+      +I    ; 
+      T     "MW_Hour_Sec"; // = total seconds
+
+NETWORK
+TITLE =OA: Toggle bit new hour
+
+      AN    "M_Toggle_SecTimer"; 
+      A     "M_OS_New_Hour"; 
+      S     "M_Toggle_SecTimer"; 
+      =     #t_No_Toggle; 
+
+      A     "M_Toggle_SecTimer"; 
+      A     "M_OS_New_Hour"; 
+      AN    #t_No_Toggle; 
+      R     "M_Toggle_SecTimer"; 
+
+NETWORK
+TITLE =PA: Convert CPU hours and minutes to 0 - 1439 minutes
+
+      L     #s_Date_Time.Hour; // actual hour
+      BTD   ; 
+      L     60; // * 60 minutes
+      *I    ; 
+      T     #s_Min_In_Day; 
+      L     #s_Date_Time.Minute; // + actual minutes
+      BTD   ; 
+      T     #s_Minutes; 
+      L     #s_Min_In_Day; 
+      L     #s_Minutes; 
+      +I    ; 
+      T     "MW_Day_Min"; // = total minutes
+
+NETWORK
+TITLE =QA: Toggle bit new day
+
+      AN    "M_Toggle_MinTimer"; 
+      A     "M_OS_New_Day"; 
+      S     "M_Toggle_MinTimer"; 
+      =     #t_No_Toggle; 
+
+      A     "M_Toggle_MinTimer"; 
+      A     "M_OS_New_Day"; 
+      AN    #t_No_Toggle; 
+      R     "M_Toggle_MinTimer"; 
+
+NETWORK
+TITLE =RA: Set initialize setting bit for DB setting
+//In this network the init bit is set or reset to initialize the settings from DB 
+//setting which are only calculated one time.
+//The Bit can be set by the first scan or manualy.
+      NOP   0; 
+// Set Init bit on first scan
+      A     "M_First_Scan"; 
+      S     "M_Init_Setting"; 
+
+// Reset Init bit on next scan, init was one scan active
+      A     #s_Set_Done_Next_Scan; 
+      AN    "M_First_Scan"; 
+      R     "M_Init_Setting"; 
+      R     #s_Set_Done_Next_Scan; 
+
+// Copy Init bit for next scan
+      A     "M_Init_Setting"; 
+      AN    "M_First_Scan"; 
+      S     #s_Set_Done_Next_Scan; 
+END_FUNCTION_BLOCK
+

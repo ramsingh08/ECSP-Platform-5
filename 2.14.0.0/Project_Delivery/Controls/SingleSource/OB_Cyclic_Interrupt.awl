@@ -1,0 +1,88 @@
+ORGANIZATION_BLOCK "OB_Cyclic_Interrupt"
+TITLE =%version: 0.02 % CN: 90  
+//Function: 
+//Module for cyclic interrupt request by the CPU. Standard Safety function 
+//included
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, February 05, 2018 11:30:43 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on V0.02 of Safety              nlHdL    10-01-17   0.01
+//Added OB35 runtime check                              nlTre    05-02-18   0.02
+//
+//Description: 
+//Safety run time group needs to be call on cycle interrupt base, there for this 
+//run time group is present within this block call. Also some safety common 
+//signals are present.
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  OB35_EV_CLASS : BYTE ;	//Bits 0-3 = 1 (Coming event), Bits 4-7 = 1 (Event class 1)
+  OB35_STRT_INF : BYTE ;	//16#36 (OB 35 has started)
+  OB35_PRIORITY : BYTE ;	//Priority of OB Execution
+  OB35_OB_NUMBR : BYTE ;	//35 (Organization block 35, OB35)
+  OB35_RESERVED_1 : BYTE ;	//Reserved for system
+  OB35_RESERVED_2 : BYTE ;	//Reserved for system
+  OB35_PHASE_OFFSET : WORD ;	//Phase offset (msec)
+  OB35_RESERVED_3 : INT ;	//Reserved for system
+  OB35_EXC_FREQ : INT ;	//Frequency of execution (msec)
+  OB35_DATE_TIME : DATE_AND_TIME ;	//Date and time OB35 started
+  t_TimeTick_1 : TIME ;	//Timetick at start of OB35
+  t_TimeTick_2 : TIME ;	//Timetick at end of OB35
+  t_OB35Runtime : TIME ;	//Runtime of OB35 in milliseconds
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine OB35 starttime
+//Determine first time tick
+//Determine and save first time tick
+      CALL "TIME_TCK" (
+           RET_VAL                  := #t_TimeTick_1);
+
+
+NETWORK
+TITLE =BA: Copy clockbyte
+
+      L     "MB_Clock_Sysbits"; 
+      T     "MB_F_Clock_Sysbits"; 
+
+NETWORK
+TITLE =CA: Call runtime group 1
+
+      UC    "F_FC_RTG1_Failsafe"; 
+
+NETWORK
+TITLE =DA: Call runtime group 2 
+//Reserved; in case required.
+
+
+NETWORK
+TITLE =EA: Reset Failsafe reset signal
+
+      A     "M_Failsafe_Reset"; 
+      R     "M_Failsafe_Reset"; 
+      R     "M_OS_Failsafe_Reset"; 
+
+
+NETWORK
+TITLE =FA: Calculate OB35 runtime
+//Determine second time tick and calculate OB35 runtime in milliseconds
+//Determine and save second time tick
+      CALL "TIME_TCK" (
+           RET_VAL                  := #t_TimeTick_2);
+
+//Calculate OB35 runtime
+      L     #t_TimeTick_2; 
+      L     #t_TimeTick_1; 
+      -D    ; 
+      T     #t_OB35Runtime; 
+
+
+END_ORGANIZATION_BLOCK
+

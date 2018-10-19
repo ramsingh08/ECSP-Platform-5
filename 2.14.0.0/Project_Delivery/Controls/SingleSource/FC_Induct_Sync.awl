@@ -1,0 +1,255 @@
+FUNCTION "FC_Induct_Sync" : VOID
+TITLE =%version: 1.06 % CN: 40
+//Function:
+//Syncronise PLT info at merge transition for the claimed LNK.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, September 10, 2018 10:14:04 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10868: Induct with junction in gap sync update    nlHdL    10-09-18   1.06
+//ina#9655: sync to use junction section run            nlHdL    17-04-18   1.05
+//ra#16283: Chk trailing before leading edge when sync  nlHdL    14-09-16   1.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.03
+//8128: When sync action change LNK list PLT DB         nlHdL    07-09-15   1.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//14261: Removed not used pointer code                  nlHdL    18-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.09 of PLT version 0
+//
+//Description:
+//This function block is able to detect a leading and trailing edge of 
+//a item at handover to the merge section and to replace the claimed data
+//in the merge section PLT for a 1 and a 2.
+//
+//
+//                         \       \ 
+//                          \  ____ \2
+//                           \ \   \ \ 
+//                            \ \   \ \ 
+//         ____________________\_\___\_\1_____________                            
+//       
+//              
+//                 ===flow-direction===>                                          
+//          
+//         ___________________________________________                            
+//     
+//       
+//         | | | | | | | |2(C)| | | |1 (C)| | | | | | | | |   
+//(C) Claimed LNK
+//                                               
+//                                                                
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_DB_PLT_Merge_Num : INT ;	//Number of DB PLT Merge
+  i_DB_PLT_Junction_Num : INT ;	//Number of DB PLT Junction
+END_VAR
+VAR_TEMP
+  t_DB_PLT_Number_Merge : INT ;	//PLT DB number of merge
+  t_DB_PLT_Number_Junction : INT ;	//PLT DB number of junction
+  t_Junction_Length : INT ;	//Length of the junction
+  t_Info_Junction : INT ;	//Info on junction
+  t_Data_Junction : INT ;	//LNK number on junction
+  t_Position_Found : INT ;	//Position of item found
+  t_Info_Found : INT ;	//Info of item found
+  t_Data_Found : INT ;	//LNK number of item found
+  t_DB_Nr_Found : INT ;	//DB number of items found
+  t_Number_Items_Found : INT ;	//Number of items found
+  t_Not_Used_INT : INT ;	//Dummy INT not used
+  t_Item_At_Handover_Pos : BOOL ;	//Item on handover position
+  t_Section_run : BOOL ;	//Section is running
+  t_Stat_Changed : BOOL ;	//Status changed, sync function started	
+  t_Position_trailing : INT ;	//Position trailing edge
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read shared DB PLT info
+
+      L     #i_DB_PLT_Junction_Num; 
+      T     #t_DB_PLT_Number_Junction; 
+      OPN   DB [#t_DB_PLT_Number_Junction]; 
+
+      L     DBW   12; 
+      L     100; 
+      +I    ; 
+      T     #t_Junction_Length; 
+
+      A     DBX   10.1; 
+      =     #t_Section_run; 
+
+      A     DBX   10.6; // Read item at handover from PLT DB
+      =     #t_Item_At_Handover_Pos; 
+
+      L     #i_DB_PLT_Merge_Num; 
+      T     #t_DB_PLT_Number_Merge; 
+      OPN   DB [#t_DB_PLT_Number_Merge]; 
+
+      SET   ; 
+      R     #t_Stat_Changed; 
+
+NETWORK
+TITLE =BA: Search and replace of leading edge
+//When a item is in handover at the junction conveyor, The PLT DB of the 
+//merge conveyor will be searched for the correspondig negative leading edge. To 
+//check if the correct negative leading edge is found the data will be compared 
+//with the data of the leading edge of the junction conveyor. When the correct 
+//negative leading edge has found the neagtive leading edge will be re-writed to 
+//a positive leading edge. The corresponding negative trailing edge will be 
+//searched from the leading position upstreamwards. When this is found the 
+//trailing edge will be re-writed.
+      A     #t_Item_At_Handover_Pos; // When item is in handover on junction
+      A     #t_Section_run; 
+      JCN   BA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (// Search for leading edge on junction for data
+           i_DB_PLT_Num             := #i_DB_PLT_Junction_Num,
+           i_Position               := -100,
+           i_Window                 := #t_Junction_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Info_Junction,
+           o_LNK                    := #t_Data_Junction,
+           o_DB_PLT_Num             := #t_Not_Used_INT,
+           o_Number_Items_Found     := #t_Not_Used_INT);
+
+      CALL "FC_PLT_Srch_Inf_Up" (// Search for leading edge on junction for data
+           i_DB_PLT_Num             := #i_DB_PLT_Junction_Num,
+           i_Position               := -100,
+           i_Window                 := #t_Junction_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Position_trailing,
+           o_Info                   := #t_Not_Used_INT,
+           o_LNK                    := #t_Not_Used_INT,
+           o_DB_PLT_Num             := #t_Not_Used_INT,
+           o_Number_Items_Found     := #t_Not_Used_INT);
+
+      L     #t_Data_Junction; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+      L     1; 
+      L     #t_Position_trailing; // Check if trailing edge > 1 
+      <I    ; 
+      A(    ; 
+      L     #t_Position_Found; // Check if trailing edge before the leading edge (different item)
+      <I    ; 
+      )     ; 
+      JC    BA99; // If trailing before leading end sync conditions
+
+//Open merge PLT DB check for same LNK on merge as junction.
+//Also check if info_state is Claimed W#16#0400 then remove the claimed state.
+      OPN   DB [#t_DB_PLT_Number_Merge]; 
+
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; // IF no entries used goto to end
+
+//Create pointer to the last used entry
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      L     8; // Number of entries -1 * Length
+      *I    ; 
+      L     14; // Add header P#14.0
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+BA01: L     DBW [AR1,P#6.0]; // Actual link
+      L     #t_Data_Junction; 
+      ==I   ; 
+      JCN   BA02; 
+
+      L     DBW [AR1,P#2.0]; // Actual info state
+      L     W#16#400; 
+      ==I   ; 
+      JCN   BA02; 
+
+      L     0; 
+      T     DBW [AR1,P#2.0]; // Actual info state
+
+      SET   ; 
+      S     #t_Stat_Changed; 
+
+BA02: TAR1  ; // Read Entry pointer of address-register
+      L     P#14.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      -D    ; // Entry pointer = Entry pointer - P#6.0
+      JMZ   BA99; // IF Entry pointer > 0
+
+      L     P#6.0; // THEN Entry pointer = -14 + 8 = -6
+      +D    ; 
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    BA01; // GOTO START OF SEARCH-LOOP
+
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: When status is changed update the LNK list with PLT DB nr
+
+      A     #t_Stat_Changed; 
+      JCN   CA99; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Data_Junction,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Number_Merge,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Delete entries from junction PLT
+//Check if entries are at end of junction, Then delete the last entry.
+//Only check when merge section is running (Ready to Receive the item).
+//
+      A     #t_Section_run; 
+      JCN   DA99; 
+
+      OPN   DB [#t_DB_PLT_Number_Junction]; 
+
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; // IF no entries used goto to end
+
+//Create pointer to the last used entry
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      L     8; // Number of entries -1 * Length
+      *I    ; 
+      L     14; // Add header P#14.0
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+      L     DBW [AR1,P#0.0]; // Actual entry position 
+      L     1; 
+      <=I   ; 
+      JCN   DA99; // IF position > 0 then delete the entry
+
+//Remove entry
+      L     0; 
+      T     DBD [AR1,P#0.0]; // Clear last entry  
+      T     DBD [AR1,P#4.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; // decrease entry counter
+
+DA99: NOP   0; 
+END_FUNCTION
+

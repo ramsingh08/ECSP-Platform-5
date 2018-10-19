@@ -1,0 +1,46 @@
+TYPE "UDT_Msg_TubsRep_T"
+TITLE =%version: 0.04 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, October 20, 2017 11:20:26 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25149: Update msgs layout as example               nlHdL    20-10-17   0.04
+//ra#22071: Add Tub ID to TubsReport                    nlHdL    24-04-17   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.02
+//20645: Tubs Bags report blocks updated                nlHdL    09-09-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on version 0.03 TTC            nlHdL    26-02-14   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Header : WORD  := W#16#200;	//STX Start of Text
+   Body : STRUCT 	
+    Messages_Length : INT ;	//Length of this messages
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 801;	//Message ID: TubsReport
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    Number_Of_Segments : INT ;	//Number of segments in this messages
+    Route_Segment : ARRAY  [1 .. 50 ] OF STRUCT 	
+     Route_Segment_ID : INT ;	//Route segment ID number
+     Number_Of_Items : INT ;	//Number of items in the segment
+     Item : ARRAY  [1 .. 200 ] OF STRUCT 	
+      Tubstatus : BYTE ;	//Tubstatus Empty=1 / Loaded=2
+      Tubclass : BYTE ;	//Tubclass SBT=1 / OBT=2
+      Destination : INT ;	//Destination of Tub
+      TubID : INT ;	//ID number of Tub
+     END_STRUCT ;	
+    END_STRUCT ;	
+   END_STRUCT ;	
+   Footer : DWORD ;	//End of message   
+  END_STRUCT ;	
+END_TYPE
+

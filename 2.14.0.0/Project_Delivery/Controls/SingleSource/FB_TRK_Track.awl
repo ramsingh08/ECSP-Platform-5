@@ -1,0 +1,2481 @@
+FUNCTION_BLOCK "FB_TRK_Track"
+TITLE = %version: 1.21 % CN: 40
+//Function:
+//Updating the tracking at a certain position in tracking at a PEC.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, July 13, 2017 8:56:38 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//veg#938: Reset LPOS track And IO_Available PEC Update nlHdL    13-07-17   1.21
+//ina#5033: Missing route messages because off log mess nlHdL    11-07-17   1.20
+//ra#22358: Implement ECS_NO_REPORT                     nldy     21-04-17   1.19
+//ra#21670: Add disable functon on tracking block       nlHdL    13-04-17   1.18
+//ra#13116: section clear LNK data when not Auto        nlHdL    12-05-16   1.17
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.16
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.16
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.16
+//23799: Update trailing edge when item has update      nlHdL    18-06-15   1.16
+//23712: not removed double data in correct PLT DB      nlHdL    20-04-15   1.15
+//22671: Statistical Count missing and UFO in 1 scan    nlHdL    17-02-15   1.14
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   1.13
+//21373: Remove trailing edge after update of position  nlHdL    17-10-14   0.05
+//21373: Remove trailing edge after update of position  nlHdL    17-10-14   0.04
+//20194: ECS record no checked and added item upstream  nlHdL    12-08-14   0.03
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.02
+//Initial Version based on version 1.07 ECS-P GEN       nlHHop   01-04-14   0.01
+//
+//Description:
+//When tracking data arrived at the PEC, the data will be updated.
+//Updating means that the tracking information is compared with a photo-eye 
+//signal. Due to for instance belt-slip, it is possible that the items on a 
+//conveyor lack too much behind with information in the tracking registers. This 
+//is especially the case when tracking is done over several conveyors. Therefore 
+//the information sometimes needs to be updated.
+//
+//The functions of this function block are:
+//- Delete window codes at the Position PEC Update (optional) and keep data on   
+//  this position if there is update data waiting for an update.
+//- Search the open window offset for data. If double data is found (more than 
+//  one entry) one or both of the entries are removed from tracking according to  
+//  an algorithm (and input i_Clear_Double_Data).
+//- The found data in the open window offset is compared with the actual update 
+//  data. The found data could be the same data, other update data or no update 
+//  data.
+//- When the product reached the Update-PEC, and there is update data available,  
+//  the product is 'in tracking' so the data will available at the output 
+//  of this module. A succesfull update is reported and the update data cleared.
+//- When the product not reached the Update-PEC when the counter of the 
+//  Update_Window is counted down, a missing is reported.
+//  Update window length = Open window offset + close window offset
+//- When a product reached the Update-PEC, but there is no update data, the   
+//  product is unidentified (UFO) and a new LNK will be generated and placed in 
+//  tracking. An UFO is reported.
+//- The product lenght is measured and stored in the LNK record. When the length
+//  is changed more than allowed it is reported at the next Update PEC, which 
+//  will generate a 'lost due to length change' and create a new UFO LNK.
+//- Handle missings counter for generating the o_ER_PEC_Missings error.
+//
+//                                        Update Position
+//                                              |                   
+//     Track                                    |                           
+//    +---------------------------------------------------------------------+
+//    | | | | | | | | | | L | | | | | | | | | | | | | | | | | | | | | | | | | 
+//    | | | | | | | | | | N | | | | | | | | | | | | | | | | | | | | | | | | | 
+//    | | | | | | | | | | K | | | | | | | | | | | | | | | | | | | | | | | | |
+//    +---------------------------------------------------------------------+
+//                        |             |  Close_Window_Offset
+//          PEC Trig/Pos  |             |       |<-->|  
+//    |<------------------|-------------|------>|    |
+//    |                   |             |       |    |  
+//    |                   |             |       |  Open_Window_Offset
+//    |                   |           ->|-------|<----------      
+//    |___________________|_____________|_______|____|______________________
+//    | Conveyor  +-------+                     |                           |
+//    |           |Product|                     |                           |
+//    |           +-------+                     |                           |
+//    |_________________________________________|___________________________|
+//                                              ^
+//                                             PEC 
+//- The deviation can be positive or negative.
+// When the offset needs to be corrected the Offset corr. = Offset - deviation 
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_TRK_Track_Sett";	//Data structure: Setting Record
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Position_PEC_Update : INT  := 10;	//SETT: [cm] PEC position where to update in tracking DB
+  i_LPOS : INT ;	//Leading Edge Position of PEC Latch (delay on amount)
+  i_Length_Dif_Accepted : INT ;	//CFG: [cm] Max allowed length variation (0 = no action)
+  i_CFG_Num_Missing_Error : INT  := 5;	//CFG: [Num] Value of missing counter to detect error 'Jam due to missing'
+  i_CFG_Upd_Perf_WN_Level : INT  := 80;	//CFG: [%] When the performance is below this level a warning will be given
+  i_CFG_Weighing_Factor : INT  := 10;	//CFG: [ ] Weighing factor used for statistical calculations
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link.
+  i_Trigger_Send_Stat : BOOL ;	//CMD: Trigger Send and clear statisticals 
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CFG_Clear_Double_Data : BOOL ;	//CFG: If two (UFO)LNKs are detected in the OWO, both (UFO)LNKs are cleared
+  i_OS_Direction_Change : BOOL ;	//OS: when direction changes, will clear update window.
+  i_HW_MTR_Not_Auto : BOOL ;	//CMD: The motor is reporting not Automatic (Clear LNK data)
+  i_Disable_Update_Funct : BOOL ;	//CMD: Disable update functie. (Reverse mode)
+END_VAR
+VAR_OUTPUT
+  o_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_ST_PEC_BadTrack : BOOL ;	//ST: Warning: Update Tracking Performance is below warning level
+  o_Update_Performance : INT  := 100;	//STAT: [%] Ratio between succesful updates and missings
+  o_Average_Slip : INT ;	//STAT: [cm] Average slip
+  o_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  o_OS_Data_Updated : BOOL ;	//Data at the outputs has been updated
+  o_Data_Last_Update : INT ;	//Data of last update (for commissioning purposes)
+  o_Position_Last_Update : INT ;	//Found position of last update (for commissioning purposes)
+  o_Deviation_Last_Update : INT ;	//Deviation of last update. Offset - deviation = corr Offset (commissioning) 
+END_VAR
+VAR
+  s_Statistical : STRUCT 	//Statisticals
+   Missing : INT ;	//Number of missings due to timeout
+   UFO_Missing : INT ;	//Number of UFO missings due to timeout
+   UFO_Generated : INT ;	//Number of generated UFOs
+   LNK_Lost_Double_Data : INT ;	//Number of times LNK data lost due to double data
+   UFO_Lost_Double_Data : INT ;	//Number of times UFO data lost due to double data
+   LNK_Lost_Length_Change : INT ;	//Number of LNK items which where lost due to length change
+   UFO_Lost_Length_Change : INT ;	//Number of UFO items which where lost due to length change
+   Number_Of_Items : INT ;	//Number of baggage items that reached the update PEC within an deviation period
+   Average_Slip : INT ;	//Running average of the slip
+   Update_Performance : INT ;	//Update performance
+  END_STRUCT ;	
+  s_Cnt_Missings : INT ;	//Counter missings for error detection
+  s_Update_Data_LNK : INT ;	//Value of update data
+  s_Last_Data : INT ;	//Data of last update
+  s_Last_Position : INT ;	//Virtual position counter value after update
+  s_Product_Length : INT ;	//Product Length from PLT DB
+  s_Cnt_Product_Length : INT ;	//Counter for product length
+  s_Cnt_Virtual_Position : INT ;	//Counter for virtual position data
+  s_Position : INT ;	//Position of data found in open window offset
+  s_Info : INT ;	//Info found in open window offset
+  s_Data_LNK : INT ;	//Data found in open window offset
+  s_Data_ECS : INT ;	//ECS Data of found LNK in open window offset
+  s_LPOS_Temp_Flank : INT ;	//Leading Edge Position of PEC Latch (delay on amount)
+  s_Average_Slip_Real : REAL ;	//Average Slip (Real)
+  s_Update_Perform_Real : REAL ;	//Update Performance (Real)
+  s_FB_Running_AV_Slip : "FB_Running_Average";	//Running average Slip
+  s_FB_Running_AV_Upd_Perf : "FB_Running_Average";	//Running average OK Rate
+  s_FP_PEC_Latch : BOOL ;	//Positive flank PEC latch
+  s_FN_PEC_Latch : BOOL ;	//Negative flank PEC Latch
+  s_OS_Succesfull_Update : BOOL ;	//One-shot successfull update performed
+  s_OS_UFO_Generated : BOOL ;	//One-shot UFO generated
+  s_OS_Missing : BOOL ;	//One-shot Missing due to timeout
+  s_OS_UFO_Missing : BOOL ;	//One-shot UFO Missing due to timeout
+  s_OS_LNK_Lost_Due_DD : BOOL ;	//One-shot LNK data lost due to double data in OWO
+  s_OS_UFO_Lost_Due_DD : BOOL ;	//One-shot UFO data lost due to double data in OWO
+  s_OS_LNK_Lost_Len_Change : BOOL ;	//One-shot LNK data lost due to length change
+  s_OS_UFO_Lost_Len_Change : BOOL ;	//One-shot UFO data lost due to length change
+  s_Data_Is_ECS : BOOL ;	//Data found in open window offset is a LNK
+  s_Data_Is_UFO_ECS : BOOL ;	//Data found in open window offset is a UFO LNK
+  s_Data_Is_Res_E : BOOL ;	//Data found in open window offset is a Res/E
+  s_Clear_Stats_Slip : BOOL ;	//The stats of slip needs to be cleared on the next succesful update
+  s_Clear_Stats_Upd_Perfor : BOOL ;	//The stats of Upd Perfor needs to be cleared on the next event (update/missing)
+  s_OS_FP_Dir_Change : BOOL ;	//One-shot direction change clear update window.
+  s_Succesfull_Update : BOOL ;	//Item is succesfull update
+  s_Unexpected_Item : BOOL ;	//Update item is marked as unexcepted
+  s_Update_Upstream_Sec : BOOL ;	//Update item is on upstream section
+  s_OS_FP_MTR_Not_Auto : BOOL ;	//One-shot motor not in automatic for clear LNK data
+END_VAR
+VAR_TEMP
+  t_Position_Open_Window : INT ;	//Temp open window position
+  t_Position_Close_Window : INT ;	//Temp close window position
+  t_Position_Search : INT ;	//Temp position search
+  t_Open_Window_Offset : INT ;	//Temp open window offset
+  t_Found_Entries : INT ;	//Temp number of found entries after search
+  t_Displacement : INT ;	//Temp displacement value
+  t_displacement_Upstream : INT ;	//Upstream displacement for 50% rule update leading edge
+  t_Data_Upstream : INT ;	//Temp data of upstream entry (used by double data detection)
+  t_Position_Upstream : INT ;	//Temp position of upstream entry (used by double data detection)
+  t_Entry_Upstream : INT ;	//Temp upstream entry (used by double data detection)
+  t_Data_UFO : INT ;	//Temp data of generated UFO
+  t_Slip_Last_Update : INT ;	//Temp slip last update
+  t_Actual_Performance : INT ;	//Temp actual performance (Real)
+  t_Data_US_Is_ECS : BOOL ;	//Temp upstream entry data found in open window offset is a LNK
+  t_Data_US_Is_UFO_ECS : BOOL ;	//Temp upstream entry data found in open window offset is a UFO LNK
+  t_Data_US_Is_Res_E : BOOL ;	//Temp upstream entry data found in open window offset is a Res/E
+  t_2_LNKs_Lost : BOOL ;	//Temp 2 LNKs are lost due to double data in OWO
+  t_2_UFOs_Lost : BOOL ;	//Temp 2 UFO LNKs are lost due to double data in OWO
+  t_DB_PLT_Num : INT ;	//Temp PLT DB number
+  t_Before_PEC_Update : INT ;	//Position before update PEC
+  t_PEC_Update_write : INT ;	//Position after PEC for writing UFO
+  t_Not_Used : INT ;	//Temp not used only for output connection
+  t_DB_PLT_Remain : INT ;	//DB PLT number for remaining search
+  t_DB_PLT_Search : INT ;	//DB PLT number of search funcion
+  t_Position_Update_LPOS : INT ;	//Update position with LPOS correction
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_Return_Value_Int : INT ;	//Return Value
+  t_Data_ECS : INT ;	//LIC number of found data
+  t_Conveyor_Length : INT ;	//Length of the own conveyor
+  t_Info : INT ;	//Info of read function
+  t_Leading_Edge_Length : INT ;	//Leading edge for length check
+  t_DB_PLT_Num_Upstr : INT ;	//DB PLT Number upstream
+  t_Unexpected_Item : BOOL ;	//Item was unexpected at previous location
+  t_Update_Succesfull : BOOL ;	//Temp succesfull update
+  t_ECS_No_Report : BOOL ;	//No routing messages to HL
+  t_Info_Sate : WORD ;	//Info state of found leading edge in open window
+  t_Total_items_Perfor : DINT ;	//Total number of items for performance calculation
+  t_Update_Performance : INT ;	//Update performance for BPI
+  t_ECS_Dereg_No_Rep_LNK : INT ;	//LNK of item which is deregistered without a HL report
+  t_ECS_Dereg_No_Rep_LNK2 : INT ;	//LNK of item which is deregistered without a HL report
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get info from Tracking-DB and record type
+//Get displacement from Tracking-DB and determine the record type to keep in 
+//tracking.
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+      L     DBW    2; // Copy displacement to temporary storage 
+      T     #t_Displacement; 
+//preset displacement if no upstream used
+      T     #t_displacement_Upstream; 
+
+      L     DBW   12; // Conveyor length from PLT DB
+      T     #t_Conveyor_Length; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Num_Upstr; 
+
+      L     #t_DB_PLT_Num_Upstr; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_DB_PLT_Num_Upstr]; 
+
+      L     DBW    2; 
+      T     #t_displacement_Upstream; 
+
+AA01: L     0; 
+      T     #t_ECS_Dereg_No_Rep_LNK; 
+      T     #t_ECS_Dereg_No_Rep_LNK2; 
+
+      CLR   ; 
+      =     #t_ECS_No_Report; 
+NETWORK
+TITLE =BA: Clear Update window on direction change
+//When the direction is changed, the PLT DB is swapped before the Track.
+//The inversed update window will be cleared.
+//
+      A     #i_OS_Direction_Change; 
+      FP    #s_OS_FP_Dir_Change; 
+      JCN   BA99; 
+
+      L     #t_Conveyor_Length; 
+      L     #i_Position_PEC_Update; 
+      -I    ; 
+      L     #t_Displacement; 
+      -I    ; 
+      T     #t_Position_Open_Window; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Open_Window,
+           i_Window                 := 0,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Search,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Position_Search; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Open_Window,
+           i_Window                 := #t_Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Upstream,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Data_Upstream,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Data_Upstream; 
+      L     #s_Data_LNK; 
+      ==I   ; 
+      JCN   BA99; 
+
+      L     #s_Cnt_Virtual_Position; 
+      L     0; 
+      <I    ; 
+      JCN   BA04; 
+//remove from section
+
+// Read ECS number from LNK list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   BA02; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   BA01; 
+
+      L     #s_Data_LNK; 
+      T     #t_ECS_Dereg_No_Rep_LNK; 
+
+      JU    BA03; 
+
+// Write correct deregister reason in CIR
+BA01: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA02: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+BA03: A     #s_Data_Is_ECS; // IF removed entry was a LNK
+      JCN   BA99; 
+      S     #s_OS_Missing; // SET one-shot Missing due to timeout
+
+      CALL "FC_Write_Event" (// Report event "Missing due to direction change" (3512)
+           i_Message_ID             := 3512,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Upstream,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    BA99; 
+
+BA04: L     #t_Conveyor_Length; 
+      L     #s_Cnt_Virtual_Position; 
+      -I    ; 
+      T     #t_Position_Upstream; 
+
+//correct position to the virtual position
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Upstream,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Search,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; 
+      T     #s_Position; 
+      T     #s_Cnt_Virtual_Position; 
+      T     #s_Update_Data_LNK; 
+      BE    ; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Clear LNK data if motor not auto
+
+      A     #i_HW_MTR_Not_Auto; 
+      FP    #s_OS_FP_MTR_Not_Auto; 
+      JCN   CA01; 
+
+      CALL "FC_PLT_Clr_Data" (
+           i_Enable_Clr             := #i_HW_MTR_Not_Auto,
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; 
+      T     #s_Position; 
+      T     #s_Cnt_Virtual_Position; 
+      T     #s_Update_Data_LNK; 
+      BE    ; 
+
+CA01: A     #i_HW_MTR_Not_Auto; 
+      BEC   ; 
+NETWORK
+TITLE =DA: Clear event one-shots, statisticals & average counters
+
+      SET   ; // Clear event one-shots
+      R     #s_OS_Succesfull_Update; 
+      R     #s_OS_UFO_Generated; 
+      R     #s_OS_Missing; 
+      R     #s_OS_UFO_Missing; 
+      R     #s_OS_LNK_Lost_Due_DD; 
+      R     #s_OS_UFO_Lost_Due_DD; 
+      R     #s_OS_LNK_Lost_Len_Change; 
+      R     #s_OS_UFO_Lost_Len_Change; 
+      R     #o_OS_Data_Updated; // Clear output data updated
+
+      O     #i_Trigger_Send_Stat; // IF input clear statisticals
+      JCN   DA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2008,
+           i_Event_value            := #s_Statistical.Number_Of_Items,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2009,
+           i_Event_value            := #s_Statistical.Average_Slip,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     #s_Statistical.Missing; 
+      L     #s_Statistical.UFO_Missing; 
+      +D    ; 
+      L     #s_Statistical.Number_Of_Items; 
+      +D    ; 
+      T     #t_Total_items_Perfor; 
+
+      L     #s_Statistical.Number_Of_Items; 
+      L     100; 
+      *D    ; 
+      L     #t_Total_items_Perfor; 
+      /D    ; 
+      T     #t_Update_Performance; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2010,
+           i_Event_value            := #t_Update_Performance,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; // THEN Clear statistical data
+      T     #o_Average_Slip; 
+      T     #s_Statistical.Missing; 
+      T     #s_Statistical.UFO_Missing; 
+      T     #s_Statistical.LNK_Lost_Double_Data; 
+      T     #s_Statistical.UFO_Lost_Double_Data; 
+      T     #s_Statistical.UFO_Generated; 
+      T     #s_Statistical.Number_Of_Items; 
+      T     #s_Statistical.LNK_Lost_Length_Change; 
+      T     #s_Statistical.UFO_Lost_Length_Change; 
+      S     #s_Clear_Stats_Slip; // SET clear stats slip
+DA99: NOP   0; 
+NETWORK
+TITLE =DB: Handle disable update funct with reset error
+
+      A     #o_ST_PEC_Miss; // IF error PEC  Missings
+      A     #i_CMD_Reset; // reset command
+      JCN   DB01; 
+      R     #o_ST_PEC_Miss; // RESET errror
+      L     0; // Clear counter missings
+      T     #s_Cnt_Missings; 
+
+DB01: A     #i_Disable_Update_Funct; 
+      BEC   ; //Block end if function is disabled
+NETWORK
+TITLE =EA: Create positive and negative flank PEC signal
+
+      L     #i_LPOS; 
+      L     0; 
+      <>I   ; 
+      JCN   EA01; 
+
+      L     #i_LPOS; // Create postive flank PEC latch
+      L     #s_LPOS_Temp_Flank; 
+      >I    ; 
+      =     #s_FP_PEC_Latch; 
+
+EA01: L     #i_LPOS; // Create negative flank PEC latch
+      L     #s_LPOS_Temp_Flank; 
+      <I    ; 
+      =     #s_FN_PEC_Latch; 
+      R     #s_FP_PEC_Latch; 
+
+      L     #i_LPOS; // Copy LPOS to Temp for flank detection
+      T     #s_LPOS_Temp_Flank; 
+NETWORK
+TITLE =FA: Determine open/close window position
+
+      L     #i_Position_PEC_Update; // Determine open window position in tracking
+      L     #i_Setting.Open_Window_Offset; // (Open window position = Position PEC Update + Open Window Offset)
+      +I    ; 
+      T     #t_Position_Open_Window; 
+
+      L     #i_Position_PEC_Update; // Determine close window position in tracking
+      L     #i_Setting.Close_Window_Offset; // (Close window position = Position PEC Update - Close Window Offset)
+      -I    ; 
+      T     #t_Position_Close_Window; 
+NETWORK
+TITLE =GA: Determine product length
+
+      L     #i_Length_Dif_Accepted; 
+      L     0; 
+      >I    ; 
+      JCN   GA99; 
+
+//Check if product already has a length
+      L     #s_Product_Length; 
+      L     1; 
+      <I    ; 
+      JCN   GA99; // Skip determine length if the length is >0
+
+      A     #s_FP_PEC_Latch; 
+      JC    GA01; 
+
+      L     #i_Position_PEC_Update; 
+      L     2; 
+      +I    ; 
+      T     #t_Before_PEC_Update; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (// Read PLT at the PEC update
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Before_PEC_Update,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_Leading_Edge_Length,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Leading_Edge_Length; 
+      L     0; 
+      >I    ; 
+      JCN   GA99; 
+
+// Determine the length of the bag by searching for the leading edge
+GA01: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Window                 := #t_Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Leading_Edge_Length,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Leading_Edge_Length; 
+      L     0; 
+      >I    ; 
+      JCN   GA99; 
+
+// Determine the length of the bag by searching for the trailing edge
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Leading_Edge_Length,
+           i_Window                 := #t_Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used,
+           o_Length_Diff            := #s_Product_Length);
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Search for data in open window offset + Remove Double Data
+//Each cycle the open window offset (from Position PEC Update - 1 till the Open 
+//Window Position) is being searched for data with the help of FC_Search_Track and
+//double data is compared/removed. 
+//
+//First the search position and open/close window offset are determined:
+//
+//- Search start position
+//According to FC_Search_Track the search start position is: Search Position + 
+//Displacement + Close Window Offset - 1. Because in this case the search start 
+//position must be exactly Position PEC Update - 1, the following is true:
+//
+//Search Position + Displacement + Close Window Offset - 1 = 
+//Position PEC Update - 1
+//
+//With Close Window Offset = 0 this implies:
+//--> Search position = Position PEC Update - Displacement
+//--> Close Window Offset = 0
+//
+//- Search end position
+//According to FC_Search_Track the search end position is: Search Position - 
+//Open Window Offset. Because in this case the search end position must be 
+//exactly the Open Window Position, the following is true:
+//
+//Search Position - Open Window Offset = Open Window Position
+//
+//This implies:
+//--> Open Window Offset = Search Position - Open Window Position >= 0
+//
+//  Open window Pos           Pos PEC Update - 1
+//(Search end position)     (Search start position)
+//      |                           |
+//  ----|-----------------|---------|---------------
+//      |                 |         |        --->        
+//  ----|-----------------|---------|---------------
+//      |                Data       |             
+//      |                           |
+//      |<-------Search Area--------|
+//
+//After the search the following cases can be distinguished:
+//
+//A) No entries found
+//s_Data = 0 and s_Position = 0
+//
+//B) 1 entry found
+//s_Data = found data and s_Position = found position
+//
+//Determine data type:
+//- s_Data_Is_LNK = LNK data + unidentified bit is NOT set in LNK record
+//- s_Data_Is_UFO = LNK data + unidentified bit is set in LNK record
+//
+//C) 2 or more entries found
+//More than one data entry is not allowed in the open window offset. If there are 
+//two data entries found in this area an exception handling is used to remove one 
+//of the entries. The following steps are taken:
+//
+//1)Fetch the data/position/type of the downstream entry (see 1 entry found)
+//
+//2)Search the remaining area (from the found position - 1 till the Open Window 
+//Position) for the upstream entry. The new search position and open/close window 
+//offset are determined:
+//- Search start position = Search Position + Displacement + 
+//  Close Window Offset - 1
+//  Search start position must be Position found data - 1
+//  --> Search position = Position found data - Displacement
+//  --> Close Window Offset = 0
+//- Search end position = Search Position - Open Window Offset
+//  Search end position must be Open Window Position
+//  --> Open Window Offset = Search Position - Open Window Position >= 0
+//
+//  Open window Pos       Found position -1
+//(Search end position) (Search start position)
+//         |                |          
+//     ----|------|---------||---------|---------------
+//         |      |         ||         |        --->        
+//     ----|------|---------||---------|---------------
+//         |     Data       Data       |             
+//         |                |     Pos PEC Update-1
+//         |<--Search Area--|
+//
+//3) Determine the data (t_Data_Upstream) and position (t_Position_Upstream) of 
+//the upstream entry as well as the data type (t_Data_US_Is_LNK, t_Data_US_Is_UFO 
+//or t_Data_US_Is_Res_E).
+//
+//4) Compare the downstream and upstream entry and delete one of them (or both) 
+//according to the following priority rules:
+//
+//1. If the input i_Clear_Double_Data is true and both entries are of the type 
+//UFO or LNK, both entries are removed from tracking.
+//
+//2. If both data entries contain the same data (LNK, UFO or Res/E), the 
+//upstream entry has always priority. This implies that the downstream data entry 
+//shall be removed from tracking.
+//
+//3. If one of the data entries is a LNK and the other is a UFO or Res/E, the 
+//LNK data has always the highest priority. This implies that the LNK data shall 
+//be kept and the other data shall be removed from tracking.
+//
+//4. If one of the data entries is a UFO and the other is a Res/E, the UFO data 
+//has priority above the Res/E. This implies that the UFO data shall be kept and 
+//the other data shall be removed from tracking. 
+//
+//Remark: There is no difference between UFO or LNK data without induct bit and 
+//UFO or LNK data with induct bit (both treated as UFO or LNK)!
+// 
+//Both entries are removed in one of the following cases:
+//- Upstream = UFO & Downstream = LNK (i_Clear_Double_Data = TRUE)
+//- Upstream = LNK & Downstream = UFO (i_Clear_Double_Data = TRUE)
+//- Upstream = LNK & Downstream = LNK (i_Clear_Double_Data = TRUE)
+//- Upstream = UFO & Downstream = UFO (i_Clear_Double_Data = TRUE)
+//
+//The downstream entry is removed in one of the following cases:
+//- Upstream = LNK & Downstream = LNK (i_Clear_Double_Data = FALSE)
+//- Upstream = UFO & Downstream = UFO (i_Clear_Double_Data = FALSE)
+//- Upstream = Res/E & Downstream = Res/E
+//- Upstream = LNK & Downstream = UFO (i_Clear_Double_Data = FALSE)
+//- Upstream = LNK & Downstream = Res/E
+//- Upstream = UFO & Downstream = Res/E
+//
+//The upstream entry is removed in one of the following cases:
+//- Upstream = UFO & Downstream = LNK (i_Clear_Double_Data = FALSE)
+//- Upstream = Res/E & Downstream = LNK
+//- Upstream = Res/E & Downstream = UFO
+//
+//If the downstream entry is removed t_Data_Upstream is copied to s_Data, 
+//t_Position_Upstream to s_Position, etc
+//
+//If the removed data is a LNK a 'LNK data lost due to double data' is reported, 
+//if the removed data is a UFO a 'UFO data lost due to double data' is reported. 
+//If the removed data is a Res/E a 'Res/E data lost due to double data' is 
+//reported.
+      NOP   0; 
+
+// Reset data type variables
+      SET   ; 
+      R     #s_Data_Is_Res_E; 
+      R     #s_Data_Is_ECS; 
+      R     #s_Data_Is_UFO_ECS; 
+      R     #t_Data_US_Is_ECS; 
+      R     #t_Data_US_Is_UFO_ECS; 
+      R     #t_Data_US_Is_Res_E; 
+
+// Reset 2 LNKs/UFO LNKs lost
+      SET   ; 
+      R     #t_2_LNKs_Lost; 
+      R     #t_2_UFOs_Lost; 
+
+// Search open window offset for data entries and extract most downstream entry (if present)
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Window                 := #i_Setting.Open_Window_Offset,
+           i_Info                   := 1,
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data_LNK,
+           o_DB_PLT_Num             := #t_DB_PLT_Search,
+           o_Number_Items_Found     := #t_Found_Entries);
+
+      CALL "FC_PLT_Read_State" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           o_Info_State             := #t_Info_Sate);
+
+      L     #t_DB_PLT_Num_Upstr; 
+      L     #t_DB_PLT_Search; 
+      ==I   ; 
+      =     #s_Update_Upstream_Sec; 
+
+      L     #t_DB_PLT_Num; 
+      L     #t_DB_PLT_Search; 
+      <>I   ; 
+      AN    #s_Update_Upstream_Sec; 
+      JCN   HA41; 
+
+      L     0; 
+      T     #s_Data_LNK; 
+
+HA41: L     #t_DB_PLT_Num; 
+      L     #t_DB_PLT_Search; 
+      ==I   ; 
+      O     #s_Update_Upstream_Sec; 
+      JCN   HA99; // If entrie found on different PLT skip data handling
+
+      L     #t_Found_Entries; // If no entries found end search for data
+      L     0; 
+      >I    ; 
+      JCN   HA99; 
+
+      L     #s_Data_LNK; // Check if data is 0
+      L     0; 
+      ==I   ; 
+      JC    HA98; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_Data_ECS);
+
+// Determine data type: LNK, UFO LNK or Res/E 
+      L     #s_Info; // IF found data is a reservation/empty window code
+      L     -90; 
+      <I    ; 
+      JCN   HA02; 
+      S     #s_Data_Is_Res_E; // SET temp Data_Is_Res_E
+      JU    HA14; 
+
+
+HA02: L     #s_Data_ECS; 
+      L     0; 
+      ==I   ; 
+      AN    #s_Update_Upstream_Sec; //Don't check if item is upstream
+      JCN   HA11; 
+
+//Check or update the default required records form the default LNK
+      CALL "FC_Gen_Default_LNK" (
+           i_LNK                    := #s_Data_LNK,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_Data_LNK);
+
+//Tracking: ECS record is missing from LNK data
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3804,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_Data_ECS);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      AN    #t_ECS_No_Report; 
+      JCN   HA11; 
+
+      CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA11: CALL "FC_Read_Bool_Record" (//Open ECS to check Unexpected_Item bit
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #s_Unexpected_Item);// SET temp s_Unexpected_Item 
+
+      A     #s_Unexpected_Item; // NOT Unexpected_Item SET temp s_Data_Is_ECS
+      JCN   HA12; 
+
+      CALL "FC_Read_Bool_Record" (//Check in ECS if item is already succesfull updated
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #s_Succesfull_Update);// SET temp s_Succesfull_Update
+
+      AN    #s_Succesfull_Update; // IF Succesfull_Update set temp s_Data_Is_ECS
+      JCN   HA12; 
+
+      S     #s_Data_Is_UFO_ECS; // Unexpected_Item and NOT succesfull_update SET s_Data_Is_UFO_ECS
+      JU    HA14; 
+
+HA12: S     #s_Data_Is_ECS; // SET temp Data_Is_LNK
+
+// Number of entries > 1
+// Search remaining area for data entries and extract upstream entry
+
+HA14: L     #t_Found_Entries; 
+      L     1; 
+      >I    ; 
+      JCN   HA99; 
+
+// Determine new search start position and new open window offset
+      L     #s_Position; // New search start position = Position found data - Displacement
+      L     #t_Displacement; 
+      -I    ; 
+      T     #t_Position_Search; 
+      L     #t_Position_Open_Window; // Search OWO = Position open window - New start position
+      L     #t_Position_Search; 
+      -I    ; 
+      T     #t_Open_Window_Offset; 
+
+// Search remaining area for data entries
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Search,
+           i_Window                 := #t_Open_Window_Offset,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Upstream,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Data_Upstream,
+           o_DB_PLT_Num             := #t_DB_PLT_Remain,
+           o_Number_Items_Found     := #t_Found_Entries);
+
+      L     #t_Found_Entries; // If no entries found end search for data
+      L     0; 
+      >I    ; 
+      JCN   HA99; 
+
+      L     #t_DB_PLT_Search; // Check if item(s) are on own section
+      L     #t_DB_PLT_Remain; 
+      ==I   ; 
+      JCN   HA99; 
+
+// Determine upstream data type: LNK, UFO LNK or Res/E 
+      L     #t_Data_Upstream; // IF found data is a reservation/empty window code
+      L     0; 
+      <I    ; 
+      JCN   HA15; 
+      S     #t_Data_US_Is_Res_E; // SET temp Data_US_Is_Res_E
+      JU    HA18; 
+
+HA15: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Data_Upstream,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+      CALL "FC_Read_Bool_Record" (// Check in ECS an Unexpected_Item
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Unexpected_Item);// SET temp t_Unexpected_Item
+
+      A     #t_Unexpected_Item; // NOT Unexpected_Item SET temp t_Data_US_Is_ECS
+      JCN   HA17; 
+
+      CALL "FC_Read_Bool_Record" (// Check in ECS an Update_Succesfull
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Update_Succesfull);// SET temp t_Update_Succesfull
+
+      AN    #t_Update_Succesfull; // IF Succesfull_Update set temp t_Data_US_Is_ECS
+      JCN   HA17; 
+
+      S     #t_Data_US_Is_UFO_ECS; // Unexpected_Item and NOT succesfull_update SET t_Data_US_Is_UFO_ECS
+      JU    HA18; 
+
+HA17: S     #t_Data_US_Is_ECS; 
+
+// Double data detection/handling
+// Case 0 -> Remove both entries
+HA18: A     #i_CFG_Clear_Double_Data; // IF Clear double data activated
+      A(    ; // AND Downstream = LNK or UFO LNK
+      O     #s_Data_Is_ECS; 
+      O     #s_Data_Is_UFO_ECS; 
+      )     ; 
+      A(    ; // AND Upstream = LNK or UFO LNK
+      O     #t_Data_US_Is_ECS; 
+      O     #t_Data_US_Is_UFO_ECS; 
+      )     ; 
+      JCN   HA30; 
+
+      CALL "FC_PLT_Clr_Position" (// THEN Remove downstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Clr_Position" (// AND Remove upstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Remain,
+           i_Position               := #t_Position_Upstream,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Read ECS number from LNK list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   HA20; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   HA19; 
+
+      L     #s_Data_LNK; 
+      T     #t_ECS_Dereg_No_Rep_LNK; 
+
+      JU    HA21; 
+
+// Write correct deregister reason in CIR
+HA19: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA20: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Read ECS number from LNK list
+HA21: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Data_Upstream,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   HA23; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   HA22; 
+
+      L     #t_Data_Upstream; 
+      T     #t_ECS_Dereg_No_Rep_LNK2; 
+
+      JU    HA24; 
+
+// Write correct deregister reason in CIR
+HA22: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA23: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA24: A     #s_Data_Is_ECS; // IF removed downstream entry was a LNK
+      JCN   HA25; 
+      S     #s_OS_LNK_Lost_Due_DD; // SET one-shot LNK data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "LNK data lost due to double data in OWO" (3504) 
+           i_Message_ID             := 3504,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    HA26; 
+
+HA25: SET   ; // IF removed downstream entry was a UFO LNK
+      S     #s_OS_UFO_Lost_Due_DD; // SET one-shot UFO data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "UFO LNK data lost due to double data in OWO" (3505)
+           i_Message_ID             := 3505,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA26: A     #t_Data_US_Is_ECS; // IF removed upstream entry was a LNK
+      JCN   HA27; 
+      S     #s_OS_LNK_Lost_Due_DD; // SET one-shot LNK data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "LNK data lost due to double data in OWO" (3505)
+           i_Message_ID             := 3504,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    HA28; 
+
+HA27: SET   ; // IF removed upstream entry was a UFO LNK
+      S     #s_OS_UFO_Lost_Due_DD; // SET one-shot UFO data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "UFO LNK data lost due to double data in OWO" (3505)
+           i_Message_ID             := 3505,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA28: A     #s_Data_Is_ECS; // IF Upstream & Downstream = LNK
+      A     #t_Data_US_Is_ECS; 
+      S     #t_2_LNKs_Lost; // SET 2 LNKs lost (used for statistical counters)
+
+      A     #s_Data_Is_UFO_ECS; // IF Upstream & Downstream = UFO LNK
+      A     #t_Data_US_Is_UFO_ECS; 
+      S     #t_2_UFOs_Lost; // SET 2 UFO LNKs lost (used for statistical counters)
+
+      SET   ; // Reset data is a LNK / UFO LNK
+      R     #s_Data_Is_ECS; 
+      R     #s_Data_Is_UFO_ECS; 
+      L     0; // Clear data contents / position
+      T     #s_Data_LNK; 
+      T     #s_Data_ECS; 
+      T     #s_Position; 
+
+      JU    HA99; // End double data detection
+
+// Case 1 -> Remove downstream entry from tracking
+HA30: O(    ; 
+      A     #t_Data_US_Is_ECS; // IF Upstream = LNK & Downstream = LNK
+      A     #s_Data_Is_ECS; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_UFO_ECS; // OR Upstream = UFO LNK & Downstream = UFO LNK
+      A     #s_Data_Is_UFO_ECS; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_Res_E; // OR Upstream = Res/E & Downstream = Res/E
+      A     #s_Data_Is_Res_E; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_ECS; // OR Upstream = LNK & Downstream = UFO LNK
+      A     #s_Data_Is_UFO_ECS; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_ECS; // OR Upstream = LNK & Downstream = Res/E
+      A     #s_Data_Is_Res_E; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_UFO_ECS; // OR Upstream = UFO LNK & Downstream = Res/E
+      A     #s_Data_Is_Res_E; 
+      )     ; 
+      JCN   HA36; 
+
+      CALL "FC_PLT_Clr_Position" (// THEN remove downstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      O     #s_Data_Is_ECS; // IF removed entry was a LNK
+      O     #s_Data_Is_UFO_ECS; // OR removed entry was a UFO LNK
+      JCN   HA99; 
+
+// Read ECS number from LNK list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   HA32; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   HA31; 
+
+      L     #s_Data_LNK; 
+      T     #t_ECS_Dereg_No_Rep_LNK2; 
+
+      JU    HA33; 
+
+// Write correct deregister reason in CIR
+HA31: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA32: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA33: A     #s_Data_Is_ECS; // IF removed entry was a LNK
+      JCN   HA34; 
+      S     #s_OS_LNK_Lost_Due_DD; // SET one-shot LNK data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "LNK data lost due to double data in OWO" (3504)
+           i_Message_ID             := 3504,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    HA35; 
+
+HA34: SET   ; // IF removed entry was a UFO LNK
+      S     #s_OS_UFO_Lost_Due_DD; // SET one-shot UFO data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "UFO LNK data lost due to dobule data in OW" (3505)
+           i_Message_ID             := 3505,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA35: L     #t_Data_Upstream; // Couple data to upstream entry
+      T     #s_Data_LNK; 
+      L     #t_Position_Upstream; // Couple position to upstream entry
+      T     #s_Position; 
+      L     #t_Entry_Upstream; // Couple entry to upstream entry
+      A     #t_Data_US_Is_ECS; // Couple data type to upstream entry
+      =     #s_Data_Is_ECS; 
+      A     #t_Data_US_Is_UFO_ECS; 
+      =     #s_Data_Is_UFO_ECS; 
+      A     #t_Data_US_Is_Res_E; 
+      =     #s_Data_Is_Res_E; 
+
+      JU    HA99; // End double data detection
+
+// Case 2 -> Remove upstream entry from tracking
+HA36: O(    ; 
+      A     #t_Data_US_Is_UFO_ECS; // IF Upstream = UFO LNK & Downstream = LNK
+      A     #s_Data_Is_ECS; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_Res_E; // OR Upstream = Res/E & Downstream = LNK
+      A     #s_Data_Is_ECS; 
+      )     ; 
+      O(    ; 
+      A     #t_Data_US_Is_Res_E; // OR Upstream = Res/E & Downstream = UFO LNK
+      A     #s_Data_Is_UFO_ECS; 
+      )     ; 
+      JCN   HA99; 
+
+      CALL "FC_PLT_Clr_Position" (// THEN remove upstream entry in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Upstream,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A     #t_Data_US_Is_UFO_ECS; // IF removed entry was a UFO LNK
+      JCN   HA99; 
+      S     #s_OS_UFO_Lost_Due_DD; // SET one-shot UFO Missing due to Double Data
+
+// Read ECS number from LNK list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Data_Upstream,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   HA38; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   HA37; 
+
+      L     #t_Data_Upstream; 
+      T     #t_ECS_Dereg_No_Rep_LNK2; 
+
+      JU    HA39; 
+
+// Write correct deregister reason in CIR
+HA37: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA38: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+HA39: CALL "FC_Write_Event" (// Report event "UFO LNK data lost due to double data in OWO" (3505)
+           i_Message_ID             := 3505,
+           i_Event_value            := #t_Data_Upstream,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    HA99; 
+
+HA98: NOP   0; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Handle virtual position counter
+//The virtual position counter will count-up every scan on the displacement if
+//there is update data available in the update window. If there is no update data 
+//available the counter will be cleared. The virtual position counter is used to 
+//detect if data leaves the update window and to store the position where the 
+//data was found when a succesfull update was performed.
+      L     #s_Update_Data_LNK; // IF update data > 0
+      L     0; 
+      >I    ; 
+      JCN   IA02; 
+
+//Check the info_state for upstream displacement
+      L     #t_Info_Sate; 
+      L     W#16#20; // HEX 0020 = Owner Upstream in Info State
+      AW    ; 
+      L     0; 
+      >I    ; 
+      O     #s_Update_Upstream_Sec; 
+      JCN   IA01; 
+
+      L     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement of upstream
+      L     #t_displacement_Upstream; 
+      -I    ; 
+      T     #s_Cnt_Virtual_Position; 
+
+      JU    IA99; 
+
+IA01: L     #s_Cnt_Virtual_Position; // THEN increase virtual position counter with displacement
+      L     #t_Displacement; 
+      -I    ; 
+      T     #s_Cnt_Virtual_Position; 
+      JU    IA99; 
+
+IA02: L     0; // ELSE clear virtual position counter
+      T     #s_Cnt_Virtual_Position; 
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Determine update data
+//In case of LNK data it is determined whether the induct 
+//bit (s_Data_Is_Induct_Bit) is set or not.
+//
+//On the basis of s_data, s_position, the data type and the induct bit the 
+//following cases can be distinguished:
+//1) Data is NO update data (UFO/LNK with induct bit or Res/E)
+//   --> Update data = 0
+//   --> Virtual position counter = 0
+//2) Data is update data (UFO/LNK without induct bit) and equal to previous 
+//   update data
+//   --> Update data = Not changed
+//   --> Virtual position counter = Not changed
+//3) Data is update data (UFO/LNK without induct bit) and NOT equal to previous 
+//   update data
+//   --> Update data = s_Data
+//   --> Virtual position counter = s_position 
+      NOP   0; 
+// Check if data is update data
+      O     #s_Data_Is_UFO_ECS; // IF data is a LNK or UFO LNK
+      O     #s_Data_Is_ECS; 
+      JCN   JA10; 
+
+// Check if update data = previous update data
+      L     #s_Update_Data_LNK; // IF found data is NOT equal to previous update data
+      L     #s_Data_LNK; 
+      <>I   ; 
+      JCN   JA99; 
+
+// Update data = new update data
+      L     #s_Data_LNK; // THEN Copy data to update data
+      T     #s_Update_Data_LNK; 
+      L     #s_Position; // AND Copy position to virtual position
+      T     #s_Cnt_Virtual_Position; 
+
+      A     #s_Update_Upstream_Sec; 
+      JCN   JA99; 
+
+      L     #t_Conveyor_Length; 
+      L     #s_Position; 
+      +I    ; 
+      T     #s_Cnt_Virtual_Position; 
+
+      JU    JA99; 
+
+// No update data
+JA10: L     0; 
+      T     #s_Update_Data_LNK; // Clear update data
+      T     #s_Cnt_Virtual_Position; // Pre-set counter virtual position of data in tracking
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Missing due to timeout detection
+//If the update window has elapsed, s_Cnt_Virtual position > close window 
+//position, then there is data without an item. The update data and the concerned 
+//data in tracking will be cleared and the item will be reported as 'Missing' in 
+//case of a LNK, or as 'UFO Missing' in case of a UFO.
+      L     #s_Data_LNK; // AND Data from position 
+      L     0; // is not Cleared
+      <>I   ; 
+      AN    #s_Update_Upstream_Sec; 
+      JCN   KA99; 
+
+      L     #s_Cnt_Virtual_Position; // IF update counter < close window position
+      L     #t_Position_Close_Window; 
+      <I    ; 
+      JCN   KA99; 
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Unexpected_Item);
+
+      A     #t_Unexpected_Item; 
+      JCN   KA29; 
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Update_Succesfull);
+
+      A     #t_Update_Succesfull; 
+      JCN   KA32; 
+
+// Read ECS number from LNK list
+KA29: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   KA31; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   KA30; 
+
+      L     #s_Data_LNK; 
+      T     #t_ECS_Dereg_No_Rep_LNK; 
+
+      JU    KA32; 
+
+// Write correct deregister reason in CIR
+KA30: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA31: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+KA32: A     #s_Data_Is_ECS; // IF removed entry was a LNK
+      JCN   KA33; 
+      S     #s_OS_Missing; // SET one-shot Missing due to timeout
+
+      CALL "FC_Write_Event" (// Report event "Missing due to timeout" (3507)
+           i_Message_ID             := 3507,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    KA34; 
+
+KA33: SET   ; // ELSE SET one-shot UFO Missing due to timeout
+      S     #s_OS_UFO_Missing; 
+
+      CALL "FC_Write_Event" (// Report event "UFO missing due to timeout" (3508)
+           i_Message_ID             := 3508,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_Deassign_LNK" (//Deassign the LNK
+           i_LNK                    := #s_Data_LNK);
+
+KA34: CALL "FC_PLT_Clr_Position" (// Clear data in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//check if position is cleared
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #s_Position,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Entries);
+
+//If after clear position there is still an entry on PEC position also clear that entry
+      L     #t_Found_Entries; 
+      L     0; 
+      >I    ; 
+      JC    KA34; 
+
+      L     0; 
+      T     #s_Data_LNK; // Clear data
+      T     #s_Update_Data_LNK; // Clear update data
+      T     #s_Cnt_Virtual_Position; // Pre-set counter virtual position of data in tracking
+      T     #s_Product_Length; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Successful Update
+//If an item is detected in the update PEC and there is update-data, it means 
+//that this update-data belongs to this item a successful update has accoord
+//
+      L     #s_Update_Data_LNK; // IF there is data in the update window 
+      L     0; 
+      >I    ; 
+      A     #s_FP_PEC_Latch; // AND a positive flank PEC-latch
+      JCN   LA99; 
+
+
+      SET   ; 
+      S     #s_OS_Succesfull_Update; // ELSE SET one-shot succesfull update
+      S     #o_OS_Data_Updated; // SET one-shot output data updated
+
+      L     #s_Update_Data_LNK; // Last data = update data
+      T     #s_Last_Data; 
+      T     #o_Data_Last_Update; // Report data last update to output
+
+      L     #s_Cnt_Virtual_Position; // Last position = counter value of virtual position counter
+      L     #i_LPOS; 
+      +I    ; 
+      T     #s_Last_Position; 
+      T     #o_Position_Last_Update; // Report position last update to output
+      L     #i_Position_PEC_Update; 
+      -I    ; 
+      T     #o_Deviation_Last_Update; // Report slip last update to output
+      T     #t_Slip_Last_Update; 
+
+//Check if Item was at previous update Unexpected
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Unexpected_Item);
+
+//Check if Unexpected_Item is already succesfull updated
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Update_Succesfull);
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_Unexpected_Item; 
+      AN    #t_Update_Succesfull; 
+      AN    #t_ECS_No_Report; 
+      JCN   LA01; 
+
+//If item is Unexpected then send a Registerpackage
+      CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+LA01: CALL "FC_Write_Event" (// Report event Succesful update (3800)
+           i_Message_ID             := 3800,
+           i_Event_value            := #t_Slip_Last_Update,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_Write_Event" (// Report LNK Successfull update (3901)
+           i_Message_ID             := 3901,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      CALL "FC_Write_Int_Record" (// Write slip last update on the CIR Record
+           i_Record_Number          := #s_Data_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".CIR.Last_Slip,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #t_Slip_Last_Update,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//Set update_Succesfull bit
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      AN    #s_Update_Upstream_Sec; 
+      JCN   LA02; 
+
+//Check if upstream update is active
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := 0);
+
+      L     #i_Position_PEC_Update; 
+      L     #i_LPOS; 
+      -I    ; 
+      T     #t_Position_Update_LPOS; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Update_LPOS,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Ongoing,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; 
+      T     #s_Data_LNK; // Clear data
+      T     #s_Update_Data_LNK; // Clear update data
+      T     #s_Cnt_Virtual_Position; // Pre-set counter virtual position of data in tracking
+
+      JU    MA99; // Skip UFO detection
+
+LA02: NOP   0; 
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstr,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := 0);
+
+      L     #i_Position_PEC_Update; 
+      L     #t_Conveyor_Length; 
+      -I    ; 
+      L     #i_LPOS; 
+      -I    ; 
+      T     #t_Position_Update_LPOS; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstr,
+           i_Position               := #t_Position_Update_LPOS,
+           i_Info_State             := W#16#4010,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Ongoing,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; 
+      T     #s_Data_LNK; // Clear data
+      T     #s_Update_Data_LNK; // Clear update data
+      T     #s_Cnt_Virtual_Position; // Pre-set counter virtual position of data in tracking
+
+      JU    MA99; // Skip UFO detection
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Unexpected item (UFO) detection
+//If an item arrives at the PEC, there is no update data and a valid LNK range is 
+//supplied then a UFO will be generated and a 'UFO generated' is reported.
+//
+//If there is data (other then update data) present in the open window offset 
+//(UFO/LNK with induct bit or Res/E), this data will be removed. If the removed 
+//data is a LNK a 'LNK data lost due to double data' is reported, if the removed 
+//data is a UFO a 'UFO data lost due to double data' is reported. If the removed 
+//data is a Res/E a 'Res data lost due to double data' is reported.
+      L     #s_Update_Data_LNK; // IF there is no update data
+      L     0; 
+      ==I   ; 
+      A     #s_FP_PEC_Latch; // AND a positive flank PEC-latch
+      JCN   MA99; 
+      S     #s_OS_UFO_Generated; // SET one-shot UFO generated
+      S     #o_OS_Data_Updated; // SET one-shot output data updated
+      T     #s_Data_ECS; // Clear ECS number
+
+      L     #s_Data_LNK; // IF there is data in the open window offset
+      L     0; // (thus NOT update data)
+      <>I   ; 
+      JCN   MA02; 
+
+      CALL "FC_PLT_Clr_Position" (// Clear data in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #s_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A     #s_Data_Is_ECS; // IF removed entry was a ECS
+      JCN   MA01; 
+      S     #s_OS_LNK_Lost_Due_DD; // SET one-shot LNK data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "LNK data lost due to double data in OWO" (3504)
+           i_Message_ID             := 3504,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    MA02; 
+
+MA01: SET   ; // IF removed entry was a UFO LNK
+      S     #s_OS_UFO_Lost_Due_DD; // SET one-shot UFO data lost due to double data in OWO
+
+      CALL "FC_Write_Event" (// Report event "UFO LNK data lost due to double data in OWO" (3505)
+           i_Message_ID             := 3505,
+           i_Event_value            := #s_Data_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+MA02: CALL "FC_Gen_Default_LNK" (// Generate LNK for UFO item
+           i_LNK                    := 0,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #t_Data_UFO);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Data_UFO,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+//When an item is Unidentified then write the Unexpected_Item bit in the CIR
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     #i_Position_PEC_Update; 
+      L     1; 
+      -I    ; 
+      L     #t_Displacement; 
+      -I    ; 
+      L     #i_LPOS; 
+      -I    ; 
+      T     #t_PEC_Update_write; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_PEC_Update_write,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (// Write UFO item in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_PEC_Update_write,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #t_Data_UFO,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Data_UFO,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//When an item is Unidentified then write the Unexpected_Item bit in the CIR
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (// Report event "UFO Generated" (3509)
+           i_Message_ID             := 3509,
+           i_Event_value            := #t_Data_UFO,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     #t_Data_UFO; // AND copy UFO LNK to output
+      T     #s_Last_Data; // Last data = UFO LNK
+      T     #o_Data_Last_Update; 
+      L     0; // AND clear position and slip outputs
+      T     #o_Position_Last_Update; 
+      T     #o_Deviation_Last_Update; 
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Length check with compare between PLT length and PEC Length
+//On a positive flank PEC latch the product length counter is preset with the 
+//LPOS 
+//signal from the EQP PEC block. During the LPOS (latched) signal the counter is 
+//counted up till the negative flank (LPOS) PEC latch. This length is then 
+//checked with the length which was determined from the PLT DB when the Leading 
+//edge was found. 
+//
+//1) Length change detected
+//If the length change is out of the allowed range (Length_Dif_Accpeted) the ECS, 
+//LIC and NIR are deassigned and new ECS, LIC and NIR are generated. 
+//
+//If the removed data is not a UFO a 'LNK data lost due to length change' is 
+//reported. If the removed data is a UFO a 'UFO data lost due to length 
+//change' is reported.
+//
+      L     #s_Product_Length; 
+      L     0; 
+      >I    ; 
+      JCN   NA99; // Skip if no length is available
+
+      A     #s_FP_PEC_Latch; // IF product enters PEC
+      JCN   NA01; 
+      L     #i_LPOS; // THEN reset length counter
+      T     #s_Cnt_Product_Length; 
+NA01: L     #i_LPOS; // IF product (still) in PEC
+      L     0; // Then LPOS is > 0
+      >I    ; 
+      JCN   NA02; 
+      L     #t_Displacement; // THEN Add displacement to length counter
+      L     #s_Cnt_Product_Length; 
+      +I    ; 
+      T     #s_Cnt_Product_Length; 
+NA02: A     #s_FN_PEC_Latch; // IF product leaves PEC
+      JCN   NA99; 
+
+      L     #s_Cnt_Product_Length; // ELSE Compare lengths
+      L     #i_LPOS; 
+      +I    ; 
+      T     #s_Cnt_Product_Length; 
+
+//Skip if length diff is zero
+      L     #i_Length_Dif_Accepted; 
+      L     0; 
+      >I    ; 
+      JCN   NA99; // Skip if length check is disabled
+
+      L     #s_Cnt_Product_Length; // ELSE Compare lengths
+      L     #s_Product_Length; 
+      -I    ; 
+      JM    NA03; // IF result is negative..
+      JU    NA04; 
+NA03: NEGI  ; // ..THEN take off the minus.
+NA04: L     #i_Length_Dif_Accepted; 
+      >I    ; // IF Delta Length is greater than allowed..
+      JCN   NA90; 
+
+      CALL "FC_Read_Int_Record" (// Read ECS number from LNK record
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+// Check if ECS number is valid
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   NA06; 
+
+// Check if HL reports should be sent
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   NA05; 
+
+      L     #s_Last_Data; 
+      T     #t_ECS_Dereg_No_Rep_LNK; 
+
+      JU    NA07; 
+
+// Write correct deregister reason in CIR
+NA05: CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+NA06: CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_Last_Data,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+NA07: CALL "FC_Read_Bool_Record" (// IF found data is a UFO LNK
+           i_Record_Number          := #s_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Data_US_Is_UFO_ECS);// SET temp Data_US_Is_UFO 
+
+      AN    #t_Data_US_Is_UFO_ECS; 
+      JCN   NA32; 
+      S     #s_OS_LNK_Lost_Len_Change; // SET one-shot LNK lost due to length change
+
+      CALL "FC_Write_Event" (// Report event "LNK Lost due to length change" (3510)
+           i_Message_ID             := 3510,
+           i_Event_value            := #s_Last_Data,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      JU    NA33; 
+
+NA32: SET   ; // ELSE SET one-shot UFO LNK lost due to length change
+      S     #s_OS_UFO_Lost_Len_Change; 
+
+      CALL "FC_Write_Event" (// Report event "UFO LNK Lost due to length change" (3511)
+           i_Message_ID             := 3511,
+           i_Event_value            := #s_Last_Data,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+//Create new ECS, LIC and NIR numbers and Register these numbers
+NA33: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".NIR,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//Check or update the default required records form the default LNK
+      CALL "FC_Gen_Default_LNK" (
+           i_LNK                    := #s_Last_Data,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_Last_Data);
+
+      CALL "FC_Read_Int_Record" (// Read ECS number from LNK record
+           i_Record_Number          := #s_Last_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+//When an item is Unidentified then write the Unexpected_Item bit in the CIR
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; 
+      T     #s_Data_LNK; // Clear data
+      T     #s_Update_Data_LNK; // Clear update data
+      T     #s_Cnt_Virtual_Position; // Pre-set counter virtual position of data in tracking
+
+NA90: L     0; 
+      T     #s_Product_Length; 
+      SET   ; 
+      R     #s_FN_PEC_Latch; 
+      R     #s_FP_PEC_Latch; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Average / SD Slip Calculation
+//- The average slip [cm] is calculated as a running average:
+//
+//                 {Actual} + {Previous_Average_Slip * (n-1)}
+//Average slip :=  ------------------------------------------
+//                                   {n}             
+//
+//Actual = slip at current update 
+//(= Actual update position - Position PEC Update)
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+//- The variance of the slip [cm] is calculated as a running average:
+//
+//                  SQR{Actual Error} + {Previous_Variance_Slip * (n-1)}
+//Variance slip :=  ----------------------------------------------------
+//                                           {n}             
+//
+//Actual Error = Actual slip - Avarage slip
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+      A     #s_OS_Succesfull_Update; // IF one-shot succesfull update
+      JCN   OA99; 
+
+      L     #s_Last_Position; // Determine actual slip
+      L     #i_Position_PEC_Update; 
+      -I    ; 
+      T     #t_Slip_Last_Update; 
+      T     #o_Deviation_Last_Update; // Report to output
+
+      CALL #s_FB_Running_AV_Slip (// Determine running average slip
+           i_New_Value              := #t_Slip_Last_Update,
+           i_Factor                 := #i_CFG_Weighing_Factor,
+           i_Restart                := #s_Clear_Stats_Slip,
+           o_Running_Average        := #s_Statistical.Average_Slip,
+           o_Running_Average_Real   := #s_Average_Slip_Real);
+
+      L     #s_Statistical.Average_Slip; 
+      T     #o_Average_Slip; 
+
+      A     #s_Clear_Stats_Slip; // RESET clear stats slip
+      R     #s_Clear_Stats_Slip; 
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Determine number of items within deviation period
+
+      A     #s_OS_Succesfull_Update; // IF a succesfull update is done
+      JCN   PA90; 
+      L     #s_Statistical.Number_Of_Items; // THEN Increase number of baggage items that reached the update PEC
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Number_Of_Items; 
+
+PA90: L     #s_Statistical.Number_Of_Items; // Copy statistic to output
+      T     #o_Number_Of_Items; 
+NETWORK
+TITLE =QA: Error due to successive missings
+//If a Missing/UFO Missing is detected the successive-missings counter will be 
+//increased by 1. On a postive flank PEC-latch the counter is cleared. If the 
+//successive-missings counter >= i_Num_Missing_Error a ER_PEC_Missings is 
+//reported to the output. Next to this an error is reported (M_R_Error) and a 
+//request stop is generated (M_SI_Req_Stop). A ER_PEC_Missings can be reset by 
+//means of M_C_Reset. After a reset the counter is cleared.
+      A     #s_FP_PEC_Latch; // IF a positive flank PEC-latch
+      JCN   QA01; 
+      L     0; // Clear counter missings
+      T     #s_Cnt_Missings; 
+
+QA01: O     #s_OS_Missing; // IF one-shot (UFO)Missing   
+      O     #s_OS_UFO_Missing; 
+      JCN   QA02; 
+      L     #s_Cnt_Missings; // Increase counter missings by 1
+      L     1; 
+      +I    ; 
+      T     #s_Cnt_Missings; 
+
+QA02: L     #i_CFG_Num_Missing_Error; // IF pre-set value > 0 (Error PEC missings enabled)
+      L     0; 
+      >I    ; 
+      A(    ; 
+      L     #s_Cnt_Missings; // AND counter missings >= i_Num_Missing_Error
+      L     #i_CFG_Num_Missing_Error; 
+      >=I   ; 
+      )     ; 
+      S     #o_ST_PEC_Miss; // SET error PEC Missings
+NETWORK
+TITLE =RA: Remove trailing edge if found in open window after PEC Latch
+
+      L     #s_Data_ECS; 
+      L     0; 
+      >I    ; 
+      A     #s_FN_PEC_Latch; 
+      JCN   RA99; 
+
+      L     #i_Position_PEC_Update; 
+      L     #t_Displacement; 
+      +I    ; 
+      T     #t_Position_Search; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_Search,
+           i_Window                 := #i_Setting.Open_Window_Offset,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Open_Window,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Search,
+           o_Number_Items_Found     := #t_Found_Entries,
+           o_Length_Diff            := #t_Open_Window_Offset);
+
+//Check if trailing edge is found in open window
+      L     #t_Found_Entries; 
+      L     0; 
+      >I    ; 
+      JCN   RA99; 
+
+//Check if NO leading edge is found before the trailing edge
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_Position_PEC_Update,
+           i_Window                 := #t_Open_Window_Offset,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Entries);
+
+      L     #t_Found_Entries; 
+      L     0; 
+      ==I   ; 
+      JCN   RA99; 
+
+//Remove the found trailing edge
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Search,
+           i_Position               := #t_Position_Open_Window,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+RA99: NOP   0; 
+NETWORK
+TITLE =SA: Update Performance
+//The Update performance [%] is calculated as a running average:
+//
+//               {Actual} + {Previous_OK_Rate * (n-1)}
+//OK_Ratio[%] :=  -------------------------------------
+//                                {n}             
+//
+//Actual = 100[%] for a Succesfull update
+//           0[%] for a Missing/UFO Missing
+//n = 1,2,3,4.......i_Weighing_Factor
+//
+//The calculation of the running average is done with FB_Running_Average. If the 
+//Update performance < i_Upd_Performan_WN_Level, bad update performance is 
+//reported (o_ST_PEC_BadTrack) as well as a warning (M_R_Warning).
+      CLR   ; 
+      A     #s_OS_Succesfull_Update; // IF one-shot succesfull update
+      O     #s_OS_Missing; // OR one-shot Missing
+      O     #s_OS_UFO_Missing; // OR one-shot UFO Missing
+      JCN   SA50; 
+
+      L     100; // THEN Determine actual performance:
+      A     #s_OS_Succesfull_Update; // - Succesful counts for 100%
+      JC    SA01; // - (UFO)Missing counts for 0%
+      L     0; 
+SA01: T     #t_Actual_Performance; 
+
+      CALL #s_FB_Running_AV_Upd_Perf (// Determine running average Update performance
+           i_New_Value              := #t_Actual_Performance,
+           i_Factor                 := #i_CFG_Weighing_Factor,
+           i_Restart                := #s_Clear_Stats_Upd_Perfor,
+           o_Running_Average        := #s_Statistical.Update_Performance,
+           o_Running_Average_Real   := #s_Update_Perform_Real);
+
+      L     #s_Statistical.Update_Performance; 
+      T     #o_Update_Performance; 
+
+      A     #s_Clear_Stats_Upd_Perfor; // RESET clear stats Update performance
+      R     #s_Clear_Stats_Upd_Perfor; 
+
+SA50: L     #o_Update_Performance; // IF Update performance < Update performance warning level
+      L     #i_CFG_Upd_Perf_WN_Level; // (i_Upd_Performan_WN_Level = 0 disables warning)
+      <I    ; 
+      =     #o_ST_PEC_BadTrack; // THEN Output bad update performance
+NETWORK
+TITLE =TA: Handle statistical counters
+
+      A     #s_OS_Missing; // IF one-shot event Missing due to timeout
+      JCN   TA01; 
+      L     #s_Statistical.Missing; // THEN Increase number of Missings due to timeout
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Missing; 
+
+TA01: A     #s_OS_UFO_Missing; // IF one-shot event UFO Missing due to timeout
+      JCN   TA02; 
+      L     #s_Statistical.UFO_Missing; // THEN Increase number of UFO Missings due to timeout
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Missing; 
+
+TA02: A     #s_OS_LNK_Lost_Due_DD; // IF one-shot event LNK data lost due to double data in OWO
+      JCN   TA03; 
+      L     #s_Statistical.LNK_Lost_Double_Data; // THEN Increase number of times LNK data lost due to double data in OWO 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.LNK_Lost_Double_Data; 
+
+      A     #t_2_LNKs_Lost; // IF 2 LNKs lost
+      JCN   TA03; 
+      L     #s_Statistical.LNK_Lost_Double_Data; // THEN again increase number of times LNK data lost due to double data in OWO 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.LNK_Lost_Double_Data; 
+
+TA03: A     #s_OS_UFO_Lost_Due_DD; // IF one-shot event UFO LNK data lost due to double data in OWO
+      JCN   TA05; 
+      L     #s_Statistical.UFO_Lost_Double_Data; // THEN Increase number of times UFO LNK data lost due to double data in OWO 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Lost_Double_Data; 
+
+      A     #t_2_UFOs_Lost; // IF 2 UFO LNKs lost
+      JCN   TA05; 
+      L     #s_Statistical.UFO_Lost_Double_Data; // THEN again increase number of times UFO LNK data lost due to double data in OWO 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Lost_Double_Data; 
+
+TA05: A     #s_OS_UFO_Generated; // IF one-shot event UFO Generated
+      JCN   TA07; 
+      L     #s_Statistical.UFO_Generated; // THEN Increase number of UFO Generated 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Generated; 
+
+TA07: A     #s_OS_LNK_Lost_Len_Change; // IF one-shot event LNK lost due to length changed
+      JCN   TA08; 
+      L     #s_Statistical.LNK_Lost_Length_Change; // THEN Increase number of times LNK lost due to length changed
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.LNK_Lost_Length_Change; 
+
+TA08: A     #s_OS_UFO_Lost_Len_Change; // IF one-shot event UFO LNK lost due to length changed
+      JCN   TA99; 
+      L     #s_Statistical.UFO_Lost_Length_Change; // THEN Increase number of times UFO LNK lost due to length changed
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.UFO_Lost_Length_Change; 
+TA99: NOP   0; 
+NETWORK
+TITLE =UA: Deassign LNK in case of a deregister without HL reporting
+
+      L     #t_ECS_Dereg_No_Rep_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   UA01; 
+
+      CALL "FC_Deassign_LNK" (//Deassign the LNK
+           i_LNK                    := #t_ECS_Dereg_No_Rep_LNK);
+
+UA01: A(    ; 
+      L     #t_ECS_Dereg_No_Rep_LNK2; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     #t_ECS_Dereg_No_Rep_LNK; 
+      L     #t_ECS_Dereg_No_Rep_LNK2; 
+      <>I   ; 
+      )     ; 
+      JCN   UA99; 
+
+      CALL "FC_Deassign_LNK" (//Deassign the LNK
+           i_LNK                    := #t_ECS_Dereg_No_Rep_LNK2);
+
+UA99: NOP   0; 
+END_FUNCTION_BLOCK
+

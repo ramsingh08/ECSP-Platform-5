@@ -1,0 +1,58 @@
+FUNCTION_BLOCK "FB_TRK_No_PEC"
+TITLE = %version: 1.01 % CN: 40
+//Function:
+//Control the tracking without a PEC, only clear function.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, September 26, 2016 9:11:43 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version based on Track v 1.17 ECS-P GEN       nlHdL    22-09-16   1.01
+//
+//Description:
+//When tracking data is present but no PEC is present, there is no update required
+//The tracking data can be cleared on request of the hardware.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_HW_MTR_Not_Auto : BOOL ;	//CMD: The motor is reporting not Automatic (Clear LNK data)
+END_VAR
+VAR
+  s_OS_FP_MTR_Not_Auto : BOOL ;	//One-shot motor not in automatic for clear LNK data
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_DB_PLT_Num : INT ;	//Temp PLT DB number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear LNK data if motor not auto
+
+      A     #i_HW_MTR_Not_Auto; 
+      FP    #s_OS_FP_MTR_Not_Auto; 
+      JCN   CA01; 
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+      CALL "FC_PLT_Clr_Data" (
+           i_Enable_Clr             := #i_HW_MTR_Not_Auto,
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+CA01: NOP   0; 
+END_FUNCTION_BLOCK
+

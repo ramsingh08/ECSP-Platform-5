@@ -1,0 +1,2655 @@
+FUNCTION_BLOCK "FB_LSZ_Control"
+TITLE =%version: 1.07 % CN: 41
+//Function: 
+//This will control LSZ to store the bags on the configured Gap, emptying the 
+//bags on the configured capacity of through put, determining the LSZ status.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created: Thursday, November 17, 2016 7:55:50 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   1.07
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   1.07
+//7527: Report wrong ID and message info                nlHdL    20-07-15   1.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//22668: Flow not correct if downstream is not running  nlHdL    21-04-15   1.06
+//5181: Added Die-back delay with overrule flowcontrol  nlHdL    02-07-14   1.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.04
+//PR12648 Remove modification wrong interpretation PR   nlple    04-09-13   1.03
+//PR12648 Cascade start up added in FB_EQP_Lean         nlple    03-09-13   1.02
+//CR14263 Adding run out esave for sections 4->8        nlple    18-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.17 of PLT version 0
+//
+//Description:
+//- When the bag is at LSZ in-feed section Run out distance, then it will give 
+// 'request run' to the LSZ section-1 until configured gap is fulfilled. This 
+//will 
+//  be repeatedly continuing until LSZ conveyor-1 is full.
+//- When the Gap is not full filled it will give request disable send for 
+//  the upstream section of the LSZ.
+//- When the LSZ Section-1 full, then it will enable the section-2, so that 
+//  on 'request run' along with the section-1 & section-2 also run. This will be 
+//  continuing until end of the section of the LSZ.
+//- To avoid the conveyor start-up all together at a time, there is 
+//  configurable cascade delay time between the conveyors for start up one after 
+//  other.
+//  (Note:- It will increase the gap of the baggage when it is handed over 
+//  to the next section)
+//  LSZ section speed 30Mtr/Min i.e. 50cm/sec, if we configure cascade delay 
+//  time is 100ms then in each section baggage Gap is increased by 5cm.  
+//- When all the sections in the LSZ are full then it will give status Full.
+//- When the Flush command is active, baggages in the LSZ will start 
+//  emptying on the configured capacity of through put.
+//- When the flush command is active or LSZ full it will not allow any 
+//  baggage to the Lane storage zone (Request disable send of the LSZ In-feed 
+//  section).
+//
+//
+//Description:
+//This will control LSZ to store the bags on the configured Gap, emptying the 
+//bags on the configured capacity of through put, determining the LSZ status.
+//This function is designed to control upto 5 section in LSZ.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Most_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock most Upstream section
+  i_DB_PLT_Most_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock most Downstream section
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Gap : INT ;	//CFG: [cm] Gap between the Baggage
+  i_CFG_Avg_Bag_Length : INT ;	//CFG: [cm] Average baggage length
+  i_CFG_Capacity : INT ;	//CFG: [items/hour] Capacity output of LSZ [Min:600 Max:1800]
+  i_CFG_Start_Up_Distance : INT ;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_CFG_Run_Out_Distance : INT ;	//CFG: [cm] Run out distance for the section
+  i_CFG_Cascade_Delay_Time : INT ;	//CFG: [ms] Cascade delay time
+  i_CFG_HLC_Report_Time : INT ;	//CFG: [sec] Periodical HLC reporting time, 0 = Reporting on Status change
+  i_CFG_Run_Out_E_S : INT  := 1000;	//CFG: [ms] Run Out Time Energy Saving
+  i_CFG_Conveyor_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_LSZ_All_Sec_Started : BOOL ;	//All LSZ section started
+  i_CMD_Start_Flush : BOOL ;	//CMD: Start Flush command (One shot pulse)
+  i_CMD_Stop_Flush : BOOL ;	//CMD: Stop Flush command (One shot pulse)
+  i_CMD_Semi_Auto : BOOL ;	//CMD: Semi Auto mode
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+END_VAR
+VAR_OUTPUT
+  o_CMD_Req_Run_Section1 : BOOL ;	//CMD: Req run motor sec-1
+  o_CMD_Req_Run_Section2 : BOOL ;	//CMD: Req run motor sec-2
+  o_CMD_Req_Run_Section3 : BOOL ;	//CMD: Req run motor sec-3
+  o_CMD_Req_Run_Section4 : BOOL ;	//CMD: Req run motor sec-4
+  o_CMD_Req_Run_Section5 : BOOL ;	//CMD: Req run motor sec-5
+  o_CMD_Req_Run_Section6 : BOOL ;	//CMD: Req run motor sec-6
+  o_CMD_Req_Run_Section7 : BOOL ;	//CMD: Req run motor sec-7
+  o_CMD_Req_Run_Section8 : BOOL ;	//CMD: Req run motor sec-8
+  o_Req_Dis_Send_Infeed : BOOL ;	//Request disable send of Infeed LSZ (Upstream)
+  o_LSZ_Outfeed_Rst_ESave : BOOL ;	//Reset energy save of LSZ outfeed (Downstream)
+  o_ST_Operational_On : BOOL ;	//ST: Operational ON
+  o_ST_LSZ_Empty : BOOL ;	//ST: LSZ Empty
+  o_ST_LSZ_Full : BOOL ;	//ST: LSZ full
+  o_ST_LSZ_Emptying : BOOL ;	//ST: Emptying the bags
+  o_ST_Semi_Auto : BOOL ;	//ST: Semi auto
+  o_TEP : INT ;	//Zone Total Empty Positions 
+  o_TOP : INT ;	//Zone Total Occupied Positions 
+END_VAR
+VAR
+  s_FB_Flow_control : "FB_Flow_Control";	//control the output of the baggage flow 
+  s_DB_PLT_Info : ARRAY  [1 .. 8 ] OF //Info of used PLT DB's for window generator
+  STRUCT 	
+   DB_PLT_Number : INT ;	//Number of PLT DB
+   DB_PLT_Number_Downstream : INT ;	//Number of downstream PLT DB
+   DB_PLT_Number_Upstream : INT ;	//Number of upstream PLT DB
+   Conveyor_Length : INT ;	//Conveyor length of PLT DB
+   Conveyor_Run : BOOL ;	//Conveyor is running
+  END_STRUCT ;	
+  s_Item_Info : ARRAY  [1 .. 10 ] OF STRUCT 	
+   Position : INT ;	
+   Info : INT ;	
+   Data : INT ;	
+   DB_PLT : INT ;	
+   Number_Items_Found : INT ;	
+  END_STRUCT ;	
+  s_Total_Conveyor_Length : DINT ;	//Total length of all conveyors used for window generating
+  s_info_Set_Req_Run : INT ;	//Info to set the Request Run
+  s_info_Reset_Req_Run : INT ;	//Info to Reset the Request Run
+  s_Sec1_Start_Delay_Time : INT ;	//Section-1 start delay time
+  s_Sec2_Start_Delay_Time : INT ;	//Section-2 start delay time
+  s_Sec3_Start_Delay_Time : INT ;	//Section-3 start delay time
+  s_Sec4_Start_Delay_Time : INT ;	//Section-4 start delay time
+  s_Sec5_Start_Delay_Time : INT ;	//Section-5 start delay time
+  s_Sec6_Start_Delay_Time : INT ;	//Section-6 start delay time
+  s_Sec7_Start_Delay_Time : INT ;	//Section-7 start delay time
+  s_H2H_Throughput : INT ;	//Head to head Through put
+  s_HLC_Report_Time : INT ;	//Counter for the Status reporting to Event-DB
+  s_Prev_Segment_State : INT ;	//Memory of the previous reported Segment state
+  s_Info_Loop_Nr : INT ;	//Loop number for used PLT info search
+  s_DB_PLT_nr_Most_Downst : INT ;	//DB PLT number of the upstream conveyor
+  s_Window_Length : INT ;	//Calculated window length
+  s_Num_of_Sections : INT ;	//Number of sections in the zone
+  s_Request_Run : BOOL ;	//Request run
+  s_FN_info_Reset_Req_Run : BOOL ;	//-ve edge of Info to reset the Request run
+  s_Activate_Section_1 : BOOL ;	//Activate section-1
+  s_Activate_Section_2 : BOOL ;	//Activate section-2
+  s_Activate_Section_3 : BOOL ;	//Activate section-3
+  s_Activate_Section_4 : BOOL ;	//Activate section-4
+  s_Activate_Section_5 : BOOL ;	//Activate section-5
+  s_Activate_Section_6 : BOOL ;	//Activate section-6
+  s_Activate_Section_7 : BOOL ;	//Activate section-7
+  s_Activate_Section_8 : BOOL ;	//Activate section-8
+  s_Sec1_Start_Delay_Ok : BOOL ;	//Section-1 start delay done
+  s_Sec2_Start_Delay_Ok : BOOL ;	//Section-2 start delay done
+  s_Sec3_Start_Delay_Ok : BOOL ;	//Section-3 start delay done
+  s_Sec4_Start_Delay_Ok : BOOL ;	//Section-4 start delay done
+  s_Sec5_Start_Delay_Ok : BOOL ;	//Section-5 start delay done
+  s_Sec6_Start_Delay_Ok : BOOL ;	//Section-6 start delay done
+  s_Sec7_Start_Delay_Ok : BOOL ;	//Section-7 start delay done
+  s_FN_Flush_Memory : BOOL ;	//Flush memory
+  s_FN_Flush : BOOL ;	//FN_Flush memory
+  s_FP_Flush_Memory : BOOL ;	//Flush memory
+  s_FP_Flush : BOOL ;	//FN_Flush memory
+  s_Start_Req_Run : BOOL ;	//Bag noticed in Infeed EOS Start Request to Run
+  s_FN_Stop_Req_Run : BOOL  := TRUE;	//Bag is stored Stop request to run
+  s_Infeed_HandOvr_Fault : BOOL ;	//Flush command & Handover is active
+  s_Flush_Req_Run : BOOL ;	//Request run from Flush command or Semi-Auto
+  s_Start_Flush_Memory : BOOL ;	//Flush command memory (To start the emptying process)
+  s_LSZ_Full : BOOL ;	//Static memory for LSZ full
+  s_Infeed_Handover_Active : BOOL ;	//Infeed section Handover is active
+  s_FN_Semi_Auto : BOOL ;	//Negative edge of Semi-Auto
+  s_HLC_Report_Time_Active : BOOL ;	//Memory HLC report time expires
+  s_FN_Operation_On : BOOL ;	//Negative edge of the Operational On
+  s_FP_LSZ_Full : BOOL ;	//Positive edge of the LSZ FULL
+  s_FP_LSZ_Emptying : BOOL ;	//Positive edge of the Emptying (Flushing)
+  s_FP_Operation_On : BOOL ;	//Positive edge of the Operational On
+  s_FP_Semi_Auto : BOOL ;	//Positive edge Selection of the SEMI-AUTO Mode
+  s_Downstream_PLT_NotUsed : BOOL ;	//Upstream PLT is not used for loop search PLT info
+  s_Abs_Pos_First_Item : DINT ;	//Absolute position first item in the LSZ
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_Run_Out_Distanc_E_Save : INT ;	//[cm] Run out distance after handover, before conveyor goes in energy saving
+  s_FN_Info_1_Sec_1 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_2 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_3 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_4 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_5 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_6 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_7 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FN_Info_1_Sec_8 : BOOL ;	//detection negative flank info 1 present in PLT
+  s_FP_Flush_Mem : BOOL ;	//FP Flush memory
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address' mask
+  t_Info_last_Sec : INT ;	//Info of Last section
+  t_Info_Sec1 : INT ;	//Info of section-1
+  t_Info_Sec2 : INT ;	//Info of section-2
+  t_Info_sec3 : INT ;	//Info of section-3
+  t_Info_sec4 : INT ;	//Info of section-4
+  t_Info_sec5 : INT ;	//Info of section-5
+  t_Info_sec6 : INT ;	//Info of section-6
+  t_Info_sec7 : INT ;	//Info of section-7
+  t_Info_sec8 : INT ;	//Info of section-8
+  t_Not_Used_Int : INT ;	//Dummy Integer which is not used.
+  t_Infeed_Num_Items_Found : INT ;	//Number of Items found in Infeed EOS
+  t_Segment_State : INT ;	//Segment state
+  t_Return_Value : INT ;	//Return value of the FC_Write_Event
+  t_Current_cap : INT ;	//Current gap calculated to reach the configured capacity
+  t_DB_Event_Num : INT ;	//DB_Event Number
+  t_Loaded_PLT : INT ;	//Current loaded PLT DB number for loop search function
+  t_Most_Downstream_PLT_NO : INT ;	//Most downstream PLT number
+  t_Most_Upstream_PLT_NO : INT ;	//Most upnstream PLT number
+  t_Last_Sec_Motor_Run : BOOL ;	//Motor Status of the last section
+  t_Flow_Ok : BOOL ;	//Flow ok
+  t_Not_Used_bool : BOOL ;	//Dummy Bool which is not used.
+  t_Item_At_Handover_Upstr : BOOL ;	//Item at Handover position 
+  t_Item_Entering_LSZ_InHO : BOOL ;	//Item entering the LSZ is in HandOver
+  t_Items_at_conv_1 : INT ;	//Item present at conveyor 1
+  t_Items_at_conv_2 : INT ;	//Item present at conveyor 2
+  t_Items_at_conv_3 : INT ;	//Item present at conveyor 3
+  t_Items_at_conv_4 : INT ;	//Item present at conveyor 4
+  t_Items_at_conv_5 : INT ;	//Item present at conveyor 5
+  t_Items_at_conv_6 : INT ;	//Item present at conveyor 6
+  t_Items_at_conv_7 : INT ;	//Item present at conveyor 7
+  t_Items_at_conv_8 : INT ;	//Item present at conveyor 8
+  t_Upstream_Of_LSZ_PLT_DB : INT ;	
+  t_info_Reset_Req_Run : INT ;	//Last item release the LSZ
+  t_Inf_E_S_Sec_1 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_2 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_3 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_4 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_5 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_6 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_7 : INT ;	//Info -3 present in PLT
+  t_Inf_E_S_Sec_8 : INT ;	//Info -3 present in PLT
+  t_Average_Window : INT ;	//Configured gap + configured average baggage length
+  t_OS_Flush_Memory : BOOL ;	//One shot positive flank flush memory
+  t_Run_out_Dist_InF : INT ;	//Run out distance of infeed before item
+  t_Upstream_Section_oper : BOOL ;	//Upstream section operational
+  t_Upstream_DB_Num : INT ;	//UPstream section db number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Obtain relative address from AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register' 
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE = Determine Initial variables
+
+      OPN   #i_DB_Event; 
+      L     DBNO; // Load Event PLT DB number
+      T     #t_DB_Event_Num; // Transfer Event PLT DB number to temp
+
+      CLR   ; 
+      =     #t_Item_Entering_LSZ_InHO; 
+
+      OPN   #i_DB_PLT_Most_UpStr; // ELSE Most upstream is loaded as first PLT for generator
+      L     DBNO; 
+      T     #s_DB_PLT_Info[1].DB_PLT_Number; 
+      T     #t_Most_Upstream_PLT_NO; 
+
+      OPN   #i_DB_PLT_Most_DwnStr; // Open Most Downstream PLT DB number 
+      L     DBNO; 
+      T     #s_DB_PLT_nr_Most_Downst; // Store as last PLT number for PLT loop detection end
+      T     #t_Most_Downstream_PLT_NO; 
+
+      L     #s_DB_PLT_nr_Most_Downst; // Set Downstream PLT not used when Most upstream PLT DB is not configured
+      L     1; 
+      <=I   ; 
+      =     #s_Downstream_PLT_NotUsed; 
+
+//Calculation OS start flush memory
+      A     #s_Start_Flush_Memory; 
+      FP    #s_FP_Flush_Mem; 
+      =     #t_OS_Flush_Memory; 
+NETWORK
+TITLE =BA: Loop for all DB PLT information in generating area
+//All the PLT DB's starting from the most upstream PLT DB till the most downstream
+// 
+//PLT DB are scanned for there PLT number, downstream PLT number, conveyor length 
+//end Conveyor run signal. This can be done for a maximum of 8 PLT DB's. When the
+//most downstream PLT DB number is found or the next downsstream PLT number is 
+//invalid, the search will be ended. When this search loop exceeds the storage 
+//array (configured for 8 PLT DB's), the PLC will be forced to stop. For using 
+//the 
+//LSZ over 8 PLT DB's the array should be extended. When extending 
+//the array the maximum array number must be set correctly at the loop number 
+//check at the end of this network.
+      L     P##s_DB_PLT_Info; // Create pointer for PLT DB info array
+      L     #t_AR2_Mask; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; 
+
+      SET   ; 
+      =     #s_Done; 
+
+      L     0; 
+      T     #s_Total_Conveyor_Length; // Initialize with zero
+      T     #s_Info_Loop_Nr; // Initialize with zero
+
+BA01: L     W [AR1,P#0.0]; // Load PLT DB number from current array position
+      T     #t_Loaded_PLT; 
+
+      OPN   DB [#t_Loaded_PLT]; // Open current PLT DB
+
+      L     DBW    8; // Store Downstream PLT DB number in current info array
+      T     W [AR1,P#2.0]; 
+
+      L     DBW    6; // Store Upstream PLT DB number in current info array
+      T     W [AR1,P#4.0]; 
+
+      L     DBW   12; // Store conveyor length in current info array
+      T     W [AR1,P#6.0]; 
+
+      A     DBX   10.1; // Store conveyor run signal in current info array
+      =      [AR1,P#8.0]; 
+
+      L     #s_Total_Conveyor_Length; // Add current conveyor length to total
+      L     W [AR1,P#6.0]; 
+      +I    ; 
+      T     #s_Total_Conveyor_Length; 
+
+      ON    #s_Downstream_PLT_NotUsed; // End Loop search function for next PLT DB when downstream is not used
+      JCN   BA99; 
+
+      L     #t_Loaded_PLT; // ELSE compare current PLT DB number
+      L     #s_DB_PLT_nr_Most_Downst; // with most downstream PLT DB number
+      <>I   ; 
+      JCN   BA99; // If equal downstream PLT DB has reached and loop can be ended
+
+      L     W [AR1,P#2.0]; // IF downstream PLT DB number is legal
+      L     1; 
+      >I    ; 
+      JCN   BA99; 
+
+      L     W [AR1,P#2.0]; // THEN copy Downstream PLT DB number to next array
+      T     W [AR1,P#10.0]; 
+
+      +AR1  P#10.0; // Raise DB_PLT info pointer to next array
+
+      L     #s_Info_Loop_Nr; // Raise loop number with one
+      L     1; 
+      +I    ; 
+      T     #s_Info_Loop_Nr; 
+      L     8; // Load configured loop number. This should be equal with the array length
+      >=I   ; // Compare new loop number with maximum array length
+      JCN   BA01; // Jump for next PLT DB check
+
+      CALL "STP" ;// PLC Stop! The PLT DB Info array must be extended when the generator is
+      NOP   0; // is configured for more then 8 conveyor belts (see also network comment)
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Determining Operational ON and Semi-Auto
+//If all the sections are started in the LSZ then it will set the Operational ON.
+//If the Semi-Auto input is active then it will enable the Semi-Auto mode & 
+//generate the status.
+      A     #i_LSZ_All_Sec_Started; 
+      =     #o_ST_Operational_On; 
+
+      A     #i_CMD_Semi_Auto; 
+      =     #o_ST_Semi_Auto; 
+NETWORK
+TITLE =CA: Handling Request Run
+//If bag is available on the in-feed section Run out distance of the lane storage 
+//zone it will set the "Request Run", after bag is travelled until configured gap 
+//it will Reset the "Request Run".
+//When there is a Baggage in configured Gap window and when new baggage arrived 
+//at 
+//the In-feed section Run-out distance then Request upstream to Disable Send.
+      NOP   0; 
+
+      L     #s_DB_PLT_Info[1].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   CA99; 
+
+//--- Handling the Stop Request Run motor --------//
+//-----When trailing edge of the Baggage is leaving the configured Gap window then stop the Request Run Motor    
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #i_CFG_Gap,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #s_info_Reset_Req_Run,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #i_CFG_Avg_Bag_Length; 
+      L     2; 
+      *I    ; 
+      L     #i_CFG_Gap; 
+      +I    ; 
+      T     #t_Average_Window; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #t_Average_Window,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_info_Reset_Req_Run);
+
+//check for section operational
+
+      OPN   #i_DB_PLT_Most_UpStr; 
+      L     DBW    6; // section operational
+      T     #t_Upstream_DB_Num; 
+
+      OPN   DB [#t_Upstream_DB_Num]; 
+      A     DBX   10.5; 
+      =     #t_Upstream_Section_oper; 
+
+      A(    ; 
+      L     #s_info_Reset_Req_Run; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      FN    #s_FN_info_Reset_Req_Run; 
+      =     #s_FN_Stop_Req_Run; //Request to Stop the LSZ sections Motor
+//--- Handling the Start Request run motor --------//
+//---Searchin in upstream from the begining of the start section until Runout distance, if a leading edge is found then Activate "Request Run"
+
+      L     #i_CFG_Start_Up_Distance; //Start distance on infeed before TRS1 is running
+      L     #i_CFG_Run_Out_Distance; 
+      +I    ; 
+      T     #t_Run_out_Dist_InF; 
+//Add extra offset to the run out of the infeed conveyor
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number_Upstream,
+           i_Position               := #t_Run_out_Dist_InF,
+           i_Window                 := #t_Run_out_Dist_InF,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #s_info_Set_Req_Run,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+      OPN   DB [#t_Most_Upstream_PLT_NO]; 
+      A     DBX   10.6; 
+      =     #t_Item_At_Handover_Upstr; 
+
+      L     DBW    6; 
+      T     #t_Upstream_Of_LSZ_PLT_DB; 
+
+      OPN   DB [#t_Upstream_Of_LSZ_PLT_DB]; 
+      A     DBX   10.6; 
+      =     #t_Item_Entering_LSZ_InHO; 
+
+      A(    ; 
+      L     #s_info_Set_Req_Run; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O     #t_Item_Entering_LSZ_InHO; 
+      =     #s_Start_Req_Run; //Request to Start the LSZ sections Motor  
+
+//Reset the Request run
+//-----SET>>>>>>Request Run--
+      A     #s_Start_Req_Run; //IF Request start from the Infeed section when the bag is in the Run-out distance
+      O     #s_Flush_Req_Run; //IF Flush command or Semi-Auto
+      S     #s_Request_Run; 
+
+//-----RESET>>>>>>Request Run--
+      A     #s_FN_Flush_Memory; //set on -ve edge flush Memory
+      O(    ; 
+      A     #s_FN_Stop_Req_Run; //IF Request stop from the Infeed section when the bag is travelled configured gap
+      AN    #o_ST_Semi_Auto; //IF_NOT Semi-Auto
+      )     ; 
+      O(    ; 
+      A     #s_Start_Flush_Memory; //IF Flush command active
+      AN    #s_Flush_Req_Run; //IF Flush command or Semi-Auto
+      )     ; 
+      O(    ; 
+      AN    #o_ST_LSZ_Emptying; 
+      AN    #t_Upstream_Section_oper; 
+      )     ; 
+      O(    ; 
+      AN    #o_ST_LSZ_Emptying; //If LSZ Full & Not emptying
+      A     #s_LSZ_Full; 
+      )     ; 
+      R     #s_Request_Run; //Reset the Request run
+
+
+//---------Request Disable send to upstream of LSZ-------//
+//--When there is a Baggage in configured Gap window & when new baggage arrived at the
+//--Infeed section Run-out distance then Request upstream to Disable Send.
+
+      L     #s_info_Reset_Req_Run; 
+      L     0; 
+      >I    ; 
+      AN    #s_Infeed_HandOvr_Fault; //Handover Active of the Infeed section
+      AN    #o_ST_Semi_Auto; //Semi-Auto mode
+      =     #o_Req_Dis_Send_Infeed; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =CB:Calculation run out energy save (conv.not active) when flush
+
+      L     #i_CFG_Run_Out_E_S; // Load common setting run out time for E-save
+      L     #i_CFG_Conveyor_Speed; // Load speed setting
+      *D    ; 
+      L     10000; // Convert mm -> cm AND msec -> sec 10*1000 = 10000
+      /D    ; 
+      T     #s_Run_Out_Distanc_E_Save; // Run out distance in [cm]
+
+
+NETWORK
+TITLE =DA: Handling Section-1
+//Section-1 will run without cascade delay, if section-2 is not activated.
+//If section-2 is activated then section-1 will run after cascade delay time 
+//expires.
+//If Request run is active then command to Run section-1
+      L     #s_DB_PLT_Info[1].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   DA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   DA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_Sec1,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_Sec1; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_1; 
+      JCN   DA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA01: NOP   0; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_Sec1,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_1,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Activation of the Section-1
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_Sec1; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[1].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_1; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_1; //THEN Activate the Section
+
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_1; 
+      =     #o_CMD_Req_Run_Section1; 
+      JCN   DA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_2; 
+      AN    #o_CMD_Req_Run_Section2; 
+      JCN   DA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // load start-up delay
+      T     #s_Sec1_Start_Delay_Time; // Transfer to memory
+
+DA02: L     #s_Sec1_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; // Previous cycle time in Msec
+      -I    ; 
+      JPZ   DA03; // If below zero, then set back at zero
+      L     0; 
+DA03: T     #s_Sec1_Start_Delay_Time; 
+
+      L     #s_Sec1_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   DA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec1_Start_Delay_Ok; 
+      JU    DA05; 
+
+DA04: CLR   ; 
+      =     #s_Sec1_Start_Delay_Ok; // Motor is not ready to run  
+
+
+DA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec1_Start_Delay_Ok; //Cascade delay is ok
+      =     #o_CMD_Req_Run_Section1; //Then run the section-1
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Handling Section-2
+//If there is bag available on section-1 run out distance then activate the 
+//section-2.
+//Section-2 will run without cascade delay, if section-3 is not activated.
+//If section-3 is activated then section-2 will run after cascade delay time 
+//expires.
+//If Request run is active and section 2 is activated then command to Run section
+//-2
+      L     #s_DB_PLT_Info[2].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   EA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   EA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+EA10: NOP   0; 
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_Sec2,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_Sec2; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_2; 
+      JCN   EA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+EA01: NOP   0; 
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_Sec2,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_2,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Activation of the Section-2
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_Sec2; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[2].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_2; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_2; //THEN Activate the Section
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_2; 
+      =     #o_CMD_Req_Run_Section2; 
+      JCN   EA99; 
+
+//--------------Cascade delay---------------// 
+
+      A     #s_Activate_Section_3; 
+      AN    #o_CMD_Req_Run_Section3; 
+      JCN   EA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec2_Start_Delay_Time; // transfer to the memory
+
+
+EA02: L     #s_Sec2_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   EA03; // If below zero, then set back at zero
+      L     0; 
+EA03: T     #s_Sec2_Start_Delay_Time; 
+
+      L     #s_Sec2_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   EA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec2_Start_Delay_Ok; 
+      JU    EA05; 
+
+EA04: CLR   ; 
+      =     #s_Sec2_Start_Delay_Ok; // Motor is not ready to run  
+
+
+EA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec2_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section2; // Then Run the Section-2 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Handling Section-3
+//If there is bag available on section-2 run out distance then activate the 
+//section-3.
+//Section-3 will run without cascade delay, if section-4 is not activated.
+//If section-4 is activated then section-3 will run after cascade delay time 
+//expires.
+//If Request run is active and section 3 is activated then command to Run section
+//-3
+      L     #s_DB_PLT_Info[3].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   FA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   FA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+FA10: NOP   0; 
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec3,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec3; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_3; 
+      JCN   FA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+
+FA01: NOP   0; 
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec3,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_3,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Activation of the Section-3
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec3; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[3].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_3; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_3; //THEN Activate the Section
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_3; 
+      =     #o_CMD_Req_Run_Section3; 
+      JCN   FA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_4; 
+      AN    #o_CMD_Req_Run_Section4; 
+      JCN   FA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec3_Start_Delay_Time; // transfer to the memory
+
+
+FA02: L     #s_Sec3_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   FA03; // If below zero, then set back at zero
+      L     0; 
+FA03: T     #s_Sec3_Start_Delay_Time; 
+
+      L     #s_Sec3_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   FA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec3_Start_Delay_Ok; 
+      JU    FA05; 
+
+FA04: CLR   ; 
+      =     #s_Sec3_Start_Delay_Ok; // Motor is not ready to run  
+
+
+FA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec3_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section3; // Then Run the Section-2 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Handling Section-4
+//If there is bag available on section-3 run out distance then activate the 
+//section-4.
+//Section-4 will run without cascade delay, if section-5 is not activated.
+//If Request run is active and section 4 is activated then command to Run section
+//-4
+      L     #s_DB_PLT_Info[4].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   GA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   GA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+
+GA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec4,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec4; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_4; 
+      JCN   GA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+GA01: NOP   0; 
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec4,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_4,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Activation of the Section-4
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec4; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[4].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_4; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_4; //THEN Activate the Section
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_4; 
+      =     #o_CMD_Req_Run_Section4; 
+      JCN   GA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_5; 
+      AN    #o_CMD_Req_Run_Section5; 
+      JCN   GA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec4_Start_Delay_Time; // transfer to the memory
+
+
+GA02: L     #s_Sec4_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   GA03; // If below zero, then set back at zero
+      L     0; 
+GA03: T     #s_Sec4_Start_Delay_Time; 
+
+      L     #s_Sec4_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   GA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec4_Start_Delay_Ok; 
+      JU    GA05; 
+
+GA04: CLR   ; 
+      =     #s_Sec4_Start_Delay_Ok; // Motor is not ready to run  
+
+GA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec4_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section4; // Then Run the Section-4 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Handling Section-5
+//If there is bag available on section-4 run out distance then activate the 
+//section-5.
+//Section-5 will run without cascade delay, if section-6 is not activated.
+//If Request run is active and section 5 is activated then command to Run section
+//-5
+      L     #s_DB_PLT_Info[5].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   HA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   HA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec5,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec5; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_5; 
+      JCN   HA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA01: NOP   0; 
+
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec5,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_5,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Activation of the Section-5
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec5; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[5].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_5; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_5; //THEN Activate the Section
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_5; 
+      =     #o_CMD_Req_Run_Section5; 
+      JCN   HA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_6; 
+      AN    #o_CMD_Req_Run_Section6; 
+      JCN   HA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec5_Start_Delay_Time; // transfer to the memory
+
+
+HA02: L     #s_Sec5_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HA03; // If below zero, then set back at zero
+      L     0; 
+HA03: T     #s_Sec5_Start_Delay_Time; 
+
+      L     #s_Sec5_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   HA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec5_Start_Delay_Ok; 
+      JU    HA05; 
+
+HA04: CLR   ; 
+      =     #s_Sec5_Start_Delay_Ok; // Motor is not ready to run  
+
+HA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec5_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section5; // Then Run the Section-5 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Handling Section-6
+//If there is bag available on section-5 run out distance then activate the 
+//section-6.
+//Section-6 will run without cascade delay, if section-7 is not activated.
+//If Request run is active and section 6 is activated then command to Run section
+//-6
+      L     #s_DB_PLT_Info[6].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   IA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   IA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+IA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec6,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec6; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_6; 
+      JCN   IA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+IA01: NOP   0; 
+
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec6,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_6,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Activation of the Section-6
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec6; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[6].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_6; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_6; //THEN Activate the Section
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_6; 
+      =     #o_CMD_Req_Run_Section6; 
+      JCN   IA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_7; 
+      AN    #o_CMD_Req_Run_Section7; 
+      JCN   IA02; 
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec6_Start_Delay_Time; // transfer to the memory
+
+
+IA02: L     #s_Sec6_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   IA03; // If below zero, then set back at zero
+      L     0; 
+IA03: T     #s_Sec6_Start_Delay_Time; 
+
+      L     #s_Sec6_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   IA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec6_Start_Delay_Ok; 
+      JU    IA05; 
+
+IA04: CLR   ; 
+      =     #s_Sec6_Start_Delay_Ok; // Motor is not ready to run  
+
+IA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec6_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section6; // Then Run the Section-6 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Handling Section-7
+//If there is bag available on section-6 run out distance then activate the 
+//section-7.
+//Section-7 will run without cascade delay, if section-8 is not activated.
+//If Request run is active and section 7 is activated then command to Run section
+//-7
+      L     #s_DB_PLT_Info[7].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   JA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   JA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+JA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec7,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec7; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_7; 
+      JCN   JA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+JA01: NOP   0; 
+
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec7,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_7,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Activation of the Section-7
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec7; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[7].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_7; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_7; //THEN Activate the Section
+
+
+//---Handling the Request Run 
+      A     #s_Request_Run; 
+      A     #s_Activate_Section_7; 
+      =     #o_CMD_Req_Run_Section7; 
+      JCN   JA99; 
+
+//--------------Cascade delay---------------//
+      A     #s_Activate_Section_8; 
+      AN    #o_CMD_Req_Run_Section8; 
+      JCN   JA02; 
+
+      L     #i_CFG_Cascade_Delay_Time; // Load the start-up delay
+      T     #s_Sec7_Start_Delay_Time; // transfer to the memory
+
+
+JA02: L     #s_Sec7_Start_Delay_Time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   JA03; // If below zero, then set back at zero
+      L     0; 
+JA03: T     #s_Sec7_Start_Delay_Time; 
+
+      L     #s_Sec7_Start_Delay_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   JA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_Sec7_Start_Delay_Ok; 
+      JU    JA05; 
+
+JA04: CLR   ; 
+      =     #s_Sec7_Start_Delay_Ok; // Motor is not ready to run  
+
+JA05: A     #s_Request_Run; // Request Run
+      A     #s_Sec7_Start_Delay_Ok; // Cascade delay ok
+      =     #o_CMD_Req_Run_Section7; // Then Run the Section-7 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Handling Section-8
+//If there is bag available on section-7 run out distance then activate the
+//section-8.
+//If Request run is active and section 8 is activated then command to Run section
+//-8
+      L     #s_DB_PLT_Info[8].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   KA99; 
+
+//When Flush action is initiate conveyor runs one conveyor length
+      A     #t_OS_Flush_Memory; 
+      JCN   KA10; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA10: NOP   0; 
+
+// Run out energy saving (conveyor not active) during flush 
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec8,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+// Detection the last info 1 present in the PLT, means last baggage is in handover to downstream
+      L     #t_Info_sec8; 
+      L     1; 
+      ==I   ; 
+      FN    #s_FN_Info_1_Sec_8; 
+      JCN   KA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := #s_Run_Out_Distanc_E_Save,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA01: NOP   0; 
+
+//- searching-up from the begining of the section until Runout distance, if a leading edge is found then Activate the Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_sec8,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Window                 := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Inf_E_S_Sec_8,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Activation of the Section-8
+      A(    ; // IF leading edge(1) is found on the search window
+      L     #t_Info_sec8; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Item_Info[8].Number_Items_Found; // OR Section not empty
+      L     0; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #t_Inf_E_S_Sec_8; 
+      L     -3; 
+      ==I   ; 
+      )     ; 
+      =     #s_Activate_Section_8; //THEN Activate the Section
+
+//---If Motor is not activated then jump to the end of the network
+      A     #s_Activate_Section_8; 
+      A     #s_Request_Run; //Request Run
+      =     #o_CMD_Req_Run_Section8; //Run the Section-8
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA:Search functions
+
+      NOP   0; 
+// Search number of bag present Section 1
+      L     #s_DB_PLT_Info[1].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA01; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[1].Position,
+           o_Info                   := #s_Item_Info[1].Info,
+           o_LNK                    := #s_Item_Info[1].Data,
+           o_DB_PLT_Num             := #s_Item_Info[1].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[1].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_1);
+
+      L     #s_Item_Info[1].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA11; 
+
+      L     #t_Items_at_conv_1; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA11; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[1].Number_Items_Found; 
+
+LA11: NOP   0; 
+
+// Search number of bag present Section 2
+LA01: L     #s_DB_PLT_Info[2].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA02; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[2].Position,
+           o_Info                   := #s_Item_Info[2].Info,
+           o_LNK                    := #s_Item_Info[2].Data,
+           o_DB_PLT_Num             := #s_Item_Info[2].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[2].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[2].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[2].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_2);
+
+      L     #s_Item_Info[2].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA12; 
+
+      L     #t_Items_at_conv_2; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA12; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[2].Number_Items_Found; 
+
+LA12: NOP   0; 
+
+// Search number of bag present Section 3
+LA02: L     #s_DB_PLT_Info[3].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA03; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[3].Position,
+           o_Info                   := #s_Item_Info[3].Info,
+           o_LNK                    := #s_Item_Info[3].Data,
+           o_DB_PLT_Num             := #s_Item_Info[3].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[3].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[3].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[3].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_3);
+
+      L     #s_Item_Info[3].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA13; 
+
+      L     #t_Items_at_conv_3; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA13; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[3].Number_Items_Found; 
+
+LA13: NOP   0; 
+
+// Search number of bag present Section 4
+LA03: L     #s_DB_PLT_Info[4].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA04; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[4].Position,
+           o_Info                   := #s_Item_Info[4].Info,
+           o_LNK                    := #s_Item_Info[4].Data,
+           o_DB_PLT_Num             := #s_Item_Info[4].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[4].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[4].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[4].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_4);
+
+      L     #s_Item_Info[4].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA14; 
+
+      L     #t_Items_at_conv_4; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA14; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[4].Number_Items_Found; 
+
+LA14: NOP   0; 
+
+
+// Search number of bag present Section 5
+LA04: L     #s_DB_PLT_Info[5].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA05; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[5].Position,
+           o_Info                   := #s_Item_Info[5].Info,
+           o_LNK                    := #s_Item_Info[5].Data,
+           o_DB_PLT_Num             := #s_Item_Info[5].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[5].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[5].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[5].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_5);
+
+      L     #s_Item_Info[5].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA15; 
+
+      L     #t_Items_at_conv_5; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA15; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[5].Number_Items_Found; 
+
+LA15: NOP   0; 
+
+// Search number of bag present Section 6
+LA05: L     #s_DB_PLT_Info[6].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA06; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[6].Position,
+           o_Info                   := #s_Item_Info[6].Info,
+           o_LNK                    := #s_Item_Info[6].Data,
+           o_DB_PLT_Num             := #s_Item_Info[6].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[6].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[6].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[6].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_6);
+
+      L     #s_Item_Info[6].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA16; 
+
+      L     #t_Items_at_conv_6; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA16; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[6].Number_Items_Found; 
+
+LA16: NOP   0; 
+
+// Search number of bag present Section 7
+LA06: L     #s_DB_PLT_Info[7].DB_PLT_Number; 
+      L     1; 
+      >I    ; 
+      JCN   LA07; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[7].Position,
+           o_Info                   := #s_Item_Info[7].Info,
+           o_LNK                    := #s_Item_Info[7].Data,
+           o_DB_PLT_Num             := #s_Item_Info[7].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[7].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[7].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[7].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_7);
+
+      L     #s_Item_Info[7].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA17; 
+
+      L     #t_Items_at_conv_7; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA17; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[7].Number_Items_Found; 
+
+LA17: NOP   0; 
+
+LA07: L     #s_DB_PLT_Info[8].DB_PLT_Number; // IF PLT is existing
+      L     1; 
+      >I    ; 
+      JCN   LA99; // THEN search
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Info                   := 1,
+           o_Position               := #s_Item_Info[8].Position,
+           o_Info                   := #s_Item_Info[8].Info,
+           o_LNK                    := #s_Item_Info[8].Data,
+           o_DB_PLT_Num             := #s_Item_Info[8].DB_PLT,
+           o_Number_Items_Found     := #s_Item_Info[8].Number_Items_Found);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[8].DB_PLT_Number,
+           i_Position               := 0,
+           i_Window                 := #s_DB_PLT_Info[8].Conveyor_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Items_at_conv_8);
+
+      L     #s_Item_Info[8].Number_Items_Found; //   If there are no leading items
+      L     0; 
+      <=I   ; 
+      JCN   LA99; 
+
+      L     #t_Items_at_conv_8; // But there are trailing items
+      L     0; 
+      >I    ; 
+      JCN   LA99; 
+
+      L     1; // Then there are items present!
+      T     #s_Item_Info[8].Number_Items_Found; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =LB: Determination of the absolute position of the first item
+//The most item downstream (in the flow) founded is considered as first item 
+//- Section 1 is the most upstream
+//- Section 8 is the most downstream
+//Considering the position where the first iten is founded, the lenth of the 
+//downstream conveyor(s) is added to the relative position of the item on is own 
+//conveyor to obtain the absolute posiion of the item in the LSZ
+//
+// Section 8 (most downstream)
+      L     #s_Item_Info[8].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB01; 
+
+      L     #s_Item_Info[8].Position; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 7
+LB01: L     #s_Item_Info[7].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB02; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_Item_Info[7].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 6
+LB02: L     #s_Item_Info[6].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB03; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[6].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 5
+LB03: L     #s_Item_Info[5].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB04; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[6].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[5].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 4
+LB04: L     #s_Item_Info[4].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB05; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[6].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[5].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[4].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 3
+LB05: L     #s_Item_Info[3].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB06; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[6].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[5].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[4].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[3].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 2
+LB06: L     #s_Item_Info[2].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB07; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[6].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[5].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[4].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[3].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[2].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+// Section 1 (most upstream)
+LB07: L     #s_Item_Info[1].Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   LB08; 
+
+      L     #s_DB_PLT_Info[8].Conveyor_Length; 
+      L     #s_DB_PLT_Info[7].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[6].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[5].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[4].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[3].Conveyor_Length; 
+      +I    ; 
+      L     #s_DB_PLT_Info[2].Conveyor_Length; 
+      +I    ; 
+      L     #s_Item_Info[1].Position; 
+      +I    ; 
+      T     #s_Abs_Pos_First_Item; 
+      JU    LB99; 
+
+LB08: L     #s_Total_Conveyor_Length; 
+      T     #s_Abs_Pos_First_Item; 
+
+LB99: NOP   0; 
+
+NETWORK
+TITLE =Calculation TOP
+//The TOP (total occupied position) is a sum of all the item founded on each 
+//sections 
+      L     #s_Item_Info[1].Number_Items_Found; 
+      L     #s_Item_Info[2].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[3].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[4].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[5].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[6].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[7].Number_Items_Found; 
+      +I    ; 
+      L     #s_Item_Info[8].Number_Items_Found; 
+      +I    ; 
+      T     #o_TOP; 
+
+NETWORK
+TITLE =LC:Calculation TEP
+//
+//
+      NOP   0; 
+// Gap added to average baggage length
+      L     #i_CFG_Gap; 
+      L     #i_CFG_Avg_Bag_Length; // Average baggage length [cm]
+      +I    ; 
+      T     #s_Window_Length; 
+
+
+      A     #o_ST_Operational_On; //IF LSZ operational on  
+      AN    #s_Start_Flush_Memory; 
+      JCN   LC01; 
+
+      L     #s_Abs_Pos_First_Item; // THEN calculation TEP
+      L     #s_Window_Length; 
+      /D    ; 
+      T     #o_TEP; 
+      JU    LC99; 
+LC01: L     0; // ELSE force TEP to 0
+      T     #o_TEP; 
+
+LC99: NOP   0; 
+NETWORK
+TITLE =MA: Determining LSZ is Full
+//When the bag reaches end of the section of Last section, then it will give the 
+//LSZ full status & Give the disable send to the In-feed section.
+//When there is a Stop flush command & Lane is not empty then generates LSZ is 
+//full.
+//When switching from Semi-Auto to Auto & Lane is not Empty then generates LSZ is 
+//full.
+//LSZ full status will be retained until zone is completely empty.
+      L     #t_Most_Downstream_PLT_NO; // If section PLT-DB is zero jump to end of the network
+      L     0; 
+      <>I   ; 
+      JCN   MA99; 
+
+//- Searching-up in runout distance from the EOS of Last sectio, if a leading edge is found then LSZ is full
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_Most_Downstream_PLT_NO,
+           i_Position               := 0,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info_last_Sec,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+//Set the LSZ is full
+      A     #i_CMD_Stop_Flush; //One shot stop flush command
+      AN    #o_ST_LSZ_Empty; //IF Lane is not empty then Set the Lane FULL
+      O(    ; 
+      L     #t_Info_last_Sec; //Leading edge bag information of the Last section
+      L     1; 
+      ==I   ; 
+      AN    #o_ST_Semi_Auto; //Semi Auto mode
+      )     ; 
+      O(    ; 
+      A     #o_ST_Semi_Auto; //Semi Auto mode
+      FN    #s_FN_Semi_Auto; //Negative edge of the Semi-Auto
+      AN    #o_ST_LSZ_Empty; //IF Lane is not empty then Set the Lane FULL
+      )     ; 
+      S     #s_LSZ_Full; //SET LSZ Full
+
+//Reseting the LSZ is full 
+      A     #o_ST_LSZ_Empty; 
+      O     #o_ST_Semi_Auto; //Semi Auto mode
+      R     #s_LSZ_Full; //RESET LSZ Full
+
+//Status of the LSZ full
+      A     #s_LSZ_Full; 
+      AN    #o_ST_Semi_Auto; //Semi Auto mode
+      AN    #s_Start_Flush_Memory; 
+      A     #o_ST_Operational_On; 
+      =     #o_ST_LSZ_Full; //OUTPUT LSZ Full
+
+MA99: NOP   0; 
+NETWORK
+TITLE = Determining LSZ is Empty
+//If there are no bags found on the entire lane storage zone, then it gives 
+//status 
+//LSZ Empty.
+      L     #o_TOP; 
+      L     0; 
+      <=I   ; 
+      AN    #o_ST_Semi_Auto; //Semi Auto mode
+      =     #o_ST_LSZ_Empty; 
+
+NETWORK
+TITLE =NA: Output of the LSZ on configured capacity
+//Here it will calculate head to head according to the configured through put and 
+//Maintain the flow of bags according to the calculated head to head distance 
+//between the bags.
+//FC_CALC_H2H_Distance: calculate the head to head distance depends on the Speed 
+//and configured through put.
+//
+//FB_Flow_control: depend on the calculated head to head distance it will give 
+//flow ok, depend on the Flow ok  status we can maintain the through-put.
+      L     #s_DB_PLT_nr_Most_Downst; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   NA99; 
+
+      CALL "FC_Calc_H2H_Distance" (
+           i_CFG_Conveyor_Speed     := 500,//LSZ fixed speed 30 Mtr/min
+           i_CFG_Capacity           := #i_CFG_Capacity,
+           i_CFG_Minimum_Capacity   := 600,
+           i_CFG_Maximum_Capacity   := 1800,
+           o_H2H_Length             := #s_H2H_Throughput,
+           o_Current_Capacity       := #t_Current_cap,
+           o_ST_Capacity_2Low       := #t_Not_Used_bool,
+           o_ST_Capacity_2High      := #t_Not_Used_bool,
+           o_ST_CalcH2H_Disable     := #t_Not_Used_bool);
+
+//---Checking the Head to head length 
+      OPN   DB [#t_Most_Downstream_PLT_NO]; 
+      A     DBX   10.2; 
+      =     #t_Last_Sec_Motor_Run; //Section1 Motor run
+
+      CALL #s_FB_Flow_control (
+           i_DB_PLT_Num             := #s_DB_PLT_nr_Most_Downst,
+           i_Act_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_Act_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := 0,
+           i_Add_Gap_Stop           := 0,
+           i_Minimum_Head_To_Head   := #s_H2H_Throughput,
+           i_Add_Head_To_Head_Stop  := 0,
+           i_CFG_Conveyor_Speed     := 500,
+           i_Section_Run            := #t_Last_Sec_Motor_Run,
+           o_Flow_Control_Run_OK    := #t_Flow_Ok,
+           o_Gap_Control_OK         := #t_Not_Used_bool,
+           o_Head_to_Head_OK        := #t_Not_Used_bool);
+
+NA99: NOP   0; 
+NETWORK
+TITLE = Handling flush command
+//When we receive Flush command One shot pulse from High level control, set the 
+//static bit (s_Start_Flush_Memory) for memory & reset the Static bit
+//(s_Start_Flush_Memory) when the LSZ completely empty.
+      NOP   0; 
+//---Reset the Flush memory when Lane is empty
+//---Reset when the stop command is active
+      A     #s_Start_Flush_Memory; 
+      A     #o_ST_LSZ_Empty; 
+      A(    ; 
+      AN    #o_CMD_Req_Run_Section1; 
+      AN    #o_CMD_Req_Run_Section2; 
+      AN    #o_CMD_Req_Run_Section3; 
+      AN    #o_CMD_Req_Run_Section4; 
+      AN    #o_CMD_Req_Run_Section5; 
+      AN    #o_CMD_Req_Run_Section6; 
+      AN    #o_CMD_Req_Run_Section7; 
+      AN    #o_CMD_Req_Run_Section8; 
+      )     ; 
+      O     #i_CMD_Stop_Flush; 
+      R     #s_Start_Flush_Memory; 
+
+//---Set the Flush memory on one shot pulse---//
+      A     #i_CMD_Start_Flush; 
+      S     #s_Start_Flush_Memory; 
+
+NETWORK
+TITLE = Executing the Flush command OR Semi-Auto mode
+//If flush command active or semi-auto is active, then it will set the Request 
+//run, Reset energy save to the LSZ out-feed section and activate all the 
+//sections 
+//of the LSZ, so that all bags will be emptying according to configured 
+//throughput.
+//On the Negative edge of the flush command:-
+//If handover active is True on the last section then it will memorise and 
+//run all the section until last section handover active is False. (This is done 
+//because to avoid the LSZ handover fault) Then it will reset Request run and de-
+//activate all the section of the LSZ.
+//
+      NOP   0; 
+//---------------Handling Flush command on active OR Semi-Auto mode-----------------------//
+      A     #s_Start_Flush_Memory; // Flush command 
+      A     #i_LSZ_All_Sec_Started; 
+      O     #o_ST_Semi_Auto; //Semi-Auto mode
+      S     #o_LSZ_Outfeed_Rst_ESave; // Reset the Energy save of the LSZ downstream
+      S     #o_ST_LSZ_Emptying; //Set the Flushing
+      R     #s_FN_Stop_Req_Run; 
+
+      A     #s_Start_Flush_Memory; 
+      O     #o_ST_Semi_Auto; //Semi-Auto mode
+      A     #t_Flow_Ok; //Head to Head length ok
+      A     #o_ST_Operational_On; 
+      =     #s_Flush_Req_Run; // Set the Request Run
+
+//---------------------Handlind Flush command on -ve Edge-----------------------------//
+      A     #s_Start_Flush_Memory; // Flush command 
+      O     #o_ST_Semi_Auto; //Semi-Auto mode
+      FN    #s_FN_Flush; 
+      =     #s_FN_Flush_Memory; //set on -ve edge flush Memory
+
+      A     #s_FN_Flush_Memory; //If -ve edge flush memory is active
+      ON    #i_LSZ_All_Sec_Started; 
+      R     #o_CMD_Req_Run_Section1; //Then reset the Run output section-1
+      R     #o_CMD_Req_Run_Section2; //Then reset the Run output section-2
+      R     #o_CMD_Req_Run_Section3; //Then reset the Run output section-3
+      R     #o_CMD_Req_Run_Section4; //Then reset the Run output section-4
+      R     #o_CMD_Req_Run_Section5; //Then reset the Run output section-5
+      R     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      R     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      R     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      R     #o_LSZ_Outfeed_Rst_ESave; // Reset the Energy save command for the LSZ downstream.
+      R     #s_FP_Flush_Memory; //Then reset the +Ve edge Flush memory
+      R     #o_ST_LSZ_Emptying; //Reset Flushing
+
+//---------------------In SEMI-AUTO mode Emptying status not to be displayed-----------------------------//
+      A     #o_ST_Semi_Auto; 
+      R     #o_ST_LSZ_Emptying; //Reset the Flushing
+
+NETWORK
+TITLE =TA: Handling Handover fault on Infeed section
+//On flush command active if handover active is True on the In-feed section then 
+//it will memorise and run the section until In-feed section handover active is 
+//False.  
+      L     #s_DB_PLT_Info[1].DB_PLT_Number; // If section PLT-DB is zero jump to end of the network
+      L     1; 
+      >I    ; 
+      JCN   TA99; 
+
+//---Preparing the Handover active in the Infeed section--------//
+//---Searching for the Leading edge of the bag in Runout distance
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Infeed_Num_Items_Found);
+
+      L     #t_Infeed_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      S     #s_Infeed_Handover_Active; 
+
+
+//---Searching for the Trailing edge of the bag in Runout distance
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_PLT_Info[1].DB_PLT_Number,
+           i_Position               := #s_DB_PLT_Info[1].Conveyor_Length,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Infeed_Num_Items_Found);
+
+      L     #t_Infeed_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      R     #s_Infeed_Handover_Active; 
+
+
+      A     #s_Start_Flush_Memory; // flush command
+      FP    #s_FP_Flush; 
+      S     #s_FP_Flush_Memory; 
+
+      A     #s_FP_Flush_Memory; 
+      A     #s_Infeed_Handover_Active; 
+      =     #s_Infeed_HandOvr_Fault; 
+
+      A     #s_Start_Flush_Memory; 
+      AN    #s_Infeed_Handover_Active; 
+      R     #s_FP_Flush_Memory; 
+TA99: NOP   0; 
+NETWORK
+TITLE =UA: Resetting the Output according to the number of section
+//      It will make sure that only configured numbers of section outputs are 
+//high.
+      NOP   0; 
+// Calculation number of sections in the LSZ 
+      L     #s_Info_Loop_Nr; 
+      L     1; 
+      +I    ; 
+      T     #s_Num_of_Sections; 
+
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 1 then jump to the label
+      L     1; 
+      <>I   ; 
+      JCN   UA01; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 2 then jump to the label
+      L     2; 
+      <>I   ; 
+      JCN   UA02; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 3 then jump to the label
+      L     3; 
+      <>I   ; 
+      JCN   UA03; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 4 then jump to the label
+      L     4; 
+      <>I   ; 
+      JCN   UA04; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 5 then jump to the label
+      L     5; 
+      <>I   ; 
+      JCN   UA05; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 6 then jump to the label
+      L     6; 
+      <>I   ; 
+      JCN   UA06; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 7 then jump to the label
+      L     7; 
+      <>I   ; 
+      JCN   UA07; 
+
+      L     #s_Num_of_Sections; //IF Number of section in LSZ is equal to 8 then jump to the label
+      L     8; 
+      <>I   ; 
+      JCN   UA99; 
+
+      JU    UA99; //IF Number of section in LSZ is not between 1 to 8 then jump to the label
+
+
+UA01: CLR   ; 
+      =     #s_Activate_Section_2; //Then reset the Activate section-2
+      =     #s_Activate_Section_3; //Then reset the Activate section-3
+      =     #s_Activate_Section_4; //Then reset the Activate section-4
+      =     #s_Activate_Section_5; //Then reset the Activate section-5
+      =     #s_Activate_Section_6; //Then reset the Activate section-6
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section2; //Then reset the Run output section-2
+      =     #o_CMD_Req_Run_Section3; //Then reset the Run output section-3
+      =     #o_CMD_Req_Run_Section4; //Then reset the Run output section-4
+      =     #o_CMD_Req_Run_Section5; //Then reset the Run output section-5
+      =     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA02: CLR   ; 
+      =     #s_Activate_Section_3; //Then reset the Activate section-3
+      =     #s_Activate_Section_4; //Then reset the Activate section-4
+      =     #s_Activate_Section_5; //Then reset the Activate section-5
+      =     #s_Activate_Section_6; //Then reset the Activate section-6
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section3; //Then reset the Run output section-3
+      =     #o_CMD_Req_Run_Section4; //Then reset the Run output section-4
+      =     #o_CMD_Req_Run_Section5; //Then reset the Run output section-5
+      =     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA03: CLR   ; 
+      =     #s_Activate_Section_4; //Then reset the Activate section-4
+      =     #s_Activate_Section_5; //Then reset the Activate section-5
+      =     #s_Activate_Section_6; //Then reset the Activate section-6
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section4; //Then reset the Run output section-4
+      =     #o_CMD_Req_Run_Section5; //Then reset the Run output section-5
+      =     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA04: CLR   ; 
+      =     #s_Activate_Section_5; //Then reset the Activate section-5
+      =     #s_Activate_Section_6; //Then reset the Activate section-6
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section5; //Then reset the Run output section-5
+      =     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA05: CLR   ; 
+      =     #s_Activate_Section_6; //Then reset the Activate section-6
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section6; //Then reset the Run output section-6
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA06: CLR   ; 
+      =     #s_Activate_Section_7; //Then reset the Activate section-7
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section7; //Then reset the Run output section-7
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA07: CLR   ; 
+      =     #s_Activate_Section_8; //Then reset the Activate section-8
+      =     #o_CMD_Req_Run_Section8; //Then reset the Run output section-8
+      JU    UA99; 
+
+UA99: NOP   0; 
+
+
+NETWORK
+TITLE =VA: Reporting status to the HLC
+//Status is reported on Priority basis:-
+//Priority-1. Out of service or Semi-Auto mode
+//Priority-2. safety Stop
+//Priority-3. Lane is Full (Temporary not available)
+//Priority-4. Emptying (Flushing)
+//Priority-5. Operational ok & Ready to store the bags on the lane.
+//
+//If Configured report time(i_CFG_HLC_Report_Time) is more than "0" then status is
+// 
+//reported on configured time interval.
+//If Configured report time(i_CFG_HLC_Report_Time) is "0" then status is reported 
+//on status change.
+      L     #i_CFG_HLC_Report_Time; // Load the HLC report time
+      L     0; 
+      ==I   ; 
+      JCN   VA01; 
+      R     #s_HLC_Report_Time_Active; 
+      JU    VA05; 
+
+VA01: AN    #s_HLC_Report_Time_Active; 
+      A(    ; 
+      L     #s_HLC_Report_Time; // transfer to the memory
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   VA02; 
+
+      L     #i_CFG_HLC_Report_Time; // Load the HLC report time
+      T     #s_HLC_Report_Time; // transfer to the memory
+
+VA02: A     "M_OS_/1.0_sec."; 
+      JCN   VA05; 
+      L     #s_HLC_Report_Time; 
+      L     1; 
+      -I    ; // THEN delay counter := delay counter 
+      JPZ   VA03; 
+
+// If below zero, then set back at zero
+      L     0; 
+VA03: T     #s_HLC_Report_Time; 
+
+      L     #s_HLC_Report_Time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   VA04; //If it more than zero than jump to the label
+
+      SET   ; // Then cascade delay is done ready to run the motor
+      =     #s_HLC_Report_Time_Active; 
+      JU    VA05; 
+
+VA04: CLR   ; 
+      =     #s_HLC_Report_Time_Active; 
+
+
+
+//-- Priority -1
+VA05: A(    ; 
+      AN    #o_ST_Operational_On; //Reporting on Time base
+      O     #o_ST_Semi_Auto; 
+      )     ; 
+      A     #i_Safety_OK; 
+      A     #s_HLC_Report_Time_Active; 
+      O(    ; 
+      A     #o_ST_Operational_On; //Reporting on Status change
+      FN    #s_FN_Operation_On; 
+      A     #i_Safety_OK; 
+      )     ; 
+      O(    ; 
+      A     #o_ST_Semi_Auto; 
+      FP    #s_FP_Semi_Auto; 
+      A     #i_Safety_OK; 
+      )     ; 
+      JCN   VA21; 
+      L     4; //Reporting "OUT OF SERVICE"
+      T     #t_Segment_State; 
+      JU    VA20; 
+
+//-- Priority -2
+VA21: AN    #i_Safety_OK; 
+      JCN   VA11; 
+
+      L     4; // Reporting "OUT OF SERVICE"
+      T     #t_Segment_State; 
+      JU    VA20; 
+
+
+//-- Priority -3
+VA11: A     #o_ST_LSZ_Full; //Reporting on Time base
+      A     #s_HLC_Report_Time_Active; 
+      O(    ; 
+      A     #o_ST_LSZ_Full; //Reporting on Status change
+      FP    #s_FP_LSZ_Full; 
+      )     ; 
+      JCN   VA12; 
+      L     3; //Reporting "LSZ FULL" Temprory Not Available
+      T     #t_Segment_State; 
+      JU    VA20; 
+
+//-- Priority -4
+VA12: A     #o_ST_LSZ_Emptying; //Reporting on Time base
+      A     #s_HLC_Report_Time_Active; 
+      O(    ; 
+      A     #o_ST_LSZ_Emptying; //Reporting on Status change
+      FP    #s_FP_LSZ_Emptying; 
+      )     ; 
+      JCN   VA13; 
+      L     2; //Reporting "EMPTYING" Flushing
+      T     #t_Segment_State; 
+      JU    VA20; 
+
+//-- Priority -5
+VA13: A     #o_ST_Operational_On; //Reporting on Time base
+      AN    #o_ST_LSZ_Full; 
+      AN    #o_ST_LSZ_Emptying; 
+      A     #s_HLC_Report_Time_Active; 
+      O(    ; 
+      A     #o_ST_Operational_On; //Reporting on Status change
+      AN    #o_ST_LSZ_Full; 
+      AN    #o_ST_LSZ_Emptying; 
+      FP    #s_FP_Operation_On; 
+      )     ; 
+      JCN   VA99; 
+      L     1; //Reporting "OPERATIONAL" Ready to recieve the Bag
+      T     #t_Segment_State; 
+      JU    VA20; 
+
+VA20: A     #s_HLC_Report_Time_Active; //IF HLC time interval expires
+      O(    ; //OR
+      L     #t_Segment_State; //Present Segment state
+      L     #s_Prev_Segment_State; //Last report segment state
+      <>I   ; //NOT-EQUAL  Report the Segment state to the DB-Event
+      )     ; 
+      JCN   VA99; 
+
+//------------HLC REPORTING-------------//
+      CALL "FC_Write_Event" (//Report the Segment state to the DB_Event
+           i_Message_ID             := 1404,
+           i_Event_value            := #t_Segment_State,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value);
+
+
+      L     #t_Segment_State; 
+      T     #s_Prev_Segment_State; 
+
+      CLR   ; 
+      =     #s_HLC_Report_Time_Active; 
+
+VA99: NOP   0; 
+
+      L     #t_Segment_State; 
+      L     #s_Prev_Segment_State; 
+
+
+END_FUNCTION_BLOCK
+

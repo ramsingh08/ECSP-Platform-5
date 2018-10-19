@@ -1,0 +1,75 @@
+FUNCTION "FC_TCTC_Rcv_PLT" : VOID
+TITLE =%version: 1.02 % CN: 31
+//Function:
+//This FC is used to connect HandOverObject to PLT DB signals.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Wednesday, October 11, 2017 8:52:06 AM %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#3501: LSZ with PTO does not induct last item  nlHdL    11-10-17   1.02
+//Initial Version                                       nlHdL    25-09-17   1.01
+//
+//Description:
+//To connect a section to a PLT when a HandOverObject is used, then this block can be used.
+//It creates the PLT header signals from the RTR, RTS and TIP of a HOO.
+//It is used to connect HOO to a LaneStoreZone                                              
+//                                                             
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_HOO : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_TRS : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_Snd_RTR : BOOL ;	//Sending: Ready-To-Receive
+  i_Rcv_RTS : BOOL ;	//Receiving: Ready-To-Send
+  i_Rcv_TIP : BOOL ;	//Receiving: Tranfer-In-Progress
+  i_ST_Link_Error : BOOL ;	//ST: Link error
+END_VAR
+VAR_TEMP
+  t_DB_Num_PLT : INT ;	//Number of the PLT DB
+  t_DB_Num_PLT_TRS : INT ;	//Number of the PLT DB TRS
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Write info to PLT DB
+
+      OPN   #i_DB_PLT_HOO; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT; 
+
+      AN    #i_ST_Link_Error; 
+      =     DBX   10.5; //Operational on
+
+      A     #i_Rcv_RTS; 
+      =     DBX   10.4; //Available
+
+      A     #i_Rcv_RTS; 
+      O     #i_Rcv_TIP; 
+      =     DBX   10.6; // Item in HandOver
+
+      A     DBX   10.0; 
+      AN    "M_First_Scan"; 
+      BEC   ; //If Done end block
+
+      OPN   #i_DB_PLT_TRS; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT_TRS; 
+
+      L     #t_DB_Num_PLT; 
+      T     DBW    6; 
+      SET   ; 
+      =     DBX   10.3; //Cascade lean
+
+      OPN   #i_DB_PLT_HOO; 
+      SET   ; 
+      =     DBX   10.0; //Set done bit
+      =     DBX   10.3; //cascade
+      L     #t_DB_Num_PLT_TRS; 
+      T     DBW    8; 
+END_FUNCTION
+

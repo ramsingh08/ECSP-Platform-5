@@ -1,0 +1,95 @@
+FUNCTION "FC_RTR_PLT_Header" : VOID
+TITLE =%version: 0.06 % CN: 30
+//Function:
+//Checks the PLT Header if the section is RTR.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:10 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13  0.04
+//CR8099 name change Inhibit_Receive_Item < NOT_RTR     nlHdL    12-01-12  0.03
+//Added family name                                     nlHdL    03-10-11  0.02
+//Init version                                          nlHdL    03-10-11  0.01
+//
+//Description:
+//Checks the PLT Header bits if the section is RTR.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+END_VAR
+VAR_OUTPUT
+  o_RTR : BOOL ;	//Section is Ready To Receive
+END_VAR
+VAR_TEMP
+  t_DB_Num_PLT : INT ;	//Number of the tracking DB
+  t_Done_PLT : BOOL ;	//Done bit from PLT
+  t_Cascade_Start_Up : BOOL ;	//Section Cascade Start up
+  t_Section_Available : BOOL ;	//Section Available
+  t_Section_Operational_On : BOOL ;	//Section Operational On
+  t_Inhibit_Receive_Item : BOOL ;	//Section is inhibit to receive item (only induct or special)
+  t_Item_In_HandOver : BOOL ;	//Item in Hand Over
+  t_Section_Run : BOOL ;	//Section Run
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Deassign LNK number
+
+      L     #i_DB_PLT_Num; 
+      T     #t_DB_Num_PLT; 
+      L     1; 
+      <=I   ; 
+      BEC   ; 
+
+      OPN   DB [#t_DB_Num_PLT]; // Open PLT DB
+
+      A     DBX   10.0; 
+      =     #t_Done_PLT; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; 
+
+      A     DBX   10.3; 
+      =     #t_Cascade_Start_Up; 
+
+      A     DBX   10.4; 
+      =     #t_Section_Available; 
+
+      A     DBX   10.5; 
+      =     #t_Section_Operational_On; 
+
+      A     DBX   10.6; 
+      =     #t_Item_In_HandOver; 
+
+      A     DBX   11.0; 
+      =     #t_Inhibit_Receive_Item; 
+
+NETWORK
+TITLE =BA: Section is Ready To Recieve
+//LAD!
+      A     #t_Done_PLT; 
+      A     #t_Section_Operational_On; 
+      A     #t_Section_Available; 
+      A     #t_Cascade_Start_Up; 
+      A(    ; 
+      ON    #t_Item_In_HandOver; 
+      O     ; 
+      A     #t_Item_In_HandOver; 
+      AN    #t_Inhibit_Receive_Item; 
+      A     #t_Section_Run; 
+      )     ; 
+      =     #o_RTR; 
+END_FUNCTION
+

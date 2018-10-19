@@ -1,0 +1,37 @@
+TYPE "UDT_VDZ_CMD_Status"
+TITLE =%version: 0.04 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, January 02, 2018 8:41:34 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26495: Rename UDT_VDZ_CMD Fixed_Infeed_1           nlHdL    02-01-18   0.04
+//ra#23302: rename symbols in VDZ CMD                   nlHdL    07-08-17   0.03
+//ra53674: Rectify the Typo of UDT name.                 inajos  30-05-17  0.02
+//ra53655: Initial revision                              inajos  30-05-17  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Auto
+   Fixed_Infeed : BOOL ;	//Fixed Infeed 1
+   Fixed_Infeed2 : BOOL ;	//Fixed Infeed 2
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Manual : BOOL ;	//Mode Manual
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Pos_Infeed : BOOL ;	//Lift at Infeed
+   Pos_Infeed2 : BOOL ;	//Lift at Infeed 2 
+   Pos_Outfeed : BOOL ;	//Lift at Outfeed 
+   Pos_Maint_Up : BOOL ;	//Lift at Upper Maintenance Position
+   Pos_Maint_Down : BOOL ;	//Lift at Lower Maintenance Position
+   TRS_Manual_Fwd : BOOL ;	//Carrier Belt Forward
+   TRS_Manual_Rev : BOOL ;	//Carrier Belt Reverse
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

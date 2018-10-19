@@ -1,0 +1,41 @@
+TYPE "UDT_LCC_Status"
+TITLE =%version: 0.06 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, December 04, 2017 08:47:31 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26707: LCC with 24V ok check ASI Puc               nlHdL    04-12-17   0.06
+//ra#18516: Add connection error to LCC Status          nlHdL    07-12-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//17442: Generic block for handling Fieldbus device     nlHdL    18-04-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//Delta error added to the status list                  nlJBax   04-04-11   0.02
+//Initial version                                       nlmvk    04-10-10   0.01                                                                  //
+FAMILY : General
+
+
+  STRUCT 	
+   FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave not Present
+   FieldB_Error : BOOL ;	//Fieldbus Slave error
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   ASI_CH1_24V_AUX_Err : BOOL ;	//ST: ASI slave Channel 1 error 24 Volt Auxilarry
+   ASI_CH2_24V_AUX_Err : BOOL ;	//ST: ASI slave Channel 2 error 24 Volt Auxilarry
+   ASI_1_Delta_Error : BOOL ;	//Actual and Configurated ASI slaves are not the same on ASI network 1
+   ASI_2_Delta_Error : BOOL ;	//Actual and Configurated ASI slaves are not the same on ASI network 2
+   Connection_Error : BOOL ;	//Connection Error with Fieldbus
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

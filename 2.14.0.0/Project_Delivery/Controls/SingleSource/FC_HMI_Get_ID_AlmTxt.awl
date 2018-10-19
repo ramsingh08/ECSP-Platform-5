@@ -1,0 +1,126 @@
+FUNCTION "FC_HMI_Get_ID_AlmTxt" : VOID
+TITLE =%version: 0.04 % CN: 32 
+//Function: 
+//
+//Get textlist number and ID from 'Detailed status' of bit n of record
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   maandag 7 december 2015 16:07:08 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//Update for new DB_Status_Index                        nlMRe    21-09-10   0.03
+//Replace UDT definition                                nlMRe    20-09-10   0.02
+//Initial version                                       inSMahi  10-06-10   0.01
+//
+//Description:
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Rec_Byte_Adress : DINT ;	//Pointer to first dataword of record in "DB_Record_Handling"
+  i_Pntr_To_Actual_Bit : INT ;	//Pointer to bitnumber of record
+  i_ANY_ID_AlmTxt : ANY ;	//ANY pointer to var where ID of record is stored by this function
+  i_DB_HMI_IF_Num : INT ;	//number of DB HMI interface
+END_VAR
+VAR_OUTPUT
+  o_Act_HMI_Text_Number : INT ;	//Textlist number
+END_VAR
+VAR_TEMP
+  t_Off_ANY_Comp_DB_Type : DWORD ;	//Offset in bytes to component type block_DB in from the status record (2 bytes b
+  t_ANY_Source : ANY ;	//ANY source
+  t_ANY_Destination : ANY ;	//ANY destination
+  t_DB_Num : INT ;	//DB number 
+  t_Comp_Typ_DB : WORD ;	//DB number reference list errors actual component being scanned  
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_ID_Rec_Pointer : STRUCT 	
+   Length : INT ;	//Record length in bytes
+   DB_Num : INT ;	//DB number
+   Pntr : DWORD ;	//Pointer
+  END_STRUCT ;	
+  t_Off_Start_DSBitRecords : INT ;	//Offset to start DS Bit Records in Comp type DB
+  t_Error_Definition : "UDT_Comp_Status";	
+  t_Error_Def_No : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initialise the offset variables
+
+      L     P#12.0; 
+      T     #t_Off_ANY_Comp_DB_Type; // Offset of the Component Type DB
+
+      L     12; //Load record length
+      T     #t_ID_Rec_Pointer.Length; 
+
+      L     2; 
+      T     #t_Off_Start_DSBitRecords; // Offset to the DS bit record
+NETWORK
+TITLE =BA: Prepare pointers ID and Status record
+// 
+      OPN   "DB_Status_Index"; //Load DB number
+      L     DBNO; 
+      T     #t_ID_Rec_Pointer.DB_Num; 
+
+      L     #i_Rec_Byte_Adress; 
+      SLD   3; 
+      T     #t_ID_Rec_Pointer.Pntr; 
+NETWORK
+TITLE =CA: Get "Component Type DB" number
+// 
+      OPN   "DB_Status_Index"; 
+      L     #i_Rec_Byte_Adress; // Start Adress to pointer in instance to Status_record  
+      SLD   3; 
+      L     #t_Off_ANY_Comp_DB_Type; // Component Type DB offset in DB_HMI_INDEX 
+      +D    ; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // LOAD DB number component typ
+      T     #t_Comp_Typ_DB; 
+NETWORK
+TITLE =DA: Get alarm text list number
+
+      CALL "FC_HMI_Get_TxtListNo" (
+           i_DB_Number              := #t_Comp_Typ_DB,
+           i_Pntr_To_Actual_Bit     := #i_Pntr_To_Actual_Bit,
+           i_Off_Start_DSBitRecords := #t_Off_Start_DSBitRecords,
+           o_TxtListNumber          := #o_Act_HMI_Text_Number);
+
+NETWORK
+TITLE =EA: Copy the ID
+
+      LAR1  P##t_ANY_Source; // Load pointer to local any for blockmove
+      L     W#16#1002; // Load 10 hex (for S7) and data type
+      T     LW [AR1,P#0.0]; 
+      L     #t_ID_Rec_Pointer.Length; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #t_ID_Rec_Pointer.DB_Num; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     #t_ID_Rec_Pointer.Pntr; 
+      L     DW#16#84000000; // 84=DB 
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Memory area / start address of the data
+
+      L     P##i_ANY_ID_AlmTxt; // Copy ANY pointer
+      LAR1  ; 
+      LAR2  P##t_ANY_Destination; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy the ID
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_ANY_Destination);
+
+END_FUNCTION
+

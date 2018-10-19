@@ -1,0 +1,141 @@
+FUNCTION_BLOCK "FB_HW_ASi"
+TITLE =%version: 0.06 % CN: 30
+//Function:
+//This block collects the information of an ASI slave and makes detailed 
+//status.And makes the Hardware OK signal 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:00:52 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR14309 Naming output status changed                  nlple    19-06-13  0.05 
+//14158: Network must have network title Convention 6   nlHdL    11-06-13  0.04
+//CR8095 Comments input CFG changed                     nlple    06-01-12  0.03
+//4 Outputs are controlled on ASI-Slave Available       nlJBax   10-01-11  0.02
+//Initial revision                                      insmahi  11-06-10  0.01
+//
+//Description:
+//This block collects the information of an ASI slave and makes detailed 
+//status.And makes the Hardware OK signal 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Req_Output_1 : BOOL ;	//CMD: Actived Output 1
+  i_Req_Output_2 : BOOL ;	//CMD: Actived Output 2
+  i_Req_Output_3 : BOOL ;	//CMD: Actived Output 3
+  i_Req_Output_4 : BOOL ;	//CMD: Actived Output 4
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_ASI_NotPrsnt : BOOL ;	//ASI module is not present
+  i_Slave_Error : BOOL ;	//ASI module has an error
+  i_CFG_Delay_Time : INT ;	//CFG: [0.1sec] Delay time for monitoring Hardware OK
+END_VAR
+VAR_OUTPUT
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_IO_Output_1 : BOOL ;	//HW: Output 1
+  o_IO_Output_2 : BOOL ;	//HW: Output 2
+  o_IO_Output_3 : BOOL ;	//HW: Output 3
+  o_IO_Output_4 : BOOL ;	//HW: Output 4
+END_VAR
+VAR
+  s_CV_HW_OK_Delay : INT ;	//Delay Counter for the Hardware OK
+  s_HW_OK_delay_done : BOOL ;	//Delay done
+  s_HW_Error : BOOL ;	//Hardware error
+  s_HW_OK : BOOL ;	//ASI Slave OK
+END_VAR
+VAR_TEMP
+  t_HW_OK : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:ASI Slave not present
+
+      O     #i_CMD_Reset; // OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_NotPrsnt; // RESET Slave not Present
+
+      A     #i_ASI_NotPrsnt; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt; // SET the Slave not present
+NETWORK
+TITLE =BA : ASI Slave Error
+
+      O     #i_CMD_Reset; //OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_Error; // RESET ASI Slave error
+
+      A     #i_Slave_Error; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error; // SET ASI Slave Error
+NETWORK
+TITLE =CA : Hardware Error
+
+      A     #o_ST_ASI_NotPrsnt; // Slave not present
+      O     #o_ST_ASI_Error; // OR Slave error
+      =     #s_HW_Error; // Then hardware error
+NETWORK
+TITLE =DA : Delay monitoring Hardware OK
+
+      AN    #s_HW_Error; // Not Hardware error
+      =     #t_HW_OK; // Then Harware OK
+
+// Count the Hardware OK delay
+
+      AN    #t_HW_OK; //IF NO Hardware OK
+      JCN   DA01; 
+      L     #i_CFG_Delay_Time; // THEN preset start up counter
+      T     #s_CV_HW_OK_Delay; 
+      JU    DA03; 
+DA01: NOP   0; 
+      A     #t_HW_OK; // Countdown Hardware OK counter on time-base
+      A     "M_OS_/0.1_sec."; // Time-base 0.1sec
+      JCN   DA03; 
+      L     #s_CV_HW_OK_Delay; 
+      L     1; 
+      -I    ; 
+      T     #s_CV_HW_OK_Delay; 
+      JPZ   DA02; 
+      L     0; 
+DA02: T     #s_CV_HW_OK_Delay; 
+
+DA03: L     #s_CV_HW_OK_Delay; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_HW_OK_delay_done; // Hardware OK Delay Done
+NETWORK
+TITLE =EA: Hardware OK
+
+      AN    #s_HW_Error; // Hardware error no error
+      A     #s_HW_OK_delay_done; // AND Hardware OK delay done
+      =     #s_HW_OK; // Hardware OK
+NETWORK
+TITLE =FA: Write outputs 1 till 4
+
+      A     #i_Req_Output_1; 
+      A     #s_HW_OK; 
+      =     #o_IO_Output_1; 
+
+      A     #i_Req_Output_2; 
+      A     #s_HW_OK; 
+      =     #o_IO_Output_2; 
+
+      A     #i_Req_Output_3; 
+      A     #s_HW_OK; 
+      =     #o_IO_Output_3; 
+
+      A     #i_Req_Output_4; 
+      A     #s_HW_OK; 
+      =     #o_IO_Output_4; 
+END_FUNCTION_BLOCK
+

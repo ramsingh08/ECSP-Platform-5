@@ -1,0 +1,87 @@
+TYPE "UDT_HBO_Comm_IN"
+TITLE =%version: 0.03 % CN: 10 
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Monday, May 22, 2017 3:09:09 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22943: Match latest IDD                             nldy    22-05-17  0.03
+//ra#21036: Development + Move to GEN                    nldy    06-03-17  0.02
+//Initial version based on version 0.03 in BHS_ESO_GEN   nldy    15-11-16  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Master_Clock_Designator : BOOL ;	//Data[0].0 Master clock designator
+   Spare_0_1 : BOOL ;	//Data[0].1 Spare 
+   Scan_Ready_To_Receive : BOOL ;	//Data[0].2 Scan tunnel ready to receive (IRTR)
+   Spare_0_3 : BOOL ;	//Data[0].3 Spare
+   Bag_ID_Received : BOOL ;	//Data[0].4 Bag ID received (Ack) (IBDR)
+   Bag_In_Process : BOOL ;	//Data[0].5 Bag in process 
+   Exit_Ready_To_Send : BOOL ;	//Data[0].6 Exit ready to send (XRTS)
+   Exit_Decision_Posted : BOOL ;	//Data[0].7 Exit decision posted (XBDP)
+   Bag_Decision_Posted : BOOL ;	//Data[0].8 Bag decision posted (SBDP)
+   Forced_Reject_Ack : BOOL ;	//Data[0].9 Force Reject Acknowledge
+   Spare_0_10 : BOOL ;	//Data[0].10 Spare
+   Spare_0_11 : BOOL ;	//Data[0].11 Spare
+   Spare_0_12 : BOOL ;	//Data[0].12 Spare
+   Spare_0_13 : BOOL ;	//Data[0].13 Spare
+   Spare_0_14 : BOOL ;	//Data[0].14 Spare
+   Spare_0_15 : BOOL ;	//Data[0].15 Spare
+   Spare_Int_0_H : INT ;	//Data[0].16-31 Spare
+   Time_Sync_Sec : INT ;	//Data[1].Low_Order time sync sec
+   Time_Sync_Min : INT ;	//Data[1].HighOrder time sync min
+   Time_Sync_Hour : INT ;	//Data[2].Low_Order time sync hour
+   Time_Sync_Day : INT ;	//Data[2].HighOrder time sync day
+   Time_Sync_Month : INT ;	//Data[3].Low_Order time sync month
+   Time_Sync_Year : INT ;	//Data[3].HighOrder time sync year
+   Current_EDS_Mode : INT ;	//Data[4].Low_Order ISD mode
+   Current_EDS_Fault : STRUCT 	//Data[4].HighOrder ISD fault
+    Spare_4_24 : BOOL ;	//Data[4].24 Spare
+    Spare_4_25 : BOOL ;	//Data[4].25 Spare
+    Spare_4_26 : BOOL ;	//Data[4].26 Spare
+    Spare_4_27 : BOOL ;	//Data[4].27 Spare
+    Spare_4_28 : BOOL ;	//Data[4].28 Spare
+    Spare_4_29 : BOOL ;	//Data[4].29 Spare
+    Spare_4_30 : BOOL ;	//Data[4].30 Spare
+    Spare_4_31 : BOOL ;	//Data[4].31 Spare
+    E_Stop_Fault : BOOL ;	//Data[4].16 E-Stop fault present on ISD
+    Interlock : BOOL ;	//Data[4].17 Interlock fault present on ISD 
+    Bag_Jam : BOOL ;	//Data[4].18 Bag Jam fault present on ISD 
+    Conveyor_Fault : BOOL ;	//Data[4].19 Conveyor fault
+    System_Fault : BOOL ;	//Data[4].20 System fault present on ISD
+    Spare_4_21 : BOOL ;	//Data[4].21 Spare
+    Spare_4_22 : BOOL ;	//Data[4].22 Spare
+    Spare_4_23 : BOOL ;	//Data[4].23 Spare  
+   END_STRUCT ;	
+   Spare_5_0 : BOOL ;	//Data[5].0 Spare
+   Scan_Conv_Running : BOOL ;	//Data[5].1 Scan tunnel conveyor running
+   Spare_5_2 : BOOL ;	//Data[5].2 Spare
+   IPEC_Filtered : BOOL ;	//Data[5].3 Infeed PEC filtered 0=Clear 1=Blocked (IPEC)
+   Xray_On_PEC : BOOL ;	//Data[5].4 X-Ray on PEC Filtered PEC 0=Clear 1=Blocked
+   PEC1_Filtered : BOOL ;	//Data[5].5 PEC1 Filtered 0=Clear 1=Blocked
+   PEC2_Filtered : BOOL ;	//Data[5].6 PEC2 Filtered 0=Clear 1=Blocked
+   XPEC_Filtered : BOOL ;	//Data[5].7 Exit PEC filtered 0=Clear 1=Blocked(occupied)
+   Spare_5_8 : BOOL ;	//Data[5].8 Spare
+   Spare_5_9 : BOOL ;	//Data[5].9 Spare
+   Scan_Conv_PPI : BOOL ;	//Data[5].10 Scan conveyor encoder
+   Spare_5_11 : BOOL ;	//Data[5].11 Spare
+   Emergency_Stop_EDS : BOOL ;	//Data[5].12 Emergency stop out bit to BHS
+   Spare_5_13 : BOOL ;	//Data[5].13 Spare
+   Spare_5_14 : BOOL ;	//Data[5].14 Spare
+   Spare_5_15 : BOOL ;	//Data[5].15 Spare
+   Spare_Int_5_H : INT ;	//Data[5].HighOrder Spare
+   Spare_Int_6_L : INT ;	//Data[6].Low_Order Spare
+   Spare_Int_6_H : INT ;	//Data[6].HighOrder Spare
+   Spare_Int_7_L : INT ;	//Data[7].Low_Order Spare
+   Spare_Int_7_H : INT ;	//Data[7].HighOrder Spare
+   Spare_Int_8_L : INT ;	//Data[8].Low_Order Spare
+   Spare_Int_8_H : INT ;	//Data[8].HighOrder Spare
+   Spare_Int_9_L : INT ;	//Data[9].Low_Order Spare
+   Spare_Int_9_H : INT ;	//Data[9].HighOrder Spare
+  END_STRUCT ;	
+END_TYPE
+

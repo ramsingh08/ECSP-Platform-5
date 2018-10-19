@@ -1,0 +1,171 @@
+FUNCTION_BLOCK "FB_System"
+TITLE =%version: 0.16 % CN: 80
+//Function:
+//Template how to build a System layer.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, September 28, 2017 9:08:26 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24385: FC_Safety_OK after FC_CCC in FB_System      nlHdL    28-09-17   0.16
+//ina#5033: Update DAT Layer                            nlHdL    01-09-17   0.15
+//ra#14161: Add insert key FB_System for generation     nlHdL    01-06-16   0.14
+//ra#11147: FB_DAT_SAC changed to FB_DAT_Routing        nlHdL    29-04-16   0.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.12
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.12
+//17742: Add Di_Safety source                           nlHdL    21-02-14   0.12
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.11
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.10
+//P12125 Modified FB_System_Control - FC_System_Control nlhdl    10-01-13   0.09
+//PR9611 Added event 3134 check if event where handed   nlhdl    30-03-12   0.08
+//CR7631 Insert key word for code generator             nlple    06-10-11   0.07
+//Delete extra Area NW                                  nlJBax   03-05-11   0.06 
+//FB_Area_Templ -> FC_Area_Templ                        nlJBax   14-01-11   0.05 
+//PR6227 Add Network Numbering, AA -> ZA                nlMvDo   07-01-11   0.04 
+//Add data layer for system                             nlMvK    26-10-10   0.03 
+//Add call to FB_System_Control including DI            nlMRe    22-09-10   0.02
+//Initial version                                       nlMRe    13-09-10   0.01
+//
+//Description:                                  
+//This is how the system layer should be build.
+//Including: 
+//- Safety
+//- Cabinet manager CCC
+//- Cabinet manager LCC
+//- IO_Available 
+//- System Control
+//- Area
+//- Status Manager
+//- OP Controller
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.      
+//
+//
+//VAR
+//  s_FB_DAT_System : "FB_DAT";	//Block call static data layer system
+//END_VAR
+//VAR_TEMP
+//  t_DB_No_Event_System : INT ;	//DB number of event system
+//  t_DB_No_Event_not_empty : INT ;	//DB number of event which is not empty
+//  t_Not_Used : INT ;	//Not used int
+//END_VAR
+//BEGIN
+//NETWORK
+//TITLE =AA: Safety
+//Collect all Safety Signals
+//     CALL "FC_Safety";
+//NETWORK
+//TITLE =BA: Cabinet Manager CCC
+//Cabinet Manager Central Control Cabinet
+// INSERT  "FB_Cabinet Manager"
+//NETWORK
+//TITLE =CA: Cabinet Manager LCC
+//Cabinet Manager Local Control Cabinet
+// INSERT  "FB_DP_Slave_Cabinet"
+//NETWORK
+//TITLE =DA: IO Available and Safety OK
+//
+//      CALL "FC_IO_Available" ;
+//      CALL "FC_Safety_OK" ;
+//
+//NETWORK
+//TITLE =EA: System Control
+//
+//      CALL "FC_System_Control" ;
+//
+//NETWORK
+//TITLE =FA: Area AAAA
+// INSERT  "FC_Area_Templ"
+//NETWORK
+//TITLE =GA: Status handling
+//Satus manager, generate Overall Status and General Status
+//Handle HMI and BPI status 
+//      CALL "FB_Status_Manager" , "DI_Status_Manager" ;
+//
+//NETWORK
+//TITLE =HA: OP Controller
+//
+// INSERT  "FB_HMI_Area"
+//
+//NETWORK
+//TITLE =IA: Data layer for system
+//
+//      OPN   "DB_Event_System"; 
+//      L     DBNO; 
+//      T     #t_DB_No_Event_System; 
+//
+//Check if event DB section is empty (already reported)
+//      L     "DB_Event_Section".Entries_Used; 
+//      L     0; 
+//      >I    ; 
+//      JCN   IA01; 
+//
+//      L     DBNO; 
+//      T     #t_DB_No_Event_not_empty; 
+//
+//      CALL "FC_Write_Event" (
+//           i_Message_ID             := 3134,//Event DB is not empty (DAT Layer 
+//missing)
+//           i_Event_value            := #t_DB_No_Event_not_empty,
+//           i_DB_Event_Num           := #t_DB_No_Event_System,
+//           o_Return_Value           := #t_Not_Used);
+//
+//Check if event DB zone is empty (already reported)
+//IA01: L     "DB_Event_Zone".Entries_Used; 
+//      L     0; 
+//      >I    ; 
+//      JCN   IA02; 
+//
+//      L     DBNO; 
+//      T     #t_DB_No_Event_not_empty; 
+//
+//      CALL "FC_Write_Event" (
+//           i_Message_ID             := 3134,//Event DB is not empty (DAT Layer 
+//missing)
+//           i_Event_value            := #t_DB_No_Event_not_empty,
+//           i_DB_Event_Num           := #t_DB_No_Event_System,
+//           o_Return_Value           := #t_Not_Used);
+//
+//Check if event DB area is empty (already reported)
+//IA02: L     "DB_Event_Area".Entries_Used; 
+//      L     0; 
+//      >I    ; 
+//      JCN   IA03; 
+//
+//      L     DBNO; 
+//      T     #t_DB_No_Event_not_empty; 
+//
+//      CALL "FC_Write_Event" (
+//           i_Message_ID             := 3134,//Event DB is not empty (DAT Layer 
+//missing)
+//           i_Event_value            := #t_DB_No_Event_not_empty,
+//           i_DB_Event_Num           := #t_DB_No_Event_System,
+//           o_Return_Value           := #t_Not_Used);
+//
+//IA03: NOP   0; 
+//
+//      CALL #s_FB_DAT_System (
+//           i_ID_Section             := DW#16#0,
+//           i_DB_Event               := "DB_Event_System",
+//           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+//           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+//           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+//           i_CFG_PLC_Log_Route_Msgs := FALSE,
+//           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+//           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+//           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+//
+
+
+END_FUNCTION_BLOCK
+

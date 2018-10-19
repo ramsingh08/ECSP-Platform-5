@@ -1,0 +1,172 @@
+FUNCTION_BLOCK "FB_HW_MTR_MS"
+TITLE =%version: 0.15 % CN: 40
+//Function:
+//Hardware driver for Motor without LMS.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:11:56 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.15
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.15
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.15
+//22404: ST_THO no condition manual or not automatic    nlHdL    20-01-15   0.15
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.14
+//PR13607: Add Started_Time statistical to HW           nlHdL    19-04-13   0.13
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.12
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    01-11-12   0.11
+//CR10491 Change manual control preconditions           nlHHop   27-06-12   0.10
+//CR8255 Added Event 3902 HW: Motor Stopped             nlcsu    11-11-11   0.09
+//PR6080 Added Statisticals ID                          nlHdL    07-12-10   0.08
+//Update sequence                                       nljbax   24-09-10   0.07
+//Changed INC 1 into L 1                                nljbax   24-09-10   0.06
+//Changed position i_Event_DB                           nljbax   24-09-10   0.05
+//Changed according Coding Conventions                  nljbax   24-09-10   0.04
+//Modified Input & output name                          inPNa    15-09-10   0.03
+//PR5334  ID input  removed                             inPNa    15-07-10   0.02
+//PR5336  Manual Run condition modified
+//Initial version                                       inPNa    03-05-10   0.01
+//
+//Description:
+//Genrating Thermal Overload.                                
+//Generating the Detailed status.
+//Genrating Hardware Error.
+//Genrating output to motor in Automatic & Manual mode.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IO_MS_Automatic_Mode : BOOL  := TRUE;	//HW: Maintenance Switch of motor in 'ON' position (ON=TRUE)
+  i_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Forward : BOOL ;	//CMD: Run motor forward
+  i_CMD_Manual_Mode : BOOL ;	//CMD: Activate manual mode
+  i_CMD_Manual_Run : BOOL ;	//CMD: Manual run request
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR : BOOL ;	//HW: Run signal to motor of conveyor
+  o_ST_MS_Not_Automatic : BOOL ;	//ST: Maintenance Switch of motor in 'OFF' position
+  o_ST_Manual_mode : BOOL ;	//ST: Manual mode
+  o_ST_THO : BOOL ;	//ST: Thermal overload 
+END_VAR
+VAR
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+END_VAR
+VAR_TEMP
+  t_Return_Value_Int : INT ;	//Return Value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB Event Nr
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Handle Electrical Input statuses
+//Some errors and statuses are coming directly from electrical inputs.
+//If the IO becomes not available, those inputs must be ignored, to avoid 
+//(as consequence of) all kind of meaningless status changes, 
+//which are indicated to HMI.
+      NOP   0; 
+// Thermal Overload / Error
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #o_ST_THO; // Reset Thermal Overload error
+
+      AN    #i_IO_NOT_THO; 
+      A     #i_Available_IO; 
+      S     #o_ST_THO; // Set MS Thermal overload
+
+
+// Maintenance Switch of motor in 'OFF' position 
+      AN    #i_IO_MS_Automatic_Mode; // HW: Maintenance Switch of motor in 'ON' position (ON=TRUE)
+      A     #i_Available_IO; // AND IO available
+      =     #o_ST_MS_Not_Automatic; // THEN Maintenance Switch of motor in 'OFF' position 
+
+
+//  Manual Mode
+      A     #i_CMD_Manual_Mode; // If Motor not in 'Automatic' mode
+      A     #i_Available_IO; // AND IO available
+      =     #o_ST_Manual_mode; // THEN Motor Not in 'Manual' position
+NETWORK
+TITLE =CA: Motor run Automatic signal
+//Run the Motor in Automatic Mode or Manual Mode
+      A     #i_CMD_Req_Motor_Forward; // If 'Motor run request' in Autmatic mode
+      AN    #i_CMD_Manual_Mode; //AND_NOT Manual mode
+      AN    #o_ST_THO; //AND_NOT MS Thermal overload
+      AN    #o_ST_MS_Not_Automatic; //AND_NOT Maintenance switch OFF
+      A     #i_Available_IO; // AND IO available
+      O     ; 
+      A     #o_ST_Manual_mode; //IF Manual mode
+      A     #i_CMD_Manual_Run; //AND 'Motor run request' in Autmatic mode
+      AN    #o_ST_THO; //AND_NOT MS Thermal overload
+      A     #i_Available_IO; // AND IO available
+      =     #o_IO_MTR; //Then 'Motor' Run     
+NETWORK
+TITLE =DA: BPI counter
+
+      A     #o_IO_MTR; 
+      A     "M_OS_New_Second"; 
+      JCN   DA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+DA01: A     #o_IO_MTR; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   DA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+DA02: NOP   0; 
+
+      A     #i_CMD_Send_Stat; 
+      JCN   DA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

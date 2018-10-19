@@ -1,0 +1,644 @@
+FUNCTION_BLOCK "FB_CIZ_Control"
+TITLE =%version: 1.08 % CN: 50 
+//Function:
+//Control a Check-In Zone which consists of two 2-directional conveyors 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, October 08, 2018 8:26:14 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10455: EOS PEC Latch on TRS3 Issue                nlHdL    08-10-18   1.08
+//ina#10454: CIZ Control PEC blockage EOS update        nlHdL    27-06-18   1.07
+//ra#19243: Dispatch light not lit                      nlDY     14-12-16   1.06
+//ra#19112: Dispatch timeout only when KS turned off    nlDY     12-12-16   1.05
+//ra#18945:snaglist issues                              nlJClo   05-12-16   1.04
+//ra#38710: RAW: Make CIZ according MCFV decomposition  nlJClo   02-06-16   1.03
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   1.02
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.15 of PLT version 0
+//
+//Description:
+//Control a Check-In Zone which consists of two 2-directional conveyors: 
+//a Check-in Weight Section TRS1 and a 
+//regular 2 directional Check-in Dispatch Section TRS3.
+//The control part of both sections is defined in this block with 
+//help of a sequencer for the automatic dispatch action.
+//Manual control for both conveyors is defined separately from
+//the sequencer.
+//
+//             __________ 
+//            |          |
+//  SOS PEC >-|----------|-|
+//            |          |
+//            |   TRS1   |
+//            |          |     |
+//            |          |     |
+//  EOS PEC >-|----------|-|   |
+//            |__________|     |
+//             __________      | FLOW
+//            |          |     |
+//  SOS PEC >-|----------|-|   |
+//            |          |     |
+//            |          |     V
+//            |   TRS3   |
+//            |          |
+//  EOS PEC >-|----------|-|
+//            |__________|
+//_______________________________________
+//
+//                 CLZ
+//
+//             ---------->
+//_______________________________________
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position Data Block TRS1
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: Position Data Block TRS3
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_CIZ_Active : BOOL ;	//Check In Zone is activated
+  i_Request_Induct : BOOL ;	//Request to induct bag on collector belt
+  i_KS_IO_Desk_On : BOOL ;	//HW: Key-Switch check-in desk switched on
+  i_PB_IO_Label_Weight : BOOL ;	//HW: Push Button Label.Weight
+  i_PB_IO_Dispatch : BOOL ;	//HW: Push Button Dispatch
+  i_PB_IO_Reverse : BOOL ;	//HW: Push Button Reverse
+  i_TRS1_IO_NOT_PEC_Upstrm : BOOL ;	//HW: Input Signal Upstream TRS1 PEC (PEC31)
+  i_TRS1_NOT_PEC_Downstr : BOOL ;	//HW: Input Signal Downstream TRS1 PEC (PEC71)
+  i_TRS3_IO_NOT_PEC_Upstrm : BOOL ;	//HW: Input Signal Upstream TRS3 PEC (PEC31)
+  i_TRS3_NOT_PEC_Downstr : BOOL ;	//HW: Input Signal Downstream TRS3 PEC (PEC71)
+  i_Init_Sequencer : BOOL ;	//Initialize the sequencer and set Step 0: Idle
+  i_Dispatch_Timeout : INT ;	//[0.1sec] After countdown of timer the dispatch command will be resetted
+END_VAR
+VAR_OUTPUT
+  o_TRS1_Req_MTR_Run : BOOL ;	//CMD: Command run motor TRS1
+  o_TRS1_Req_MTR_Rev : BOOL ;	//CMD: Command run motor TRS1 reverse
+  o_TRS3_Req_MTR_Run : BOOL ;	//CMD: Command run motor TRS3
+  o_TRS3_Req_MTR_Rev : BOOL ;	//CMD: Command run motor TRS3 reverse
+  o_TRS1_HandOver_Busy : BOOL ;	//Handover of TRS1 to TRS3 is busy
+  o_TRS3_Dispatch_Busy : BOOL ;	//Dispatch of TRS3 is busy
+  o_TRS3_Ready_To_Induct : BOOL ;	//TRS3 has bag ready to induct
+  o_ST_Length_Check : BOOL ;	//ST: Length check error
+  o_IO_SL_Dispatch_Button : BOOL ;	//HW: Signal light dispatch button
+END_VAR
+VAR
+  s_TRS1_Motor_Manual_Fwd : BOOL ;	//CMD: Manual Command motor TRS1 run forward 
+  s_TRS1_Motor_Manual_Rev : BOOL ;	//CMD: Manual Command motor TRS1 run reverse
+  s_FP_OS_Dispatch : BOOL ;	//One Shot positive edge when dispatch button is pressed
+  s_FP_Copy_OS_Dispatch : BOOL ;	//Copy One Shot positive edge when dispatch button is pressed
+  s_Next_Dispatch : BOOL ;	//Next dispatch is set
+  s_TRS1_Ready_To_HandOver : BOOL ;	//All conditions are true to start a dispatch from the TRS1
+  s_Stepped_In_This_Scan : BOOL ;	//Step transition is made in this PLC scan
+  s_TRS3_At_Handover : BOOL ;	//Item is in Handover from PLT DB
+  s_S0_Wait_For_Dispatch : BOOL ;	//Step 0 (Idle): Waiting until a dispatch command is set
+  s_S1_HandOver_TRS1_TRS3 : BOOL ;	//Step 1: Hand Over bag from the TRS1 to the TRS3
+  s_S2_Transp_To_EOS_TRS3 : BOOL ;	//Step 2: Transport bag on TRS3 to the EOS PEC
+  s_S3_Check_Bag_Length : BOOL ;	//Step 3: Check bag length on the TRS3
+  s_S4_Run_Till_Handover : BOOL ;	//Step 4: Run TRS3 till Item in Handover
+  s_S5_Wait_For_Induct : BOOL ;	//Step 5: Ready to induct and wait for induct request
+  s_S6_Induct_Bag : BOOL ;	//Step 6: Induct bag on the CLZ
+  s_S7_Remove_Bag_On_TRS3 : BOOL ;	//Step 7: Remove bag from TRS3 with reverse button after length check error
+  s_HandOver_Finished : BOOL ;	//Handover from TRS1 to TRS3 is finished
+  s_TRS3_PLT_Empty : BOOL ;	//TRS3 PLT is empty
+  s_TRS1_DB_PLT_Nr : INT ;	//TRS1 DB PLT number
+  s_TRS3_DB_PLT_Nr : INT ;	//TRS3 DB PLT number
+  s_TRS1_DB_PLT_Cnv_Length : INT ;	//Conveyor length from TRS1 PLT DB
+  s_TRS3_DB_PLT_Cnv_Length : INT ;	//Conveyor length from TRS3 PLT DB
+  s_Entries_Used_TRS3 : INT ;	//Number of entries used in the TRS3 PLT DB
+  s_TRS3_Operational_On : BOOL ;	//TRS3 is operational on
+  s_Start_Dispatch_Timer : BOOL ;	//Dispatch reset timer is started
+  s_Reset_Dispatch_Command : BOOL ;	//Reset command will be resetted
+  s_Current_Timer_Value : INT ;	//Current value of reset dispatch timer
+END_VAR
+VAR_TEMP
+  t_DB_PLT_Position : INT ;	//Position in PLT DB
+  t_DB_PLT_Info : INT ;	//Info at position in PLT DB
+  t_DB_PLT_Data : INT ;	//Data at position in PLT DB
+  t_DB_PLT_Nr : INT ;	//Data at position in PLT DB
+  t_DB_Event_Num : INT ;	//Number of the Event DB
+  t_NR_Entry_Found : INT ;	//The number of entries found in the PLT DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB's
+//All necessary PLT data is stored for later usage.
+      OPN   #i_Event_DB; // Store number of the event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_TRS1_DB_PLT; 
+      L     DBNO; // Store DB number of TRS1 PLT DB
+      T     #s_TRS1_DB_PLT_Nr; 
+
+      L     DBW   12; // Store conveyor length
+      T     #s_TRS1_DB_PLT_Cnv_Length; 
+
+      OPN   #i_TRS3_DB_PLT; 
+      L     DBNO; // Store DB number of TRS3 PLT DB
+      T     #s_TRS3_DB_PLT_Nr; 
+
+      L     DBW    0; // Store number of entries used in TRS3 PLT DB
+      T     #s_Entries_Used_TRS3; 
+
+      L     DBW   12; // Store DB number of TRS3 PLT DB
+      T     #s_TRS3_DB_PLT_Cnv_Length; 
+
+      A     DBX   10.5; 
+      =     #s_TRS3_Operational_On; 
+
+      A     DBX   10.6; 
+      =     #s_TRS3_At_Handover; 
+NETWORK
+TITLE =BA: Manual Check/Weight Motor control
+//For TRS1 it is possible to move the belt with use of 2 pushbuttons. Button 
+//Label/Weight to run the conveyor forwards, and Reverse to run the conveyor 
+//backwards. The manual motions are only possible when the belt is not running 
+//automatically during a handover. When a length check error has occurred TRS1 
+//is only allowed to run backwards together with TRS3.
+      AN    #s_S1_HandOver_TRS1_TRS3; 
+      AN    #s_S7_Remove_Bag_On_TRS3; 
+      AN    #s_TRS1_Motor_Manual_Rev; 
+      A     #i_CIZ_Active; 
+      A     #i_KS_IO_Desk_On; 
+      A     #i_TRS1_NOT_PEC_Downstr; 
+      AN    #i_PB_IO_Reverse; 
+      A     #i_PB_IO_Label_Weight; 
+      =     #s_TRS1_Motor_Manual_Fwd; 
+
+      AN    #s_S1_HandOver_TRS1_TRS3; 
+      AN    #s_TRS1_Motor_Manual_Fwd; 
+      A     #i_CIZ_Active; 
+      A     #i_KS_IO_Desk_On; 
+      A     #i_TRS1_IO_NOT_PEC_Upstrm; 
+      AN    #i_PB_IO_Label_Weight; 
+      A     #i_PB_IO_Reverse; 
+      =     #s_TRS1_Motor_Manual_Rev; 
+NETWORK
+TITLE =CA: Determine if TRS1 is ready to handover
+//When a bag is detected in the downstream PEC and the CIZ is active and no 
+//handover is busy, the bag is ready at the handover position.
+      A     #i_KS_IO_Desk_On; 
+      A     #i_CIZ_Active; 
+      AN    #i_TRS1_NOT_PEC_Downstr; 
+      AN    #s_S1_HandOver_TRS1_TRS3; 
+      S     #s_TRS1_Ready_To_HandOver; 
+
+      AN    #i_KS_IO_Desk_On; 
+      O     #i_TRS1_NOT_PEC_Downstr; 
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      R     #s_TRS1_Ready_To_HandOver; 
+NETWORK
+TITLE =DA: Dispatch timeout
+//When the key switch "Desk ON" is turned off a timer to reset the dispatch 
+//action is started.
+      AN    #i_KS_IO_Desk_On; // Or the key switch desk on is turned off
+      =     #s_Start_Dispatch_Timer; // Start the timer to reset the dispatch command
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_Start_Dispatch_Timer,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #i_Dispatch_Timeout,
+           i_Current_Value          := #s_Current_Timer_Value,
+           o_Status                 := #s_Reset_Dispatch_Command,
+           o_Current_Value          := #s_Current_Timer_Value);
+NETWORK
+TITLE =EA: Set dispatch request
+//When a bag is present at TRS1 handover position or there is a bag at the 
+//induct position, the next dispatch command can be set. While a length check 
+//error is present all dispatch commands will be reset.
+      A     #i_PB_IO_Dispatch; 
+      FP    #s_FP_Copy_OS_Dispatch; 
+      =     #s_FP_OS_Dispatch; 
+
+      A     #i_TRS1_NOT_PEC_Downstr; 
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      O     #s_S7_Remove_Bag_On_TRS3; 
+      R     #s_Next_Dispatch; 
+
+      AN    #s_S7_Remove_Bag_On_TRS3; 
+      A     #s_TRS1_Ready_To_HandOver; 
+      ON    #i_TRS3_NOT_PEC_Downstr; 
+      A     #s_FP_OS_Dispatch; 
+      A(    ; 
+      A     #i_TRS3_NOT_PEC_Downstr; 
+      ON    #s_S0_Wait_For_Dispatch; 
+      )     ; 
+      AN    #i_PB_IO_Reverse; 
+      S     #s_Next_Dispatch; 
+NETWORK
+TITLE =FA: Determine when bag is dispatched
+//When the trailing edge of the bag has arrived at TRS3, the bag is 
+//completely dispatched from TRS1 to TRS3.
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_Position               := #s_TRS3_DB_PLT_Cnv_Length,
+           i_Window                 := 10,
+           i_Info                   := 2,
+           o_Position               := #t_DB_PLT_Position,
+           o_Info                   := #t_DB_PLT_Info,
+           o_LNK                    := #t_DB_PLT_Data,
+           o_DB_PLT_Num             := #t_DB_PLT_Nr,
+           o_Number_Items_Found     := #t_NR_Entry_Found);
+
+      L     #t_NR_Entry_Found; // Detect when the trailing edge of the bag is present in TRS3 PLT
+      L     0; 
+      >I    ; 
+      =     #s_HandOver_Finished; // Then the dispatch from TRS1 to TRS3 is ready
+NETWORK
+TITLE =GA: Determine when bag is inducted according to the PLT DB
+//Check when TRS3 PLT DB is empty.
+      NOP   0; // Holds this network in STL
+
+      L     #s_Entries_Used_TRS3; // Load Entries used from TRS3 PLT
+      L     1; 
+      ==I   ; // When 0 the conveyor is empty according to the PLT DB
+      =     #s_TRS3_PLT_Empty; 
+NETWORK
+TITLE =HA: Clear TRS1 PLT DB
+//Clear TRS1 PLT DB when in reverse or bag removed from downstream PEC. This 
+//prevents that the conveyor will go in die-back when a bag is removed but still 
+//present in the PLT DB.
+      AN    #o_TRS1_Req_MTR_Run; // When the motor is not running
+      A     #i_TRS1_NOT_PEC_Downstr; // And a bag will be removed
+      O     #o_TRS1_Req_MTR_Rev; // Or the belt is running in reverse
+      A     #s_S0_Wait_For_Dispatch; 
+      JCN   HA99; 
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS1_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Initialize the sequencer and set Step 0: Idle
+
+      A     #i_Init_Sequencer; 
+      O     #s_Reset_Dispatch_Command; 
+      JCN   IA99; 
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS1_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      S     #s_S0_Wait_For_Dispatch; 
+      R     #s_Next_Dispatch; 
+      R     #s_Stepped_In_This_Scan; 
+      R     #s_S1_HandOver_TRS1_TRS3; 
+      R     #s_S2_Transp_To_EOS_TRS3; 
+      R     #s_S3_Check_Bag_Length; 
+      R     #s_S4_Run_Till_Handover; 
+      R     #s_S5_Wait_For_Induct; 
+      R     #s_S6_Induct_Bag; 
+      R     #s_S7_Remove_Bag_On_TRS3; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Dispatch / Induct sequencer
+//********************************************************************************
+//****************************SEQUENCER START*************************************
+//********************************************************************************
+//
+//When a dispatch command is set, this sequencer will run. It will handle the bag 
+//step by step until it's inducted on the collector belt. When a bag is to long 
+//the sequencer will handle an exceptional step to reverse the belts to remove 
+//the 
+//bag from the check in.
+//When the bag is inducted the sequencer is ready to handle the next dispatch 
+//command. This dispatch command can also be set during inducting, the bag will 
+//be handled when the sequencer is back into Idle.
+      NOP   0; 
+//Initialization of the sequencer
+      AN    #s_S0_Wait_For_Dispatch; 
+      AN    #s_S1_HandOver_TRS1_TRS3; 
+      AN    #s_S2_Transp_To_EOS_TRS3; 
+      AN    #s_S3_Check_Bag_Length; 
+      AN    #s_S4_Run_Till_Handover; 
+      AN    #s_S5_Wait_For_Induct; 
+      AN    #s_S6_Induct_Bag; 
+      AN    #s_S7_Remove_Bag_On_TRS3; 
+      S     #s_S0_Wait_For_Dispatch; 
+
+// Reset stepped in this scan every PLC cycle
+      SET   ; 
+      R     #s_Stepped_In_This_Scan; 
+NETWORK
+TITLE =KA: Step 0: (Idle) Wait for dispatch
+//Step 0 is the Idle step for the dispatch sequencer. During this step only 
+//manual movements for TRS1 conveyor are possible. To set the next step a 
+//dispatch command should be set.
+//
+//Actions:             None
+//Next step condition: Next Dispatch
+      A     #s_S0_Wait_For_Dispatch; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KA99; 
+
+      A     #s_Next_Dispatch; // When dispatch is set
+      JCN   KA99; // If not hold sequencer in current step
+
+      A     #i_TRS3_NOT_PEC_Downstr; // When bag is not present on TRS3 conveyor at the induct position
+      JCN   KA01; // If not don't clear PLT DB
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA01: R     #s_S0_Wait_For_Dispatch; // Handle next step in next PLC cycle
+      S     #s_S1_HandOver_TRS1_TRS3; 
+      S     #s_Stepped_In_This_Scan; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =KB: Step 1: Wait till TRS1 is clear
+//In step 1 both sections will be started to handover the bag from TRS1 to TRS3. 
+//This step will be active untill the bag has arrived at TRS3 according the PLT 
+//data.
+//
+//Actions:             TRS1 run, TRS3 run
+//Next step condition: HandOver finished
+      A     #s_S1_HandOver_TRS1_TRS3; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KB99; 
+
+      A     #s_HandOver_Finished; // Wait till bag is handed over according TRS1 PLT information
+      ON    #i_TRS3_NOT_PEC_Downstr; // Or when TRS3 conveyor has a bag present at the induct position.
+      JCN   KB99; // If not Hold sequencer in current step
+
+      R     #s_HandOver_Finished; 
+      R     #s_S1_HandOver_TRS1_TRS3; // Handle next step in next PLC cycle
+      S     #s_S2_Transp_To_EOS_TRS3; 
+      S     #s_Stepped_In_This_Scan; 
+
+KB99: NOP   0; 
+NETWORK
+TITLE =KC: Step 2: Wait till bag has arrived at TRS3
+//In step 2 only TRS3 will be running forward untill the bag has reached the 
+//EOS PEC. When a bag is manually removed during handover, the sequencer will be 
+//reset when the PLT data is cleared.
+//
+//Actions:             TRS3 run
+//Next step condition: Bag at EOS PEC TRS3
+//                     PLT TRS3 empty
+      A     #s_S2_Transp_To_EOS_TRS3; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KC99; 
+
+      AN    #i_TRS3_NOT_PEC_Downstr; // When TRS3 conveyor has a bag present at the induct position.
+      JCN   KC01; 
+
+      R     #s_S2_Transp_To_EOS_TRS3; // Handle next step in next PLC cycle
+      S     #s_S3_Check_Bag_Length; 
+      S     #s_Stepped_In_This_Scan; 
+      JU    KC99; 
+
+KC01: A     #s_TRS3_PLT_Empty; // When bag is removed manually and TRS3 PLT has shifted empty.
+      A     #i_TRS3_IO_NOT_PEC_Upstrm; // to aviod bag gets stuck at SOS PEC and create PEC blockage
+      JCN   KC99; 
+
+      R     #s_S2_Transp_To_EOS_TRS3; // Handle next step in next PLC cycle
+      S     #s_S0_Wait_For_Dispatch; 
+      S     #s_Stepped_In_This_Scan; 
+
+KC99: NOP   0; 
+NETWORK
+TITLE =KD: Step 3: Check length of bag
+//In step 3 the length of the bag will be checked while TRS3 is stopped. This will
+//be performed with use of the SOS PEC of TRS3. When this PEC is detecting a bag, 
+//the sequencer will load the manual remove step. When the PEC is clear the 
+//sequencer will continue with the next step. 
+//
+//Actions:             Check length with SOS PEC TRS3
+//Next step condition: None (single scan step)
+      A     #s_S3_Check_Bag_Length; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KD99; 
+
+      A     #i_TRS3_IO_NOT_PEC_Upstrm; // When the upstream PEC on TRS3 is clear
+      JCN   KD01; 
+
+      R     #s_S3_Check_Bag_Length; // Handle next step in next PLC cycle
+      S     #s_S4_Run_Till_Handover; 
+      S     #s_Stepped_In_This_Scan; 
+      JU    KD99; 
+
+KD01: R     #s_S3_Check_Bag_Length; // Else handle remove bag manually step
+      S     #s_S7_Remove_Bag_On_TRS3; 
+      S     #s_Stepped_In_This_Scan; 
+
+KD99: NOP   0; 
+NETWORK
+TITLE =KE: Step 4: Item in Handover
+//In Step 4 TRS3 will run till the bag on TRS3 is ready to be handed over.
+      A     #s_S4_Run_Till_Handover; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KE99; 
+
+      A     #s_TRS3_At_Handover; // When induct function block request to induct
+      JCN   KE99; 
+
+      R     #s_S4_Run_Till_Handover; // Handle next step in next PLC cycle
+      S     #s_S5_Wait_For_Induct; 
+      S     #s_Stepped_In_This_Scan; 
+
+KE99: NOP   0; 
+NETWORK
+TITLE =KF: Step 5: Wait for window to induct bag
+//In step 5 a ready to induct signal is set at the output of the block for the 
+//induct function block. This step will hold the sequencer until a request of 
+//the induct block has been received back. When the bag is removed manually 
+//during 
+//this step the sequencer will be reset.
+//
+//Actions:             Set ready for induct
+//Next step condition: Request for induct
+      A     #s_S5_Wait_For_Induct; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KF99; 
+
+      A     #i_Request_Induct; // When induct function block request to induct
+      JCN   KF01; 
+
+      R     #s_S5_Wait_For_Induct; // Handle next step in next PLC cycle
+      S     #s_S6_Induct_Bag; 
+      S     #s_Stepped_In_This_Scan; 
+      JU    KF99; 
+
+KF01: A     #i_TRS3_NOT_PEC_Downstr; // When the bag is manually removed
+      AN    #o_TRS3_Req_MTR_Run; 
+      JCN   KF99; 
+
+      R     #s_S5_Wait_For_Induct; // Handle next step in next PLC cycle
+      S     #s_S0_Wait_For_Dispatch; 
+      S     #s_Stepped_In_This_Scan; 
+
+KF99: NOP   0; 
+NETWORK
+TITLE =KG: Step 6: Wait till bag is inducted on CLZ
+//In step 6 the bag will be inducted on the collector belt. This step will be 
+//active until the EOS PEC of TRS3 is clear and the PLT information is 
+//transferred.
+//
+//Actions:             TRS3 run
+//Next step condition: PLT TRS3 empty
+//                     EOS PEC TRS3 clear
+      A     #s_S6_Induct_Bag; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KG99; 
+
+      A     #i_TRS3_NOT_PEC_Downstr; // And the downstream TRS3 PEC is clear
+      A     #o_TRS3_Req_MTR_Run; 
+      JCN   KG01; 
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KG01: A     #s_TRS3_PLT_Empty; // When bag is inducted according TRS3 PLT
+      A     #i_TRS3_NOT_PEC_Downstr; // And the downstream TRS3 PEC is clear
+      JCN   KG99; // If not Hold sequencer in current step
+
+      R     #s_S6_Induct_Bag; // Handle next step in next PLC cycle
+      S     #s_S0_Wait_For_Dispatch; 
+      S     #s_Stepped_In_This_Scan; 
+
+KG99: NOP   0; 
+NETWORK
+TITLE =KH: Step 7: Manual step to reverse bag after length check fault
+//Step 7 is the manual step for removing a bag during a length check error. It 
+//will hold this state until all the PLT information is transferred back to the 
+//TRS1 and all sensors are clear.
+//
+//Actions:             Activate reverse function TRS3
+//Next step condition: PLT TRS3 empty
+//                     SOS PEC TRS3 clear
+//                     EOS PEC TRS3 clear
+//                     EOS PEC TRS1 clear
+      A     #s_S7_Remove_Bag_On_TRS3; // Handle network when this step is active
+      AN    #s_Stepped_In_This_Scan; // And the step transition is not made in this PLC cycle
+      JCN   KH99; 
+
+      A     #i_TRS3_NOT_PEC_Downstr; // When PEC's are clear
+      A     #i_TRS3_IO_NOT_PEC_Upstrm; 
+      A     #i_TRS1_NOT_PEC_Downstr; 
+      A     #s_TRS3_PLT_Empty; // And TRS3 PLT is clear
+      JCN   KH99; 
+
+      R     #s_S7_Remove_Bag_On_TRS3; // Handle next step in next PLC cycle
+      S     #s_S0_Wait_For_Dispatch; 
+      S     #s_Stepped_In_This_Scan; 
+
+//Clear PLT TRS3 if bag is removed
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KH99: NOP   0; 
+NETWORK
+TITLE =LA: Set TRS1 motor reverse request output
+//LAD!!!
+      A     #s_TRS1_Motor_Manual_Rev; 
+      AN    #s_S1_HandOver_TRS1_TRS3; 
+      =     #o_TRS1_Req_MTR_Rev; 
+NETWORK
+TITLE =MA: Set TRS3 motor reverse request output
+//LAD!!!
+      A     #s_TRS1_Motor_Manual_Rev; 
+      A(    ; 
+      ON    #i_TRS3_NOT_PEC_Downstr; 
+      O     #s_S7_Remove_Bag_On_TRS3; 
+      )     ; 
+      =     #o_TRS3_Req_MTR_Rev; 
+NETWORK
+TITLE =NA: Set TRS1 motor run request output
+//LAD!!!
+      O     #s_TRS1_Motor_Manual_Fwd; 
+      O     #s_TRS1_Motor_Manual_Rev; 
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      =     #o_TRS1_Req_MTR_Run; 
+NETWORK
+TITLE =OA: Set TRS3 motor run request output
+//LAD!!!
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      O     #s_S2_Transp_To_EOS_TRS3; 
+      O     #s_S3_Check_Bag_Length; 
+      O     #s_S4_Run_Till_Handover; 
+      O     #s_S6_Induct_Bag; 
+      O     #o_TRS3_Req_MTR_Rev; 
+      AN    #s_S5_Wait_For_Induct; 
+      =     #o_TRS3_Req_MTR_Run; 
+NETWORK
+TITLE =PA: Set length check error output
+//LAD!!!
+      A     #s_S7_Remove_Bag_On_TRS3; 
+      =     #o_ST_Length_Check; 
+NETWORK
+TITLE =QA: Set signal light dispatch button
+
+      A(    ; 
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      O     #s_S2_Transp_To_EOS_TRS3; 
+      O     #s_S3_Check_Bag_Length; 
+      O     #s_S4_Run_Till_Handover; 
+      O     #s_S5_Wait_For_Induct; 
+      O     #s_S6_Induct_Bag; 
+      )     ; 
+      A     "M_System_Clock_1.0_sec."; 
+      O(    ; 
+      A     #s_S0_Wait_For_Dispatch; 
+      AN    #i_TRS1_NOT_PEC_Downstr; 
+      AN    #o_TRS3_Dispatch_Busy; 
+      A     #i_CIZ_Active; 
+      AN    #i_PB_IO_Reverse; 
+      AN    #i_Init_Sequencer; 
+      )     ; 
+      A(    ; 
+      A     #i_TRS3_NOT_PEC_Downstr; 
+      ON    #s_S0_Wait_For_Dispatch; 
+      )     ; 
+      =     #o_IO_SL_Dispatch_Button; 
+NETWORK
+TITLE =RA: Set ready to induct output signal
+//LAD!!!
+      A     #s_S5_Wait_For_Induct; 
+      =     #o_TRS3_Ready_To_Induct; 
+NETWORK
+TITLE =SA: Set dispatch busy output signal
+//LAD!!!
+      O     #s_S1_HandOver_TRS1_TRS3; 
+      O     #s_S2_Transp_To_EOS_TRS3; 
+      O     #s_S3_Check_Bag_Length; 
+      O     #s_S4_Run_Till_Handover; 
+      O     #s_S5_Wait_For_Induct; 
+      O     #s_S6_Induct_Bag; 
+      O     #s_S7_Remove_Bag_On_TRS3; 
+      O     #s_Next_Dispatch; 
+      =     #o_TRS3_Dispatch_Busy; 
+NETWORK
+TITLE =TA: Set TRS1 handover busy output signal
+//LAD!!!
+      A     #s_S1_HandOver_TRS1_TRS3; 
+      O     #s_S2_Transp_To_EOS_TRS3; 
+      O     #s_S7_Remove_Bag_On_TRS3; 
+      =     #o_TRS1_HandOver_Busy; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,41 @@
+TYPE "UDT_LSZ_Command"
+TITLE =%version: 0.05 % CN: 10 
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Friday, March 09, 2018 9:10:49 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27849: Remove Release command                      inajos   09-03-18   0.05
+//ra#54187: Align As per Product Book                   inajos   16-06-17   0.04
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   0.03
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   0.03
+//ra#9545: LSZ add commands stop flushing and Semi-Auto nlHdL    18-11-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      nlmvk    01-10-10   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Disable_Lane : BOOL ;	//Disable the Lane
+   Enable_Lane : BOOL ;	//Enable the Lane
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

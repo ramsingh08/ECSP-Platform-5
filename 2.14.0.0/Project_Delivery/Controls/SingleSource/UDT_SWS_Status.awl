@@ -1,0 +1,62 @@
+TYPE "UDT_SWS_Status"
+TITLE =%version: 0.12 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, September 06, 2017 3:48:25 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24487: SWS missing position information            nlHdL    06-09-17   0.12
+//ra#23152: UDT_SWS01_Status merged with UDT_SWS_Status nlHdL    02-08-17   0.11
+//ra#23151: Add required statuses for SWS04             nlSdW    07-06-17   0.10
+//ra#18337: Align the bits                              inajos   22-12-16   0.09
+//ra#16000: Update UDT Statuses accoording list         nlHdL    20-09-16   0.08
+//ra#13986: Add the External Stop status to EQP         nlHdL    02-06-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//CR10295 Put THO_th_Overload on bit 1.6 iso 0.7        nlHHop   21-06-12   0.05  
+//CR8713 Changing after test on site                    nlple    10-01-12   0.04
+//PR7336 move THO to second byte status                 nlple    14-09-11   0.03
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.02 
+//Initial version                                       nlHdL    17-09-10   0.01                                        
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   LMS_ASI_Not_Prsnt : BOOL ;	//LMS ASI slave not present
+   LMS_ASI_Error : BOOL ;	//LMS ASI slave error
+   LMS_Not_Auto : BOOL ;	//LMS not Automatic
+   LMS_Not_Hthy : BOOL ;	//LMS not Healthy
+   Move_Time_Out : BOOL ;	//Proximity Switch Time out
+   Error_PS_Double : BOOL ;	//Proximity Switch Double detection
+   THO_Overload : BOOL ;	//Thermal overload
+   Up : BOOL ;	//Position is up
+   Down : BOOL ;	//Position is down
+   ASI_NotPrsnt : BOOL ;	//ASi slave is not present
+   ASI_Err : BOOL ;	//ASi slave has an error
+   HAC_PEC_Blk : BOOL ;	//Hand-over Area Clear PEC blockage
+   HAC1_PEC_Blk : BOOL ;	//Hand-over Area Clear 1 PEC blockage
+   HAC2_PEC_Blk : BOOL ;	//Hand-over Area Clear 2 PEC blockage
+   HAC3_PEC_Blk : BOOL ;	//Hand-over Area Clear 3 PEC blockage
+   HAC_PEC_Switch_Gap : BOOL ;	//Handover Area Clear PEC Switch Gap not clear
+   Collision_PEC_Up : BOOL ;	//Collision error while moving up
+   Collision_PEC_Down : BOOL ;	//Collision error while moving down
+   Limit_Switch_Up : BOOL ;	//Limit Switch Up detection 
+   Limit_Switch_Down : BOOL ;	//Limit Switch Down detection 
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Straight_On : BOOL ;	//Position straight on
+   Divert : BOOL ;	//Position divert
+  END_STRUCT ;	
+END_TYPE
+

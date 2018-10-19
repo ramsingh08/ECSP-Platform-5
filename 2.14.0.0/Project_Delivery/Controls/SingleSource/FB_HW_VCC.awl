@@ -1,0 +1,310 @@
+FUNCTION_BLOCK "FB_HW_VCC"
+TITLE =%version: 0.03 % CN: 40
+//Function:
+//Transport Section: MOVI-Drive, Up-Down, Multiple Speeds 
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Wednesday, June 13, 2018 9:49:19 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27753:Added Missing statistical info (ra#27904)    inajos   23-11-17   0.03
+//ra#26555:Code Update                                  inajos   23-11-17   0.02
+//Initial version                                       inajos   06-10-17   0.01
+//
+//Description:
+//This block handles all communication between the PLC and the movidrive 
+//controller. Next to that all commands and for the VCC are handled and all 
+//statuses generated.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Run : BOOL ;	//CMD: Start command
+  i_CMD_Req_Manual_Fwd : BOOL ;	//CMD: Request manual forward
+  i_CMD_Req_Manual_Rev : BOOL ;	//CMD: Request manual reverse
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Send_Statistics : BOOL ;	//Trigger send and clear statistics
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_CFG_Speed_Auto : INT ;	//CFG: [mm/sec] Conveyor Speed in automatic mode
+  i_CFG_Speed_Manual : INT ;	//CFG: [mm/sec] Conveyor Speed in manual mode
+  i_LADDR_MVDRV : INT ;	//Begin addres of Fieldbus node from Movidrive
+END_VAR
+VAR_OUTPUT
+  o_ST_LMS_Not_Auto : BOOL ;	//ST: LMS is not automatic
+  o_ST_LMS_Not_Hthy : BOOL ;	//ST: LMS is not healthy
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Comm_Error : BOOL ;	//ST: Communication error
+END_VAR
+VAR
+  s_SWS_PI_Data : "UDT_SWS_Mvdr_PI_Data";	//Receive message buffer
+  s_SWS_PO_Data : "UDT_SWS_Mvdr_PO_Data";	//Send message buffer
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	//Number of times the drive was started counter
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+  s_Extend_Reset_to_Mvdrv : INT ;	//Extend counter for the reset to the movidrive
+  s_ST_LMS_Not_Auto : BOOL ;	//ST: LMS is not automatic
+  s_ST_LMS_Not_Hthy : BOOL ;	//ST: LMS is not healthy
+  s_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus slave not present
+  s_ST_FieldB_Error : BOOL ;	//Status Fieldbus Slave error
+  s_ST_Comm_Error : BOOL ;	//ST: Communication error
+  s_Comm_Read_Error : BOOL ;	//Communication error during read action
+  s_Comm_Write_Error : BOOL ;	//Communication error during write action
+  s_Copy_FN_Enable_Stop : BOOL ;	//Flank negative of enable stop signal
+END_VAR
+VAR_TEMP
+  t_LADDR : WORD ;	//Begin addres of fieldbus node from Movidrive
+  t_Ret_Val_Int : INT ;	//Return value error code when reading
+  t_DB_Event_Section_Num : INT ;	//Number of DB event section
+  t_Reset_Drive : BOOL ;	//Reset frequency controller error
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get Input/Output start address of the Movidrive
+
+      L     #i_LADDR_MVDRV; 
+      T     #t_LADDR; 
+
+
+// Open Event DB
+      OPN   "DB_Event_Section"; 
+
+// Determine DB number
+      L     DBNO; 
+      T     #t_DB_Event_Section_Num; 
+
+NETWORK
+TITLE =BA: Handle Electrical Input statuses
+
+      A     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #s_ST_FieldB_NotPrsnt; 
+      R     #s_ST_FieldB_Error; 
+
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_NotPrsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      S     #s_ST_FieldB_Error; 
+NETWORK
+TITLE =CA: Handle Movidrive automatic status
+
+      AN    #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; 
+      A     #i_Available_IO; 
+      =     #s_ST_LMS_Not_Auto; 
+NETWORK
+TITLE =DA: Handle Movidrive drive fault status
+//Resetting the movidrive fault requires the reset signal to the drive to be 
+//extended.
+      A     #s_SWS_PI_Data.PI1_Status_word.Fault_warning; 
+      A     #i_Available_IO; 
+      =     #s_ST_LMS_Not_Hthy; 
+
+//The Reset Command is extended for the drive function.
+      A     #i_CMD_Reset; 
+      A     #s_ST_LMS_Not_Hthy; 
+      =     #t_Reset_Drive; 
+
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #t_Reset_Drive,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 5,
+           i_Current_Value          := #s_Extend_Reset_to_Mvdrv,
+           o_Status                 := #s_SWS_PO_Data.PO1_Control_word.Fault_Reset,
+           o_Current_Value          := #s_Extend_Reset_to_Mvdrv);
+
+NETWORK
+TITLE =EA: Handling Receive Data 
+
+
+//Copy data from peripheral IO to PI Data
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_LADDR,
+           RET_VAL                  := #t_Ret_Val_Int,
+           RECORD                   := #s_SWS_PI_Data);
+
+// If t_Ret_Val_Int <> 0 an error occurred communicating with the drive
+      L     #t_Ret_Val_Int; 
+      L     0; 
+      <>I   ; 
+      =     #s_Comm_Read_Error; 
+NETWORK
+TITLE =FA: Enable drive
+// Enable rapid stop if enable command is activated
+      A(    ; 
+      O     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Manual_Fwd; 
+      O     #i_CMD_Req_Manual_Rev; 
+      )     ; 
+      A     #i_Available_IO; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Enable_Rapid_Stop; 
+
+// Enable stop if enable command is activated and no error is present
+      A(    ; 
+      O     #i_CMD_Req_Motor_Run; 
+      O     #i_CMD_Req_Manual_Fwd; 
+      O     #i_CMD_Req_Manual_Rev; 
+      )     ; 
+      AN    #s_ST_LMS_Not_Auto; 
+      AN    #s_ST_LMS_Not_Hthy; 
+      AN    #s_ST_FieldB_NotPrsnt; 
+      AN    #s_ST_FieldB_Error; 
+      AN    #s_ST_Comm_Error; 
+      =     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; 
+NETWORK
+TITLE =GA: Set speed to controller
+// Check if speed needs to be reset
+      AN    #s_SWS_PI_Data.PI1_Status_word.Motor_running; 
+      ON    #s_SWS_PI_Data.PI1_Status_word.Inverter_ready; 
+      O     #s_ST_LMS_Not_Auto; 
+      O     #s_ST_LMS_Not_Hthy; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_Comm_Error; 
+      JCN   GA01; 
+
+      L     0; 
+      T     #s_SWS_PO_Data.PO2_Set_Speed; 
+      JU    GA99; 
+
+// Automatic speed
+GA01: A     #i_CMD_Req_Motor_Run; 
+      JCN   GA02; 
+      L     #i_CFG_Speed_Auto; 
+      T     #s_SWS_PO_Data.PO2_Set_Speed; 
+      JU    GA99; 
+
+// Manual forward speed
+GA02: A     #i_CMD_Req_Manual_Fwd; 
+      JCN   GA03; 
+      L     #i_CFG_Speed_Manual; 
+      T     #s_SWS_PO_Data.PO2_Set_Speed; 
+      JU    GA99; 
+
+// Manual reverse speed
+GA03: A     #i_CMD_Req_Manual_Rev; 
+      JCN   GA99; 
+      L     #i_CFG_Speed_Manual; 
+      L     -1; 
+      *I    ; 
+      T     #s_SWS_PO_Data.PO2_Set_Speed; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Handling Send Data 
+
+
+// Copy data from peripheral IO to PO data
+      CALL "DPWR_DAT" (
+           LADDR                    := #t_LADDR,
+           RECORD                   := #s_SWS_PO_Data,
+           RET_VAL                  := #t_Ret_Val_Int);
+
+// If t_Ret_Val_Int <> 0 an error occurred communicating with the drive
+      L     #t_Ret_Val_Int; 
+      L     0; 
+      <>I   ; 
+      =     #s_Comm_Write_Error; 
+NETWORK
+TITLE =IA: Communication error
+
+      A     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #s_ST_Comm_Error; 
+
+// Check Communication Error
+      A(    ; 
+      O     #s_Comm_Read_Error; 
+      O     #s_Comm_Write_Error; 
+      )     ; 
+      A     #i_Available_IO; 
+      S     #s_ST_Comm_Error; 
+NETWORK
+TITLE =JA: Determine and send statistical values
+
+      NOP   0; 
+
+// Determine the number of seconds that the motor is running 
+      A     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; 
+      A     "M_OS_New_Second"; 
+      JCN   JA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     32767; 
+      <>I   ; 
+      JCN   JA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+// Determine the number of times the motor starts/stops
+JA01: A     #s_SWS_PO_Data.PO1_Control_word.Enable_Stop; 
+      FN    #s_Copy_FN_Enable_Stop; 
+      JCN   JA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     32767; 
+      <>I   ; 
+      JCN   JA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report Hardware: Motor Stopped (3902)
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+// Clearing the Statistics
+JA02: A     #i_Send_Statistics; 
+      JCN   JA99; 
+
+      CALL "FC_Write_Event" (// Report statistical start/stop information
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      CALL "FC_Write_Event" (// Report statistical started time information
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+// Clear the statistical
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+      T     #s_Statistical.Started_Time; 
+
+JA99: NOP   0; 
+
+NETWORK
+TITLE =KA: Write outputs
+
+      A     #s_ST_LMS_Not_Auto; 
+      =     #o_ST_LMS_Not_Auto; 
+      A     #s_ST_LMS_Not_Hthy; 
+      =     #o_ST_LMS_Not_Hthy; 
+      A     #s_ST_FieldB_NotPrsnt; 
+      =     #o_ST_FieldB_NotPrsnt; 
+      A     #s_ST_FieldB_Error; 
+      =     #o_ST_FieldB_Error; 
+      A     #s_ST_Comm_Error; 
+      =     #o_ST_Comm_Error; 
+END_FUNCTION_BLOCK
+

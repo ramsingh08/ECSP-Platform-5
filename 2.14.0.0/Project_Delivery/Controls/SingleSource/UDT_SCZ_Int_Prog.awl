@@ -1,0 +1,51 @@
+TYPE "UDT_SCZ_Int_Prog"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Tuesday, June 20, 2017 8:04:10 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version for PF5                               inrjoi   20-06-17   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Automatic mode
+   Manual : BOOL ;	//Manual mode
+   Semi_Auto : BOOL ;	//Semi automatic mode
+   SemiAuto_Fix_Up : BOOL ;	//Semi-Auto fixed up mode
+   SemiAuto_Fix_St : BOOL ;	//Semi-Auto fixed straight mode
+   SemiAuto_Fix_Dn : BOOL ;	//Semi-Auto fixed down mode
+   Auto_Redun_Up : BOOL ;	//Auto redundant mode up
+   Auto_Redun_Dn : BOOL ;	//Auto redundant mode down
+   Auto_Redun_St : BOOL ;	//Auto redundant mode straight
+   Man_TRS1_Run : BOOL ;	//Run TRS1 manually
+   Man_TRS2_Run : BOOL ;	//Run TRS2 manually
+   Man_TRS3_Run : BOOL ;	//Run TRS3 manually
+   Man_TRS4_Run : BOOL ;	//Run TRS4 manually
+   Man_TRS5_Run : BOOL ;	//Run TRS5 manually
+   Man_TRS6_Run : BOOL ;	//Run TRS6 manually
+   Man_TRS7_Run : BOOL ;	//Run TRS7 manually
+   Man_TRS8_Run : BOOL ;	//Run TRS8 manually
+   Man_Jog_Up : BOOL ;	//Jog the SCZ up manually
+   Man_Jog_Dn : BOOL ;	//Jog the SCZ down manually
+   Man_Fix_Up : BOOL ;	//Put the SCZ in fixed up position
+   Man_Fix_St : BOOL ;	//Put the SCZ in fixed straight position
+   Man_Fix_Dn : BOOL ;	//Put the SCZ in fixed down position
+   Spare_2_6 : BOOL ;	//Spare_2_6
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+   Operation_Mode_HMI : INT ;	//Operating mode of SCZ to HMI
+  END_STRUCT ;	
+END_TYPE
+

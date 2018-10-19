@@ -1,0 +1,31 @@
+TYPE "UDT_EQP_Basic_Sett"
+TITLE =%version: 0.05 % CN: 10
+//History:                                   
+//This version  %created_by: nljclo %
+//              %date_created: Tuesday, January 24, 2017 10:51:33 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#1918: flow control configuration                  nlJClo   24-01-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//CR8095 Comments changed                               nlple    06-01-12   0.02
+//Initial Revision                                      nlMRe    16-04-10   0.01
+//Based on "UDT_BB_Con_1dir_Sett" v0.03
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Offset : INT ;	//[cm] Distance between begin of conveyor and next handling point (mostly a PEC)  
+   Minimum_Gap : INT ;	//[cm] Minimum gap length between products (0 = no gap control)
+   Add_Gap_Stop : INT ;	//[cm] Additional gap after stop of upstream conveyor
+   Minimum_H2H : INT ;	//[cm] Minimum head to head length (0 = no head to head control)
+   Add_H2H_Stop : INT ;	//[cm] Additional head to head length after stop of upstream conveyor
+  END_STRUCT ;	
+END_TYPE
+

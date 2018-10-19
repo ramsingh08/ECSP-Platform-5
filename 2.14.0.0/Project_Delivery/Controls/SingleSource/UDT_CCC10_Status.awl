@@ -1,0 +1,50 @@
+TYPE "UDT_CCC10_Status"
+TITLE =%version: 0.02 % CN: 10 
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Monday, August 14, 2017 11:40:59 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24059: CCC10 status report not inline with EM      inrjoi   14-08-17   0.02
+//Initial version                                       nlSdW    24-07-17   0.01
+FAMILY : General
+
+
+  STRUCT 	
+   Mainswitch_OFF : BOOL ;	//Maintenance switch offline
+   PLC_Hardware_Error : BOOL ;	//PLC module error
+   Fire_Alarm : BOOL ;	//Fire alarm zone 1
+   LM_Comm_Error : BOOL ;	//LM communication error
+   PN_Master_NotPrsnt : BOOL ;	//Profinet: PN Master is not present
+   PN_Master_Error : BOOL ;	//Profinet: PN Master has an error
+   HMI_Comm_Error : BOOL ;	//HMI Communication error
+   PN_Switch_NotPrsnt : BOOL ;	//Profinet switch: ProfiNET is not present
+   PN_Switch_Error : BOOL ;	//Profinet switch: ProfiNET has an error
+   PN_Coupler_NotPrsnt : BOOL ;	//PN/PN Coupler: ProfiNET is not present
+   PN_Coupler_Error : BOOL ;	//PN/PN Coupler: ProfiNET has an error
+   PN_Coupler_2_NotPrsnt : BOOL ;	//PN/PN Coupler 2: ProfiNET is not present
+   PN_Coupler_2_Error : BOOL ;	//PN/PN Coupler 2: ProfiNET has an error
+   ETH_Linkp_Error : BOOL ;	//Ethernet linkprotector error
+   CB_LINKP : BOOL ;	//Circuitbeaker linkprotector
+   No_Power_GRP01 : BOOL ;	//Power failure Group 1
+   No_Power_GRP02 : BOOL ;	//Power failure Group 2
+   No_Power : BOOL ;	//Power failure
+   External_Run_ON : BOOL ;	//Transport mode
+   Spare_2_3 : BOOL ;	//Spare_2_3
+   Spare_2_4 : BOOL ;	//Spare_2_4
+   Spare_2_5 : BOOL ;	//Spare_2_5
+   Spare_2_6 : BOOL ;	//Spare_2_6
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

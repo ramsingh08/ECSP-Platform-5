@@ -1,0 +1,164 @@
+FUNCTION "FC_HMI_Commands" : VOID
+TITLE =%version: 0.02 % CN: 30
+//Function:
+//Add HMI commands to DB_Commands and reset the HMI_Commands
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, November 14, 2016 3:02:46 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189:HMI Command seperated from index DB          inajos   27-10-16   0.02 
+//ra#13652 Based on FC_HMI_Commands_T v0.03 VI_TTC      inajos   29-09-16   0.01
+//
+//Description:
+//Handles the HMI commands for the modes of several zones.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Index : BLOCK_DB ;	//DB_HMI_Mode_Index
+  i_DB_HMI_Commands : BLOCK_DB ;	//DB HMI Commands Index
+END_VAR
+VAR_TEMP
+  t_UDT_IF_HMI_Mode : "UDT_IF_HMI_Mode"; // UDT for the zone modes 	
+  t_UDT_IF_HMI_Mode_Len : INT ;	//Length of the UDT
+  t_DB_Mode_Index_Num : INT ;	//Number of mode index db
+  t_DB_Mode_Index_Len : INT ;	//Length of mode index db
+  t_DB_Mode_Index_Records : INT ;	//Number of mode index db
+  t_DB_Command_Num : INT ;	//Number of the command db
+  t_DB_HMI_Command_Num : INT ;	//Number of the command db HMI
+  t_AR1_Backup : DWORD ;	//Backup of AR1 content
+  t_AR2_Backup : DWORD ;	//Backup of AR2 content
+  t_Start_Address_Command : INT ;	//Start address in DB_Command
+  t_Start_Address_HMI_Cmd : INT ;	//Start address in DB_HMI_Command
+  t_HMI_Commands : WORD ;	//Commands of HMI
+  t_Commands : WORD ;	//Commands in DB_Command
+  t_Loop_Nr : INT ;	//Number of times looped
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get DB info
+
+      OPN   #i_DB_HMI_Index; 
+      L     DBNO; 
+      T     #t_DB_Mode_Index_Num; 
+      L     DBLG; 
+      T     #t_DB_Mode_Index_Len; 
+
+      OPN   "DB_Command"; 
+      L     DBNO; 
+      T     #t_DB_Command_Num; 
+
+
+      OPN   #i_DB_HMI_Commands; 
+      L     DBNO; 
+      T     #t_DB_HMI_Command_Num; 
+
+NETWORK
+TITLE =BA: Determine size of UDT
+
+      L     P##t_UDT_IF_HMI_Mode_Len; //Load address of temp after udt
+      L     P##t_UDT_IF_HMI_Mode; //Load address of udt to determine size
+      -D    ; 
+      SRD   3; //Convert address to int
+      T     #t_UDT_IF_HMI_Mode_Len; //Is length per record
+NETWORK
+TITLE =CA: Determine number of records
+
+      L     #t_DB_Mode_Index_Len; //Total length of db
+      L     #t_UDT_IF_HMI_Mode_Len; //Devided by length per record
+      /I    ; 
+      T     #t_DB_Mode_Index_Records; //Is total number of records
+
+      L     #t_DB_Mode_Index_Records; 
+      L     0; 
+      <=I   ; //IF Number of zones with modes <=0
+      BEC   ; //THEN end this block
+
+//Check for the HMI Command DB 
+      L     #t_DB_HMI_Command_Num; 
+      L     1; 
+      <=I   ; 
+      BEC   ; 
+NETWORK
+TITLE =DA: Backup Address Registers 
+//Backup AR content
+      TAR1  ; 
+      T     #t_AR1_Backup; 
+      TAR2  ; 
+      T     #t_AR2_Backup; 
+NETWORK
+TITLE =EA: Copy HMI Mode commands
+
+      L     1; //First loop
+      T     #t_Loop_Nr; 
+
+      L     P#0.0; //Pointer to first record
+      LAR1  ; 
+
+EA01: OPN   DB [#t_DB_Mode_Index_Num]; //Open source db
+
+      L     DBW [AR1,P#14.0]; //Read address of record in db_command 
+      SLD   3; //Convert to pointer
+      T     #t_Start_Address_Command; 
+
+      L     DBW [AR1,P#16.0]; //Read address of record in db_command 
+      SLD   3; //Convert to pointer
+      T     #t_Start_Address_HMI_Cmd; 
+
+      OPN   DB [#t_DB_HMI_Command_Num]; 
+
+      L     #t_Start_Address_HMI_Cmd; //Go to zone command in db_command
+      LAR2  ; 
+      L     DBW [AR2,P#0.0]; //Read command word from first record
+      T     #t_HMI_Commands; 
+
+      L     0; //Reset hmi commands after copying
+      T     DBW [AR2,P#0.0]; 
+
+      OPN   DB [#t_DB_Command_Num]; //Open destination db
+
+      L     #t_Start_Address_Command; //Go to zone command in db_command
+      LAR2  ; 
+
+      L     DBW [AR2,P#0.0]; //Read command word
+      T     #t_Commands; 
+
+      L     #t_HMI_Commands; //Add HMI commands to existing commands
+      L     #t_Commands; 
+      OW    ; 
+      T     #t_Commands; 
+      T     DBW [AR2,P#0.0]; //Write back command word
+
+      L     #t_Loop_Nr; //Exit loop when loop_nr equals total_records
+      L     #t_DB_Mode_Index_Records; 
+      <I    ; 
+      JCN   EA99; 
+
+      L     1; //Else raise loop counter
+      L     #t_Loop_Nr; 
+      +I    ; 
+      T     #t_Loop_Nr; 
+
+      TAR1  ; //Set pointer to next record
+      L     #t_UDT_IF_HMI_Mode_Len; 
+      SLD   3; 
+      +D    ; 
+      LAR1  ; 
+      JU    EA01; //Loop
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Restore Address Registers
+//Restore AR content
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+      L     #t_AR2_Backup; 
+      LAR2  ; 
+END_FUNCTION
+

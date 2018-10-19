@@ -1,0 +1,37 @@
+TYPE "UDT_WE_PO_DATA"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, October 20, 2016 10:54:54 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    20-10-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   PO1_Scale_Output_Data : INT ;	//Scale OutputData to unit
+   PO2_Command : STRUCT 	
+    Reserved0 : BOOL ;	//Reserved
+    Reserved1 : BOOL ;	//Reserved
+    Reserved2 : BOOL ;	//Reserved
+    Reserved3 : BOOL ;	//Reserved
+    Reserved4 : BOOL ;	//Reserved
+    Reserved5 : BOOL ;	//Reserved
+    Reserved6 : BOOL ;	//Reserved
+    Reserved7 : BOOL ;	//Reserved
+    FP_Input_Ind1 : BOOL ;	//Floating Point Indicator Bit 1
+    FP_Input_Ind2 : BOOL ;	//Floating Point Indicator Bit 2
+    FP_Input_Ind3 : BOOL ;	//Floating Point Indeicator Bit 3
+    FP_Input_Ind4 : BOOL ;	//Floating Point Indicator Bit 4
+    FP_Input_Ind5 : BOOL ;	//Floating Point Indicator Bit 5
+    Data_Integrity_1 : BOOL ;	//Floating Point Data integrity bit #1
+    Cmnd_Ack_1 : BOOL ;	//Command Acknowledgement bit 1
+    Cmnd_Ack_2 : BOOL ;	//Command Acknowledgement bit 2
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

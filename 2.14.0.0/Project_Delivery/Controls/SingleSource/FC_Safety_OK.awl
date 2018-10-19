@@ -1,0 +1,68 @@
+FUNCTION "FC_Safety_OK" : VOID
+TITLE =%version: 0.01 % CN: 40 
+//Function:
+//This function block handles the safety
+//
+//History:
+//This version  %created_by: nlhdl %
+//             %date_created: Thursday, September 28, 2017 9:02:54 AM %
+//             %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision based on Verion 0.13 Safety          nlHdL    28-09-17   0.01
+//
+//Description:
+//detects individual E-stops and makes the status.
+//Groups the E-stop sigals and interfaced with the individual objects/sections.
+//Generate the Reset signal to the safety circuit.
+//
+//NOTICE: This is a Template function . Safety signals and detailed status 
+//bits needs to be filled in by Engineer.
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//TITLE =Thermal Overload Group: 01
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG01; 
+//      =     "DB_System_Control".TRS_AAAA_04_01.Safety_OK; 
+//      =     "DB_System_Control".LCC_AAAA_00_21.Safety_OK; 
+//NETWORK
+//TITLE =Thermal Overload Group: 02
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG02; 
+//
+//NETWORK
+//TITLE =Thermal Overload Group: 03
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG03; 
+//      =     "DB_System_Control".TRS_AAAA_70_01.Safety_OK; 
+//      =     "DB_System_Control".IDZ_AAAA_72_00.Safety_OK; 
+//      =     "DB_System_Control".TRS_AAAA_74_01.Safety_OK; 
+//NETWORK
+//TITLE =Thermal Overload Group: 04
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG04; 
+//      =     "DB_System_Control".TRS_AAAA_08_01.Safety_OK; 
+//      =     "DB_System_Control".LCC_AAAA_00_70.Safety_OK; 
+//NETWORK
+//TITLE =Thermal Overload Group: 05
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG05; 
+//      =     "DB_System_Control".TRS_AAAA_08_06.Safety_OK; 
+//      =     "DB_System_Control".SVD_AAAA_14_00.Safety_OK; 
+//      =     "DB_System_Control".TRS_AAAA_16_01.Safety_OK; 
+//      =     "DB_System_Control".LCC_AAAA_00_67.Safety_OK; 
+//NETWORK
+//TITLE =Thermal Overload Group: 06
+////comment start stop
+//      A     "DB_Motor_CCC_00_99".No_Safety_Stop_PG06; 
+//      =     "DB_System_Control".SVD_AAAA_20_00.Safety_OK; 
+//
+
+END_FUNCTION
+

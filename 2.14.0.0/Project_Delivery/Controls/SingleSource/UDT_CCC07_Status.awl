@@ -1,0 +1,33 @@
+TYPE "UDT_CCC07_Status"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Monday, March 20, 2017 9:44:00 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inrjoi   20-03-17   0.01                                                                  //
+FAMILY : General
+
+
+  STRUCT 	
+   PN1_NotPrsnt : BOOL ;	//PN slave 1 is not present
+   PN1_Err : BOOL ;	//PN slave 1 has an error
+   PN2_NotPrsnt : BOOL ;	//PN slave 2 is not present
+   PN2_Err : BOOL ;	//PN slave 2 has an error
+   Connection_Error : BOOL ;	//Connection Error with Profinet
+   Send_FIFO_Full : BOOL ;	//Send FIFO is prefull or full
+   Recv_FIFO_Full : BOOL ;	//Receive FIFO is prefull or full
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

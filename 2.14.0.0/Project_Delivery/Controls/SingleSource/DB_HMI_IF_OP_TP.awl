@@ -1,0 +1,85 @@
+DATA_BLOCK "DB_HMI_IF_OP_TP"
+TITLE =%version: 0.03 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, January 17, 2017 5:49:19 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#19205:Area and Zone HMI alignment                  inajos   13-01-17   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      insmahi  10-06-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   HMI_Interface_Area : STRUCT 	
+    HMI_Screen : STRUCT 	//Area pointer 'screen number'
+     Current_Type : WORD ;	//Current screen type
+     Current_Number : WORD ;	//Current screen number
+     reserved_1 : WORD ;	//Reserved
+     Current_Field : WORD ;	//Current field number
+     reserved_2 : WORD ;	//Reserved
+    END_STRUCT ;	
+    Coordination_Area : WORD ;	//Area pointer 'Coordination' 
+    Job_Mailbox_Area : ARRAY  [0 .. 3 ] OF //Area pointer 'Job mailbox'
+    WORD ;	
+    Function_Keys : STRUCT 	
+     Function1 : BOOL ;	
+     Function2 : BOOL ;	
+     Function3 : BOOL ;	
+     Function4 : BOOL ;	
+     Function5 : BOOL ;	
+     Function6 : BOOL ;	
+     Function7 : BOOL ;	
+     Function8 : BOOL ;	
+     Command1 : BOOL ;	
+     Command2 : BOOL ;	
+     Command3 : BOOL ;	
+     Command4 : BOOL ;	
+     Command5 : BOOL ;	
+     Command6 : BOOL ;	
+     Command7 : BOOL ;	
+     Command8 : BOOL ;	
+    END_STRUCT ;	
+    System_Keys : STRUCT 	
+     ACK : BOOL ;	
+     ESC : BOOL ;	
+     ENTER : BOOL ;	
+    END_STRUCT ;	
+    LEDs : WORD ;	//K1=b0/1 K2=b2/3 K3=B4/5 K4=b6/7 (11=ON 01=Slow 10=Fast flash)
+   END_STRUCT ;	
+   HMI_Navigation : STRUCT 	//HMI menu navigation
+    Left : BOOL ;	//Arrow to Left
+    Right : BOOL ;	//Arrow to Right
+   END_STRUCT ;	
+   Password : STRUCT 	//Password input
+    Status : INT ;	//Text list number
+    Value : INT ;	//Entered password on HMI
+    Prompt_Elapse_Bar : INT ;	//Elapse bar on password promt screen
+   END_STRUCT ;	
+   Communication_Alive_Sign : INT ;	//Value for Communication Alive Sign bar
+   Alarm_Number : INT ;	//Actual visulised alarm (index) number
+   Number_Of_Alarms : INT ;	//Number of active alarms
+   Alarm : STRUCT 	
+    ID : STRING  [30 ];	
+    Area : DINT ;	
+    Zone : INT ;	
+    Section : INT ;	
+    Element : INT ;	
+    Msg_Text_List_Number : INT ;	
+    Message : STRING  [40 ];	
+   END_STRUCT ;	
+   Alarm_Language : INT ;	
+   Alarm_active : WORD ;	
+  END_STRUCT ;	
+BEGIN
+  
+END_DATA_BLOCK
+

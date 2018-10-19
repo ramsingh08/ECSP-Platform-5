@@ -1,0 +1,23 @@
+TYPE "UDT_IFZ_Int_Prog"
+TITLE =%version: 1.02 % CN: 10 
+//History:
+//This version  %created_by:   nljclo %
+//              %date_created:   Thursday, October 20, 2016 8:34:36 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#15981: align variables                             nljclo   20-10-16   1.02
+//ra#13806: Initial revision                            nljclo   08-07-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   TRS_Num_DB_PLT : INT ; // DB number from PLT DB TRS
+   Junction_Num_DB_PLT : INT ; // DB number from PLT DB Belt Junction
+   Merge_Num_DB_PLT : INT ; // DB number from PLT DB Merge conveyor
+   Num_DB_Event : INT ; // DB number from Event DB 
+  END_STRUCT ;	
+END_TYPE
+

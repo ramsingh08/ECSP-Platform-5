@@ -1,0 +1,45 @@
+TYPE "UDT_OPS_Msg_EncodReq"
+TITLE =%version: 0.04 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, June 12, 2017 8:17:23 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#5512: Add fixed spare for MCS Mess BID ext.       nlHdL    12-06-17   0.04
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.03
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.03
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.03
+//24574: Encode message with BID extension of 2 CHARs   nlHdL    17-07-15   0.03
+//23801: add OPZ01 to library LPN change                nlHdL    01-05-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+
+
+  STRUCT 	
+   Header : STRUCT 	
+    EventTime : DATE_AND_TIME ;	//Time stamp when message was send
+    Message_Type_ID : INT ;	//Msg Type ID defines what kind of the message it is
+    Message_Identifier : DINT ;	//Unique Number to link the HandOver Msg with the handed over item
+    Source_ID : DINT ;	//Identification of the Station that is Sending the Message
+   END_STRUCT ;	
+   Msg_Body_EncodeRequest : STRUCT 	//Message Body Structure : WS Encode Request
+    EncodeRequestType : INT ;	//Encoding request type: 1 - Cancel, 2 - Encode
+    LPN : ARRAY  [1 .. 10 ] OF //Licence Plate Code (bag label)
+    CHAR  := '0', '0', '0', '0', '0', '0', '0', '0', '0', '0';	
+    LPN_Extension : INT ;	//Extension Licence Plate Code (RFID)
+    BID : DINT ;	//Service Manager Baggage ID 
+    BID_Extension : ARRAY  [1 .. 2 ] OF //Service Manager Baggage ID extension
+    CHAR  := '0', '0';	
+    Spare_for_BID : ARRAY  [1 .. 2 ] OF //Spare of BID extension
+    BYTE ;	
+    PID : DINT ;	//Logistic Transport Manager Baggage ID
+    Flight_Number : ARRAY  [1 .. 8 ] OF //Flight Number
+    CHAR  := '0', '0', '0', '0', '0', '0', '0', '0';	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,133 @@
+FUNCTION_BLOCK "FB_TCTC_Snd_Win"
+TITLE =%version: 1.02 % CN: 41
+//Function: 
+//This block sends Window Codes
+//
+//History:                                   
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:14:03 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//15969: TCTC windows replaced by reservations          nlHdL    18-12-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.04 of PLT version 0
+//
+//Description:
+//This block sends Window Codes
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB	
+  i_CFG_Run_Out : INT ;	//CFG: Run out distance
+  i_Send_Mode_Active : BOOL ;	//Enable Sending/clearing data depending on direction
+  i_ACK_RCV_Window_Code : BOOL ;	//Receive: ACK bit of received Window code
+END_VAR
+VAR_OUTPUT
+  o_Empty_Win_Code : INT ;	//Empty Window code
+END_VAR
+VAR
+  s_DB_Num_PLT : INT ;	//Number of PLT DB
+  s_Section_Run : BOOL ;	//Section Run Signal sending transporter
+  s_Send_Window_Code : BOOL ;	//Sending code enabled
+  s_FP_Send_Window_Code : BOOL ;	//Flank Positive sending window code
+  s_Curr_Val_ACK_Timer : INT ;	//Actual Value Acknowledge time-out timer
+  s_Window_Code : INT ;	//Window code to send to next PLC
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the Event DB
+  t_NOT_Used_INT : INT ;	//Interger for not used outputs
+  t_Info : INT ;	//Info found in search window
+  t_Position : INT ;	//Position where info is found
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB.
+      OPN   #i_DB_PLT; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      A     DBX   10.1; // Copy Section_Run Sending transporter
+      =     #s_Section_Run; 
+
+      OPN   #i_DB_Event; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Send over empty and/or reservation codes
+
+      A     #i_Send_Mode_Active; 
+      JCN   BA99; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #i_CFG_Run_Out,
+           i_Window                 := #i_CFG_Run_Out,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_NOT_Used_INT,
+           o_DB_PLT_Num             := #t_NOT_Used_INT,
+           o_Number_Items_Found     := #t_NOT_Used_INT);
+
+      L     #t_Info; // Check if Info is an empty or reservation code
+      L     -3; 
+      <I    ; 
+      A     #s_Section_Run; 
+      JCN   BA01; 
+
+      L     #t_Info; // Copy empty or reservation
+      T     #s_Window_Code; 
+
+      SET   ; 
+      S     #s_Send_Window_Code; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #i_CFG_Run_Out,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA01: NOP   0; 
+
+      A     #s_Send_Window_Code; 
+      FP    #s_FP_Send_Window_Code; 
+      JCN   BA02; 
+
+      L     200; //Load timer  200 ms
+      T     #s_Curr_Val_ACK_Timer; 
+
+BA02: L     #s_Curr_Val_ACK_Timer; //Count down
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   BA03; //Timer not elapsed
+
+      L     0; 
+BA03: T     #s_Curr_Val_ACK_Timer; 
+      L     0; 
+      ==I   ; 
+      O     #i_ACK_RCV_Window_Code; 
+      R     #s_Send_Window_Code; 
+      JCN   BA99; 
+
+      L     0; 
+      T     #s_Window_Code; // THEN clear output
+
+BA99: NOP   0; 
+NETWORK
+TITLE =DA: Copy Information to Output
+
+      L     #s_Window_Code; 
+      T     #o_Empty_Win_Code; 
+END_FUNCTION_BLOCK
+

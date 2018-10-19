@@ -1,0 +1,51 @@
+TYPE "UDT_SCZ_Status"
+TITLE =%version: 0.02 % CN: 10
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Monday, August 14, 2017 10:19:45 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24289: Redundant up/down statuses added            inrjoi   14-08-17   0.02 
+//Initial version aligned with PF5                      inrjoi   20-06-17   0.01                                                                                                                         
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Manual : BOOL ;	//Verticross in local mode
+   Jam_Up_Infeed : BOOL ;	//Collision jam at upper collision PEC infeed conveyor
+   Jam_Down_Infeed : BOOL ;	//Collision jam at lower collision PEC infeed conveyor
+   Jam_Up_Outfeed : BOOL ;	//Collision jam at upper collision PEC outfeed conveyor
+   Jam_Down_Outfeed : BOOL ;	//Collision jam at lower collision PEC outfeed conveyor
+   Gap_Blockage_Up : BOOL ;	//Blockage on gap detection PEC up direction
+   Gap_Blockage_Down : BOOL ;	//Blockage on gap detection PEC down direction
+   Gap_Switch_Up : BOOL ;	//Gap detection PEC was triggered during a switch action up
+   Gap_Switch_Down : BOOL ;	//Gap detection PEC was triggered during a switch action down
+   Fixed_Up : BOOL ;	//Fixed mode up activated
+   Fixed_Straight : BOOL ;	//Fixed mode straight activated
+   Fixed_Down : BOOL ;	//Fixed mode down activated   
+   Fence_Opened : BOOL ;	//Security fence opened
+   Dir_Not_Allow_Up_Infeed : BOOL ;	//Direction not allowed at the up infeed
+   Dir_Not_Allow_Dn_Infeed : BOOL ;	//Direction not allowed at the down infeed
+   Dir_Not_Allow_Up_Outfeed : BOOL ;	//Direction not allowed at the up outfeed
+   Dir_Not_Allow_Dn_Outfeed : BOOL ;	//Direction not allowed at the down outfeed
+   Redundant_Up : BOOL ;	//Redundant mode up activated
+   Redundant_Down : BOOL ;	//Redundant mode down activated
+   Spare_2_3 : BOOL ;	//Spare_2_3
+   Spare_2_4 : BOOL ;	//Spare_2_4
+   Spare_2_5 : BOOL ;	//Spare_2_5
+   Spare_2_6 : BOOL ;	//Spare_2_6
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

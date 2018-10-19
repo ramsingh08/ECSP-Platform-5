@@ -1,0 +1,624 @@
+FUNCTION_BLOCK "FB_HMI_Zone_Mode_IF"
+TITLE =%version: 0.02 % CN: 40
+//Function:
+//HMI functions to interface with zones with modes .The zone data 
+//defined in DB_HMI_IF_Mode .
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Wednesday, May 31, 2017 12:23:49 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#53661:Add VDZ21,VDZ24 Function status             inajos   30-05-17   0.02
+//ra#13189:Initial version based on FB_HMI_IF_SSM      inajos   27-10-16   0.01
+//
+//Description:
+//The functions control are:
+//- Interface with multiple Zones defined in DB_HMI_IF_Mode
+//- Get Zone ID which is shown on HMI
+//- Handle HMI commands and put these on commands
+//- Handle Zone status an put these on HMI
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Mode_Index : "UDT_IF_HMI_Mode";	//Index DB for zones with modes
+  i_DB_HMI_IF_Mode : BLOCK_DB ;	//HMI Interface DB for zones with modes
+  i_HMI_Command : INT ;	//HMI Command number (as defined in HMI-node configuration)
+END_VAR
+VAR
+  s_Mode_Zone : STRUCT 	//Zone mode
+   Fixed_Straight : BOOL ;	//Semi-Auto Fixed Straight
+   Fixed_Sort1 : BOOL ;	//Semi-Auto Fixed Sort1
+   Fixed_Sort2 : BOOL ;	//Semi-Auto Fixed Sort2
+   Manual : BOOL ;	//Manual
+  END_STRUCT ;	
+  s_Num_Of_Zones_Present : INT ;	//Number of Zones present in interface DB
+  s_Current_Zone_Data : "UDT_IF_HMI_Mode";	//Current selected Zone data
+  s_Status : INT ;	//Zone Status to HMI 
+  s_ID_to_HMI : STRING  [18 ];	//Zone indentification which is to be shown on HMI
+  s_HMI_Cmd : STRUCT 	//HMI Commands
+   Auto : BOOL ;	//Auto
+   Fixed_Straight : BOOL ;	//Semi-Auto Fixed Straight	
+   Fixed_Sort1 : BOOL ;	//Semi-Auto Fixed Sort1
+   Fixed_Sort2 : BOOL ;	//Semi-Auto Fixed Sort2
+  END_STRUCT ;	
+  s_Cmd_Ref : STRUCT 	//Command number of HMI commands
+   K1_Auto : INT  := 113;	//Auto
+   K2_Fixed_Straight : INT  := 213;	//Semi-Auto Fixed Straight
+   K3_Fixed_Sort1 : INT  := 313;	//Semi-Auto Fixed Sort1
+   K4_Fixed_Sort2 : INT  := 413;	//Semi-Auto Fixed Sort2
+  END_STRUCT ;	
+  s_Function_No_Status : STRUCT 	//Function Status
+   s_Status_Bits_00 : BOOL ;	//Status Bits
+   s_Status_Bits_01 : BOOL ;	//Status Bits
+   s_Status_Bits_02 : BOOL ;	//Status Bits
+   s_Status_Bits_03 : BOOL ;	//Status Bits
+   s_Status_Bits_04 : BOOL ;	//Status Bits
+   s_Status_Bits_05 : BOOL ;	//Status Bits
+   s_Status_Bits_06 : BOOL ;	//Status Bits
+   s_Status_Bits_07 : BOOL ;	//Status Bits
+   s_Status_Bits_10 : BOOL ;	//Status Bits
+   s_Status_Bits_11 : BOOL ;	//Status Bits
+   s_Status_Bits_12 : BOOL ;	//Status Bits
+   s_Status_Bits_13 : BOOL ;	//Status Bits
+   s_Status_Bits_14 : BOOL ;	//Status Bits
+   s_Status_Bits_15 : BOOL ;	//Status Bits
+   s_Status_Bits_16 : BOOL ;	//Status Bits
+   s_Status_Bits_17 : BOOL ;	//Status Bits
+  END_STRUCT ;	
+  s_Command_Present : STRUCT 	//Commands Present
+   Auto : BOOL ;	//Auto
+   Fixed_Straight : BOOL ;	//Semi-Auto Fixed Straight
+   Fixed_Sort1 : BOOL ;	//Semi-Auto Fixed Sort1
+   Fixed_Sort2 : BOOL ;	//Semi-Auto Fixed Sort2
+   Manual : BOOL ;	//Manual
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_Record_Data_length : INT ;	//Record lenght in DB Mode interface
+  t_HMI_Command_offset : INT ;	//Record lenght in DB Mode interface
+  t_ANY_Source : ANY ;	//ANY source
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_DBNO_IF_Mode_Index : WORD ;	//Interface Mode DB number
+  t_Zone_Status : WORD ;	//Temp Variable for Zone Status
+  t_HMI_IF_Offset_ID : DWORD ;	
+  t_HMI_IF_offset_Status : DWORD ;	
+  t_HMI_IF_offset_commands : DWORD ;	
+  t_ID : DWORD ;	//Temp variable for indentification
+  t_DBNO_IF_HMI : WORD ;	//Interfcae HMI DB number
+  t_ANY_P_To_ID_On_HMI : ANY ;	
+  t_HMI_Cmd : WORD ;	//Temp variable for HMI commands
+  t_HMI_IF_Offset_Act_Zone : DWORD ;	
+  t_Zone_Function_no : INT ;	//Zone Function Number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get relative addres out of AR2
+//Address register:10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Z=Operand area y=Byte address   x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Offsets
+
+      NOP   0; // Hold the command line
+// Offset in UDT_IF_HMI_Mode
+      L     20; // Record length of "UDT_IF_HMI_Mode"
+      T     #t_Record_Data_length; 
+
+// Offset for the ID and status IN DB_HMI_Menu_Zone_KTP"
+      L     P#42.0; //                        // Offset of the ID  (ID String 30)
+      T     #t_HMI_IF_Offset_ID; 
+
+      L     P#74.0; //           // Offset of the status display
+      T     #t_HMI_IF_offset_Status; 
+
+      L     P#76.0; //                       // Offset of active zone number
+      T     #t_HMI_IF_Offset_Act_Zone; 
+
+      L     P#80.0; // 
+      T     #t_Zone_Function_no; //Offset of Zone Function Number
+
+      L     P#82.0; //                      // Offset of available commands
+      T     #t_HMI_IF_offset_commands; 
+NETWORK
+TITLE =CA: Current zone ID conversion to ASCII 
+//The current zone ID convert into the ASCII Chatrer to display ON HMI
+//ID is in format MC AAAAZZSS Where 
+//   MC = 
+//   AAAAZZSS = HEX format
+//The ID is converted to ASCII and shown on the HMI
+//MC.AAAA.ZZ.SS
+//
+      L     #i_DB_HMI_Mode_Index.Mark_Code[1]; //First char of markcode
+      T     #s_ID_to_HMI[1]; 
+
+      L     #i_DB_HMI_Mode_Index.Mark_Code[2]; //Second char of markcode
+      T     #s_ID_to_HMI[2]; 
+
+      L     #i_DB_HMI_Mode_Index.Mark_Code[3]; //Third char of markcode
+      T     #s_ID_to_HMI[3]; 
+
+      L     #i_DB_HMI_Mode_Index.Mark_Code[4]; 
+      L     B#16#0; //Check third char <> $00 
+      ==I   ; //IF Mark_Code is only 2 chars long
+      JCN   CA01; //ELSE
+
+      L     ' '; //THEN Fill with a "space"
+      T     #s_ID_to_HMI[4]; 
+
+CA01: L     ' '; //Fill with a "space"
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      T     #s_ID_to_HMI[7]; 
+
+      L     #i_DB_HMI_Mode_Index.ID; // Load Current zone ID
+      T     #t_ID; // Transfer to temp
+
+// ID format AAAAZZSS
+// Convert Section ID to ASCII
+      L     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[17]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[16]; 
+
+      L     '.'; // Add '.' Add dot
+      T     #s_ID_to_HMI[15]; 
+
+// Convert the ZZ ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID
+      L     DW#16#F; //select last
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[14]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[13]; 
+
+      L     '.'; //Add '.'  (dot)
+      T     #s_ID_to_HMI[12]; 
+
+// Convert AAAA ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[11]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[10]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[9]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[8]; 
+
+
+NETWORK
+TITLE =DA: Copy Current Zone ID to HMI 
+
+      OPN   #i_DB_HMI_IF_Mode; 
+      L     DBNO; //Get DB number of interface DB
+      T     #t_DBNO_IF_HMI; 
+
+      L     P##t_ANY_P_To_ID_On_HMI; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     30; //Store data length in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_HMI; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_HMI_IF_Offset_ID; 
+      T     LD [AR1,P#6.0]; //and store in ANY
+
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+//  Write Actul length in the ID pointer
+      L     P##s_ID_to_HMI; //Set pointer to ID variable
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+
+      L     17; // Copy only 17 CHAR
+      T     B [AR1,P#1.0]; // Write string 'actual' length
+
+// Move the current Zone ID to the HMI diasplay location
+      CALL "BLKMOV" (// Write ID to HMI interface DB
+           SRCBLK                   := #s_ID_to_HMI,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_ANY_P_To_ID_On_HMI);
+
+NETWORK
+TITLE =EA: Get Status input and convert to bit format
+//Get Status for general information on HMI screens 
+//convert status signals Zone state information by convert 
+//input report WORD to UDT format
+      L     #i_DB_HMI_Mode_Index.Start_Address_Status; // Get status address of SSM
+      SLD   3; // Convet to Pointer
+      LAR1  ; 
+      OPN   "DB_Status"; // Open DB_Status
+      L     DBW [AR1,P#0.0]; // load status word from the"DB_Status"
+      T     #t_Zone_Status; // Store it in Status Bits
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Zone_Status,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #s_Function_No_Status);
+
+
+NETWORK
+TITLE =FA:Status Based on Functions
+//Defined Functions as of now are as follows:-
+//
+//Only 4 commands/Status are used
+//
+//Function 1:-
+//Command 1:Auto 
+//Command 2:Fixed Straight
+//
+//Function 2:-
+//Command 1:Auto 
+//Command 2:Redundant
+//
+//Function 3:-
+//Command 1:Auto 
+//Command 2:Fixed Straight
+//Command 3:Fixed Sort
+//
+//Function 4:-
+//Command 1:Auto 
+//Command 2:Fixed Up
+//Command 3:Fixed Down
+//
+//
+//Function 5:-
+//Command 1:Auto 
+//Command 2:Fixed Left
+//Command 3:Fixed Right
+//
+//
+//Function 6:-
+//Command 1:Auto 
+//Command 2:Fixed Straight
+//Command 3:Fixed Sort1
+//Command 4:Fixed Sort2
+//
+//
+//Used till Function 10.
+      NOP   0; 
+
+//Function 1
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     1; 
+      ==I   ; 
+      JCN   FA01; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Straight
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+//Hardcoded Visible Bits based on function
+
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Fixed_Straight; 
+      R     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA01: NOP   0; 
+
+//Function 2
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     2; 
+      ==I   ; 
+      JCN   FA02; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Redundant
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Fixed_Straight; 
+      R     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA02: NOP   0; 
+
+//Function 3
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     3; 
+      ==I   ; 
+      JCN   FA03; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Straight
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+      A     #s_Function_No_Status.s_Status_Bits_01; //Fix Sort/Divert
+      =     #s_Mode_Zone.Fixed_Sort1; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Fixed_Straight; 
+      =     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA03: NOP   0; 
+
+//Function 4
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     4; 
+      ==I   ; 
+      JCN   FA04; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Up
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+      A     #s_Function_No_Status.s_Status_Bits_01; //Fix Down
+      =     #s_Mode_Zone.Fixed_Sort1; 
+
+      A     #s_Function_No_Status.s_Status_Bits_02; //Manual
+      =     #s_Mode_Zone.Manual; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      R     #s_Command_Present.Fixed_Sort2; 
+      =     #s_Command_Present.Manual; 
+      =     #s_Command_Present.Auto; 
+
+      AN    #s_Mode_Zone.Manual; //From Manual Mode (Semi Auto is not possible)
+      =     #s_Command_Present.Fixed_Straight; 
+      =     #s_Command_Present.Fixed_Sort1; 
+
+FA04: NOP   0; 
+
+//Function 5
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     5; 
+      ==I   ; 
+      JCN   FA05; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Left
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+      A     #s_Function_No_Status.s_Status_Bits_01; //Fix Right
+      =     #s_Mode_Zone.Fixed_Sort1; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Fixed_Straight; 
+      =     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA05: NOP   0; 
+
+//Function 6
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     6; 
+      ==I   ; 
+      JCN   FA06; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Straight
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+      A     #s_Function_No_Status.s_Status_Bits_01; //Fix Sort1
+      =     #s_Mode_Zone.Fixed_Sort1; 
+
+
+      A     #s_Function_No_Status.s_Status_Bits_02; //Fix Sort2
+      =     #s_Mode_Zone.Fixed_Sort2; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Fixed_Straight; 
+      =     #s_Command_Present.Fixed_Sort1; 
+      =     #s_Command_Present.Fixed_Sort2; 
+FA06: NOP   0; 
+
+//Function 09
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     9; 
+      ==I   ; 
+      JCN   FA09; 
+      A     #s_Function_No_Status.s_Status_Bits_02; //Manual
+      =     #s_Mode_Zone.Manual; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Manual; 
+      R     #s_Command_Present.Fixed_Straight; 
+      R     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA09: NOP   0; 
+
+
+//Function 10
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; // Get Function No 
+      L     10; 
+      ==I   ; 
+      JCN   FA10; 
+      A     #s_Function_No_Status.s_Status_Bits_00; //Fix Infeed1
+      =     #s_Mode_Zone.Fixed_Straight; 
+
+      A     #s_Function_No_Status.s_Status_Bits_01; //Fixed Infeed2
+      =     #s_Mode_Zone.Fixed_Sort1; 
+
+
+      A     #s_Function_No_Status.s_Status_Bits_02; //Manual
+      =     #s_Mode_Zone.Manual; 
+
+//Hardcoded Visible Bits based on function
+      SET   ; 
+      =     #s_Command_Present.Auto; 
+      =     #s_Command_Present.Manual; 
+      =     #s_Command_Present.Fixed_Straight; 
+      =     #s_Command_Present.Fixed_Sort1; 
+      R     #s_Command_Present.Fixed_Sort2; 
+FA10: NOP   0; 
+
+// Copy the status to HMI interfcae DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Zone_Function_no; // Set pointer toZone function no
+      LAR1  ; 
+
+      L     #i_DB_HMI_Mode_Index.Zone_Function_No; 
+      T     DBW [AR1,P#0.0]; //Zone Function Number
+
+NETWORK
+TITLE =GA: Status: Status zone to HMI
+//   
+      A     #s_Mode_Zone.Fixed_Straight; // IF Semi-Auto Fixed Straight
+      A     #s_Command_Present.Fixed_Straight; 
+      JCN   GA01; // ELSE
+      L     1; 
+      JU    GA05; // THEN set text list value
+
+GA01: A     #s_Mode_Zone.Fixed_Sort1; // IF Semi-Auto Fixed Sort
+      A     #s_Command_Present.Fixed_Sort1; 
+      JCN   GA02; // ELSE
+      L     2; 
+      JU    GA05; // THEN set text list value
+
+GA02: A     #s_Mode_Zone.Fixed_Sort2; // IF Semi-Auto Fixed Sort
+      A     #s_Command_Present.Fixed_Sort2; 
+      JCN   GA03; // ELSE
+      L     3; 
+      JU    GA05; // THEN set text list value
+
+GA03: A     #s_Mode_Zone.Manual; // IF Manual
+      A     #s_Command_Present.Manual; 
+      JCN   GA04; // ELSE
+      L     4; 
+      JU    GA05; // THEN set text list value
+
+
+GA04: L     0; // Zone mode = AUTO
+
+GA05: T     #s_Status; 
+
+// Copy the status to HMI interfcae DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_HMI_IF_offset_Status; // Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #s_Status; // System Mode to HMI interface
+      T     DBW [AR1,P#0.0]; 
+      NOP   0; 
+NETWORK
+TITLE =HA: Available Commands
+// Copy available commands to HMI interface DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_HMI_IF_offset_commands; // Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      A     #s_Command_Present.Auto; 
+      =     DBX [AR1,P#0.0]; 
+
+      A     #s_Command_Present.Fixed_Straight; 
+      =     DBX [AR1,P#0.1]; 
+
+      A     #s_Command_Present.Fixed_Sort1; 
+      =     DBX [AR1,P#0.2]; 
+
+      A     #s_Command_Present.Fixed_Sort2; 
+      =     DBX [AR1,P#0.3]; 
+
+      A     #s_Command_Present.Manual; 
+      =     DBX [AR1,P#0.4]; 
+
+NETWORK
+TITLE =IA : Requested commands and Output HMI command to current zone
+
+      A(    ; 
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K1_Auto; // K1: Auto
+      ==I   ; 
+      A     #s_Command_Present.Auto; //only if command is available on zone
+      )     ; 
+      =     #s_HMI_Cmd.Auto; 
+//Operation screen commands:
+      A(    ; 
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K2_Fixed_Straight; // K2: Semi-Auto Fixed Straight
+      ==I   ; 
+      A     #s_Command_Present.Fixed_Straight; //only if command is available on zone
+      )     ; 
+      =     #s_HMI_Cmd.Fixed_Straight; 
+
+      A(    ; 
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K3_Fixed_Sort1; // K3: Semi-Auto Fixed Sort
+      ==I   ; 
+      A     #s_Command_Present.Fixed_Sort1; //only if command is available on zone
+      )     ; 
+      =     #s_HMI_Cmd.Fixed_Sort1; 
+
+      A(    ; 
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K4_Fixed_Sort2; // K4: Semi-Auto Fixed Sort
+      ==I   ; 
+      A     #s_Command_Present.Fixed_Sort2; //only if command is available on zone
+      )     ; 
+      =     #s_HMI_Cmd.Fixed_Sort2; 
+
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,41 @@
+FUNCTION_BLOCK "FB_StartStop_Manager_S"
+TITLE =%version: 0.01 % CN: 30
+//Function: 
+//Provide reset function for Safety objects.
+//
+//History:
+//This version %created_by: nleg %
+//             %date_created: Monday, September 19, 2016 8:39:20 AM %
+//             %release: VI_SAFE/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nleg     14-09-16   0.01
+//Description:
+//The following functions are handled by the start stop manager:
+//- Reset of individual Safety objects
+//
+AUTHOR : VI_SAFE
+FAMILY : General
+VERSION : 0.0
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+END_VAR
+VAR_OUTPUT
+  o_Reset : BOOL ;	//Signal: Reset One-short for Components
+END_VAR
+VAR
+  s_FP_Reset : BOOL ;	//Positive Flank Reset
+END_VAR
+
+BEGIN
+NETWORK
+TITLE =AA: Determine the Control signals
+
+      A     #i_CMD_Reset; //IF Reset
+      FP    #s_FP_Reset; 
+      =     #o_Reset; // THEN make One shot Reset 
+
+END_FUNCTION_BLOCK
+

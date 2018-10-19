@@ -1,0 +1,122 @@
+FUNCTION_BLOCK "FB_OPZ01_F"
+TITLE =%version: 1.03 % CN: 55
+//Function:
+//- Fixed part of a Operator Zone (Manual coding) (OPZ01)
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Thursday, December 01, 2016 4:13:00 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18910 Multiple IO_available and its code added     inajos   30-11-16   1.03
+//ra#18008: Add "_F" in block name                      nlJClo   18-10-16   1.02
+//ra#16996: Initial version                             nlJClo   09-09-16   1.01
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Command from equipment control "Reset"
+  i_Available_IO_PN : BOOL ;	//Signal for indication IO is OK (no PN or IO error)
+  i_Available_IO_ASI : BOOL  := TRUE;	//Signal for indication IO is OK (no ASI or IO error)
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_SLC_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_SLC_ASI_Err : BOOL ;	//ASI: Slave has an error
+  i_PBB_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_PBB_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_IO_PB_Cancel_Coding : BOOL ;	//Push button cancel the manual coding process
+  i_IO_PB_Create_Position : BOOL ;	//Push button, create position on manual coding conveyor to insert a bag
+  i_Bag_Present : BOOL ;	//Manual coding conveyor, bag present indication
+  i_Unattended_Bag : BOOL ;	//Unattended bag
+  i_SL_Create_Position : BOOL ;	//Manual coding conveyor, indication for insertion of a new bag		
+END_VAR
+VAR_OUTPUT
+  o_IO_SL_Bag_Present : BOOL ;	//HW: Manual coding conveyor, bag present indication
+  o_IO_BP_Bag_Waiting : BOOL ;	//HW: Beeper when Bag waiting
+  o_IO_SL_Create_Position : BOOL ;	//HW: Manual coding conveyor, indication for insertion of a new bag	
+  o_OPZ_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_OPZ_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_SLC_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SLC_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_PBB_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_PBB_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_PB_Cancel_Coding : BOOL ;	//signal to cancel the manual coding process
+  o_PB_Create_Position : BOOL ;	//signal to create position on manual coding conveyor to insert a bag	
+END_VAR
+VAR
+  s_SLC_FB_HW_ASI : "FB_HW_ASi";	//Signal light Coloumn ASI Slave hardware layer
+  s_PBB_FB_HW_ASI : "FB_HW_ASi";	//Push Button Box ASI Slave hardware layer
+END_VAR
+VAR_TEMP
+  t_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Fieldbus errors
+//
+//REMARK: The status bit must be used in the application instead of 
+//        the input itself.
+
+//Collect IO Available from different Networks (PN/DP/ASI)    
+      A     #i_Available_IO_PN; 
+      A     #i_Available_IO_ASI; 
+      =     #t_Available_IO; 
+
+
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO_PN; // OR IO not available
+      R     #o_OPZ_ST_FieldB_NotPrsnt; 
+      R     #o_OPZ_ST_FieldB_Error; 
+
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO_PN; // No Fieldbus master error and power is supplied
+      S     #o_OPZ_ST_FieldB_NotPrsnt; // Profibus: Slave is not present
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO_PN; // No Fieldbus master error and power is supplied
+      S     #o_OPZ_ST_FieldB_Error; // Profibus: Slave has an error  
+
+NETWORK      
+TITLE =BA: Hardware layer for Signal Pushbutton box
+//--Hardware layer for Pushbutton box
+      CALL #s_PBB_FB_HW_ASI (
+           i_Req_Output_1           := #i_IO_PB_Cancel_Coding,
+           i_Req_Output_2           := #i_IO_PB_Create_Position,
+           i_Req_Output_3           := FALSE,
+           i_Req_Output_4           := FALSE,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO_ASI,
+           i_ASI_NotPrsnt           := #i_PBB_ASI_NotPrsnt,
+           i_Slave_Error            := #i_PBB_ASI_Error,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_PBB_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_PBB_ST_ASI_Error,
+           o_IO_Output_1            := #o_PB_Cancel_Coding,
+           o_IO_Output_2            := #o_PB_Create_Position);
+
+
+NETWORK
+TITLE =CA: Hardware layer for Signal Light Coloumn
+//--Hardware layer for Signal Light Coloumn
+      CALL #s_SLC_FB_HW_ASI (
+           i_Req_Output_1           := #i_Bag_Present,
+           i_Req_Output_2           := #i_Unattended_Bag,
+           i_Req_Output_3           := #i_SL_Create_Position,
+           i_Req_Output_4           := FALSE,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO_ASI,
+           i_ASI_NotPrsnt           := #i_SLC_ASI_NotPrsnt,
+           i_Slave_Error            := #i_SLC_ASI_Err,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_SLC_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_SLC_ST_ASI_Error,
+           o_IO_Output_1            := #o_IO_SL_Bag_Present,
+           o_IO_Output_2            := #o_IO_BP_Bag_Waiting,
+           o_IO_Output_3            := #o_IO_SL_Create_Position);
+           
+END_FUNCTION_BLOCK
+

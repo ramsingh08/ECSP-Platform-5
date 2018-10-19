@@ -1,0 +1,35 @@
+TYPE "UDT_LNK_Record"
+TITLE =%version: 0.07 % CN: 10
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, December 09, 2016 1:30:28 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Added the HBS record                                  inajos   02-12-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7990: Cart Bagtrax Record added to library            nlHdL    01-10-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13  0.03
+//Updated and header added                              nlLvdg   21-03-12  0.02 
+//Initial version                                       nlHdL    11-06-10  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   ECS : INT ;	//Equipment Controls Information
+   LIC : INT ;	//Local Indentification
+   TIC : INT ;	//Transport Identification
+   NIR : INT ;	//None preferred Information
+   Rep_Route : INT ;	//Report Route Information
+   CIC : INT ;	//Cart Identification
+   HBS : INT ;	//Hold baggage information
+   DB_PLT_Number : INT ;	//DB number of PLT
+  END_STRUCT ;	
+END_TYPE
+

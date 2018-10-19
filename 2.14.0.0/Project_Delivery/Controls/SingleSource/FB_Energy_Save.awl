@@ -1,0 +1,846 @@
+FUNCTION_BLOCK "FB_Energy_Save"
+TITLE =%version: 1.11 % CN: 40
+//Function:
+//When the conveyor doesn't handle any products for a certain distance, a request 
+//is given to save energy by stopping the section. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, October 24, 2016 9:11:33 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18140: Change run out counter to Dint              nlHdL    24-10-16   1.11
+//ra#15411: E-save Start_Area next entry jump           nlHdL    06-07-16   1.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.09
+//ra#9913: No E-save upstream not ok bag within start   nlHdL    11-12-15   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.08
+//7418: E-save 1 scan hik when PEC triggert             nlHdL    08-07-15   1.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.07
+//23571: Chk first 1 or 2 edge with the search area     nlHdL    03-06-15   1.07
+//23571: Esave annou rst when 1 section in area unavai  nlHdL    28-05-15   1.06
+//22216: Recalculated E save distances on highest speed nlHdL    23-12-14   1.05
+//17293: Skip E Save values if speed = 0                nlHdL    17-12-13   1.04
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//13458: Energy save if upst section not available      nlHdL    02-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.29 of PLT version 0
+//
+//Description:                                  
+//When the conveyor doesn't handle any products for a certain distance, a request 
+//is given to save energy by stopping the section. The section will start again 
+//when it detects a product upstream or a start-up is detected.
+//
+//When the slave functionality is enabled, a reset energy save is given to the
+//downstream as soon as the section is reset from energy save. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_CFG_Conveyor_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_Ready_to_Restart : BOOL ;	//CMD: Indicating that this section is ready to restart
+  i_Reset_E_Save : BOOL ;	//CMD: Reset the energy save distance
+  i_CFG_Slave_Mode : BOOL ;	//CFG: Make this section a slave
+  i_CFG_Disbl_E_Save : BOOL ;	//CFG: Disable Energy Saving (Common Setting)
+  i_CFG_Strt_Up_T_E_Save : INT  := 20;	//CFG: [0.1sec] Common Setting Start up Time Energy Saving
+  i_CFG_Run_Out_E_Save : INT  := 10;	//CFG: [0.1sec] Common Setting Run Out Time Energy Saving
+  i_CFG_Stop_T_E_Save : INT  := 10;	//CFG: [0.1sec] Common Setting Stop Time Energy Saving
+END_VAR
+VAR_OUTPUT
+  o_Energy_Saving : BOOL ;	//Status Energy saving
+  o_Announce : BOOL ;	//Baggage is announced to downstream (monitoring purpose)
+END_VAR
+VAR
+  s_Energy_Save_Cnt : DINT ;	//Value of energy save displacement counter
+  s_Run_Out_Distanc_E_Save : DINT  := L#100;	//[cm] Run out distance after handover, before conveyor goes in energy saving
+  s_Start_Distance_E_Save : INT  := 100;	//[cm] Start up distance to trigger energy saving
+  s_Stop_Distance_E_Save : INT  := 200;	//[cm] Stop distance to prevent unnecessary starting and stopping 
+  s_Displacement : INT ;	//Displacement for PLT DB
+  s_Length_Section : INT ;	//Length of this section
+  s_Highest_Conv_Speed : INT ;	//Highest conveyor speed to determine E save distance
+  s_Length_Downstr_Section : INT ;	//Length of the downstream section
+  s_Conveyor_Run : BOOL ;	//Running status of the section
+  s_Reset_E_Saving : BOOL ;	//Reset Energy Saving
+  s_FP_Enable : BOOL ;	//Positive flank of the Enable signal
+  s_FP_Reset_E_Save : BOOL ;	//Positive flank of the Reset Energy Save signal
+  s_Conveyor_Run_Downstr : BOOL ;	//Running status of the downstream section
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Pos_DB_Nr : INT ;	//Copy of i_PLT_DB_Nr
+  t_Pos_DB_nr_Downstream : INT ;	//Downstream PLT DB number 
+  t_Num_Items_Found : INT ;	//Number of items found during search.
+  t_Item_At_HandOver : BOOL ;	//Item in HandOver from PLT DB
+  t_Section_Operational : BOOL ;	//Section operational from PLT DB
+  t_Loop_Entries : INT ;	//Loop entries present in PLT DB
+  t_Position_Found : INT ;	//Position found of search functions
+  t_PLT_DB_Nr_Start_A : INT ;	//PLT DB number for start area
+  t_Conv_Length_Start_A : INT ;	//Conveyor Length for start area
+  t_Srch_Start_Pos_Start_A : INT ;	//t_Search_Start_Position_Start_Area = Position + Close_Window_Offset
+  t_Srch_End_Pos_Start_A : INT ;	//t_Search_End_Position_Start_Area = Position - Open_Window_Offset
+  t_Check_Upstr_DB_Start_A : BOOL ;	//Check DB PLT Upstream is present for start area
+  t_Res_Window_Start_A : INT ;	//Remainder of Window value for start area
+  t_First_Position_Start_A : BOOL ;	//Check if first position found for start area
+  t_Announce_Start_Area : BOOL ;	//Upstream baggage is found in start area of section (monitoring purpuse)
+  t_PLT_DB_Nr_Stop_A : INT ;	//PLT DB number for stop area
+  t_Conv_Length_Stop_A : INT ;	//Conveyor Length for stop area
+  t_Srch_Start_Pos_Stop_A : INT ;	//t_Search_Start_Position_Stop_Area = Position + Close_Window_Offset
+  t_Srch_End_Pos_Stop_A : INT ;	//t_Search_End_Position_Stop_Area = Position - Open_Window_Offset
+  t_Check_Upstr_DB_Stop_A : BOOL ;	//Check DB PLT Upstream is present for stop area
+  t_Res_Window_Stop_A : INT ;	//Remainder of Window value for stop area
+  t_First_Position_Stop_A : BOOL ;	//Check if first position found for stop area
+  t_Announce_Stop_Area : BOOL ;	//Upstream baggage is found in stop area of section (monitoring purpuse)
+  t_Section_Available : BOOL ;	//Section available to receive items
+  t_New_Highest_Speed : BOOL ;	//Conveyor speed has new highest value
+  t_First_Item_Checked : BOOL ;	//Check first item found
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+//Read all required data from the PLT DB
+      A     "M_First_Scan"; 
+      JCN   AA01; 
+
+      BEU   ; 
+
+AA01: L     #i_DB_PLT_Num; // Load DB number on temporaries
+      T     #t_Pos_DB_Nr; // Because the Open command cannot handle input or statics
+
+// Read required information from PLT DB  
+      OPN   DB [#t_Pos_DB_Nr]; // Open PLT DB   
+
+      L     DBW    2; 
+      T     #s_Displacement; 
+
+      L     DBW    8; 
+      T     #t_Pos_DB_nr_Downstream; 
+
+      L     DBW   12; 
+      T     #s_Length_Section; 
+
+      A     DBX   10.1; 
+      =     #s_Conveyor_Run; 
+
+      A     DBX   10.4; 
+      =     #t_Section_Available; 
+
+      A     DBX   10.5; 
+      =     #t_Section_Operational; 
+
+      A     DBX   10.6; 
+      =     #t_Item_At_HandOver; 
+
+// Read required information from downstream PLT DB
+      L     #t_Pos_DB_nr_Downstream; 
+      L     1; 
+      >I    ; 
+      JCN   AA99; 
+
+      OPN   DB [#t_Pos_DB_nr_Downstream]; // Open downstream PLT DB
+
+      A     DBX   10.1; // Read the downstream section run signal
+      =     #s_Conveyor_Run_Downstr; 
+
+      L     DBW   12; 
+      T     #s_Length_Downstr_Section; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Calculate the E-save distances
+//Calculate the start, stop and run out distances for the energy save 
+//functionality. These distances are entered as a time setting in DB_Setting and 
+//in this network converted to distances.
+//
+      L     #i_CFG_Conveyor_Speed; 
+      L     #s_Highest_Conv_Speed; 
+      >I    ; 
+      =     #t_New_Highest_Speed; 
+
+      A     #i_CMD_Enable; 
+      FP    #s_FP_Enable; 
+      A     #i_CMD_Start; 
+      O(    ; 
+      A     #i_CMD_Start; 
+      A     #i_Ready_to_Restart; 
+      )     ; 
+      O(    ; 
+      A     #i_Reset_E_Save; 
+      FP    #s_FP_Reset_E_Save; 
+      )     ; 
+      O     #t_New_Highest_Speed; 
+      JCN   BA03; 
+
+// Preset the highest conveyor speed to the current speed
+      L     #i_CFG_Conveyor_Speed; 
+      T     #s_Highest_Conv_Speed; 
+
+// Search for E-save code [-3] and remove and write -3 on section length
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #s_Length_Section,
+           i_Window                 := #s_Length_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// If position found > 0 then remove the code
+      L     #t_Position_Found; 
+      L     0; 
+      >I    ; 
+      JCN   BA02; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #t_Position_Found,
+           i_Info_Physical          := -3,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA02: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #s_Length_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    BA04; 
+
+BA03: A     "M_Init_Setting"; // When Init setting is active calculate distances again
+      JCN   BA99; 
+
+BA04: L     0; 
+      L     #s_Highest_Conv_Speed; // Load speed setting
+      ==I   ; 
+      JC    BA99; //If speed = 0 skip calculation
+      L     #i_CFG_Strt_Up_T_E_Save; // Load common setting start up time for E-save
+      *D    ; 
+      L     100; // Convert mm -> cm AND 0.1sec -> sec 10*10 = 100
+      /D    ; 
+      T     #s_Start_Distance_E_Save; // Distance = ( time * speed ) [cm]
+
+      L     #i_CFG_Strt_Up_T_E_Save; // Load common setting start up time for E-save
+      L     #i_CFG_Stop_T_E_Save; // Load common setting stop time for E-save
+      +I    ; 
+      L     #i_CFG_Conveyor_Speed; // Load speed setting
+      *D    ; 
+      L     100; // Convert mm -> cm AND 0.1sec -> sec 10*10 = 100
+      /D    ; 
+      T     #s_Stop_Distance_E_Save; // Distance = ( time * speed ) [cm]
+
+      L     #i_CFG_Run_Out_E_Save; // Load common setting run out time for E-save
+      L     #i_CFG_Conveyor_Speed; // Load speed setting
+      *D    ; 
+      L     100; // Convert mm -> cm AND 0.1sec -> sec 10*10 = 100
+      /D    ; 
+      T     #s_Run_Out_Distanc_E_Save; // Run out distance in [cm]
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Reset energy save
+//When one entry in the PLT DB > -10 & -100 < then reset the energy save.
+//The entries 999 till -10 are E-save (-3) items.
+//The entries -900 till -101 are reservations, so also reset energy save.
+//If entries are between -10 and -100 then section is in energy save.
+//
+      NOP   0; 
+//Clear the Reset E_Saving before check
+      CLR   ; 
+      =     #s_Reset_E_Saving; // Then reset e-save
+
+      OPN   DB [#t_Pos_DB_Nr]; // Open PLT DB   
+
+//Only check if entries > 0 else skip
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   CA99; 
+
+      L     14; // First entry starts at P#14.0
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+      L     1; 
+      T     #t_Loop_Entries; 
+
+CA01: L     0; 
+      L     DBW [AR1,P#4.0]; // Info
+      >=I   ; 
+      JCN   CA04; //Reset E-Save if entry > 0
+
+      L     -100; 
+      >=I   ; 
+      JCN   CA04; // Reset E_Save if entry < -100 (Reservation)
+
+      L     -3; 
+      L     DBW [AR1,P#4.0]; // Info
+      ==I   ; 
+      JC    CA04; 
+
+//Check PEC State if PEC detected the reset E-save
+      L     DBW [AR1,P#2.0]; // Info State
+      L     W#16#1FF1; 
+      AW    ; 
+      L     W#16#1001; 
+      ==I   ; 
+      JC    CA04; 
+
+      L     #t_Loop_Entries; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Entries; 
+
+// Check loop counter
+      L     #t_Loop_Entries; 
+      L     DBW    0; 
+      >I    ; 
+      JC    CA99; // IF Entry pointer > 0
+
+      TAR1  ; // Read Entry pointer of address-register
+
+      L     P#8.0; // 6 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#6.0
+
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    CA01; // GOTO Next entry
+
+//Set Reset E_Saving
+CA04: SET   ; 
+      =     #s_Reset_E_Saving; // Then reset e-save
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Calculate start and end-position of start area search window
+
+      NOP   0; 
+//Initialize variables
+      CLR   ; 
+      =     #t_First_Position_Start_A; 
+      =     #t_Announce_Start_Area; 
+      =     #t_First_Item_Checked; 
+
+//Get data from PLT DB
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr_Start_A; 
+      OPN   DB [#t_PLT_DB_Nr_Start_A]; // Open PLT DB
+
+//End block if PLT DB is not Done (Init)
+      AN    DBX   10.0; 
+      BEC   ; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length_Start_A; 
+
+      L     1; 
+      L     DBW    6; 
+      <I    ; 
+      JC    DA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB_Start_A; 
+
+      JU    DA02; 
+
+DA01: T     #t_PLT_DB_Nr_Start_A; 
+      SET   ; 
+      S     #t_Check_Upstr_DB_Start_A; 
+
+DA02: NOP   0; 
+
+//Calculate pointer to data in last record PLT DB  
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   DA03; 
+      L     DBW    0; // Number of entries used in PLT DB
+DA03: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB 
+
+//Calculate start- and end-position of search-window
+      L     #s_Length_Section; // Position to start searching
+      L     DBW    2; 
+      -I    ; 
+      T     #t_Srch_Start_Pos_Start_A; // Search_Start_Position = Position - Displacement
+
+      L     #s_Length_Section; // Position to start searching
+      L     #s_Start_Distance_E_Save; // Search window
+      +I    ; 
+      T     #t_Srch_End_Pos_Start_A; // Search_End_Position = Position + Window
+
+      L     #s_Length_Section; // Position to start searching
+      L     #t_Conv_Length_Start_A; 
+      -I    ; 
+      L     #s_Start_Distance_E_Save; // Search window
+      +I    ; 
+      JP    DA04; 
+
+      SET   ; 
+      R     #t_Check_Upstr_DB_Start_A; // If Remaining window = 0, No Upstream search
+
+      L     0; 
+DA04: T     #t_Res_Window_Start_A; // t_Res_Window = window - (conveyor_length - Position)
+
+NETWORK
+TITLE =EA: Search for data in search-window of start area
+
+EA01: AN    DBX   10.5; // If section is not operational
+      JCN   EA02; 
+
+      R     #t_Announce_Start_Area; 
+      S     #t_First_Item_Checked; 
+      JU    EA99; 
+
+EA02: L     DBW [AR1,P#0.0]; 
+      L     0; 
+      <I    ; // IF position is negative
+      A(    ; 
+      L     #t_Srch_Start_Pos_Start_A; // AND search start position = 0
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JC    EA03; // Entry in negative position found
+
+      L     #t_Srch_Start_Pos_Start_A; // START OF SEARCH-LOOP
+      L     DBW [AR1,P#0.0]; // Actual entry position 
+      >I    ; // IF Search-Start-position < read position THEN jump to decrease pointer  
+      JC    EA05; // THEN jump to decrement pointer 
+
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      L     #t_Srch_End_Pos_Start_A; 
+      <=I   ; // ELSE Actual-position >= Search-End-Position jump to make outputs  
+      JC    EA03; // THEN data found  
+
+      JU    EA99; // ELSE jump to no data found end of search-loop
+
+EA03: L     DBW [AR1,P#4.0]; // Pos - Info
+      L     1; // Leading edge
+      ==I   ; // IF PTL-Info == Leading edge 
+      O(    ; // OR
+      L     DBW [AR1,P#4.0]; // Pos - Info
+      L     2; // Trailing edge
+      ==I   ; // IF PTL-Info == Trailing edge 
+      )     ; 
+      JCN   EA05; // THEN
+
+      SET   ; 
+      S     #t_First_Item_Checked; 
+
+      A     DBX   10.5; // If section is not operational
+      A     DBX   10.4; // Or if section is not available
+      JCN   EA04; 
+
+// IF item found set the announce bit
+      SET   ; 
+      S     #t_Announce_Start_Area; 
+      JU    EA99; 
+
+EA04: SET   ; 
+      R     #t_Announce_Start_Area; 
+      JU    EA99; 
+
+//Write position only on first found
+      A     #t_First_Position_Start_A; 
+      JC    EA05; 
+
+      SET   ; 
+      =     #t_First_Position_Start_A; 
+
+EA05: TAR1  ; // Read Entry pointer of address-register
+      L     P#14.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      -D    ; // Entry pointer = Entry pointer - P#6.0
+      JMZ   EA99; // IF Entry pointer > 0
+
+      L     P#6.0; // THEN Entry pointer = -14 + 8 = -6
+      +D    ; 
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    EA01; // GOTO START OF SEARCH-LOOP
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Loop to upstream PLT DB in search window of start area
+
+      A     #t_Check_Upstr_DB_Start_A; 
+      AN    #t_First_Item_Checked; 
+      JCN   FA99; // IF no Upstream DB then END network
+
+// Set the search window
+      L     0; 
+      T     #t_Srch_Start_Pos_Start_A; 
+
+      L     #t_Res_Window_Start_A; 
+      T     #t_Srch_End_Pos_Start_A; 
+
+// Determine the Upstream PLT DB with conveyor_length
+      OPN   DB [#t_PLT_DB_Nr_Start_A]; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length_Start_A; // Upstream Conveyor Length
+
+      L     1; 
+      L     DBW    6; // Upstream DB_PLT
+      <I    ; 
+      JC    FA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB_Start_A; 
+
+      JU    FA02; 
+
+FA01: T     #t_PLT_DB_Nr_Start_A; 
+      SET   ; 
+      S     #t_Check_Upstr_DB_Start_A; 
+
+FA02: NOP   0; 
+//Calculate pointer to data in last record PLT DB
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   FA03; 
+      L     DBW    0; // Number of entries used in PLT DB
+FA03: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB 
+
+//Calculate remaining window for upstream search
+      L     #t_Res_Window_Start_A; 
+      L     #t_Conv_Length_Start_A; 
+      -I    ; 
+      JMZ   FA04; 
+      T     #t_Res_Window_Start_A; 
+
+      JU    EA01; // Goto the check data loop
+
+FA04: SET   ; // IF remaining window = 0 no upstream DB check
+      R     #t_Check_Upstr_DB_Start_A; 
+      L     0; 
+      T     #t_Res_Window_Start_A; 
+
+      JU    EA01; // Goto the check data loop
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Calculate start and end-position of stop area search window
+// 
+      NOP   0; 
+//Initialize variables
+      CLR   ; 
+      =     #t_First_Position_Stop_A; 
+      =     #t_Announce_Stop_Area; 
+      =     #t_First_Item_Checked; 
+
+// IF conveyor is not running, don't check stop area 
+      A     #s_Conveyor_Run; 
+      JCN   GA99; 
+
+//Get data from PLT DB
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr_Stop_A; 
+      OPN   DB [#t_PLT_DB_Nr_Stop_A]; // Open PLT DB
+
+//End block if PLT DB is not Done (Init)
+      AN    DBX   10.0; 
+      BEC   ; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length_Stop_A; 
+
+      L     1; 
+      L     DBW    6; 
+      <I    ; 
+      JC    GA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB_Stop_A; 
+
+      JU    GA02; 
+
+GA01: T     #t_PLT_DB_Nr_Stop_A; 
+      SET   ; 
+      S     #t_Check_Upstr_DB_Stop_A; 
+
+GA02: NOP   0; 
+
+//Calculate pointer to data in last record PLT DB  
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   GA03; 
+      L     DBW    0; // Number of entries used in PLT DB
+GA03: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB 
+
+//Calculate start- and end-position of search-window
+      L     #s_Length_Section; // Position to start searching
+      L     DBW    2; 
+      -I    ; 
+      T     #t_Srch_Start_Pos_Stop_A; // Search_Start_Position = Position - Displacement
+
+      L     #s_Length_Section; // Position to start searching
+      L     #s_Stop_Distance_E_Save; // Search window
+      +I    ; 
+      T     #t_Srch_End_Pos_Stop_A; // Search_End_Position = Position + Window
+
+      L     #s_Length_Section; // Position to start searching
+      L     #t_Conv_Length_Stop_A; 
+      -I    ; 
+      L     #s_Stop_Distance_E_Save; // Search window
+      +I    ; 
+      JP    GA04; 
+
+      SET   ; 
+      R     #t_Check_Upstr_DB_Stop_A; // If Remaining window = 0, No Upstream search
+
+      L     0; 
+GA04: T     #t_Res_Window_Stop_A; // t_Res_Window = window - (conveyor_length - Position)
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Search for data in search-window of stop area
+//
+//
+      NOP   0; 
+// IF conveyor is not running, don't check stop area 
+      A     #s_Conveyor_Run; 
+      JCN   HA99; 
+
+HA01: AN    DBX   10.5; // If section is not operational
+      JCN   HA02; 
+
+      R     #t_Announce_Stop_Area; 
+      S     #t_First_Item_Checked; 
+      JU    HA99; 
+
+HA02: L     DBW [AR1,P#0.0]; 
+      L     0; 
+      <I    ; // IF position is negative
+      A(    ; 
+      L     #t_Srch_Start_Pos_Stop_A; // AND search start position = 0
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JC    HA03; // Entry in negative position found
+
+      L     #t_Srch_Start_Pos_Stop_A; // START OF SEARCH-LOOP
+      L     DBW [AR1,P#0.0]; // Actual entry position 
+      >I    ; // IF Search-Start-position < read position THEN jump to decrease pointer  
+      JC    HA05; // THEN jump to decrement pointer 
+
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      L     #t_Srch_End_Pos_Stop_A; 
+      <=I   ; // ELSE Actual-position >= Search-End-Position jump to make outputs  
+      JC    HA03; // THEN data found  
+
+      JU    HA99; // ELSE jump to no data found end of search-loop
+
+HA03: L     DBW [AR1,P#4.0]; // Pos - Info
+      L     1; // Leading edge
+      ==I   ; // IF PTL-Info == Leading edge 
+      O(    ; // OR
+      L     DBW [AR1,P#4.0]; // Pos - Info
+      L     2; // Trailing edge
+      ==I   ; // IF PTL-Info == Trailing edge 
+      )     ; 
+      JCN   HA05; // THEN
+
+      SET   ; 
+      S     #t_First_Item_Checked; 
+
+      A     DBX   10.5; // If section is not operational
+      A     DBX   10.4; // Or if section is not available
+      JCN   HA04; 
+
+// IF item found set the announce bit
+      SET   ; 
+      S     #t_Announce_Stop_Area; 
+      JU    HA99; 
+
+HA04: SET   ; 
+      R     #t_Announce_Stop_Area; 
+      JU    HA99; 
+
+//Write position only on first found
+      A     #t_First_Position_Stop_A; 
+      JC    HA05; 
+
+      SET   ; 
+      =     #t_First_Position_Stop_A; 
+
+HA05: TAR1  ; // Read Entry pointer of address-register
+      L     P#14.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      -D    ; // Entry pointer = Entry pointer - P#6.0
+      JMZ   HA99; // IF Entry pointer > 0
+
+      L     P#6.0; // THEN Entry pointer = -14 + 8 = -6
+      +D    ; 
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    HA01; // GOTO START OF SEARCH-LOOP
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Loop to upstream PLT DB in search window of stop area
+
+      NOP   0; 
+// IF conveyor is not running, don't check stop area 
+      A     #s_Conveyor_Run; 
+      JCN   IA99; 
+
+      A     #t_Check_Upstr_DB_Stop_A; 
+      AN    #t_First_Item_Checked; 
+      JCN   IA99; // IF no Upstream DB then END network
+
+// Set the search window
+      L     0; 
+      T     #t_Srch_Start_Pos_Stop_A; 
+
+      L     #t_Res_Window_Stop_A; 
+      T     #t_Srch_End_Pos_Stop_A; 
+
+// Determine the Upstream PLT DB with conveyor_length
+      OPN   DB [#t_PLT_DB_Nr_Stop_A]; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length_Stop_A; // Upstream Conveyor Length
+
+      L     1; 
+      L     DBW    6; // Upstream DB_PLT
+      <I    ; 
+      JC    IA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB_Stop_A; 
+
+      JU    IA02; 
+
+IA01: T     #t_PLT_DB_Nr_Stop_A; 
+      SET   ; 
+      S     #t_Check_Upstr_DB_Stop_A; 
+
+IA02: NOP   0; 
+//Calculate pointer to data in last record PLT DB
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   IA03; 
+      L     DBW    0; // Number of entries used in PLT DB
+IA03: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB 
+
+//Calculate remaining window for upstream search
+      L     #t_Res_Window_Stop_A; 
+      L     #t_Conv_Length_Stop_A; 
+      -I    ; 
+      JMZ   IA04; 
+      T     #t_Res_Window_Stop_A; 
+
+      JU    HA01; // Goto the check data loop
+
+IA04: SET   ; // IF remaining window = 0 no upstream DB check
+      R     #t_Check_Upstr_DB_Stop_A; 
+      L     0; 
+      T     #t_Res_Window_Stop_A; 
+
+      JU    HA01; // Goto the check data loop
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Combine start area and stop area to one announce signal
+
+      A     #t_Announce_Start_Area; 
+      O     #t_Announce_Stop_Area; 
+      =     #o_Announce; 
+NETWORK
+TITLE =KA: Energy save function
+
+      L     #s_Energy_Save_Cnt; 
+      L     #s_Run_Out_Distanc_E_Save; 
+      <D    ; 
+      A     #s_Reset_E_Saving; 
+      JCN   KA01; 
+      T     #s_Energy_Save_Cnt; // Preset energy save with Run out length
+
+// Countdown of the energy save timer
+KA01: L     #s_Energy_Save_Cnt; 
+      L     #s_Displacement; 
+      -D    ; // THEN countdown energy save timer
+      JPZ   KA02; // IF negatine then keep counter to zero
+      L     0; 
+KA02: T     #s_Energy_Save_Cnt; 
+// Evaluation of energy save timer 
+      L     #s_Energy_Save_Cnt; // AND timer is elapsed 
+      L     0; 
+      <=D   ; 
+      AN    #i_CFG_Disbl_E_Save; // AND NO common setting disable energy saving
+      AN    #s_Reset_E_Saving; 
+      AN    #i_Reset_E_Save; 
+      AN    #o_Announce; 
+      =     #o_Energy_Saving; // Then energy saving
+NETWORK
+TITLE =LA: Trigger downstream conveyor out of energy save in slave mode
+
+      L     #t_Pos_DB_nr_Downstream; 
+      L     1; 
+      >I    ; 
+      A     #t_Section_Operational; 
+      JCN   LA99; 
+
+      O(    ; 
+      A     #i_CFG_Slave_Mode; 
+      AN    #o_Energy_Saving; 
+      )     ; 
+      O(    ; 
+      A     #t_Item_At_HandOver; 
+      A     #t_Section_Available; 
+      )     ; 
+      AN    #i_CFG_Disbl_E_Save; 
+      JCN   LA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_Pos_DB_nr_Downstream,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Downstr_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   LA99; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_Pos_DB_nr_Downstream,
+           i_Position               := #s_Length_Downstr_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+LA99: NOP   0; 
+END_FUNCTION_BLOCK
+

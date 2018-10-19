@@ -1,0 +1,53 @@
+FUNCTION "FC_Make_Log" : VOID
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Make Logging into DB_Logging depending on the var's on record [0]
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, April 10, 2018 11:13:04 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    10-04-18   0.01
+//
+//Description:
+// start the making of the logging
+// when started the data withi the record [0] is copieed (stored into) the DB_Logging
+//         i_ANY_Logging_Data       := "DB_Logging".Log[0],  >-|
+//         i_Logging_DB             := "DB_Logging",         <-|
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  t_ret_val : INT ;	//Return value after calling "FC_Logging".
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Fill Log[0]
+
+      NOP   0; 
+// Example of how to fill Log[0]
+      A     "M_System_Clock_0.1_sec."; 
+      =     "DB_Logging".Log[0].Data.Event.Signal_BOOL_0; 
+      L     "MB_Clock_Sysbits"; 
+      T     "DB_Logging".Log[0].Data.Event.Signal_Byte; 
+NETWORK
+TITLE =BA: Call FC_Logging
+
+      CALL "FC_Logging" (
+           i_ANY_Logging_Data       := "DB_Logging".Log[0],
+           i_Logging_DB             := "DB_Logging",
+           i_Mode                   := 'R',
+           i_Trigger                := FALSE,
+           i_Enable                 := TRUE,
+           i_Clear                  := FALSE,
+           o_Ret_Value              := #t_ret_val);
+
+
+END_FUNCTION
+

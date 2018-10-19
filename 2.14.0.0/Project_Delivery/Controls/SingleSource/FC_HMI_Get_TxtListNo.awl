@@ -1,0 +1,83 @@
+FUNCTION "FC_HMI_Get_TxtListNo" : VOID
+TITLE = %version: 0.04 % CN: 30
+//Function: 
+//Reads the textlist number from component type DB
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:01:46 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//Update the HMI for new DB_Status_Index                nlMRe    21-09-10   0.03
+//Replace defenition UDT                                nlMRe    20-09-10   0.02
+//Initial version                                       inSMahi  10-06-10   0.01
+//
+//Description:
+//Reads the textlist number from component type DB
+//With tis error number the alarm text can be retreived
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Number : WORD ;	//DB number of Component Type DB
+  i_Pntr_To_Actual_Bit : INT ;	//Pointer to bit in DS Bit Record
+  i_Off_Start_DSBitRecords : INT ;	//Offset to start DS Bit Records in Comp type DB
+END_VAR
+VAR_OUTPUT
+  o_TxtListNumber : INT ;	//Textlist number
+END_VAR
+VAR_TEMP
+  t_ANY_Source : ANY ;	//ANY source
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_Error_Definition : "UDT_Comp_Status";	//Status defination
+  t_Error_Def_Length : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Calculate length 'Error Def'
+
+      L     P##t_Error_Def_Length; // Load pointer to lenght (just after error definition)
+      L     P##t_Error_Definition; // Pointer to error definition
+      -D    ; // Length in bits
+      SRD   3; // Convert length in bytes
+      T     #t_Error_Def_Length; // Length of error definition in bytes  
+NETWORK
+TITLE =BA: Get text number and error number 
+//Get error text list number out of comp. type DB
+      LAR1  P##t_ANY_Source; // Load pointer to local any destination for blockmove
+      L     W#16#1002; // Load 10 hex (for S7) and data type
+      T     LW [AR1,P#0.0]; 
+
+      L     #t_Error_Def_Length; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+
+      L     #i_DB_Number; // Load DB number
+      T     LW [AR1,P#4.0]; 
+
+      L     #i_Pntr_To_Actual_Bit; // Index to current DS bit
+      L     #t_Error_Def_Length; // length of one record in comp. type DB
+      *I    ; // pointer to current record
+      L     #i_Off_Start_DSBitRecords; 
+      +I    ; 
+      SLW   3; // convert byte => bit pointer
+      L     DW#16#84000000; // 84=DB 
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Memory area / start address of the data
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_Error_Definition);
+
+      L     #t_Error_Definition.HMI_Text_Number; // Load error text list number out of component type DB
+      T     #o_TxtListNumber; 
+END_FUNCTION
+

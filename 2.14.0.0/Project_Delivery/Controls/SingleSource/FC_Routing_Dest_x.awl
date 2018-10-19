@@ -1,0 +1,617 @@
+FUNCTION "FC_Routing_Dest_x" : VOID
+TITLE =%version: 0.12 % CN: 33
+//Function:
+//Determine from the 5 destinations the highest prefference for the Directions 
+//and write this into the instance DB
+//
+//History:
+//This version  %created_by: nluhl %
+//              %date_created: Thursday, September 20, 2018 3:26:37 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#11115 Pref. blocked 7, 8 and 9 allowed for A/B/C  nluhl    20-09-18   0.12
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.11
+//ra#23509: Fallback tags and route table               nlHdL    06-09-17   0.10
+//ra#16541: Routing DB template always 3dir             nlHdL    15-09-16   0.09
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.07
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.04
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.03
+//LIC record paths changed                              nlLvdG   23-03-12   0.02
+//Initial Revision                                      nlHdL    03-10-11   0.01
+//
+//Description:
+//Retreive the destination from the LIC record and write data to the instance DB
+//Determine from the 5 destinations the highest prefference for Direction A and 
+//write this into the instance DB
+//Determine from the 5 destinations the highest prefference for Direction B and 
+//write this into the instance DB
+//If no routing is found report this failure, for failure report
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LIC : INT ;	//LIC number
+  i_Default_Route_Mode : BOOL ;	//Use default directions from routing table, (degraded and Fallback tag)
+  i_CFG_Dir_C : BOOL ;	//Included direction C
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Nr_DB_Routing : INT ;	//Number of DB Routing
+  i_ANY_Direction_A : ANY ;	//ANY pointer to the Direction A messages
+  i_ANY_Direction_B : ANY ;	//ANY pointer to the Direction B messages
+  i_ANY_Direction_C : ANY ;	//ANY pointer to the Direction C messages
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_Preference_C : BYTE ;	//Preference for Direction C
+  t_DecisionLvl : BYTE ;	//Decision Level	
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_Nr_DB_Routing : INT ;	//Number of DB Routing
+  t_Dir_A_Active : BOOL ;	//Direction A is active
+  t_Dir_B_Active : BOOL ;	//Direction B is active
+  t_Dir_C_Active : BOOL ;	//Direction C is active
+  t_Failed : BOOL ;	//Failed No Direction
+  t_Destination_nr : INT ;	//Destination Number
+  t_Dir_A : STRUCT 	//Struct of Direrction A
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_B : STRUCT 	//Struct of Direrction B
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_C : STRUCT 	//Struct of Direrction C
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Failed_Dest : INT ;	//Destination of the failed direction (No Direction)
+  t_LNK : INT ;	//LNK number
+  t_Rep_Route : INT ;	//Report Route number
+  t_FailedDecisionLvl : INT ;	//Failed decision level for direction
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear temps
+
+      L     0; 
+      T     #t_Preference_A; 
+      T     #t_Preference_B; 
+      T     #t_Preference_C; 
+      T     #t_DecisionLvl; 
+      T     #t_FailedReason_A; 
+      T     #t_FailedReason_B; 
+      T     #t_FailedReason_C; 
+      T     #t_Dir_A.t_Preference_A; 
+      T     #t_Dir_B.t_Preference_B; 
+      T     #t_Dir_C.t_Preference_C; 
+
+      L     1; 
+      T     #t_Destination_nr; 
+
+      SET   ; 
+      S     #t_Failed; 
+      R     #t_Dir_A_Active; 
+      R     #t_Dir_B_Active; 
+      R     #t_Dir_C_Active; 
+      L     0; 
+      T     #t_Failed_Dest; 
+NETWORK
+TITLE =BA: Determine the requested destination
+
+BA00: NOP   0; 
+
+      L     1; 
+      L     #t_Destination_nr; 
+      ==I   ; 
+      JCN   BA01; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      JU    BA10; 
+
+BA01: L     2; 
+      L     #t_Destination_nr; 
+      ==I   ; 
+      JCN   BA02; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      JU    BA10; 
+
+BA02: L     3; 
+      L     #t_Destination_nr; 
+      ==I   ; 
+      JCN   BA03; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      JU    BA10; 
+
+BA03: L     4; 
+      L     #t_Destination_nr; 
+      ==I   ; 
+      JCN   BA04; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      JU    BA10; 
+
+BA04: L     5; 
+      L     #t_Destination_nr; 
+      ==I   ; 
+      JCN   BA10; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+BA10: NOP   0; 
+
+//Check if there is a destination available
+      L     0; 
+      L     #t_Destination; 
+      <I    ; 
+      JCN   BA20; 
+
+      L     1; 
+      L     #i_Nr_DB_Routing; 
+      <I    ; 
+      JCN   BA20; 
+
+//-----------------------------------------------------------------------
+//      Routing with 3 Direction table A B and C
+
+//-----------------------------------------------------------------------
+
+      T     #t_Nr_DB_Routing; 
+//Open DB to the routing table
+      OPN   DB [#t_Nr_DB_Routing]; 
+
+      L     DBLG; 
+      L     4; 
+      /D    ; 
+      L     #t_Destination; 
+      >=I   ; 
+      JCN   BA20; 
+
+      L     #t_Destination; 
+      L     1; 
+      -I    ; 
+      L     4; // Each entry is 4 Bytes (3 Dir and 1 spare)
+      *I    ; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     DBB [AR1,P#2.0]; 
+      T     #t_Preference_C; 
+
+//Check if preference A is blocked (Pref = 7, 8 or 9)
+      L     #t_Preference_A; 
+      L     7; 
+      >=I   ; 
+      A(    ; 
+      L     #t_Preference_A; 
+      L     9; 
+      <=I   ; 
+      )     ; 
+      JCN   BA11; 
+
+//If no valid direction Failed Reason = 9 ("Routing Blocked")
+      L     9; 
+      T     #t_FailedReason_A; 
+
+//Check if preference B is blocked (Pref = 7, 8 or 9)
+BA11: L     #t_Preference_B; 
+      L     7; 
+      >=I   ; 
+      A(    ; 
+      L     #t_Preference_B; 
+      L     9; 
+      <=I   ; 
+      )     ; 
+      JCN   BA12; 
+
+//If no valid direction Failed Reason = 9 ("Routing Blocked")
+      L     9; 
+      T     #t_FailedReason_B; 
+
+//Check if preference C is blocked (Pref = 7, 8 or 9)
+BA12: L     #t_Preference_C; 
+      L     7; 
+      >=I   ; 
+      A(    ; 
+      L     #t_Preference_C; 
+      L     9; 
+      <=I   ; 
+      )     ; 
+      JCN   BA13; 
+
+//If no valid direction Failed Reason = 9 ("Routing Blocked")
+      L     9; 
+      T     #t_FailedReason_C; 
+
+BA13: L     3; 
+      T     #t_DecisionLvl; 
+
+//Check if direction is valid
+      L     #t_Preference_A; 
+      L     0; 
+      ==I   ; 
+      AN    #t_Dir_A_Active; 
+      JCN   BA14; 
+
+      L     #t_Preference_B; 
+      L     0; 
+      ==I   ; 
+      AN    #t_Dir_B_Active; 
+      JCN   BA14; 
+
+      L     #t_Preference_C; 
+      L     0; 
+      ==I   ; 
+      AN    #t_Dir_C_Active; 
+      JCN   BA14; 
+
+      SET   ; 
+      S     #t_Failed; 
+
+      L     #t_Destination; 
+      T     #t_Failed_Dest; 
+//If no valid direction Failed Reason = 2 ("No Direction")
+
+BA14: L     #t_Preference_A; 
+      L     0; 
+      >I    ; 
+      JCN   BA16; 
+
+      L     #t_Dir_A.t_Preference_A; 
+      L     0; 
+      ==I   ; 
+      JC    BA15; 
+
+      L     #t_Preference_A; 
+      L     #t_Dir_A.t_Preference_A; 
+      <I    ; 
+      JCN   BA16; 
+
+//Write to dir A
+BA15: L     #t_Destination; 
+      T     #t_Dir_A.t_Destination; 
+      L     #t_Preference_A; 
+      T     #t_Dir_A.t_Preference_A; 
+      L     #t_Preference_B; 
+      T     #t_Dir_A.t_Preference_B; 
+      L     #t_Preference_C; 
+      T     #t_Dir_A.t_Preference_C; 
+      L     #t_DecisionLvl; 
+      T     #t_Dir_A.t_DecisionLvl; 
+      L     #t_FailedReason_A; 
+      T     #t_Dir_A.t_FailedReason_A; 
+      L     #t_FailedReason_B; 
+      T     #t_Dir_A.t_FailedReason_B; 
+      L     #t_FailedReason_C; 
+      T     #t_Dir_A.t_FailedReason_C; 
+
+      SET   ; 
+      S     #t_Dir_A_Active; 
+      R     #t_Failed; 
+
+BA16: L     #t_Preference_B; 
+      L     0; 
+      >I    ; 
+      JCN   BA18; 
+
+      L     #t_Dir_B.t_Preference_B; 
+      L     0; 
+      ==I   ; 
+      JC    BA17; 
+
+      L     #t_Preference_B; 
+      L     #t_Dir_B.t_Preference_B; 
+      <I    ; 
+      JCN   BA18; 
+//Write to dir B
+BA17: L     #t_Destination; 
+      T     #t_Dir_B.t_Destination; 
+      L     #t_Preference_A; 
+      T     #t_Dir_B.t_Preference_A; 
+      L     #t_Preference_B; 
+      T     #t_Dir_B.t_Preference_B; 
+      L     #t_Preference_C; 
+      T     #t_Dir_B.t_Preference_C; 
+      L     #t_DecisionLvl; 
+      T     #t_Dir_B.t_DecisionLvl; 
+      L     #t_FailedReason_A; 
+      T     #t_Dir_B.t_FailedReason_A; 
+      L     #t_FailedReason_B; 
+      T     #t_Dir_B.t_FailedReason_B; 
+      L     #t_FailedReason_C; 
+      T     #t_Dir_B.t_FailedReason_C; 
+
+      SET   ; 
+      S     #t_Dir_B_Active; 
+      R     #t_Failed; 
+
+BA18: L     #t_Preference_C; 
+      L     0; 
+      >I    ; 
+      JCN   BA20; 
+
+      L     #t_Dir_C.t_Preference_C; 
+      L     0; 
+      ==I   ; 
+      JC    BA19; 
+
+      L     #t_Preference_C; 
+      L     #t_Dir_C.t_Preference_C; 
+      <I    ; 
+      JCN   BA20; 
+//Write to dir c
+BA19: L     #t_Destination; 
+      T     #t_Dir_C.t_Destination; 
+      L     #t_Preference_A; 
+      T     #t_Dir_C.t_Preference_A; 
+      L     #t_Preference_B; 
+      T     #t_Dir_C.t_Preference_B; 
+      L     #t_Preference_C; 
+      T     #t_Dir_C.t_Preference_C; 
+      L     #t_DecisionLvl; 
+      T     #t_Dir_C.t_DecisionLvl; 
+      L     #t_FailedReason_A; 
+      T     #t_Dir_C.t_FailedReason_A; 
+      L     #t_FailedReason_B; 
+      T     #t_Dir_C.t_FailedReason_B; 
+      L     #t_FailedReason_C; 
+      T     #t_Dir_C.t_FailedReason_C; 
+
+      SET   ; 
+      S     #t_Dir_C_Active; 
+      R     #t_Failed; 
+
+BA20: L     0; 
+      T     #t_DecisionLvl; 
+      T     #t_FailedReason_A; 
+      T     #t_FailedReason_B; 
+      T     #t_FailedReason_C; 
+
+//Clear temp before next destination check
+      L     #t_Destination_nr; 
+      L     1; 
+      +I    ; 
+      T     #t_Destination_nr; 
+      L     5; 
+      <=I   ; 
+      JC    BA00; 
+//Check next destination
+
+      NOP   0; 
+NETWORK
+TITLE =CA: Degraded
+
+      A     #i_Default_Route_Mode; 
+      JCN   CA99; 
+
+//Decision Level = 2 ("LM Routing default")
+      L     2; 
+      T     #t_DecisionLvl; 
+
+      A     #t_Dir_A_Active; 
+      JCN   CA01; 
+
+      L     #t_DecisionLvl; 
+      T     #t_Dir_A.t_DecisionLvl; 
+
+CA01: A     #t_Dir_B_Active; 
+      JCN   CA02; 
+
+      L     #t_DecisionLvl; 
+      T     #t_Dir_B.t_DecisionLvl; 
+
+CA02: A     #t_Dir_C_Active; 
+      JCN   CA99; 
+
+      L     #t_DecisionLvl; 
+      T     #t_Dir_C.t_DecisionLvl; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: If No direction write Failed direction to Route record
+
+      A     #t_Failed; 
+      JCN   DA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Rep_Route);
+
+      L     #t_Rep_Route; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+//Check if Rep Route record > 0
+
+      A     #i_Default_Route_Mode; 
+      JCN   DA01; 
+
+      L     2; //DecisionLevel = 2 "LM Routing default
+      T     #t_FailedDecisionLvl; 
+
+      JU    DA02; 
+
+DA01: L     3; //DecisionLevel = 3 "LM Routing system
+      T     #t_FailedDecisionLvl; 
+
+DA02: CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #t_Rep_Route,
+           i_Failed_Direction       := 0,
+           i_Failed_Reason          := 2,//FailedReason = 2 "No Direction"
+           i_Failed_Destination     := #t_Failed_Dest,
+           i_Failed_Decisionlvl     := #t_FailedDecisionLvl,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Write data of destination x to FB
+
+      A     #t_Dir_A_Active; 
+      JCN   EA01; 
+
+      L     P##i_ANY_Direction_A; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address     
+      LAR2  ; 
+
+      L     #t_Dir_A.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_A.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_A.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_A.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_A.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   EA01; 
+
+      L     #t_Dir_A.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_A.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+
+EA01: A     #t_Dir_B_Active; 
+      JCN   EA02; 
+
+      L     P##i_ANY_Direction_B; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+      LAR2  ; 
+
+      L     #t_Dir_B.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_B.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_B.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_B.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_B.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   EA02; 
+
+      L     #t_Dir_B.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_B.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+
+EA02: A     #t_Dir_C_Active; 
+      JCN   EA99; 
+
+      L     P##i_ANY_Direction_C; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+      LAR2  ; 
+
+      L     #t_Dir_C.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_C.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_C.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_C.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_C.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_C.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+
+      L     #t_Dir_C.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+
+EA99: NOP   0; 
+END_FUNCTION
+

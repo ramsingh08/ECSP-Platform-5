@@ -1,0 +1,170 @@
+FUNCTION_BLOCK "FB_TCTC_Rcv_Lifesign"
+TITLE =%version: 1.02 % CN: 40
+//Function: 
+//This block handles the lifesign signals for the receiving side of a TCTC 
+//interface.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:12:53 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//8673: Reset:Restart for errors via  PNPN interface    nlHdL    29-10-15   1.02
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.01 of PLT version 0
+//
+//Description:
+//Whenever a lifesign request is received a lifesign reply signal will be send by 
+//this block. Also a link error is detected when no lifesign request is received 
+//for at least 3 times.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Rcv_Lifesign : BOOL ;	//Receiving: Lifesign
+END_VAR
+VAR_OUTPUT
+  o_Snd_Lifesign_Reply : BOOL ;	//Lifesign Reply signal
+  o_ST_Link_Error : BOOL ;	//ST: Link Error
+END_VAR
+VAR
+  s_Time_Since_Last_LS : INT ;	// Counter: Tine that has elapsed since last life sign signal 
+  s_LifeSign_Error_Counter : INT ;	// Counter: Number of missing LifeSign Signals	
+  s_Reset_LS_Resp_Counter : INT ;	// Delay counter to reset Life Sign Resopnse signal
+  s_FP_Lifesign : BOOL ;	//Positive flank of received lifesign signal
+  s_OS_FP_Lifesign : BOOL ;	//Positive flank of received lifesign signal
+  s_Snd_Lifesign_Reply : BOOL ;	//Send lifesign reply signal
+  s_Connection_Error : BOOL ;	// Sending error (PN/PN communication block)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Create lifesign reply signal
+//The handshaking is I/O based and it is realized via the PN/PN coupler. There 
+//are two bits reserved for the handshake protocol: 
+// - LifeSignRequest (Sender) - FB_PNPN_TCTC_Send
+// - LifeSignResponse (Receiver) - FB_PNPN_TCTC_Receive
+//
+//The sender will generate a pulsating signal with a defined period of 200 ms. 
+//The receiver will respond on this signal with an echo of that lifesign request 
+//as lifesign response.
+//          _       _       _       _      
+//Sender   | |     | |     | |     | |     
+//      ___| |_____| |_____| |_____| |_____
+//
+//            _       _       _       _      
+//Receiver   | |     | |     | |     | |     
+//        ___| |_____| |_____| |_____| |_____
+      NOP   0; 
+// Create flank positive of lifesign response signal
+      A     #i_Rcv_Lifesign; 
+      FP    #s_FP_Lifesign; 
+      =     #s_OS_FP_Lifesign; 
+
+// Count the time since the last lifesign was received
+      L     #s_Time_Since_Last_LS; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Time_Since_Last_LS; 
+
+// Respond to the sender life sign signal
+
+      A     #s_OS_FP_Lifesign; 
+      S     #s_Snd_Lifesign_Reply; 
+      JCN   AA01; 
+
+// When the LifeSign is received the related counters/timers should be reset
+      L     0; 
+      T     #s_Time_Since_Last_LS; 
+      T     #s_LifeSign_Error_Counter; 
+      T     #s_Reset_LS_Resp_Counter; 
+
+// The Connection error is self reset error and it shall be cleared as soon as the LifeSign is received
+      CLR   ; 
+      =     #s_Connection_Error; // AND reset Communication Error
+
+AA01: A     #s_Snd_Lifesign_Reply; 
+      JCN   AA99; 
+
+      L     #s_Reset_LS_Resp_Counter; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Reset_LS_Resp_Counter; 
+      L     100; // The life sign response shall be set for at least 2 clock cycle because of the possible bus delays or clock cycle difference between the sender and receiver
+      >=I   ; 
+      JCN   AA99; 
+
+      SET   ; 
+      R     #s_Snd_Lifesign_Reply; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Handle the communication error indication of lifesign signal
+//The server (lifesign sending/generating part) shall report a lifesign error 
+//after 3 lifesign responses are missing. The lifesign error should result in 
+//total suppression of all the handover signals.
+//
+//                       A               B   
+//           |<--------------------->|   |   
+//          _|                       |   |_  
+//Sender   | |                       |   | | 
+//      ___| |_______________________|___| |_
+//           |                       |   |      
+//           |_                      |   |  _   
+//Receiver   | |                     |   | | |  
+//        ___| |_____________________|___|_| |__
+//                                   |   |      
+//                                   |___|      
+//Link                               |   |      
+//Failure ___________________________|   |______
+//
+//A = Link failure will be set after a 3 * 200 ms have passed without receiving a 
+//lifesign
+//
+//B = Link failure will be reset when a lifesign is received
+// Count a missing LifeSign signal after each 200ms without a signal from the 
+//server
+      L     #s_Time_Since_Last_LS; 
+      L     200; 
+      >=I   ; 
+      JCN   BA01; 
+
+      L     #s_LifeSign_Error_Counter; // THEN increase the LifeSign Error Counter
+      +     1; 
+      T     #s_LifeSign_Error_Counter; 
+
+      L     0; 
+      T     #s_Time_Since_Last_LS; 
+
+// Report Communication Error
+BA01: L     #s_LifeSign_Error_Counter; 
+      L     3; 
+      >=I   ; 
+      JCN   BA99; 
+      S     #s_Connection_Error; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Handle outputs
+
+      NOP   0; 
+// Handle send lifesign output
+      A     #s_Snd_Lifesign_Reply; 
+      A     #i_Available_IO; 
+      =     #o_Snd_Lifesign_Reply; 
+
+// Handle link error output
+      A     #s_Connection_Error; 
+      A     #i_Available_IO; 
+      =     #o_ST_Link_Error; 
+
+END_FUNCTION_BLOCK
+

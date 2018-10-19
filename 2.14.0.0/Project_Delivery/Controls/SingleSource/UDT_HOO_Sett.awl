@@ -1,0 +1,22 @@
+TYPE "UDT_HOO_Sett"
+TITLE =%version: 0.01 % CN: 10
+//History:                                   
+//This version  %created_by: nlsdw %
+//              %date_created: Thursday, June 15, 2017 8:59:34 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Revision                                      nlSdW    15-06-17   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Minimum_Gap : INT ;	//[cm] Minimum gap length between products (0 = no gap control)
+   Add_Gap_Stop : INT ;	//[cm] Additional gap after stop of upstream conveyor
+   Minimum_H2H : INT ;	//[cm] Minimum head to head length (0 = no head to head control)
+   Add_H2H_Stop : INT ;	//[cm] Additional head to head length after stop of upstream conveyor
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,299 @@
+FUNCTION_BLOCK "FB_OPO_HBZ_Ins_Ctrl"
+TITLE =%version: 0.02 % CN: 50
+//Function:
+//This block facilitates a position where a 'service' bag can be inserted, which 
+//can be used to test the screening machine image (quality).
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Thursday, February 23, 2017 10:33:36 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#8499: Development                                   nldy    23-02-17  0.02
+//Initial version based on version 0.07 in BHS_ESO_GEN   nldy    15-11-16  0.01
+//
+//
+//Description:
+//When the 'service mode' key swith is activated, the sytem will clear the HBZ and
+//disable the upstream flow. When this is done, the upstream belt of the screening 
+//machine will halt. A testbag can now be introduced and dispatched.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Event : BLOCK_DB ;	//Data structure: Event DB
+  i_DB_PLT_1_OPZ_Infeed : BLOCK_DB ;	//Data structure: Position datablock
+  i_CFG_Unattented_TimeOut : INT  := 60;	//CFG: [0.1sec] Timeout for unattened bag or position
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link.
+  i_CMD_Reset : BOOL ;	//CMD: Command from equipment control "Reset"
+  i_PBB_ASI_NotPrsnt : BOOL ;	//ASI is Not Present
+  i_PBB_ASI_Error : BOOL ;	//ASI has an Error
+  i_IO_KS_Test_Mode : BOOL ;	//HW: KS test mode for IQT image quality test bag handling
+  i_IO_PB_Dispatch : BOOL ;	//HW: PB Dispatch a baggage item
+  i_IO_PB_Confirm_Removal : BOOL ;	//HW: Pushbutton Bag removed from OPS
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_HBZ_Items_Present : BOOL ;	//Items present in HBZ zone
+  i_HBZ_Ready : BOOL  := TRUE;	//HBZ is ready to receive test bags
+END_VAR
+VAR_OUTPUT
+  o_IO_SL_Create_Position : BOOL ;	//HW: Indication for insertion of a new baggage item
+  o_TRS1_Req_Halt : BOOL ;	//Request halt coding section
+  o_TRS1_IQT_Bag : BOOL ;	//TRS1 has an IQT item
+  o_PBB_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_PBB_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_ST_Test_Mode : BOOL ;	//ST: Status Test mode
+  o_ST_Unattended : BOOL ;	//ST: Status Unattended bag or position
+  o_Req_Dis_Send_Upst : BOOL ;	//Request Disable send upstream from coding section
+  o_IQT_Active : BOOL ;	//ST: Service mode: Image Quality Test activated
+  o_Req_Confirm_Removal : BOOL ;	//A bag was dispatched and removal not confirmed yet
+END_VAR
+VAR
+  s_Create_Position_State : STRUCT 	//Created states
+   Creating_Position : BOOL ;	//Creating position for a new baggage item to be inserted
+   Waiting_For_Bag : BOOL ;	//Waiting for a baggage item to be inserted after a position has been created
+   Waiting_For_Dispatch : BOOL ;	//Waiting for a Dispatch message from MCS after a position has been created
+   Hand_Over_Bag : BOOL ;	//Item being handed over to downstream section
+   Waiting_For_Bag_Removal : BOOL ;	
+  END_STRUCT ;	
+  s_TMR_Unattended_TO : INT ;	//Counter for time-out on unattended bag or position
+  s_PEC_Latch : BOOL ;	//PEC Latch of EOS in PLT DB
+  s_Section_Empty : BOOL ;	//If no items, section is empty
+  s_ST_Unattended : BOOL ;	//Status Unattended bag or position
+  s_FP_KS_Service_Mode : BOOL ;	//Positive flank on key switch service mode
+  s_FN_Wait_F_Bag_Removal : BOOL ;	//FN wait for bag removal = FP IQT bag removed
+END_VAR
+VAR_TEMP
+  t_Event_DB_Num : INT ;	//Number of the Local Event DB
+  t_PLT_DB_Nr : INT ;	//DB number of PLT
+  t_Section_Length : INT ;	//Section length of coding section
+  t_Int_Not_Used : INT ;	//Temp return value not used
+  t_Number_Items_Found : INT ;	//Number of items found
+  t_Start_Unattended_Timer : BOOL ;	//Start the unattended bag warning counter
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retrieve data from PLT
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      OPN   #i_DB_PLT_1_OPZ_Infeed; // Open tracking DB
+      L     DBNO; 
+      T     #t_PLT_DB_Nr; // Determine tracking block DB number
+
+      A     DBX   10.7; 
+      =     #s_PEC_Latch; 
+
+      L     DBW   12; 
+      T     #t_Section_Length; 
+NETWORK
+TITLE =BA: Handle PBB ASI errors
+
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_PBB_ST_ASI_NotPrsnt; 
+      R     #o_PBB_ST_ASI_Error; 
+
+      A     #i_PBB_ASI_NotPrsnt; 
+      A     #i_Available_IO; // No Fieldbus master error and power is supplied
+      S     #o_PBB_ST_ASI_NotPrsnt; // ASI: Slave is not present
+
+      A     #i_PBB_ASI_Error; 
+      A     #i_Available_IO; // No Fieldbus master error and power is supplied
+      S     #o_PBB_ST_ASI_Error; // ASI: Slave has an error    
+NETWORK
+TITLE =CA: Determine empty positions
+// Check TRS1 for items
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      =     #s_Section_Empty; 
+NETWORK
+TITLE =DA: Create empty position, wait for bag and dispatch
+// Init
+      AN    #i_HBZ_Items_Present; 
+      A     #i_IO_PB_Confirm_Removal; 
+      R     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+
+// Step 1: Create empty position
+      A     #i_IO_KS_Test_Mode; // Create position on key switch
+      FP    #s_FP_KS_Service_Mode; 
+      AN    #s_Create_Position_State.Waiting_For_Bag; 
+      AN    #s_Create_Position_State.Waiting_For_Dispatch; 
+      AN    #s_Create_Position_State.Hand_Over_Bag; 
+      AN    #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      S     #s_Create_Position_State.Creating_Position; 
+
+// Step 2: Empty position created - wait for bag insert
+      A     #s_Create_Position_State.Creating_Position; 
+      A     #i_IO_KS_Test_Mode; 
+      O(    ; 
+      A     #s_Create_Position_State.Waiting_For_Bag_Removal; // Or when previous previous test bag removed
+      FN    #s_FN_Wait_F_Bag_Removal; 
+      )     ; 
+      A(    ; 
+      A     #s_Section_Empty; 
+      AN    #s_PEC_Latch; 
+      O     #o_IQT_Active; 
+      )     ; 
+      AN    #i_HBZ_Items_Present; 
+      AN    #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      S     #s_Create_Position_State.Waiting_For_Bag; 
+
+      A     #s_Create_Position_State.Waiting_For_Bag; 
+      ON    #i_IO_KS_Test_Mode; 
+      R     #s_Create_Position_State.Creating_Position; 
+
+// Step 3: Bag insert - wait for dispatch
+      A     #s_Create_Position_State.Waiting_For_Bag; 
+      A     #s_PEC_Latch; 
+      S     #s_Create_Position_State.Waiting_For_Dispatch; 
+      JCN   DA01; 
+
+      CALL "FC_Reg_LNK_In_PLT" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+DA01: A     #s_Create_Position_State.Waiting_For_Dispatch; // Bag removed without dispatch
+      AN    #s_PEC_Latch; 
+      S     #s_Create_Position_State.Waiting_For_Bag; 
+      R     #s_Create_Position_State.Waiting_For_Dispatch; 
+      JCN   DA02; 
+
+      CALL "FC_Dereg_LNK_In_PLT" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           i_Arrived_Position       := 0);
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+DA02: A     #s_Create_Position_State.Waiting_For_Dispatch; 
+      ON    #i_IO_KS_Test_Mode; 
+      R     #s_Create_Position_State.Waiting_For_Bag; 
+
+// Step 4: Dispatch. Hand over to screening machine
+      A     #s_Create_Position_State.Waiting_For_Dispatch; 
+      A     #i_IO_PB_Dispatch; 
+      A     #i_HBZ_Ready; 
+      S     #s_Create_Position_State.Hand_Over_Bag; 
+
+      A     #s_Create_Position_State.Waiting_For_Dispatch; // On transition to handover state
+      A     #s_Create_Position_State.Hand_Over_Bag; 
+      JCN   DA03; 
+
+      CALL "FC_PLT_Write" (// Make TRS run at least 1 length to transport bag
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Position               := #t_Section_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+DA03: A     #s_Create_Position_State.Hand_Over_Bag; 
+      R     #s_Create_Position_State.Waiting_For_Dispatch; 
+
+// Step 5: Hand over complete
+      A     #s_Create_Position_State.Hand_Over_Bag; 
+      A     #s_Section_Empty; 
+      JCN   DA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      AN    #s_PEC_Latch; 
+      R     #s_Create_Position_State.Hand_Over_Bag; 
+      S     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Unattended status
+
+      A     #s_Create_Position_State.Waiting_For_Dispatch; 
+      =     #t_Start_Unattended_Timer; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Start_Unattended_Timer,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #i_CFG_Unattented_TimeOut,
+           i_Current_Value          := #s_TMR_Unattended_TO,
+           o_Status                 := #s_ST_Unattended,
+           o_Current_Value          := #s_TMR_Unattended_TO);
+
+NETWORK
+TITLE =FA: Signaling
+
+      A     #s_Create_Position_State.Creating_Position; 
+      A     "M_System_Clock_1.0_sec."; 
+      O     #s_Create_Position_State.Waiting_For_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Dispatch; 
+      =     #o_IO_SL_Create_Position; 
+NETWORK
+TITLE =GA: Flow control
+
+      A     #s_Create_Position_State.Creating_Position; 
+      O     #s_Create_Position_State.Waiting_For_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Dispatch; 
+      O     #s_Create_Position_State.Hand_Over_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      O     #i_IO_KS_Test_Mode; 
+      =     #o_Req_Dis_Send_Upst; 
+
+      A     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      A     #o_IQT_Active; 
+      O     #s_Create_Position_State.Waiting_For_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Dispatch; 
+      =     #o_TRS1_Req_Halt; 
+NETWORK
+TITLE =HA: Write outputs
+
+      A     #s_Create_Position_State.Waiting_For_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Dispatch; 
+      O     #s_Create_Position_State.Hand_Over_Bag; 
+      O     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      =     #o_IQT_Active; 
+
+      A     #s_Create_Position_State.Waiting_For_Dispatch; 
+      O     #s_Create_Position_State.Hand_Over_Bag; 
+      =     #o_TRS1_IQT_Bag; 
+
+      A     #s_ST_Unattended; 
+      =     #o_ST_Unattended; 
+
+      A     #i_IO_KS_Test_Mode; 
+      =     #o_ST_Test_Mode; 
+
+      A     #s_Create_Position_State.Waiting_For_Bag_Removal; 
+      AN    #i_HBZ_Items_Present; 
+      =     #o_Req_Confirm_Removal; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,35 @@
+FUNCTION_BLOCK "Instance_DBs_Symbol"
+TITLE =%version: 0.03 % CN: 00
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, December 19, 2016 9:26:51 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Changed name to "Instance_DBs_Symbol"                 nleg     14-02-18   0.03
+//Changed name to "Generate_Instance_DBs_Symbol_Table"  nleg     19-12-16   0.02
+//Initial version                                       nleg     28-06-16   0.01
+//
+//
+//This block is mis-used to generate symbol table for instance DB's
+//After generation copy symbols to symbol table and delete everything.
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+
+END_FUNCTION_BLOCK
+

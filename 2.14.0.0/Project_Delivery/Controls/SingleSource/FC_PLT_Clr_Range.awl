@@ -1,0 +1,278 @@
+FUNCTION "FC_PLT_Clr_Range" : VOID
+TITLE =%version: 1.02 % CN: 32
+//Function:
+//The range is from the position with a defined window.
+//The Data which is cleared is report via events.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:07:23 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//20460: Corrected header pointer calc. and PLT sorting nltny    02-09-14   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.07 of PLT version 0
+//
+//Description:
+//This functionblock is able to clear a part of the PLT DB on the position 
+//with the defined window.
+//
+//
+//                      Position     
+//                         |<--window-->|
+//         ____________________________________                                   
+//              
+//                 ===flow-direction===>                                          
+//          
+//         ____________________________________                                   
+//                         ^          ^
+//                         |          |
+//               i_Window  <----------|
+//                                i_Position     
+//                                               
+//                                                                          
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Position : INT ;	//SETT: [cm] Position where to clear
+  i_Window : INT ;	//SETT: [cm] downstream window
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Search_Start_Position : INT ;	//t_Search_Start_Position = i_Position
+  t_Search_End_Position : INT ;	//t_Search_End_Position = i_Position - Displacement
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+  t_Info : INT ;	//Read Info
+  t_Data : INT ;	//Read data 
+  t_Write_Entry : DWORD ;	//Pointer to the entry to write
+  t_Entries_Cleared : INT ;	//Number of cleared entries
+  t_Backup_AR1 : DWORD ;	//Backup of AR1 (needed because of internal FC Call)
+  t_Data_Dword1 : DWORD ;	//Base address
+  t_Data_Dword2 : DWORD ;	//Base address
+  t_Ret_Event : INT ;	//Return value for Write Event
+  t_LIC : INT ;	//LIC Data from LNK
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Open PLT DB
+// 
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+NETWORK
+TITLE =BA: Check if entries are filled in PLT DB
+// 
+      L     DBW    0; 
+      L     0; // Number of entry,s used in PLT DB
+      <=I   ; 
+      BEC   ; // end function
+
+NETWORK
+TITLE =CA: Calculate pointer to data in first record PLT DB  
+// 
+      L     DBW    0; // Number of entries used in PLT DB
+      T     #t_Cnt_Entry; // Copy used entries
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+NETWORK
+TITLE =DA: Calculate start- and end-position of search-window
+// 
+      L     #i_Position; 
+      L     DBW    2; 
+      -I    ; 
+      T     #t_Search_Start_Position; // Search_Start_Position = Position - Displacement
+
+      L     #i_Position; 
+      L     #i_Window; 
+      +I    ; 
+      T     #t_Search_End_Position; // Search_End_Position = Position + Window
+
+      L     0; 
+      T     #t_Entries_Cleared; 
+NETWORK
+TITLE =EA: Search for data in search-window
+// 
+EA01: L     #t_Search_Start_Position; // START OF SEARCH-LOOP
+      L     DBW [AR1,P#0.0]; // Actual entry position 
+      <=I   ; // IF Search-Start-position < read position THEN jump to decrease pointer  
+      JCN   EA03; // THEN jump to decrement pointer 
+
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      L     #t_Search_End_Position; 
+      >I    ; // ELSE Actual-position >= Search-End-Position jump to make outputs  
+      JCN   EA02; // THEN data found  
+
+      JU    EA04; // ELSE jump to no data found end of search-loop
+
+//Delete entry and report if data present
+EA02: L     #t_Entries_Cleared; 
+      +     1; 
+      T     #t_Entries_Cleared; // Increase number of cleared entries 
+
+      L     DBW [AR1,P#6.0]; // Check data for report
+      T     #t_Data; // IF data = (UFO)LNK
+
+      L     0; // Clear entry 
+      T     DBD [AR1,P#0.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     #t_Data; // IF data = (UFO)LNK
+      L     0; 
+      >I    ; 
+      JCN   EA03; // Goto Next entry
+
+// Backup contents of AR1
+      TAR1  ; 
+      T     #t_Backup_AR1; 
+
+      CALL "FC_Write_Event" (// THEN report event "LNK lost due to clear PLT" (3801)
+           i_Message_ID             := 3801,
+           i_Event_value            := #t_Data,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      CALL "FC_Write_Event" (// Report PLT DB number (3803)
+           i_Message_ID             := 3803,
+           i_Event_value            := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+//Restore AR1
+      L     #t_Backup_AR1; 
+      LAR1  ; 
+
+// Check and decrease the loop counter
+EA03: L     #t_Cnt_Entry; 
+      L     1; 
+      -I    ; 
+      JZ    EA04; // Check entries stop if entry = 0
+      T     #t_Cnt_Entry; 
+
+      TAR1  ; // Read Entry pointer of address-register
+
+      L     P#8.0; // 8 bytes for each record increase pointer with 1 entry.
+      -D    ; // Entry pointer = Entry pointer - P#8.0
+
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    EA01; // GOTO START OF SEARCH-LOOP
+
+EA04: L     #t_Entries_Cleared; 
+      L     0; 
+      <=I   ; 
+      JCN   EA99; // IF entries are cleared then delete the cleared entries
+
+      BEU   ; // End Block if not found
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Delete cleared entries and sort list.
+
+      LAR1  P#14.0; // Pointer to first entry (DBW14)
+      TAR1  ; 
+      T     #t_Backup_AR1; 
+      T     #t_Write_Entry; 
+
+      L     DBW    0; 
+      T     #t_Cnt_Entry; // Copy used entries
+
+FA01: L     DBW [AR1,P#4.0]; // Actual-info 
+      L     0; 
+      ==I   ; 
+      JCN   FA02; 
+
+// IF entry = cleared, move read position 1 entry forward
+// Pointer to write entry
+      L     #t_Backup_AR1; 
+      L     P#8.0; 
+      +D    ; 
+      LAR1  ; 
+      TAR1  #t_Backup_AR1; 
+
+//Loop to next entry
+      L     #t_Cnt_Entry; 
+      L     1; 
+      -I    ; 
+      T     #t_Cnt_Entry; 
+      JZ    FA04; 
+
+      JU    FA01; 
+
+// Write entry
+FA02: L     DBD [AR1,P#0.0]; 
+      T     #t_Data_Dword1; 
+      L     DBD [AR1,P#4.0]; 
+      T     #t_Data_Dword2; 
+
+      LAR1  #t_Write_Entry; 
+
+      L     #t_Data_Dword1; 
+      T     DBD [AR1,P#0.0]; 
+
+      L     #t_Data_Dword2; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     #t_Write_Entry; 
+      L     P#8.0; // 8 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#8.0
+      LAR1  ; // Store Entry pointer in address-register 
+      TAR1  #t_Write_Entry; 
+
+      L     #t_Backup_AR1; 
+      L     P#8.0; // 8 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#8.0
+      LAR1  ; // Store Entry pointer in address-register 
+      TAR1  #t_Backup_AR1; 
+
+//Loop to next entry
+      L     #t_Cnt_Entry; 
+      L     1; 
+      -I    ; 
+      T     #t_Cnt_Entry; 
+      JZ    FA04; 
+
+      JU    FA01; // GOTO START OF SEARCH-LOOP
+
+//Write entries used after cleared
+FA04: L     DBW    0; 
+      L     #t_Entries_Cleared; 
+      -I    ; 
+      T     DBW    0; 
+
+      L     #t_Entries_Cleared; 
+
+//Clear entries which where deleted
+FA05: T     #t_Entries_Cleared; 
+      LAR1  #t_Write_Entry; 
+
+      L     0; 
+      T     DBD [AR1,P#0.0]; 
+
+      L     0; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     #t_Write_Entry; 
+      L     P#8.0; // 6 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#6.0
+      LAR1  ; // Store Entry pointer in address-register 
+      TAR1  #t_Write_Entry; 
+
+      L     #t_Entries_Cleared; 
+      LOOP  FA05; 
+
+END_FUNCTION
+

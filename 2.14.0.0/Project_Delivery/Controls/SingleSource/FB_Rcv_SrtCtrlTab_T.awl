@@ -1,0 +1,237 @@
+FUNCTION_BLOCK "FB_Rcv_SrtCtrlTab_T"
+TITLE =%version: 0.05 % CN: 32
+//Function:
+//Handle received message body 'SortControlTableUpdate' 
+//                                                                        
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Friday, July 28, 2017 1:41:41 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23442: Corrected event number for table update     inrjoi   28-07-17   0.05
+//ra#23460: Check DB length for Msgs with tableindex    nlHdL    19-06-17   0.04
+//ra#19599: Update Sort Control message stack height    nlJMol   31-01-17   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//ra#9358: SortControlUpdate wrong loop address         nlHdL    10-11-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.01
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on version 0.04 TTC            nlHdL    26-02-14   0.01
+//
+//Description:
+//Handle received message body 'SortControlTableUpdate' 
+//                                                                        
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//Any pointer to received message body
+  i_DB_Event_Num : INT ;	//Number of the Event DB
+END_VAR
+VAR
+  s_SrtCtrlUpdate : "UDT_Msg_SrtCtrlTab_T";	//Sort Control Table Update
+  s_SrtCtrl_DB_number : INT ;	//Sort Control table DB number
+  s_Loop_Count : INT ;	//Loop counter
+END_VAR
+VAR_TEMP
+  t_ANY_Rcv_Msg_Body : ANY ;	//Any pointer to received message body
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_Area_Zone_Section_ID : DINT ;	//Calculating Area_Zone_Section_ID
+  t_Ret_Val_Int : INT ;	//Return Value (int)
+  t_Loop_Counter : INT ;	//Number of entries in TableDB
+  t_Allowed_Loop_Count : INT ;	//Counter for allowed loops
+  t_SrtCtrl_DB_number : INT ;	//Sort Control table DB number
+  t_Stack_Size : INT ;	//Stack size (Default 1 = Single carrier)
+  t_Tub_Type : INT ;	//Tub Type. 1=SBT 2=OBT
+  t_Tub_Status : INT ;	//Tub Status. 1=Empty 2=Loaded 3=Maintenance 4=Inspection
+  t_Number_Of_Tubs : INT ;	//Number of Tubs
+  t_TrainLength : INT ;	//Ratio X
+  t_AllowedSorting : INT ;	//Ratio Y
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_SrtCtrlUpdate.Body);
+NETWORK
+TITLE =CA: Open Table
+
+      OPN   "DB_SrtCtrlTabIndex_T"; 
+
+      L     DBLG; 
+      L     8; //one entry is 8 bytes long
+      /D    ; 
+      T     #t_Loop_Counter; 
+      L     0; 
+      ==I   ; 
+      BEC   ; // End if no entries present
+
+// Calculate Area_Zone_Section_ID                                     
+      L     #s_SrtCtrlUpdate.Body.AreaID; 
+      L     L#10000; 
+      *D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+      L     #s_SrtCtrlUpdate.Body.ZoneID; 
+      L     100; 
+      *D    ; 
+      L     #t_Area_Zone_Section_ID; 
+      +D    ; 
+      L     #s_SrtCtrlUpdate.Body.EquipmentID; 
+      +D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+
+// Set a pointer to the first entry
+      L     P#DBX 0.0; 
+      LAR1  ; 
+      JU    CA02; 
+
+// Set the pointer to the next entry
+CA01: L     P#8.0; 
+      +AR1  ; 
+
+// Decrease the loop counter
+CA02: L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+
+// Load and compare Area_Zone_Section_ID
+      L     D [AR1,P#0.0]; 
+      L     #t_Area_Zone_Section_ID; 
+      ==D   ; 
+      JC    CA99; 
+
+// Check loop counter
+      L     #t_Loop_Counter; 
+      L     0; 
+      <=I   ; 
+      JCN   CA01; 
+
+// Return no data (0) with failure (RETVAL = -1)
+      L     0; 
+      T     #s_SrtCtrl_DB_number; 
+
+      CALL "FC_Write_Event" (// Report event "Received Handling Area Table Update rejected"(3208)
+           i_Message_ID             := 3208,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      BEU   ; 
+
+// Return data with succes (RETVAL = 0)
+CA99: L     W [AR1,P#4.0]; 
+      T     #s_SrtCtrl_DB_number; 
+
+      L     W [AR1,P#6.0]; 
+      T     #t_Stack_Size; 
+
+NETWORK
+TITLE =DA: Handle received message body
+
+      NOP   0; 
+// Preset the maximum number of allowed loops.
+// A message contains a maximum of 4 entries.
+      L     4; 
+      T     #t_Allowed_Loop_Count; 
+
+// Reset the loop counter
+      L     0; 
+      T     #s_Loop_Count; 
+
+// Determine the address of the first entry
+      L     P##s_SrtCtrlUpdate; 
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+
+      L     P#16.0; // Release control information starts at 16 bytes from start of message body
+      JU    DA01; 
+
+LOOP: L     P#10.0; // Load the address to the next entry (one entry is 12 bytes long)
+DA01: +AR1  ; 
+
+      L     #s_Loop_Count; // Increase loop counter
+      L     1; 
+      +I    ; 
+      T     #s_Loop_Count; 
+
+      L     W [AR1,P#0.0]; // Copy tub type
+      T     #t_Tub_Type; 
+
+      L     W [AR1,P#2.0]; // Copy tub status
+      T     #t_Tub_Status; 
+
+      L     W [AR1,P#4.0]; // Copy number of tubs
+      T     #t_Number_Of_Tubs; 
+
+      L     W [AR1,P#6.0]; // Copy ratio X
+      T     #t_TrainLength; 
+
+      L     W [AR1,P#8.0]; // Copy ratio Y
+      T     #t_AllowedSorting; 
+
+      CALL "FC_Wrt_SrtCtrlEntr_T" (
+           i_SrtCtrlDB_Nr           := #s_SrtCtrl_DB_number,
+           i_Stack_Size             := #t_Stack_Size,
+           i_Tub_Type               := #t_Tub_Type,
+           i_Tub_Status             := #t_Tub_Status,
+           i_Number_Of_Tubs         := #t_Number_Of_Tubs,
+           i_TrainLength            := #t_TrainLength,
+           i_AllowedSorting         := #t_AllowedSorting);
+
+// Only loop if the tub type field of the next entry > 0
+// and loop counter has not reached the allowed number.
+      L     W [AR1,P#10.0]; 
+      L     0; 
+      >I    ; 
+      JCN   END; 
+
+      L     #s_Loop_Count; 
+      L     #t_Allowed_Loop_Count; 
+      <I    ; 
+      JC    LOOP; 
+
+END:  L     #s_SrtCtrl_DB_number; 
+      T     #t_SrtCtrl_DB_number; 
+      OPN   DB [#t_SrtCtrl_DB_number]; 
+
+      SET   ; 
+      =     DBX    0.0; 
+
+END_FUNCTION_BLOCK
+

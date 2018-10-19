@@ -1,0 +1,30 @@
+TYPE "UDT_PN_Msg_Lifesign"
+TITLE =%version: 0.04 % CN: 10
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 15:50:33 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//23824: Remove station ID                              nlMlaut  29-04-15   0.04
+//20899: remove filler from PNPN Lifesign               nlHdL    16-09-14   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Header : STRUCT 	//Telegram Header
+    EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+    Message_Type : INT ;	//100 = Handover message, 200 = lifesign request, 201 = lifesign reply
+    Message_Identifier : DINT ;	//Message indentifier SSSTLLLL (SSS = Sequence number T = Type LLLL = LIC number)
+   END_STRUCT ;	
+   Sequence_Number : INT ;	//LifeSign sequence ID number
+  END_STRUCT ;	
+END_TYPE
+

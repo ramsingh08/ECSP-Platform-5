@@ -1,0 +1,161 @@
+FUNCTION_BLOCK "FB_Radiation_Check"
+TITLE =%version: 0.07 % CN: 40
+//Function:
+//Radiation Check Object
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Tuesday, October 04, 2016 3:21:12 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17622: FB_Radiation_Check wrong statistical ID     nlHdL    04-10-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    01-11-12   0.05
+//CR6275 no modification                                 nlple   14-01-11   0.04
+//Changed the Compile number                             inpna   04-10-10   0.03
+//Send Statistical one shot pulse removed                inpna   04-10-10   0.02
+//Initial version                                        inpna   04-10-10   0.01
+//
+//Description:
+//Radiation Check Object
+//The Radiation check object is used to continuously detect the Radiation 
+//material 
+//in a desired area, if anything detected it will communicate to the PLC through 
+//Dry contact.
+//Normal or Auto operation:-
+//In the situation when the bag is detected for radiation, then associative 
+//conveyor will be stopped, Radiation detected signal lamp will be on & Buzzer 
+//will be on. Then manual intervention is required. 
+//
+//By-Pass Operation:-
+//When the Radiation check object is By-Passed
+//It will be reset the "Radiation detected signal lamp" & Buzzer.
+//It will set the Status indication "By-Pass
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IO_NOT_RAD_Detected : BOOL ;	//HW: Radiation Bag detected (TRUE= no Alarm) (False= Radiation Detected)
+  i_IO_KS_Reset : BOOL ;	//HW: Key switch for Reset (Tip signal)
+  i_IO_KS_ByPass : BOOL ;	//HW: By-Pass for RCO (Tip signal)
+END_VAR
+VAR_OUTPUT
+  o_IO_SL_RAD_Detected : BOOL ;	//HW: Light that indicates Radiation is detected
+  o_IO_SL_RCO_ByPass : BOOL ;	//HW: Light that indicates Radiation Check object is By-Passed
+  o_IO_BP : BOOL ;	//HW: Buzzer for Radiation is  detected
+  o_ST_Radiation_Detected : BOOL ;	//ST: Radiation is detected
+  o_ST_RCO_By_Passed : BOOL ;	//ST: Radiation check object is by-passed
+  o_CMD_Request_Stop : BOOL ;	//CMD: Request Stop
+END_VAR
+VAR
+  s_Radiation_Detected : BOOL ;	//Radiation bag detected
+  s_RCO_By_Passed : BOOL ;	//Radiation check object bybassed
+  s_FP_IO_KS_ByPass : BOOL ;	//+ve Edge of the ByPass key switch
+  s_FP_RAD_Detcted : BOOL ;	//+ve edge of the Radiation item detected
+  s_Number_RAD_Detected : INT ;	//Number of Radiation item detected
+  s_DB_Num_Event : INT ;	//DB_Event Number
+END_VAR
+VAR_TEMP
+  t_WR_Event_Return_Value : INT ;	//FC_Write_Event Return value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine Radiation check object By-Passed 
+//LAD
+      A     #i_IO_KS_ByPass; //IF Key switch to By Pass the Radiation check object
+      A     #i_Available_IO; //IF I/O Slave available
+      S     #s_RCO_By_Passed; //Then Set the By-Pass Memory 
+      S     #o_ST_RCO_By_Passed; //Then set the Status "Radiation check object" is Bypassed to OP/SCADA
+      S     #o_IO_SL_RCO_ByPass; 
+NETWORK
+TITLE =BA: Determine the Radiation Detected
+//LAD!
+      A     #i_CMD_Enable; //IF Enable command
+      A     #i_Available_IO; //IF I/O Slave available
+      AN    #s_RCO_By_Passed; //AND-NOT RCO Bypassed
+      AN    #i_IO_NOT_RAD_Detected; //AND_NOT Radiation detected
+      S     #s_Radiation_Detected; //THEN Radiation bag is Detected
+NETWORK
+TITLE =CA: Reset the Radiation detected and By-Pass Mode
+//LAD!
+      A     #i_IO_KS_Reset; //IF Key switch is in Reset position
+      A     #i_IO_NOT_RAD_Detected; //AND Radiation is not Detected 
+      ON    #i_Available_IO; //IF-NOT I/O Slave available 
+      O(    ; 
+      A     #i_IO_KS_Reset; //IF Key switch is in BY-Pass position
+      A     #s_RCO_By_Passed; //FP of Key switch is in BY-Pass position
+      )     ; 
+      O(    ; 
+      A     #i_IO_KS_ByPass; //IF Key switch is in Reset position
+      FP    #s_FP_IO_KS_ByPass; //AND By-Pass Memory 
+      )     ; //Then Reset the Radiation bag detected
+      R     #s_Radiation_Detected; //Then reset the Status BY-Pass 
+      R     #o_ST_RCO_By_Passed; //Reset the memory BY-Pass
+      R     #s_RCO_By_Passed; 
+      R     #o_IO_SL_RCO_ByPass; 
+NETWORK
+TITLE =DA: Signal Lamp and Request stop for Radiation detected
+//LAD!
+      A     #s_Radiation_Detected; //IF Radiation bag is detected
+      =     #o_IO_SL_RAD_Detected; //Then set Signal Lamp
+      =     #o_ST_Radiation_Detected; //Then Set the status Radiation bag is detected to OP/SCADA
+      =     #o_CMD_Request_Stop; //Then Set the Command to stop the Conveyor
+NETWORK
+TITLE =EA: Buzzer for Radiation detected
+//LAD!
+      A     #s_Radiation_Detected; //IF Radiation bag is detected
+      A     "M_System_Clock_1.0_sec."; //AND every 1 Sec Pulse 
+      =     #o_IO_BP; //Then set the Buzzer Output
+NETWORK
+TITLE =FA: Statistical number of Radiation item detcted
+
+      A     #s_Radiation_Detected; //IF Radiation detected
+      FP    #s_FP_RAD_Detcted; //+ve edge of the Radiation detected
+      JCN   FA99; 
+
+      L     #s_Number_RAD_Detected; //Static memory number of Radiation detected
+      L     32767; //Maximum Integer value
+      <=I   ; 
+      JCN   FA99; 
+
+      L     #s_Number_RAD_Detected; //Increment the memory on radiation detection
+      +     1; 
+      T     #s_Number_RAD_Detected; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Copy Statistical to DB_Event
+
+      A     #i_CMD_Send_Stat; // IF Command send statisticals
+      JCN   GA99; 
+
+//--Open the DB_Event
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+//--write the number of Radiation detcted Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Number_RAD_Detected,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--Clear the static
+      L     0; 
+      T     #s_Number_RAD_Detected; 
+
+GA99: NOP   0; 
+END_FUNCTION_BLOCK
+

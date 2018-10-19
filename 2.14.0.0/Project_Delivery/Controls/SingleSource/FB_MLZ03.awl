@@ -1,0 +1,371 @@
+FUNCTION_BLOCK "FB_MLZ03"
+TITLE =%version: 1.14 % CN: 55
+//Function:
+//- Fixed/control part of Make up Lateral Zone type 03 (MLZ03)
+//
+//History:
+//This version  %created_by:  nluhl %
+//              %date_created:  Monday, September 17, 2018 9:15:00 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10452: Adjust s_ to t_TRS_CMD_Run_Section         nluhl    17-09-18   1.14
+//ina#10452: Controlled stop added to disable flow      nluhl    26-06-18   1.13
+//ra#24155 : Startup not working                        nlHdL    27-09-17   1.12
+//veg#1070 : End PLT initiate cascade startup           nlHdL    27-09-17   1.11
+//ra#24634 : Update DAT Layer                           nlHdL    01-09-17   1.10
+//ra#22681 : Force run for MLZ03                        nlHdL    07-08-17   1.09
+//ra#23268 : Not used SOS PEC removed                   nlSdW    06-07-17   1.08
+//ra#20277 : MLZ no items status                        nlHdL    23-03-17   1.07
+//ra#21373 : Deregister item on MLZ01/03                nlHdL    20-03-17   1.06
+//ra#20419 : Add gravity into MLZ01                     nlHdL    14-02-17   1.05
+//ra#47812 : Flow control configuration                 nlJClo   24-01-17   1.04
+//ra#18817: Clear PLT function Update                   inajos   07-12-16   1.03
+//ra#16880:add _F for fixed part                        nlJClo   04-10-16   1.02
+//ra#16880:Changed "i_CFG_Run_Out_Distance"             nlJClo   04-10-16   1.02
+//ra#16880: Initial version                             nlJClo   06-09-16   1.01
+//
+//
+//Description: 
+//
+//The block fulfills the following functions:
+//- Start/stopping the MLZ
+//- Status reporting
+//- Cascade start up
+//- Accumulation function
+//
+//The MLZ will be controlled with the following transport control functions:
+//- Die-back control
+//- Cascade starting
+//- Run signal equipment
+//- Displacement
+//- External interfacing
+//
+//The hardware LMS block fulfils the following functions:
+//- Monitoring ASI address (not present/error)
+//- Monitoring motor connection
+//- Monitoring LMS healthy
+//- Run motor signal
+//
+//The MLZ itself has no tracking functionality. 
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Controlled_Stop : BOOL ;	//CMD: Controlled Stop
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_SLC_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_SLC_ASI_Error : BOOL ;	//ASI: Slave has an error
+  i_DB_PLT_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock Upstream section
+  i_CFG_Gap : INT ;	//CFG: [cm] Gap between the Baggage
+  i_CFG_Run_Out_Dis_Upstr : INT ;	//CFG: [cm] Run out distance from the upstream section
+  i_CFG_StartUp_Time : INT  := 5000;	//CFG: [ms] start up time
+  i_Local_Destination : INT ;	//CFG: Destination of this section. Only needed if upstream has tracking
+  i_TRS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS_Setting : "UDT_TRS_Bas1dir_Sett";	//Data structure: Setting Record
+  i_TRS_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock  
+  i_TRS_EXT_Inputs : "UDT_External_Inputs";	//Data Structure: external request signals TRS1
+  i_TRS_CFG_Block_Len : INT ;	//CFG: [cm] Delay for detecting PEC Blockage
+  i_TRS_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_TRS_CFG_Run_Out_Dist : INT ;	//CFG: [cm] Run out distance for the section
+  i_TRS_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS_IO_NOT_PEC_EOS : BOOL ;	//Fail-safe signal of PEC EOS (TRUE=no product detected)
+  i_TRS_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_TRS_Force_Run_MTR : BOOL ;	//Force run motor of TRS by shutter
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Req_Dis_Send_Infeed : BOOL ;	//Request disable send to infeed
+  o_MLZ_ST_Full : BOOL ;	//ST: MLZ is full
+  o_IO_SL_Start_Up : BOOL ;	//HW: Flashlight 
+  o_IO_BP_Start_Up : BOOL ;	//HW: Horn when starting up this level
+  o_SLC_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SLC_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_TRS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS_ST_Running : BOOL ;	//ST: Section is running 
+  o_TRS_ST_Started : BOOL ;	//ST: Started
+  o_TRS_ST_Request_Halt : BOOL ;	//ST: Request Halt
+  o_TRS_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_TRS_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS_ST_ASI_Error : BOOL ;	//ST: LMS ASI slave has an error
+  o_TRS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+END_VAR
+VAR
+  s_FB_MLZ_Control : "FB_MLZ_Control";	//Instance of MLZ Control block
+  s_TRS_FB_EQP_PEC : "FB_EQP_PEC";	//Instance of Equipment PEC
+  s_TRS_FB_EQP_Lean : "FB_EQP_Lean";	//Instance of Equipment Lean
+  s_TRS_FB_HW_MTR_LMS : "FB_HW_MTR_LMS";	//Instance of Motor LMS Driver
+  s_TRS_FB_DAT : "FB_DAT";	//Instance of Data Layer for section
+  s_MLZ_FB_DAT_PLC_Log : "FB_DAT_PLC_Log";	//Instance of PLC Data Layer for MLZ
+  s_SLC_FB_HW_ASI : "FB_HW_ASi";	//GAP PEC ASI Slave hardware layer
+  s_FB_StrtUp_Signal : "FB_Start_Up_Signal";	
+  s_TRS_EXT_Outputs : "UDT_External_Outputs";	//Section External Interface
+  s_PEC_Position : INT ;	//Position of the physical PEC
+  s_TRS_Req_Motor_Run : BOOL ;	//Request to run motor from equipment to hardware
+  s_TRS_EXT_Req_Stop : BOOL ;	//Request from external to stop section
+  s_TRS_EXT_Req_Run : BOOL ;	//Request from external to run the section
+  s_StrtUp_Signal_Req_Halt : BOOL ;	//Request halt
+  s_Request_Halt : BOOL ;	//Request halt
+  s_FL_Start_Up : BOOL ;	//Request flashlight start up
+  s_Horn_Start_Up : BOOL ;	//Horn start up
+  s_TRS_FL_Start_Up : BOOL ;	//Request flashlight start up
+  s_TRS_Horn_Start_Up : BOOL ;	//Horn start up
+  s_TRS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+END_VAR
+VAR_TEMP
+  t_EQP_PEC_LPOS : INT ;	//Real position of the bag on the tracking layer
+  t_Zone_ID : DWORD ;	//ID of the MLZ zone
+  t_TRS_Start_Up_Dist : INT ;	//Calculated start-up distance = run-out / 2
+  t_BOOL_Not_Used : BOOL ;	//Temp bool is not used (only connection)
+  t_DB_Num_Event : INT ;	//Number of the Event DB
+  t_DB_PLT_Num : INT ;	//PLT DB Number
+  t_TRS_IO_MTR_Fwd : BOOL ;	//Run signal to motor from HW block
+  t_TRS_CMD_Run_Section : BOOL ;	//Run request from Control block
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Call MLZ Control block
+//This block controls the MLZ behaviour
+      NOP   0; // Hold comments
+
+// Call MLZ Control Block
+      CALL #s_FB_MLZ_Control (
+           i_DB_PLT_UpStr           := #i_DB_PLT_UpStr,
+           i_DB_Event               := "DB_Event_Zone",
+           i_CFG_Gap                := #i_CFG_Gap,
+           i_CFG_Run_Out_Dis_Upstr  := #i_CFG_Run_Out_Dis_Upstr,
+           i_IO_NOT_PEC_EOS         := #i_TRS_IO_NOT_PEC_EOS,
+           i_IO_NOT_PEC_SOS         := FALSE,
+           i_Available_IO           := #i_Available_IO,
+           o_CMD_Run_Section        := #t_TRS_CMD_Run_Section,
+           o_Req_Dis_Send_Infeed    := #o_Req_Dis_Send_Infeed,
+           o_ST_MLZ_Full            := #o_MLZ_ST_Full);
+
+
+// Run CMD based on Control block or Controlled Stop
+      A     #t_TRS_CMD_Run_Section; 
+      AN    #i_CMD_Controlled_Stop; 
+      =     #s_TRS_EXT_Req_Run; 
+
+// Data handling MLZ
+      L     #i_TRS_ID; 
+      L     DW#16#FFFFFF00; 
+      AD    ; // mask to clear last to digits
+      T     #t_Zone_ID; 
+
+// Call PLC Data Layer
+      CALL #s_MLZ_FB_DAT_PLC_Log (
+           i_ID                     := #t_Zone_ID,
+           i_Local_Buffer           := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_Log_Level          := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_LOG_BPI_Statistics := FALSE);
+
+NETWORK
+TITLE =BA:  Start-up signal
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Num_Event; 
+
+      CALL #s_FB_StrtUp_Signal (
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_Event_Num           := #t_DB_Num_Event,
+           i_CFG_StartUp_Time       := #i_CFG_StartUp_Time,
+           i_CFG_No_Startup_E_Save  := FALSE,
+           i_Operational_On         := #s_TRS_EXT_Outputs.Operational_On,
+           i_Reset_E_Save           := #s_TRS_EXT_Req_Run,
+           o_FL_Start_Up            := #s_TRS_FL_Start_Up,
+           o_Horn_Start_Up          := #s_TRS_Horn_Start_Up,
+           o_Req_Halt               := #s_StrtUp_Signal_Req_Halt);
+
+NETWORK
+TITLE =CA: Call MLZ Conveyor Section
+
+      NOP   0; // Hold comments
+
+// Call Equipment PEC Layer
+      CALL #s_TRS_FB_EQP_PEC (
+           i_Setting                := #i_TRS_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_TRS_CFG_Block_Len,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #s_TRS_ST_LMS_Not_Auto,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC_EOS,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #t_EQP_PEC_LPOS,
+           o_PEC_Position           := #s_PEC_Position,
+           o_ST_PEC_Blk             := #o_TRS_ST_PEC_Blk);
+
+//Calculated standard start-up for section
+      L     #i_TRS_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_TRS_Start_Up_Dist; 
+
+// Collect all errors and create stop request
+      A     #o_TRS_ST_PEC_Blk; 
+      O     #o_TRS_ST_ASI_NotPrsnt; 
+      O     #o_TRS_ST_ASI_Error; 
+      O     #o_TRS_ST_LMS_Not_Auto; 
+      O     #o_TRS_ST_LMS_Not_Hthy; 
+      =     #s_TRS_EXT_Req_Stop; 
+
+// Open End Section DB and force signals
+      OPN   "DB_End_MLZ_PLT"; 
+
+      SET   ; 
+      =     DBX   10.0; // Done
+      =     DBX   10.1; // Motor Run
+      =     DBX   10.3; // Cascade
+
+// Request halt for conveyor
+      A     #i_TRS_EXT_Inputs.Request_Halt; 
+      O     #s_StrtUp_Signal_Req_Halt; 
+      =     #s_Request_Halt; 
+
+
+// Call Lean Equipment
+      CALL #s_TRS_FB_EQP_Lean (
+           i_ID_Section             := #i_TRS_ID,
+           i_Basic_Offset           := #i_TRS_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_PLT_DwnStr          := "DB_End_MLZ_PLT",
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_TRS_Start_Up_Dist,
+           i_Dwnstr_PLT_Pos         := #s_PEC_Position,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Run            := #s_TRS_EXT_Req_Run,
+           i_Ext_Req_Stop           := #s_TRS_EXT_Req_Stop,
+           i_Ext_Req_Halt           := #s_Request_Halt,
+           i_Ext_Req_Dis_Send       := #i_TRS_EXT_Inputs.Request_Disable_Send,
+           i_Clr_PLT_Data           := #s_TRS_ST_LMS_Not_Auto,
+           o_External               := #s_TRS_EXT_Outputs,
+           o_Motor_Run              := #s_TRS_Req_Motor_Run,
+           o_ST_Running             := #o_TRS_ST_Running,
+           o_ST_Started             := #o_TRS_ST_Started,
+           o_ST_Request_Halt        := #o_TRS_ST_Request_Halt,
+           o_ST_Request_Stop        := #o_TRS_ST_Request_Stop,
+           o_ST_External_Stop       := #o_TRS_ST_External_Stop,
+           o_Ready_To_Restart       := #o_Ready_To_Restart);
+
+// Call Hardware Driver
+      CALL #s_TRS_FB_HW_MTR_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS_Req_Motor_Run,
+           o_IO_MTR_Fwd             := #t_TRS_IO_MTR_Fwd,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_TRS_ST_ASI_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS_ST_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_TRS_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS_ST_LMS_Not_Hthy);
+
+      A     #t_TRS_IO_MTR_Fwd; 
+      O     #i_TRS_Force_Run_MTR; 
+      =     #o_TRS_IO_MTR_Fwd; 
+
+//Copy Static to Output
+      A     #s_TRS_ST_LMS_Not_Auto; 
+      =     #o_TRS_ST_LMS_Not_Auto; 
+
+      OPN   #i_TRS_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+      CALL "FC_Dereg_LNK_In_PLT" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_DB_Event_Num           := #t_DB_Num_Event,
+           i_Arrived_Position       := #i_Local_Destination);
+
+
+// Call Data Layer
+      CALL #s_TRS_FB_DAT (
+           i_ID_Section             := #i_TRS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =DA: Flash light
+//LAD!
+      A     #s_TRS_FL_Start_Up; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #s_FL_Start_Up; 
+
+NETWORK
+TITLE =EA:  horn signalling
+//LAD!
+      A     #s_TRS_Horn_Start_Up; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #s_Horn_Start_Up; 
+
+
+
+NETWORK
+TITLE =FA: Hardware layer ASI SLC
+
+      NOP   0; 
+
+// Hardware layer for Signal Light Coloumn
+      CALL #s_SLC_FB_HW_ASI (
+           i_Req_Output_1           := #s_FL_Start_Up,
+           i_Req_Output_2           := #s_Horn_Start_Up,
+           i_Req_Output_3           := FALSE,
+           i_Req_Output_4           := FALSE,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO,
+           i_ASI_NotPrsnt           := #i_SLC_ASI_NotPrsnt,
+           i_Slave_Error            := #i_SLC_ASI_Error,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_SLC_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_SLC_ST_ASI_Error,
+           o_IO_Output_1            := #o_IO_SL_Start_Up,
+           o_IO_Output_2            := #o_IO_BP_Start_Up,
+           o_IO_Output_3            := #t_BOOL_Not_Used,
+           o_IO_Output_4            := #t_BOOL_Not_Used);
+
+END_FUNCTION_BLOCK
+

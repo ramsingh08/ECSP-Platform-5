@@ -1,0 +1,50 @@
+FUNCTION "FC_Rel_Hist_ECSp_SAFE" : VOID
+TITLE =Release 2.14.0.0 of 'VI_SAFE Library' CN: 00
+//Release History of product library 'VI_SAFE Library'
+//
+//The blocks belonging to this library do have the block property family: 
+//'SAFE'.
+//
+//This release is archived with document number: 03440-470-00002-EN.docx version xxx
+//(xxx letter of release).
+//       
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Update release SAFE Platfrom 5                        nleg     11-09-18  2.14.0.0
+//      Solved PR/CR
+//
+//Update release SAFE Platfrom 5                        nleg     21-02-18  2.11.1.0
+//      Solved PR/CR
+//
+//Update release SAFE Platfrom 5                        nleg     20-11-17  2.11.0.0
+//      Solved PR/CR
+//
+//See SVD (Rev. A01) for detailed information           nlwlu    26-05-16  2.2.0.0
+//
+FAMILY : RAW
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =..:Type DBs and general DBs. Needed for code generator
+//When the option within the code generator is active to remove the unused 
+//blocks, the type DB's are not included. 
+//Therefor this list of DB's is added.
+      BE    ; //Block End, no types need to be opened
+
+//-- General SAFE DB's
+      OPN   "F_DI_SE"; 
+      OPN   "F_DI_PG_Safe"; 
+      OPN   "F_DI_ESSs_Control";
+
+//-- General Event Db
+      OPN   "DB_Event_Zone"; 
+      OPN   "DB_Event_Section"; 
+      OPN   "DB_Event_Area"; 
+      OPN   "DB_SSM_Type";
+      OPN   "DB_LCC_Type";
+      OPN   "DB_ESO_Type_S";
+      OPN   "DB_ESS_Type_S";	  
+	  
+END_FUNCTION
+

@@ -1,0 +1,21 @@
+DATA_BLOCK "DB_HMI_VCZ_Status"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Thursday, November 23, 2017 6:52:18 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                      inajos   23-11-17  0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+  STRUCT 	
+   Status : "UDT_VCZ_HMI_Status";	//Status for HMI
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

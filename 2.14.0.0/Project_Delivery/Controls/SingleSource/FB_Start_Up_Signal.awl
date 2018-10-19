@@ -1,0 +1,183 @@
+FUNCTION_BLOCK "FB_Start_Up_Signal"
+TITLE =%version: 1.03 % CN: 40
+//Function:
+//Handles the startup indication on a carrousel
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Tuesday, October 25, 2016 3:37:44 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18163: Beeper activates at startup from Esave      nlDY     25-10-16   1.03
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   1.02
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//24690: Mod-His lined up                               nlwwij   25-09-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+//Init version based on version 0.09 of PLT version 0
+//
+//Description:                                  
+//A start up indication will be given when:
+//- Start up signal
+//- Reset energy save
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_CFG_StartUp_Time : INT  := 5000;	//CFG: [msec] Time how long the startup indication is active before start motor
+  i_CFG_No_Startup_E_Save : BOOL ;	//CFG: Don't trigger startup indication when coming out of Esave
+  i_Operational_On : BOOL ;	//CMD: Operational on
+  i_Reset_E_Save : BOOL ;	//CMD: Reset the energy save timer of the section
+END_VAR
+VAR_OUTPUT
+  o_FL_Start_Up : BOOL ;	//HMI: Flashlight when starting up this level
+  o_Horn_Start_Up : BOOL ;	//HMI: Horn when starting up this level
+  o_Req_Halt : BOOL ;	//CMD: Request signal to halt (no restart needed)
+END_VAR
+VAR
+  s_StartUp_Timer : INT ;	//Start up timer
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_Section_Run : BOOL ;	//Section Run signal from the PLT DB
+  s_Halt_until_Start : BOOL ;	//Halt until start
+  s_Start_Request : BOOL ;	//Start request
+  s_FP_Operational_On : BOOL ;	//FP: operational on
+  s_Copy_FP_Operational_On : BOOL ;	//copy FP: operational on
+  s_FP_Start_Request : BOOL ;	//FP: start request
+  s_Copy_FP_Start_Request : BOOL ;	//copy FP: start request
+  s_FN_Halt_Until_Start : BOOL ;	//FN: halt until start
+  s_Copy_FN_HaltUntilStart : BOOL ;	//copy FN: halt until start
+END_VAR
+VAR_TEMP
+  t_Length : INT ;	
+  t_INT_NOT_USED : INT ;	
+  t_Num_Found_Items : INT ;	
+  t_Reset_E_Save_SearchPLT : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      L     DBW    2; //Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      A     DBX   10.1; //Read the section run signal of the PLT DB.
+      =     #s_Section_Run; 
+
+      L     DBW   12; 
+      T     #t_Length; 
+NETWORK
+TITLE =BA: Search PLT DB for -3 (reset energy saving)
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_Length,
+           i_Window                 := #t_Length,
+           i_Info                   := -3,
+           o_Position               := #t_INT_NOT_USED,
+           o_Info                   := #t_INT_NOT_USED,
+           o_LNK                    := #t_INT_NOT_USED,
+           o_DB_PLT_Num             := #t_INT_NOT_USED,
+           o_Number_Items_Found     := #t_Num_Found_Items);
+
+      L     #t_Num_Found_Items; 
+      L     0; 
+      >I    ; 
+      =     #t_Reset_E_Save_SearchPLT; 
+NETWORK
+TITLE =CA: Start up indication
+
+      A     #i_Operational_On; //Positive edge operational on
+      FP    #s_Copy_FP_Operational_On; 
+      =     #s_FP_Operational_On; 
+
+      A     #i_Reset_E_Save; //AND request reset E-save
+      O     #t_Reset_E_Save_SearchPLT; //OR reset energy save found in PLT 
+      O     #i_CFG_No_Startup_E_Save; //OR only signal upon section operational
+      A     #i_Operational_On; //OR Operational on
+      =     #s_Start_Request; //Start request conveyor
+
+      AN    #s_Section_Run; //IF motor not running
+      A     #s_Start_Request; //AND start request
+      A     #i_Operational_On; //AND Operational on
+      O     #s_FP_Operational_On; //OR positive edge of operational on
+      JCN   CA01; 
+      SET   ; 
+      =     #s_Halt_until_Start; //Start up conveyor halted
+
+CA01: A     #s_Start_Request; 
+      FP    #s_Copy_FP_Start_Request; 
+      =     #s_FP_Start_Request; //IF Positive edge start request
+
+      A     #s_FP_Start_Request; 
+      JCN   CA02; 
+
+      L     #i_CFG_StartUp_Time; //Load timer
+      T     #s_StartUp_Timer; 
+
+CA02: A     #s_Start_Request; 
+      JCN   CA03; 
+
+      L     #s_StartUp_Timer; //Count down
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   CA03; //Timer not elapsed
+
+      L     0; 
+CA03: T     #s_StartUp_Timer; 
+      L     0; 
+      ==I   ; 
+      JCN   CA99; 
+      CLR   ; 
+      =     #s_Halt_until_Start; //When timer elapsed: reset startup indication   
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Make output signals for flashlight and horn
+
+      A     #s_Halt_until_Start; //Start up indication
+      A     #s_Start_Request; 
+      =     #o_FL_Start_Up; 
+
+      A     #s_Halt_until_Start; //Start up indication
+      A     #s_Start_Request; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #o_Horn_Start_Up; 
+NETWORK
+TITLE =EA: Trigger energy save in PLT DB
+
+      A     #s_Halt_until_Start; // Negative edge of halt until start
+      FN    #s_Copy_FN_HaltUntilStart; 
+      =     #s_FN_Halt_Until_Start; 
+
+      A     #s_FN_Halt_Until_Start; 
+      O     #s_FP_Operational_On; 
+      JCN   EA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Make request halt
+
+      A     #s_Halt_until_Start; 
+      =     #o_Req_Halt; 
+END_FUNCTION_BLOCK
+

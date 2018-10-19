@@ -1,0 +1,43 @@
+FUNCTION_BLOCK "FB_Copy_F_Inputs"
+TITLE =%version: 0.04 % CN: 30
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, November 14, 2016 9:12:08 AM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Changed name block to "FB_Copy_F_Inputs"              nleg     14-11-16   0.04
+//Added text to modification history                    nlwlu    23-09-16   0.03
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.02
+//Initial based on Tmp_FB_Copy_F_Inputs YVR v0.01       nlbvers  08-04-15   0.01
+//
+//
+//Example networks (just copy HW Input to signal in DB_SE_SIF):
+//
+//1. Emergency stop input signal
+//      A     "I_ZZ_01_00_ES"
+//      =     "DB_SE_SIF".ES_ZZ_01_Input
+//
+//2. Emergency handshake input signal
+//      A     "I_ZZ_01_00_ESS"
+//      =     "DB_SE_SIF".ESS_ZZ_01_Input
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+
+END_FUNCTION_BLOCK
+

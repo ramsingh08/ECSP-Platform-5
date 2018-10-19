@@ -1,0 +1,273 @@
+FUNCTION "FC_ARZ_SHO_Control" : VOID
+TITLE =%version: 0.04 % CN: 32
+//Function:
+//Checks bag under shutters & ensure co-ordination while closing during fire as 
+//well as controlled stop 
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, July 26, 2018 11:12:22 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29889: Added interlock for PEC before shutter      inajos   26-07-18   0.04
+//ra#29553: Remove Fire Signals code and some updates   inajos   12-06-18   0.03
+//ra#28982: FC_ARZ_SHO_Control has wrong CN number      nlHdL    14-05-18   0.02
+//Init version                                          inpgh    11-04-18   0.01
+//
+//Description:
+//If items are found under both or either shutter no controlled stop will be issued to them.
+//If either shutter has item underneath even after controlled stop time has 
+//elapsed, system will be stopped but both shutters remain open. When both shutters are 
+//cleared control stop will immediately initiate closing for both.
+//
+//In case of fire signal to either,  one with bag underneath will initiate 
+//closing.If the same is closed or has timeout, the other will close.Incase of 
+//both have fire alarm each will try to close indepent of other. Once one 
+//shutter is closed, other's force run will not take effect. When both shutters 
+//are cleared during fire alarm, they will close just like the situation described earlier.
+//
+//Function to be used for ARZ01.
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//TRS DB PLT number
+  i_CFG_Position_SHO1 : INT ;	//CFG: [cm] Position where start the gap to be clear under SHO 1
+  i_CFG_Position_SHO2 : INT ;	//CFG: [cm] Position where start the gap to be clear under SHO 2
+  i_CFG_Open_Win_Offset : INT ;	//CFG: [cm] Offset before shutter to open search window 
+  i_CFG_Close_Win_Offset : INT ;	//CFG: [cm] Offset after shutter to close search window 
+  i_IO_SH1_NOT_Safety_Edge : BOOL ;	//HW: Shutter 1 Signal that detects edge of the shutter ( Bumper switch) 
+  i_IO_SH2_NOT_Safety_Edge : BOOL ;	//HW: Shutter 2 Signal that detects edge of the shutter ( Bumper switch) 
+  i_CMD_SHO1_Contrl_Stop : BOOL ;	//CMD: Controlled stop SHO 1 from the StartStop Manager
+  i_CMD_SHO2_Contrl_Stop : BOOL ;	//CMD: Controlled stop SHO 2 from the StartStop Manager
+  i_ST_SHO1_Close : BOOL ;	//ST: SHO 1 is in close position 
+  i_ST_SHO2_Close : BOOL ;	//ST: SHO 2 is in close position 
+  i_SH1_GAP_PEC_Latch : BOOL ;	//Shutter 1 GAP PEC Latch
+  i_SH2_GAP_PEC_Latch : BOOL ;	//Shutter 2 GAP PEC Latch
+END_VAR
+VAR_OUTPUT
+  o_Controlled_Stop_SHO : BOOL ;	//CMD: Controlled stop to SHO 1
+  o_SH_NOT_Safety_Edge : BOOL ;	//ST: Shutter Signal that detects edge of the shutter
+END_VAR
+VAR_TEMP
+  t_window : INT ;	//search window length
+  t_INT_not_used : INT ;	//integer not used
+  t_Lead_count_under_SHO : INT ;	//no. of Leading edge under SHO
+  t_Trail_count_under_SHO : INT ;	//no. of Trailing edge under SHO
+  t_Start_Position : INT ;	//search position for SHO
+  t_DB_Num_PLT : INT ;	//TRS PLT DB Number
+  t_Item_at_Downstream : BOOL ;	//Item at Downstream found
+  t_Item_at_Upstream : BOOL ;	//Item at Upstream found
+  t_item_under_SHO_1 : BOOL ;	//item present under SHO_1
+  t_item_under_SHO_2 : BOOL ;	//item present under SHO_2
+  
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check bags under shutters
+//determine window length & check whether bags within sreach window under 
+//shutters calculate window length
+//PLT DB Number
+      OPN   #i_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT; 
+
+//search position SHO1
+
+      L     #i_CFG_Position_SHO1; 
+      T     #t_Start_Position; 
+
+//calculate search window
+
+      L     #i_CFG_Close_Win_Offset; 
+      T     #t_window; 
+
+
+//search for bags under SHO 1 in window
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 1,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Lead_count_under_SHO);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 2,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Trail_count_under_SHO);
+
+
+      L     #t_Lead_count_under_SHO; 
+      L     #t_Trail_count_under_SHO; 
+      +I    ; 
+      L     0; 
+      >I    ; 
+      =     #t_Item_at_Downstream; 
+
+
+//calculate search window
+      L     #i_CFG_Open_Win_Offset; 
+      T     #t_window; 
+
+
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 1,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Lead_count_under_SHO);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 2,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Trail_count_under_SHO);
+
+
+      L     #t_Lead_count_under_SHO; 
+      L     #t_Trail_count_under_SHO; 
+      +I    ; 
+      L     0; 
+      >I    ; 
+      =     #t_Item_at_Upstream; 
+
+//If leading of trailing edge found the Item Presenrt
+
+      A     #t_Item_at_Downstream; 
+      O     #t_Item_at_Upstream; 
+      O     #i_SH1_GAP_PEC_Latch; 
+      =     #t_item_under_SHO_1; 
+
+//search position SHO2
+      L     #i_CFG_Position_SHO2; 
+      T     #t_Start_Position; 
+
+//calculate search window
+      L     #i_CFG_Close_Win_Offset; 
+      T     #t_window; 
+
+
+//search for bags under SHO2
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 1,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Lead_count_under_SHO);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 2,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Trail_count_under_SHO);
+
+
+      L     #t_Lead_count_under_SHO; 
+      L     #t_Trail_count_under_SHO; 
+      +I    ; 
+      L     0; 
+      >I    ; 
+      =     #t_Item_at_Downstream; 
+
+// Calculation start position and window length for the search function
+
+//calculate search window
+      L     #i_CFG_Open_Win_Offset; 
+      T     #t_window; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 1,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Lead_count_under_SHO);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_window,
+           i_Info                   := 2,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Trail_count_under_SHO);
+
+
+
+      L     #t_Lead_count_under_SHO; 
+      L     #t_Trail_count_under_SHO; 
+      +I    ; 
+      L     0; 
+      >I    ; 
+      =     #t_Item_at_Upstream; 
+
+//If leading of trailing edge found the Item Presenrt
+
+      A     #t_Item_at_Downstream; 
+      O     #t_Item_at_Upstream; 
+      O     #i_SH2_GAP_PEC_Latch; 
+      =     #t_item_under_SHO_2; 
+
+
+//Safety Edge interlock to the Shutters
+
+      A     #i_IO_SH1_NOT_Safety_Edge; 
+      A     #i_IO_SH2_NOT_Safety_Edge; 
+      =     #o_SH_NOT_Safety_Edge; 
+
+NETWORK
+TITLE =BA: Controlled stop
+//co-ordination during controlled stop
+//LAD!!!
+      A     #i_CMD_SHO1_Contrl_Stop; 
+      A     #i_CMD_SHO2_Contrl_Stop; 
+      A(    ; 
+      ON    #i_ST_SHO1_Close; 
+      ON    #i_ST_SHO2_Close; 
+      )     ; 
+      AN    #t_item_under_SHO_1; 
+      AN    #t_item_under_SHO_2; 
+      AN    #i_SH1_GAP_PEC_Latch; 
+      AN    #i_SH1_GAP_PEC_Latch; 
+      A     #o_SH_NOT_Safety_Edge; 
+      =     #o_Controlled_Stop_SHO; 
+END_FUNCTION
+

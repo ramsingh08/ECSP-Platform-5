@@ -1,0 +1,112 @@
+FUNCTION "FC_No_ESave_Trg_PEC" : VOID
+TITLE =%version: 0.03 % CN: 33
+//Function:
+//Checks the PEC position when section is not running for E save code.
+//When found E-save will be removed. Used for public area
+//
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Monday, April 11, 2016 1:34:40 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#12667: Clear PEC state and E save to stay stopped  nlJClo   08-04-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//20101: Wrong CN number                                nlHdL    05-01-15   0.02
+//Init version                                          nlHdL    24-12-14   0.01
+//
+//Description:
+//Checks the PEC position when section is not running for E save code.
+//When found E-save will be removed.
+//
+//Function to be used for public area, and no delay on for the PEC.
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_PEC_Position : INT ;	//CFG: [cm] position of the physical PEC
+END_VAR
+VAR_TEMP
+  t_DB_Num_PLT : INT ;	//Number of the tracking DB
+  t_Done_PLT : BOOL ;	//Done bit from PLT
+  t_Section_Operational_On : BOOL ;	//Section Operational On
+  t_Section_Run : BOOL ;	//Section Run
+  t_INT_not_used : INT ;	//Temp not used
+  t_Num_Items_Found : INT ;	//Number of items found
+  t_DB_Event_Num : INT ;	//Number of the event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Deassign LNK number
+
+      OPN   #i_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT; 
+      L     1; 
+      <=I   ; 
+      BEC   ; 
+
+      OPN   DB [#t_DB_Num_PLT]; // Open PLT DB
+
+      A     DBX   10.0; 
+      =     #t_Done_PLT; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; 
+
+      A     DBX   10.5; 
+      =     #t_Section_Operational_On; 
+
+//If section is running don't remove E save trigger
+      A     #t_Section_Run; 
+      BEC   ; 
+NETWORK
+TITLE =BA: Search for -3 on PEC position
+//Reset energy saving of Section
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #i_PEC_Position,
+           i_Window                 := 0,
+           i_Info                   := -3,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; // If entries are already present skip write -3
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #i_PEC_Position,
+           i_Info_Physical          := -3,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #i_PEC_Position,
+           i_Info_Physical          := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #i_PEC_Position,
+           i_Info_State             := W#16#1000,
+           i_Info_Physical          := 0,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA99: NOP   0; 
+END_FUNCTION
+

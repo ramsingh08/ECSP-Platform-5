@@ -1,0 +1,50 @@
+TYPE "UDT_VSB02_Status"
+TITLE =%version: 1.01 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, March 21, 2017 11:04:51 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#50810: Initial version                             inajos   21-03-17   1.01                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   LMS_ASI_Not_Prsnt : BOOL ;	//LMS ASI slave not present
+   LMS_ASI_Error : BOOL ;	//LMS ASI slave error
+   LMS_Not_Auto : BOOL ;	//LMS not Automatic
+   LMS_Not_Hthy : BOOL ;	//LMS not Healthy
+   ASI_Not_Prsnt : BOOL ;	//ASi slave is not present
+   ASI_Error : BOOL ;	//ASi slave has an error
+   Collision_PEC_Up : BOOL ;	//Collision PEC while Switching Up
+   Collision_PEC_Down : BOOL ;	//Collision PEC while Switching Down
+   HAC_PEC_Switch_Gap : BOOL ;	//Handover Clear PEC Switch gap not clear
+   HAC_PEC_Blk : BOOL ;	//Hand-over Area Clear PEC blockage
+   Move_Time_Out : BOOL ;	//Limit Switch Time out 
+   Double_Detection : BOOL ;	//Limit Switch Double detection 
+   Limit_Switch_Up : BOOL ;	//Position is Up
+   Limit_Switch_Down : BOOL ;	//Position is Down
+   THO_Overload : BOOL ;	//Thermal overload
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

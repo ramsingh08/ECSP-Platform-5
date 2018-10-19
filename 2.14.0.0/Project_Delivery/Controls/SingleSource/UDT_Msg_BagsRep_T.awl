@@ -1,0 +1,42 @@
+TYPE "UDT_Msg_BagsRep_T"
+TITLE =%version: 0.02 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:48:46 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    31-07-15   0.02
+//20645: Tubs Bags report blocks updated                nlHdL    09-09-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    01-04-14   0.01
+//Initial Revision                                      nlHdL    20-02-14   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Header : WORD  := W#16#200;	//STX Start of Text
+   Body : STRUCT 	
+    Messages_Length : INT ;	//Length of this messages
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 802;	//Message ID: BagsReport
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    Number_Of_Segments : INT ;	//Number of segments in this messages
+    Route_Segment : ARRAY  [1 .. 100 ] OF STRUCT 	
+     Route_Segment_ID : INT ;	//Route segment ID number
+     Number_Of_Items : INT ;	//Number of items in the segment
+     Item : ARRAY  [1 .. 150 ] OF STRUCT 	
+      Tubclass : INT ;	
+      Destination : INT ;	
+     END_STRUCT ;	
+    END_STRUCT ;	
+   END_STRUCT ;	
+   Footer : DWORD ;	//End of message
+  END_STRUCT ;	
+END_TYPE
+

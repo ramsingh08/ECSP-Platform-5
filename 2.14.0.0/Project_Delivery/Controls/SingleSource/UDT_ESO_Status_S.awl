@@ -1,0 +1,37 @@
+TYPE "UDT_ESO_Status_S"
+TITLE =%version: 0.01 % CN: 11
+//
+//History:
+//This version  %created_by:  nlcsu %
+//              %date_created:  Wednesday, April 08, 2015 2:08:28 PM %
+//              %release: VI_SAFE/73602_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on UDT_ESO_Status_S YVR v0.03   nlcsu    08-04-15   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+
+  STRUCT 	
+   Operated : BOOL ;	//Button is pressed
+   Reset_Required : BOOL ; //Button not pressed but reset is required
+   Reset_Permanent : BOOL ;	//Reset button is operated continuously or too early
+   IO_Channel_Stopped : BOOL ;	//IO channel is passivated
+   Invalid_Time_Delay : BOOL ;	//Setting time delay is invalid
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,221 @@
+FUNCTION_BLOCK "FB_Host_Send_Msg_DB"
+TITLE =%version: 0.05 %  CN: 40
+//Function:
+//Send messages via TCP/IP Communication according to the protocol.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, January 12, 2016 9:18:23 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9909: Connection ID Snd/Rcv block type word        nlHdL    12-01-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.04
+//20644: Use index DB to check wich DB to send          nlHdL    11-09-14   0.03
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.02
+//Initial Revision                                      nlHdL    16-12-13  0.01
+//
+//Description:
+//This FB sends data using the Siemens TCON. The FB can only be used
+//with a S7 319 PLC. 
+//The messages to be sent will be fetched from the send DB.
+// 
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Connection : WORD ;	//ID Connection number
+  i_DB_Snd_Index : BLOCK_DB ;	//Data Structure: DB send Message
+END_VAR
+VAR_OUTPUT
+  o_Connection_Error : BOOL ;	
+END_VAR
+VAR
+  s_FB_TSEND : "TSEND";	//Siemens TSend block
+  s_Status : WORD ;	//The status of the send module
+  s_Specified_Msg_Length : INT ;	//Specified message length
+  s_DBNr_Send_Msgs : INT ;	//DB number of used Send DB 
+  s_Send_Active : BOOL ;	//Send action is active
+  s_Appl_Mess_is_Prepared : BOOL ;	//An application message is prepared
+  s_Message_Send : BOOL  := TRUE;	//Previous message has been send
+  s_ER_No_Connection : BOOL ;	//The TCP/IP connection is not available anymore.
+  s_Done : BOOL ;	//Indicates if send module has finished sending
+  s_Error_Send : BOOL ;	//Indicates an error with the send module
+  s_Error_Monitor : BOOL ;	//Indicates an error with the send module
+  s_Busy_Monitor : BOOL ;	//Indicates that the block is busy during monitoring
+END_VAR
+VAR_TEMP
+  t_Send_Message_ANY : ANY ;	//Any pointer of the send messages
+  t_DBNr_Send_Msgs : INT ;	//DB number of used Send DB 
+  t_DBNr_Snd_Index : INT ;	//DB number of index Send DB
+  t_entries : INT ;	//Entries present within index DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check Index for Send DBs
+
+      AN    #s_Send_Active; 
+      JCN   AA99; 
+
+      OPN   #i_DB_Snd_Index; //Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #t_DBNr_Snd_Index; 
+
+//Determine number of present entries within Index DB
+      L     DBLG; 
+      L     2; 
+      /I    ; 
+      T     #t_entries; 
+
+      LAR1  P#0.0; 
+
+//Check first entry, if 0 then end (No DBs present)
+AA01: OPN   DB [#t_DBNr_Snd_Index]; 
+      L     0; 
+      L     DBW [AR1,P#0.0]; 
+      <I    ; 
+      JCN   AA90; 
+
+      T     #t_DBNr_Send_Msgs; 
+
+//Check if Send DB has messages
+      OPN   DB [#t_DBNr_Send_Msgs]; 
+      L     DBW    2; 
+      L     0; 
+      >I    ; 
+      JC    AA99; 
+
+//Check if entries present
+      L     #t_entries; 
+      L     1; 
+      -I    ; 
+      JMZ   AA90; 
+      T     #t_entries; 
+
+//next entry check
+      TAR1  ; // Read Entry pointer of address-register
+      L     P#2.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      +D    ; // Entry pointer = Entry pointer - P#6.0
+      LAR1  ; 
+
+//loop
+      JU    AA01; 
+
+//End block
+AA90: BE    ; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Retreive send DB
+
+      AN    "M_OS_/0.2_sec."; 
+      BEC   ; 
+
+      A     #s_Send_Active; 
+      JCN   BA01; 
+
+      L     #s_DBNr_Send_Msgs; // Load DB number
+      T     #t_DBNr_Send_Msgs; 
+
+BA01: NOP   0; 
+NETWORK
+TITLE =CA: Check for new messages
+
+      OPN   DB [#t_DBNr_Send_Msgs]; 
+      L     DBW    2; 
+      L     0; 
+      >I    ; 
+      AN    #s_Send_Active; // AND no message is being send
+      JCN   CA99; 
+
+      L     #t_DBNr_Send_Msgs; 
+      T     #s_DBNr_Send_Msgs; 
+
+      SET   ; 
+      S     #s_Send_Active; 
+      R     #s_Message_Send; 
+
+      OPN   DB [#t_DBNr_Send_Msgs]; 
+      L     DBW    2; 
+      T     #s_Specified_Msg_Length; 
+
+      L     DBW    2; 
+      L     4; 
+      -I    ; 
+      SLD   3; 
+      LAR1  ; 
+
+//Add footer FF FF FF FF to the messages
+      L     W#16#FFFF; 
+      T     DBW [AR1,P#2.0]; 
+      T     DBW [AR1,P#0.0]; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Send Message 
+
+
+//Make message and create pointer with message length to  t_Send_Message_ANY
+      LAR1  P##t_Send_Message_ANY; // Load pointer to local any for blockmove
+      L     W#16#1002; // Load 10 hex (for S7) and data type
+      T     LW [AR1,P#0.0]; 
+      L     #s_Specified_Msg_Length; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #s_DBNr_Send_Msgs; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     0; //Begin adress of pointer
+      SLD   3; 
+      L     DW#16#84000000; // 84=DB   85=DI
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Memory area / start address of the data
+
+DA01: CALL #s_FB_TSEND (
+           REQ                      := #s_Send_Active,
+           ID                       := #i_ID_Connection,
+           LEN                      := #s_Specified_Msg_Length,
+           DONE                     := #s_Done,
+           BUSY                     := #s_Busy_Monitor,
+           ERROR                    := #s_Error_Send,
+           STATUS                   := #s_Status,
+           DATA                     := #t_Send_Message_ANY);
+
+//Clear the message length when message is send.
+      OPN   DB [#t_DBNr_Send_Msgs]; 
+      L     0; 
+      T     DBW    2; 
+
+      A     #s_Send_Active; 
+      AN    #s_Busy_Monitor; 
+      A(    ; 
+      O     #s_Done; 
+      O     #s_Error_Send; 
+      )     ; 
+      JCN   DA02; 
+
+      S     #s_Message_Send; 
+      R     #s_Send_Active; 
+
+      JU    DA01; // Clear the request
+
+// Detect and set No_connection_error
+DA02: L     #s_Status; 
+      L     W#16#80A1; // Communications Error
+      ==I   ; 
+      O(    ; 
+      L     #s_Status; 
+      L     W#16#80C4; // Temporary Communications Error
+      ==I   ; 
+      )     ; 
+      =     #s_ER_No_Connection; // Set No connection error
+NETWORK
+TITLE =EA: Report error Send block
+
+      A     #s_ER_No_Connection; 
+      =     #o_Connection_Error; 
+END_FUNCTION_BLOCK
+

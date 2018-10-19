@@ -1,0 +1,38 @@
+DATA_BLOCK "DB_Send_FIFO_OPS"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Wednesday, September 21, 2016 2:11:41 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+  STRUCT 	
+   General : "UDT_FIFO";	
+   Record : ARRAY  [1 .. 10 ] OF "UDT_OPS_Msg_Body";	
+  END_STRUCT ;	
+BEGIN
+   General.Status.Empty := TRUE; 
+   General.Status.Prefull := FALSE; 
+   General.Status.Full := FALSE; 
+   General.Status.Record_Length_Too_Long := FALSE; 
+   General.Status.Wrong_Record_Length := FALSE; 
+   General.Status.Pointer_Out_Of_Range := FALSE; 
+   General.Status.Wrong_Prefull_Value := FALSE; 
+   General.Status.Blockmove_Fault := FALSE; 
+   General.Setting.Prefull_Num_Of_Records := 5; 
+   General.Setting.Record_Data_Length := 150; 
+   General.Num_Of_Records_stored := 0; 
+   General.Max_Numb_Of_Records := 0; 
+   General.Next_Record_store := 0; 
+   General.Next_Record_Retrieve := 0; 
+END_DATA_BLOCK
+

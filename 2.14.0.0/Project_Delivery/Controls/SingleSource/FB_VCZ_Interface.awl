@@ -1,0 +1,93 @@
+FUNCTION_BLOCK "FB_VCZ_Interface"
+TITLE =%version: 0.01 % CN: 30
+//Function:
+//Module to combined commands from HMI and SCADA to VCZ 
+//
+//History:
+//Original version  %created_by:  inajos %
+//                  %date_created: Thursday, November 23, 2017 6:52:22 AM %
+//                  %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inajos   23-11-17  0.01
+//
+//Description:
+//This function combined (OR function) the commands coming from the SCADA and the 
+//operator panel for the VCZ blocks
+//The status given to operator panel are also made in this function
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_SCADA_Auto : BOOL ;	//CMD: For SCADA Auto
+  i_CMD_SCADA_Manual : BOOL ;	//CMD: For SCADA Manual
+  i_CMD_SCADA_ManTRS_Start : BOOL ;	//CMD: For SCADA Manual TRS start
+  i_CMD_SCADA_ManTRS_Stop : BOOL ;	//CMD: For SCADA Manual TRS stop
+  i_CMD_OP_Auto : BOOL ;	//CMD: For OP Auto
+  i_CMD_OP_Manual : BOOL ;	//CMD: For OP Manual
+  i_CMD_OP_ManTRS_Start : BOOL ;	//CMD: For OP Manual TRS start
+  i_CMD_OP_ManTRS_Stop : BOOL ;	//CMD: For OP Manual TRS stop
+  i_ST_Manual : BOOL ;	//ST: Mode Disabled (Offline or Manual)
+  i_ST_PBB_Manual : BOOL ;	//ST:PBB in Manual
+END_VAR
+VAR_OUTPUT
+  o_Command : "UDT_VCZ_HMI_Cmd";	//Command to SVD/MVZ block
+  o_OP_Status : "UDT_VCZ_HMI_Status";	//Status to OP
+END_VAR
+VAR
+  s_FP_Command_Auto : BOOL ;	//Flank Positive Command Auto
+  s_FP_Command_Manual : BOOL ;	//Flank Positive Command Manual
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Commands From SCADA or OP to VCZ
+
+      A     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_OP_Auto; 
+      FP    #s_FP_Command_Auto; 
+      AN    #i_ST_PBB_Manual; 
+      =     #o_Command.Auto; 
+
+      A     #i_CMD_SCADA_Manual; 
+      O     #i_CMD_OP_Manual; 
+      FP    #s_FP_Command_Manual; 
+      AN    #i_ST_PBB_Manual; 
+      =     #o_Command.Manual; 
+
+
+      A     #i_CMD_SCADA_ManTRS_Start; 
+      O     #i_CMD_OP_ManTRS_Start; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_TRS_Start; 
+
+      A     #i_CMD_SCADA_ManTRS_Stop; 
+      O     #i_CMD_OP_ManTRS_Stop; 
+      =     #o_Command.Manual_TRS_Stop; 
+
+
+NETWORK
+TITLE =BA: Status to Operator panel
+
+      AN    #i_ST_Manual; 
+      =     #o_OP_Status.Auto; 
+
+      A     #i_ST_Manual; 
+      =     #o_OP_Status.Manual; 
+
+      A     #o_Command.Manual_TRS_Start; 
+      AN    #o_Command.Manual_TRS_Stop; 
+      A     #i_ST_Manual; 
+      S     #o_OP_Status.TRS2_Manual_Run; 
+
+      A(    ; 
+      AN    #o_Command.Manual_TRS_Start; 
+      A     #o_Command.Manual_TRS_Stop; 
+      )     ; 
+      ON    #i_ST_Manual; 
+      R     #o_OP_Status.TRS2_Manual_Run; 
+
+
+END_FUNCTION_BLOCK
+

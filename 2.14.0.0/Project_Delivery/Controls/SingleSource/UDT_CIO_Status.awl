@@ -1,0 +1,51 @@
+TYPE "UDT_CIO_Status"
+TITLE =%version: 0.02 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, December 22, 2016 11:40:35 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29441: Increased to 32bit for Disable/restart      nluhl    25-07-18   0.02
+//Initial version based on version 0.07 BSO             nlHdL    21-12-16   0.01                                        
+//
+FAMILY : General
+
+
+  STRUCT 	
+   BSO_Scan_Warning : BOOL ;	//Barcode scanner Warning
+   VSO_Scan_Warning : BOOL ;	//Volume scanner Warning
+   BSO_Scan_Error : BOOL ;	//Barcode scanner Error
+   VSO_Scan_Error : BOOL ;	//Volume scanner Error
+   BSO_WN_No_Data_Rcv : BOOL ;	//No-data was received
+   BSO_WN_Unex_Data_Rcv : BOOL ;	//Unexpected data has been received
+   BSO_ER_No_Data_Rcv : BOOL ;	//Too many successive no-data situations have occured
+   BSO_ER_Unex_Data_Rcv : BOOL ;	//Too many successive unexpected-data situations have occured
+   BSO_ER_No_Read : BOOL ;	//Too many successive no-reads barcode situations have occured
+   VSO_ER_No_Read : BOOL ;	//Too many successive no-reads volume situations have occured
+   BSO_ER_Inva_Data_Rcv : BOOL ;	//Invalid barcode data was received
+   VSO_ER_Inva_Data_Rcv : BOOL ;	//Invalid volume data was received
+   FieldB_Not_Prsnt : BOOL ;	//Fieldbus Slave not Present
+   FieldB_Error : BOOL ;	//Fieldbus Slave error
+   Communication_Error : BOOL ;	//No communication with scanner
+   Disabled : BOOL ;	//Disable mode activated (Transport Mode)
+   Restart_required : BOOL ;	//Restart is required
+   spare_2_1 : BOOL ;	//spare_2_2
+   spare_2_2 : BOOL ;	//spare_2_2
+   spare_2_3 : BOOL ;	//spare_2_3
+   spare_2_4 : BOOL ;	//spare_2_4
+   spare_2_5 : BOOL ;	//spare_2_5
+   spare_2_6 : BOOL ;	//spare_2_6
+   spare_2_7 : BOOL ;	//spare_2_7
+   spare_3_0 : BOOL ;	//spare_3_0
+   spare_3_1 : BOOL ;	//spare_3_1
+   spare_3_2 : BOOL ;	//spare_3_2
+   spare_3_3 : BOOL ;	//spare_3_3
+   spare_3_4 : BOOL ;	//spare_3_4
+   spare_3_5 : BOOL ;	//spare_3_5
+   spare_3_6 : BOOL ;	//spare_3_6
+   spare_3_7 : BOOL ;	//spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

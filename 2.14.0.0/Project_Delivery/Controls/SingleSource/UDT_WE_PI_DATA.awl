@@ -1,0 +1,37 @@
+TYPE "UDT_WE_PI_DATA"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, October 20, 2016 10:54:54 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    20-10-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   PI1_Weight : INT ;	//Weight from unit
+   PI2_Status : STRUCT 	
+    Target_1 : BOOL ;	//Feed
+    Target_2 : BOOL ;	//Fast_Feed
+    Target_3 : BOOL ;	//Tolerance_OK
+    Comparator5 : BOOL ;	//Comparator 5 ON
+    Comparator4 : BOOL ;	//Comparator 4 ON
+    Comparator3 : BOOL ;	//Comparator 3 ON
+    Comparator2 : BOOL ;	//Comparator 2 ON
+    Comparator1 : BOOL ;	//Comparator 1 ON
+    Enter_Key : BOOL ;	//Enter Key press on terminal detected.
+    Input_1 : BOOL ;	//Digital I/O Card Input #1 current State
+    Input_2 : BOOL ;	//Digital I/O Card Input #2 current State
+    Input_3 : BOOL ;	//Digital I/O Card Input #3 current State
+    Motion : BOOL ;	//Scale in Motion
+    Net_Mode : BOOL ;	//Scale currently in NET mode
+    Update_In_Progress : BOOL ;	//Ignore Terminal data while Update in Progress=1
+    Data_OK : BOOL ;	//Scale okay for normal operation
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

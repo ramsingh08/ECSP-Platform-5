@@ -1,0 +1,28 @@
+DATA_BLOCK "DB_SE_SOC"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, November 14, 2016 8:33:41 AM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nleg     19-10-16   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+  STRUCT 	
+   Insert : BOOL ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;
+  
+BEGIN
+END_DATA_BLOCK
+

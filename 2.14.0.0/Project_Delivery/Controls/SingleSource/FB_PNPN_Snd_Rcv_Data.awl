@@ -1,0 +1,448 @@
+FUNCTION_BLOCK "FB_PNPN_Snd_Rcv_Data"
+TITLE =%version: 0.09 % CN: 31
+//Function:
+//Send and receive messages via the acyclic data transfer module within PN/PN 
+//coupler. 
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, November 23, 2017 8:45:52 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#4539: Change MD_DWORD_To_Do to AreaID         nlHdL    23-11-17   0.09
+//ra#19340: FB_PNPN_Slave_Cab no FiFo DB pending prsnt  nlHdL    19-12-16   0.08
+//ra#19340: FB_PNPN_Slave_Cab no FiFo s pending         nlHdL    16-12-16   0.07
+//Update based on SIN_T1_CONV_COMPONENT                 inajos   13-12-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   0.05
+//14162: Update comment of variable                     nlHdL    17-06-15   0.05
+//23824: Change  Remove Station ID, add busy condition  nlMlaut  29-04-15   0.04
+//20899: remove filler from PNPN Lifesign               nlHdL    16-09-14   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description:
+//This block monitors the i_DB_Send_FIFO and as soon as a new message is found
+//it shall be retrieved and send to the connected TC. This block also monitors 
+//the buffer in the PN/PN coupler and as soon as a new message is found in the 
+//buffer it shall be retrieved and loaded to the FIFO DB assigned at input 
+//i_DB_Recv_FIFO
+//Messages send priority:
+// 1        Lifesign message
+// 2        Handover product data
+// 3        Screen pending messages                 
+//       
+//STRUCTURE OF INFORMATION STATUS
+//-------------------------------
+//RD Write STO:
+//IB x    - Status : Bit 0 = 1 Communication with the other bus end is 
+//                   established and module "RD READSTO" has been configured 
+//                   on the other bus end.
+//                   Bit 1 = 1 Query the "level_counter" -> Max value of 8 
+//                             dataset was not reached.
+//                   Bit 7 = 1 Enable the dataset transfer in the PN/PN coupler
+//IB x+1  - level_counter : Indicates the fill level of the buffer (maximum of 8 
+//          data records)
+//
+//RD Read STO:
+//IW x   - record_index : Indicates the dataset number of the data record that 
+//         can be read on the receiver end
+//IW x+2 - record_length : Length of the dataset that can be read on the 
+//         receiver end 
+//IB x+4 - cycle_counter : Each change in the value (incremental)means that a 
+//         new message can be read on the receiver side
+//QB x   - Ack_counter   : cycle_counter = Ack_counter means that acknowledging 
+//         is performed for the receiver to read the dataset. Upon that, 
+//         dataset is deleted from the buffer.
+//
+//NOTE: Please be aware that this software block only works for PN/PN coupler 
+//6ES7 158-3AD01-0XA0 with firmware version v3.0.0 and higher. 
+//
+//                                                 
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_ANY_Input_WR_Inf_Rec : ANY ;	//ANY pointer to the status information record of the writing PN/PN module
+  i_ANY_Input_RD_Inf_Rec : ANY ;	//ANY pointer to the status information record of the reading PN/PN module
+  i_ANY_Output_RD_Inf_Rec : ANY ;	//ANY pointer to update the information record of the reading PN/PN module
+  i_DB_Send_FIFO : BLOCK_DB ;	//Data Structure: DB send FIFO
+  i_DB_Send_Pending_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB send pending messages FIFO
+  i_DB_Recv_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive FIFO
+END_VAR
+VAR
+  s_Base_Address : DWORD ;	// Relative address of instance-DB
+  s_FB_RDREC : "RDREC";	// Siemens SFB52 "RDREC" block call - to retrieve the data prom the PN coupler 
+  s_FB_WRREC : "WRREC";	// Siemens SFB53 "WRREC" block call - to send data via PNPN coupler
+  s_Send_Msg_Body : STRUCT 	//Data structure of the send message body
+   Msg_Header : WORD ;	//Message Header
+   Msg : STRUCT 	//Message Body
+    Header : STRUCT 	
+     EventTime : DATE_AND_TIME ;	// Time stamp when message was send
+     Message_Type_ID : INT ;	// Msg Type ID defines what kind of the message it is
+     Message_Identifier : DINT ;	// Unique Number used in handover Message
+    END_STRUCT ;	
+    Body : ARRAY  [1 .. 150 ] OF BYTE ;	
+   END_STRUCT ;	
+   Msg_Footer : ARRAY  [1 .. 4 ] OF //Message Footer
+   BYTE ;	
+  END_STRUCT ;	
+  s_Recv_Msg_Body : STRUCT 	//Data structure of the receive message body
+   Msg_Header : WORD ;	//Message Header
+   Msg : STRUCT 	//Message Body
+    Header : STRUCT 	
+     EventTime : DATE_AND_TIME ;	// Time stamp when message was send
+     Message_Type_ID : INT ;	// Msg Type ID defines what kind of the message it is
+     Message_Identifier : DINT ;	// Unique Number used in handover Message
+    END_STRUCT ;	
+    Body : ARRAY  [1 .. 150 ] OF BYTE ;	
+   END_STRUCT ;	
+   Msg_Footer : ARRAY  [1 .. 4 ] OF //Message Footer
+   BYTE ;	
+  END_STRUCT ;	
+  s_Address_RD_ReadModule : DWORD ;	// Address RD Read Module
+  s_Address_RD_WriteModule : DWORD ;	// Address RD Write Module
+  s_Status : DWORD ;	// The status of the sending/receiving module
+  s_Msg_Index_RD_Read_Mod : INT ;	// Control signal to confirm that the message can be retrieved
+  s_Message_Length_RD_Read : INT ;	// Length of the message that shall be retrieved - announced by the sending side
+  s_Cycle_Counter_RD_Read : INT ;	// Index number of the currently received message
+  s_Previous_Cycle_Counter : INT ;	// Index number of the previously received message
+  s_Previous_Msg_Record : INT ;	// Previously used record in he DB_Snd_FIFO
+  s_Previous_Pend_Record : INT ;	//Previously used record in he DB_Snd_FIFO
+  s_Num_DB_Send_FIFO : INT ;	// Number of the DB_Snd_FIFO block
+  s_Num_DB_Send_Pend_FIFO : INT ;	//Number of the DB_Snd Pending FIFO block
+  s_Num_DB_Recv_FIFO : INT ;	// Number of the DB_Rcv_FIFO block
+  s_Length_Of_Msg_Rec : INT ;	// Total length of the Message
+  s_New_Msg_Available : BOOL ;	// New message can be retrieved from the PNPN coupler buffer
+  s_Send_New_Message : BOOL ;	// Execution flaw for "FB_WRREC"
+  s_Busy_Rcv : BOOL ;	// The retrieving process is active - RDREC block call busy
+  s_Active_Rcv : BOOL ;	// Signal to activate the data retrieve process from the PNPN coupler
+  s_Valid_Rcv : BOOL ;	// New message was successfully retrieved from the PNPN coupler
+  s_Error_Rcv : BOOL ;	// Data receiving module report an error
+  s_Done : BOOL ;	// Bit to indicate that pointer calculation has been done	 		
+  s_Error_Snd : BOOL ;	// Data receiving module report an error
+  s_Busy_Snd : BOOL ;	// The sending process is active - WRREC block call busy
+  s_Done_Snd : BOOL ;	// Message was send
+  s_Msg_Ready_To_Send : BOOL ;	// New Msg is prepared to be send
+END_VAR
+VAR_TEMP
+  t_ID_Event : DWORD ;	//The event ID for report
+  t_Ret_Val_Word : WORD ;	//Return value
+  t_Current_Message_Record : INT ;	//Current message record number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the instance's-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+//
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #s_Base_Address; // 'relative address'
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Initialize variables and counter
+
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   BA99; 
+
+// Initialize control variables for Data Receive Module
+      L     0; 
+      T     #s_Cycle_Counter_RD_Read; 
+      T     #s_Previous_Cycle_Counter; 
+      T     #s_Msg_Index_RD_Read_Mod; 
+
+      L     1; 
+      T     #s_Msg_Index_RD_Read_Mod; 
+
+// Retrieve the FIFO DBs numbers
+      OPN   #i_DB_Send_FIFO; 
+      L     DBNO; 
+      T     #s_Num_DB_Send_FIFO; 
+
+      OPN   #i_DB_Send_Pending_FIFO; 
+      L     DBNO; 
+      T     #s_Num_DB_Send_Pend_FIFO; 
+
+      OPN   #i_DB_Recv_FIFO; 
+      L     DBNO; 
+      T     #s_Num_DB_Recv_FIFO; 
+
+      L     P##s_Recv_Msg_Body; 
+      L     P##s_Send_Msg_Body; 
+      -D    ; 
+      SRD   3; 
+      T     #s_Length_Of_Msg_Rec; 
+
+      SET   ; 
+      =     #s_Done; 
+
+BA99: AN    #i_Available_IO; 
+      BEC   ; // Do Not execute any sending receiving functionality in a case the PNPN has a error 
+
+NETWORK
+TITLE =CA: Check DB_Send_FIFO for new messages
+
+      NOP   0; 
+      AN    #s_Busy_Snd; // AND the module is NOT currently busy with sending
+      JCN   CA99; 
+// Check if the message shall be retrieved
+// Check if the message is present in the FIFO DB
+      OPN   #i_DB_Send_FIFO; //Open DB_Snd_FIFO
+
+// Check if the Db_Snd_FIFO is empty
+      L     DBW    6; // When FIFO is not empty (empty bit is first bit in FIFO DB)
+      L     0; 
+      ==I   ; 
+      JC    CA20; // In a case no message to be evaluated then end this network
+
+// Check the first available message record number
+      L     DBW   12; // Position of the record
+      T     #t_Current_Message_Record; 
+
+      L     #s_Previous_Msg_Record; // Check if this record was already send
+      L     #t_Current_Message_Record; 
+      <>I   ; 
+      JCN   CA20; 
+
+// Count the amount of clock cycles when the same record was found
+      L     #t_Current_Message_Record; 
+      T     #s_Previous_Msg_Record; 
+
+//For report use Area ID of lifesign
+      L     "DB_Outgoing_Msgs".LifeSignRequest.AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID_Event; 
+
+// Retrieve the message from DB_FIFO
+      CALL "FC_FIFO" (// Retrieve one message from Receive FIFO DB
+           i_FIFO_DB_Num            := #s_Num_DB_Send_FIFO,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Send_Msg_Body.Msg,
+           i_ID                     := #t_ID_Event,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+      SET   ; 
+      =     #s_Msg_Ready_To_Send; 
+      JU    CA99; 
+
+// Check if a Pending message shall be retrieved
+// Check if a Pending message is present in the Pending FIFO DB
+
+CA20: OPN   #i_DB_Send_Pending_FIFO; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   CA99; 
+// Check if the Db_Snd_FIFO is empty
+      L     DBW    6; // When FIFO is not empty (empty bit is first bit in FIFO DB)
+      L     0; 
+      ==I   ; 
+      JC    CA99; // In a case no message to be evaluated then end this network
+
+// Check the first available message record number
+      L     DBW   12; // Position of the record
+      T     #t_Current_Message_Record; 
+
+      L     #s_Previous_Pend_Record; // Check if this record was already send
+      L     #t_Current_Message_Record; 
+      <>I   ; 
+      JCN   CA99; 
+
+// Count the amount of clock cycles when the same record was found
+      L     #t_Current_Message_Record; 
+      T     #s_Previous_Pend_Record; 
+
+// Retrieve the message from DB_FIFO
+      CALL "FC_FIFO" (// Retrieve one message from Receive FIFO DB
+           i_FIFO_DB_Num            := #s_Num_DB_Send_Pend_FIFO,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Send_Msg_Body.Msg,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+      SET   ; 
+      =     #s_Msg_Ready_To_Send; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Send Message
+//The hand over message is send via the PNPN coupler asynchronous data exchange 
+//module. The message has the same structure as the hand Over message send via 
+//the TCP/IP protocol.
+      A     #s_Msg_Ready_To_Send; 
+      JCN   DA99; 
+
+      L     W#16#200; 
+      T     #s_Send_Msg_Body.Msg_Header; 
+
+      L     W#16#FF; 
+      T     #s_Send_Msg_Body.Msg_Footer[1]; 
+      T     #s_Send_Msg_Body.Msg_Footer[2]; 
+      T     #s_Send_Msg_Body.Msg_Footer[3]; 
+      T     #s_Send_Msg_Body.Msg_Footer[4]; 
+
+// Send Message
+// Retrieve the address on the RD Write module from the input pointer
+      L     P##i_ANY_Input_WR_Inf_Rec; 
+      L     #s_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; 
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      SRD   3; 
+      T     #s_Address_RD_WriteModule; // Address of the asynchronous data sending module (RD Write)
+
+// Check if PNPN coupler message buffer is full
+// The PN coupler can "store" up to 8 message in the internal buffer. 
+// The new message can only be send when at least one buffer position is available.
+
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+
+      L     IB [AR1,P#1.0]; // Retrieve the amount of used buffer positions
+      L     8; 
+      <I    ; // IF at lest one buffer position is available                                                                  
+      A     I [AR1,P#0.7]; // AND PNPN coupler report "enable" dataset transfer possibility
+      AN    #s_Busy_Snd; // AND the module is NOT currently busy with sending
+      A     #s_Msg_Ready_To_Send; // AND new message is ready to be send
+      S     #s_Send_New_Message; // THEN send new message
+
+      CALL #s_FB_WRREC (
+           REQ                      := #s_Send_New_Message,
+           ID                       := #s_Address_RD_WriteModule,
+           INDEX                    := 3,
+           LEN                      := #s_Length_Of_Msg_Rec,// The length of all the messages send via the PNPN coupler and TCP/IP protocol is 150 bytes
+           DONE                     := #s_Done_Snd,
+           BUSY                     := #s_Busy_Snd,
+           ERROR                    := #s_Error_Snd,
+           STATUS                   := #s_Status,
+           RECORD                   := #s_Send_Msg_Body);// Pointer to the hand over message data in DB_TCOM_OutgoingMsgs 
+
+      A     #s_Done_Snd; // When message was successfully send
+      A     #s_Send_New_Message; 
+      AN    #s_Error_Snd; // AND NOT - error sending
+      R     #s_Send_New_Message; // THEN reset - send message status
+      R     #s_Msg_Ready_To_Send; 
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Retrieve msg and info over the buffer from PN/PN coupler
+
+      NOP   0; 
+// Retrieve the message structure detailed from status information record (receiving block)
+      L     P##i_ANY_Input_RD_Inf_Rec; 
+      L     #s_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      SRD   3; 
+      T     #s_Address_RD_ReadModule; 
+
+      L     W [AR1,P#0.0]; 
+      T     #s_Msg_Index_RD_Read_Mod; 
+
+      L     W [AR1,P#2.0]; // The length of the message that can be retrieved
+      T     #s_Message_Length_RD_Read; 
+
+      L     B [AR1,P#4.0]; // Increment this value means that a new data set can be read on the receiver side
+      T     #s_Cycle_Counter_RD_Read; 
+
+NETWORK
+TITLE =FA: Check if new message is available in PN/PN buffer
+//The BIR record is send via the PN/PN coupler via the asynchronous data exchange 
+//record. The indication that the new data set is available is indicated by the 
+//"cycle_counter" within the Status Record of the module 
+//s_Cycle_Counter_RD_Read). 
+//
+//The structure of the handover message send via the PN/PN coupler is similar 
+//with the message send via the TCP/IP protocol. This is due to the fact that the 
+//same message handling block call are suppose to handle both type of the data 
+//exchange procedure.
+      NOP   0; 
+// Read/retrieve the message data from PN/PN coupler
+// Check if new message is present
+      L     #s_Cycle_Counter_RD_Read; // Index number of the first message in the PN/PN coupler buffer that can be retrieved
+      L     #s_Previous_Cycle_Counter; // Index of the previously retrieved message
+      <>I   ; 
+      S     #s_New_Msg_Available; // IF no new messages available
+
+// Retrieve first available Record from DB_FIFO
+      CLR   ; 
+      =     #s_Valid_Rcv; 
+
+      AN    #s_Busy_Rcv; 
+      A     #s_New_Msg_Available; 
+      =     #s_Active_Rcv; 
+
+      CALL #s_FB_RDREC (
+           REQ                      := #s_Active_Rcv,
+           ID                       := #s_Address_RD_ReadModule,
+           INDEX                    := #s_Msg_Index_RD_Read_Mod,
+           MLEN                     := #s_Message_Length_RD_Read,
+           VALID                    := #s_Valid_Rcv,
+           BUSY                     := #s_Busy_Rcv,
+           ERROR                    := #s_Error_Rcv,
+           STATUS                   := #s_Status,
+           RECORD                   := #s_Recv_Msg_Body);
+
+      A     #s_Valid_Rcv; 
+      AN    #s_Error_Rcv; 
+      JCN   FA99; 
+
+// Report that the message was retrieved
+      L     P##i_ANY_Output_RD_Inf_Rec; 
+      L     #s_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+      L     #s_Cycle_Counter_RD_Read; 
+      T     B [AR1,P#0.0]; 
+
+      L     #s_Cycle_Counter_RD_Read; // Index number of the first message in the PN/PN coupler buffer that can be retrieved
+      T     #s_Previous_Cycle_Counter; // Index of the previously retrieved message
+
+// Reset "s_New_Msg_Available"
+      SET   ; 
+      R     #s_New_Msg_Available; 
+
+// Load the message into DB_FIFO
+      CALL "FC_FIFO" (// Retrieve one message from Receive FIFO DB
+           i_FIFO_DB_Num            := #s_Num_DB_Recv_FIFO,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Recv_Msg_Body.Msg,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+FA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

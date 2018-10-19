@@ -1,0 +1,436 @@
+FUNCTION_BLOCK "FB_HMI_SSM_IF"
+TITLE =%version: 0.09 % CN: 40
+//Function:
+//HMI functions to interface with start/stop Manager .The start stop manager data 
+//defined in DB_HMI_IF_SSM .
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:11:06 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.09
+//17046: Ready to Restart not visible on HMI or SCADA   nlHdL    30-04-15   0.09
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.08
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.07
+//CR11356 Comment change only                           nlHdL    11-09-12   0.06
+//Updated for new DB_Status_Index                       nlMRe    21-09-10   0.05
+//PR5474 Removed Collected status                       nlHdL    11-08-10   0.04
+//Corrected synergy keyword "version:"                  nlMRe    22-07-10   0.03
+//PR5327: Labels FB_HMI_SSM_IF wrong in NW HA           nlMRe    22-07-10   0.02
+//Initial version                                       insmahi  10-06-10   0.01
+//
+//Description:
+//
+//HMI functions to interface with start/stop Manager .The start stop manager data 
+//defined in DB_HMI_IF_SSM .
+//The functions control are:
+//- Interface with multiple SSM defined in DB_HMI_IF_Ssm
+//- Get SSM ID which is shown on HMI
+//- Handle HMI commands and put these on commands
+//- Handle SSM status an put these on HMI
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_SSM_Index : BLOCK_DB ;	//Index DB for Start/Stop manager
+  i_DB_HMI_IF_SSM : BLOCK_DB ;	//HMI Interface DB for SSM
+  i_HMI_Act_Node_ID : DWORD ;	//Actual Node-ID Root/Tree/Branch/Leaf [4-bytes]
+  i_SSM_Current : INT  := 1;	//Current Selected SSM number 
+  i_HMI_Command : INT ;	//HMI Command number (as defined in HMI-node configuration)
+END_VAR
+VAR_OUTPUT
+  o_Total_No_SSM : INT ;	//Total configured SSM number
+END_VAR
+VAR
+  s_Status_Ssm : STRUCT 	//SSM Collected status
+   Started : BOOL ;	//Started
+   Starting : BOOL ;	//Starting
+   Stopped : BOOL ;	//Stopped
+   Stopping : BOOL ;	//Stopping
+   Ready_to_Restart : BOOL ;	//Ready to Restart
+  END_STRUCT ;	
+  s_Num_Of_SSM_Present : INT ;	//Number of SSM present in interface DB
+  s_Current_SSM_Data : "UDT_IF_HMI_SSM";	//Current selected SSM data
+  s_Status : INT ;	//SSM Status to HMI 
+  s_ID_to_HMI : STRING  [18 ];	//SSM indentification which is to be shown on HMI
+  s_HMI_Cmd : STRUCT 	//HMI Commands
+   Start : BOOL ;	
+   Stop : BOOL ;	
+   Reset : BOOL ;	
+  END_STRUCT ;	
+  s_Cmd_Ref : STRUCT 	//Command number of HMI commands
+   K1_Start : INT  := 111;	//Start
+   K2_Stop : INT  := 121;	//Stop
+   K3_Reset : INT  := 131;	//Reset
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_Record_Data_length : INT ;	//Record lenght in DB SSM interface
+  t_HMI_Command_offset : INT ;	//Record lenght in DB SSM interface
+  t_ANY_Source : ANY ;	//ANY source
+  t_ANY_Destination : ANY ;	//ANY destination
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_DBNO_IF_SSM : WORD ;	//Interfcae SSM DB number
+  t_SSM_Status : WORD ;	//Temp Variable for SSM Status
+  t_HMI_IF_Offset_ID : DWORD ;	
+  t_HMI_IF_offset_Status : DWORD ;	
+  t_ID : DWORD ;	//Temp variable for indentification
+  t_DBNO_IF_HMI : WORD ;	//Interfcae HMI DB number
+  t_ANY_P_To_ID_On_HMI : ANY ;	
+  t_HMI_Cmd : WORD ;	//Temp variable for HMI commands
+  t_HMI_IF_Offset_Act_SSM : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get relative addres out of AR2
+//Address register:10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Z=Operand area y=Byte address   x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Offsets
+
+      NOP   0; // Hold the command line
+// Offset in UDT_IF_HMI_SSS
+      L     16; // Record length of "UDT_IF_HMI_SSM"
+      T     #t_Record_Data_length; 
+
+      L     14; // Offset HMI Commands 
+      T     #t_HMI_Command_offset; 
+// Offset for the ID and status IN DB_HMI_IF_app (DB144)
+      L     P#0.0; // Offset of the ID  (ID String 30)
+      T     #t_HMI_IF_Offset_ID; 
+
+      L     P#32.0; // Offset of the status display
+      T     #t_HMI_IF_offset_Status; 
+
+      L     P#34.0; // Offset of active SSM number
+      T     #t_HMI_IF_Offset_Act_SSM; 
+NETWORK
+TITLE =CA: Calculate numbers of Start/stop inteface preset
+
+      OPN   #i_DB_HMI_SSM_Index; 
+      L     DBLG; // Get the DB length..
+      L     #t_Record_Data_length; 
+      /I    ; // AND calculate the nr of SSM present 
+      T     #s_Num_Of_SSM_Present; 
+      T     #o_Total_No_SSM; 
+
+      OPN   #i_DB_HMI_SSM_Index; 
+      L     DBNO; // Load SSM interface DB number
+      T     #t_DBNO_IF_SSM; 
+NETWORK
+TITLE =DA: Load the data for current selected SSM
+
+      LAR1  P##t_ANY_Source; // Load pointer to local any destination for blockmove
+
+      L     W#16#1002; // Load 10 hex (for S7) and data type
+      T     LW [AR1,P#0.0]; 
+
+      L     14; // No of Byte
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_SSM; // Load DB number
+      T     LW [AR1,P#4.0]; 
+
+      L     #i_SSM_Current; // Load SSM number
+      L     1; // Start with 0
+      -I    ; 
+      L     #t_Record_Data_length; // length of one record in comp. type DB
+      *I    ; // pointer to current record
+      SLW   3; // convert byte => bit pointer
+      L     DW#16#84000000; // 84=DB 
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Memory area / start address of the data
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #s_Current_SSM_Data);
+
+NETWORK
+TITLE =EA: Current SSM ID conversion to ASCII 
+//The current SSM ID convert into the ASCII Chatrer to display ON HMI
+//ID is in format MC AAAAZZSS Where 
+//   MC = 
+//   AAAAZZSS = HEX format
+//The ID is converted to ASCII and shown on the HMI
+//MC.AAAA.ZZ.SS
+//
+      L     #s_Current_SSM_Data.Mark_Code[1]; //First char of markcode
+      T     #s_ID_to_HMI[1]; 
+
+      L     #s_Current_SSM_Data.Mark_Code[2]; //Second char of markcode
+      T     #s_ID_to_HMI[2]; 
+
+      L     #s_Current_SSM_Data.Mark_Code[3]; //Third char of markcode
+      T     #s_ID_to_HMI[3]; 
+
+      L     #s_Current_SSM_Data.Mark_Code[4]; 
+      L     B#16#0; //Check third char <> $00 
+      ==I   ; //IF Mark_Code is only 2 chars long
+      JCN   EA01; //ELSE
+
+      L     ' '; //THEN Fill with a "space"
+      T     #s_ID_to_HMI[4]; 
+
+EA01: L     ' '; //Fill with a "space"
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      T     #s_ID_to_HMI[7]; 
+
+      L     #s_Current_SSM_Data.ID; // Load Current SSM ID
+      T     #t_ID; // Transfer to temp
+
+// ID format AAAAZZSS
+// Convert Section ID to ASCII
+      L     #t_ID; //SSM ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[17]; 
+
+      L     #t_ID; //SSM ID
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[16]; 
+
+      L     '.'; // Add '.' Add dot
+      T     #s_ID_to_HMI[15]; 
+
+// Convert the ZZ ID to ASCII
+      L     #t_ID; //SSM ID
+      SRD   4; 
+      T     #t_ID; //SSM ID
+      L     DW#16#F; //select last
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[14]; 
+
+      L     #t_ID; //SSM ID 
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[13]; 
+
+      L     '.'; // Add '.'  (dot)
+      T     #s_ID_to_HMI[12]; 
+
+// Convert AAAA ID to ASCII
+      L     #t_ID; //SSM ID
+      SRD   4; 
+      T     #t_ID; //SSM ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[11]; 
+
+      L     #t_ID; //SSM ID 
+      SRD   4; 
+      T     #t_ID; //SSM ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[10]; 
+
+      L     #t_ID; //SSM ID
+      SRD   4; 
+      T     #t_ID; //SSM ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[9]; 
+
+      L     #t_ID; //SSM ID 
+      SRD   4; 
+      T     #t_ID; //SSM ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[8]; 
+
+
+NETWORK
+TITLE =FA: Copy Current SSM ID to HMI
+
+      OPN   #i_DB_HMI_IF_SSM; 
+      L     DBNO; // Get DB number of interface DB
+      T     #t_DBNO_IF_HMI; 
+
+      L     P##t_ANY_P_To_ID_On_HMI; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     30; // Store data length in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_HMI; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_HMI_IF_Offset_ID; 
+      T     LD [AR1,P#6.0]; //and store in ANY
+
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+//  Write Actul length in the ID pointer
+      L     P##s_ID_to_HMI; //Set pointer to ID variable
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+
+      L     17; // Copy only 17 CHAR
+      T     B [AR1,P#1.0]; // Write string 'actual' length
+
+// Move the current SSM ID to the HMI diasplay location
+      CALL "BLKMOV" (// Write ID to HMI interface DB
+           SRCBLK                   := #s_ID_to_HMI,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_ANY_P_To_ID_On_HMI);
+
+NETWORK
+TITLE =GA: Get Status input and convert to bit format
+//Get Status for general information on HMI screens 
+//convert status signals SSM state information by convert 
+//input report WORD to UDT format
+      L     #s_Current_SSM_Data.Start_Address_Status; // Get status address of SSM
+      SLD   3; // Convet to Pointer
+      LAR1  ; 
+      OPN   "DB_Status"; // Open DB_Status
+      L     DBW [AR1,P#0.0]; // load status word from the"DB_Status"
+      T     #t_SSM_Status; // Store it in the temp
+
+      L     P##s_Status_Ssm; // Pointer to conversion destination
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; // Absolute address
+//convert SSM status WORD to UDT format
+      L     #t_SSM_Status; // Control bits in WORD-format
+      T     W [AR1,P#0.0]; // Control bits in BOOL-format
+NETWORK
+TITLE =HA: Status: Status SSM (Start/stop Manager) to HMI
+//   
+      A     #s_Status_Ssm.Ready_to_Restart; // IF SSM status Ready to Restart
+      JCN   HA01; //ELSE
+      L     5; 
+      JU    HA06; 
+
+HA01: A     #s_Status_Ssm.Started; // IF SSM status started
+      JCN   HA02; // ELSE
+      L     2; 
+      JU    HA06; // THEN set text list value
+
+HA02: A     #s_Status_Ssm.Starting; // IF SSM status starting
+      JCN   HA03; // ELSE
+      L     1; 
+      JU    HA06; // THEN set text list value
+
+HA03: A     #s_Status_Ssm.Stopping; // IF SSM status stopping
+      JCN   HA04; // ELSE
+      L     3; 
+      JU    HA06; // THEN set text list value
+
+HA04: A     #s_Status_Ssm.Stopped; // IF SSM status stopped
+      JCN   HA05; // ELSE
+      L     0; 
+      JU    HA06; // THEN set text list value
+
+HA05: L     4; // System status undefined
+
+HA06: T     #s_Status; 
+
+// Copy the status to HMI interfcae DB
+      OPN   #i_DB_HMI_IF_SSM; //Open Interfce DB
+      L     #t_HMI_IF_offset_Status; // Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #s_Status; // System Mode to HMI interface
+      T     DBW [AR1,P#0.0]; 
+
+NETWORK
+TITLE =IA : Requested commands and Output HMI command to current SSM
+
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K1_Start; // K1:Start
+      ==I   ; 
+      =     #s_HMI_Cmd.Start; // THEN Start request
+
+//Operation screen commands:
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K2_Stop; // K2: Stop
+      ==I   ; 
+      =     #s_HMI_Cmd.Stop; // THEN stop request
+
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K3_Reset; // K3: Reset
+      ==I   ; 
+      =     #s_HMI_Cmd.Reset; // THEN reset request
+
+// Copy the HMI Commnds word
+      L     P##s_HMI_Cmd; // Pionter to command bools
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#0.0]; // read data (word)
+      T     #t_HMI_Cmd; 
+
+// Transfer the HMI command word to current selected SSM
+      L     #i_SSM_Current; // Current selected SSM
+      L     1; 
+      -I    ; 
+      L     #t_Record_Data_length; // Data record length 
+      *I    ; 
+      L     #t_HMI_Command_offset; // Add offset for command
+      +I    ; 
+      SLD   3; // Convet to pointer format
+      LAR1  ; 
+      OPN   #i_DB_HMI_SSM_Index; // Open SSM interfce DB
+
+      L     #t_HMI_Cmd; // Load HMI Command
+      T     DBW [AR1,P#0.0]; 
+
+NETWORK
+TITLE =JA: Active SSM number and the Total no of SSM status To HMI
+
+      NOP   0; 
+// Copy the SSM info to HMI interfcae DB
+      OPN   #i_DB_HMI_IF_SSM; //Open Interfce DB
+      L     #t_HMI_IF_Offset_Act_SSM; // Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #i_SSM_Current; // Active SSM No.to HMI interface
+      T     DBW [AR1,P#0.0]; 
+
+      L     #s_Num_Of_SSM_Present; // Total No.of SSM to HMI Interfcae
+      T     DBW [AR1,P#2.0]; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,270 @@
+FUNCTION_BLOCK "FB_PNPN_Handle_Msgs"
+TITLE =%version: 0.09 % CN: 31
+//Function:
+//Handle received handover and lifesign messages.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, November 23, 2017 8:49:02 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#4539: Change MD_DWORD_To_Do to AreaID         nlHdL    23-11-17   0.09
+//bhs_plf#2530: o_New_Message_Received is Never Reset   nlHdL    13-09-17   0.08
+//ra#19600: Add carrier reports to PNPN Handle Msgs     nlHdL    20-03-17   0.07
+//Update based on SIN_T1_CONV_COMPONENT                 inajos   13-12-16   0.06
+//ra#17711: Rename naming FIFO DB's HOO                 nlHdL    05-12-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   0.04
+//20899: remove filler from PNPN Lifesign               nlHdL    16-09-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//PR14161 Update violation coding convention 9          nlple    26-06-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description:
+//This block handles the incomming messages from the PN/PN coupler. The messages
+//are checked and split-up into handover messages and lifesign messages. The 
+//handover messages will then be copied to the handover FIFO DB and the lifesign 
+//messages will be copied to the lifesign FIFO DB.
+//                                                                        
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Recv_FIFO_PNPN : BLOCK_DB ;	//Data Structure: TCTC DB receive message FIFO for PN/PN coupler
+  i_DB_Recv_HandOver_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive Handover message FIFO
+  i_Any_Recv_LifeSign_FIFO : ANY ;	//Any pointer to receive LifeSign message FIFO
+END_VAR
+VAR_OUTPUT
+  o_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Data structure: Received message
+  o_New_Message_Received : BOOL ;	
+END_VAR
+VAR
+  s_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Received Message
+  s_HandOverMessage : "UDT_PN_Msg_Handover";	//HandOver Messages received
+  s_LifeSignMessage : "UDT_PN_Msg_Lifesign";	//LifeSign Messages received
+  s_RET_VAL_Recv_FIFO : WORD ;	//Return value in WORD format
+  s_Previous_Msg_Record : INT ;	
+  s_Counter_Record_Found : INT ;	
+END_VAR
+VAR_TEMP
+  t_Msg_Type_HandOver : BOOL ;	// Message Type: 100	
+  t_Msg_Type_LifeSignReq : BOOL ;	// Message Type: 200
+  t_Msg_Type_LifeSignResp : BOOL ;	// Message Type: 201
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_Ret_Val_Word : WORD ;	//Return value
+  t_Recv_FIFO_DBNr : INT ;	//DB number of used Receive FIFO DB 
+  t_DB_Recv_HandOver_FIFO : INT ;	//DB number of Receive handover FIFO
+  t_DB_Recv_LifeSign_FIFO : INT ;	//DB number of Receive Lifesign FIFO
+  t_Current_Message_Record : INT ;	//Current message Record
+  t_Ret_Val_Int : INT ;	//Return value
+  t_AR1_P0 : DWORD ;	
+  t_AR1_P4 : WORD ;	
+  t_AR1_P6 : DWORD ;	
+  t_ID_Event : DWORD ;	//The event ID for report
+  t_Any_LifeSign_Msgs : ANY ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init
+//The 'base address' is used to get the absolute address of the instances-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+NETWORK
+TITLE =BA: Check DB FIFO for new messages
+//Check FIFO DB to see if new messages are available. If a new message is found 
+//the message will be copied into the memory. 
+      SET   ; 
+      R     #o_New_Message_Received; 
+
+// Check if the message shall be retrieved
+// Check if the message is present in the FIFO DB
+      OPN   #i_DB_Recv_FIFO_PNPN; //Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #t_Recv_FIFO_DBNr; 
+
+      L     DBW    6; // When FIFO is not empty
+      L     0; 
+      ==I   ; 
+      BEC   ; // In a case no message to be evaluated then end this block
+
+// Check the first available message record number
+      L     DBW   12; // Position of the record
+      T     #t_Current_Message_Record; 
+
+// Check if message shall be removed from the FIFO DB
+// The message shall be removed from the FIFO DB when it was not evaluated for more than 3 clock cycles
+// This is to avoid that the DB will be overloaded with messages that are never read.
+      L     #s_Previous_Msg_Record; 
+      L     #t_Current_Message_Record; 
+      <>I   ; 
+      JCN   BA01; 
+
+      L     #t_Current_Message_Record; 
+      T     #s_Previous_Msg_Record; 
+      BEC   ; 
+
+// Count the amount of clock cycles the same message was found
+BA01: L     #s_Counter_Record_Found; 
+      L     1; 
+      +I    ; 
+      T     #s_Counter_Record_Found; 
+
+// If the message was found 3 time then remove it
+      L     #s_Counter_Record_Found; 
+      L     3; 
+      <=I   ; 
+      BEC   ; 
+
+// IF new message found or record shall be removed then reset the counter
+      L     0; 
+      T     #s_Counter_Record_Found; 
+
+      L     #t_Current_Message_Record; 
+      T     #s_Previous_Msg_Record; 
+
+//For report use Area ID of lifesign
+      L     "DB_Outgoing_Msgs".LifeSignRequest.AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID_Event; 
+
+// Retrieve the message from DB_FIFO
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_Recv_FIFO_DBNr,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Received_Message,
+           i_ID                     := #t_ID_Event,
+           o_RET_VAL_FIFO           := #s_RET_VAL_Recv_FIFO);
+
+NETWORK
+TITLE =CA: Initialize temp variables
+
+      CLR   ; 
+      =     #t_Msg_Type_HandOver; 
+      =     #t_Msg_Type_LifeSignReq; 
+      =     #t_Msg_Type_LifeSignResp; 
+
+NETWORK
+TITLE =DA: Evaluate message type
+//In this network the message type is evaluated. 
+//
+//100 = Handover message
+//200 = Lifesign request
+//201 = Lifesign reply
+      NOP   0; 
+// Evaluate Message Type
+      L     #s_Received_Message.Message_Type; 
+      L     100; 
+      ==I   ; 
+      =     #t_Msg_Type_HandOver; 
+      JC    DA99; 
+
+      L     #s_Received_Message.Message_Type; 
+      L     101; 
+      ==I   ; 
+      =     #t_Msg_Type_HandOver; 
+      JC    DA99; 
+
+      L     #s_Received_Message.Message_Type; 
+      L     102; 
+      ==I   ; 
+      =     #t_Msg_Type_HandOver; 
+      JC    DA99; 
+
+      L     #s_Received_Message.Message_Type; 
+      L     200; 
+      ==I   ; 
+      =     #t_Msg_Type_LifeSignReq; 
+      JC    DA99; 
+
+      L     #s_Received_Message.Message_Type; 
+      L     201; 
+      ==I   ; 
+      =     #t_Msg_Type_LifeSignResp; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Handle handover message 
+//When a handover message is received this message will be copied to the handover 
+//FIFO DB.
+      A     #t_Msg_Type_HandOver; 
+      JCN   EA99; 
+
+      OPN   #i_DB_Recv_HandOver_FIFO; 
+      L     DBNO; 
+      T     #t_DB_Recv_HandOver_FIFO; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Received_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_HandOverMessage);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_DB_Recv_HandOver_FIFO,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_HandOverMessage,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Handle lifesign message 
+//When a lifesign message is received this message will be copied to the lifesign 
+//FIFO DB.
+      A     #t_Msg_Type_LifeSignReq; 
+      O     #t_Msg_Type_LifeSignResp; 
+      JCN   FA99; 
+
+      L     P##i_Any_Recv_LifeSign_FIFO; 
+      L     #t_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     #t_AR1_P0; 
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     #t_AR1_P4; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     #t_AR1_P6; 
+
+      LAR1  P##t_Any_LifeSign_Msgs; 
+      L     #t_AR1_P0; 
+      T     LD [AR1,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     #t_AR1_P4; // Byte4..5=DB number 
+      T     LW [AR1,P#4.0]; 
+      L     #t_AR1_P6; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Received_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #t_Any_LifeSign_Msgs);
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Default copy message
+//New messages are handled by other external functions.
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Received_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #o_PNPN_Received_Message);
+
+      SET   ; 
+      =     #o_New_Message_Received; 
+END_FUNCTION_BLOCK
+

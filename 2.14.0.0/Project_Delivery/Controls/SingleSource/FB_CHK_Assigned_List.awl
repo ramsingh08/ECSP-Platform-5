@@ -1,0 +1,168 @@
+FUNCTION_BLOCK "FB_CHK_Assigned_List"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Check the LNK number in a DB_List, validate the LNK number in the 
+//DB_List if they are not same then clear the LNK number in the DB_List.
+//
+//History:                                                                        
+//This version   %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:09:53 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//Initial revision based on 0.07 CHK_Assigned_LIC       nlHdL    01-10-15   0.01
+//
+//Description:
+//Check the LNK number in a DB_List, validate the LNK number in the 
+//DB_List if they are not same then clear the LNK number in the DB_List.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_List : BLOCK_DB ;	//Block DB of global DB to write UDT length to
+END_VAR
+VAR
+  s_List_Number : INT ;	//Number from the list DB
+  s_Offset_List_Record : INT ;	//Offset within LNK list to the List record
+  s_Offset_Record_done : BOOL ;	//Done bit that offset has been determined
+END_VAR
+VAR_TEMP
+  t_Record_Length : INT ;	//Temp length of used record
+  t_List_LNK_Found : INT ;	//Temp entry in List DB
+  t_AR1_BackUp : DWORD ;	//AR1 back-up
+  t_LNK_DB_List_Number : INT ;	//DB_LNK_List contains List number
+  t_Header_Length : INT ;	//Temp Header length of List DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check the List DB
+
+      OPN   #i_DB_List; 
+      L     DBW    2; 
+      T     #t_Record_Length; 
+      L     DBW    6; 
+      +     -1; 
+      L     #s_List_Number; //Checking for Maximum List Item present
+      ==I   ; 
+      JCN   AA02; 
+
+      L     1; 
+      T     #s_List_Number; 
+      JU    AA99; 
+
+AA02: L     #s_List_Number; //Incremental List number to DB_List
+      +     1; 
+      T     #s_List_Number; 
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Determine record offset from the List DB within the LNK list
+
+      AN    #s_Offset_Record_done; 
+      AN    "M_First_Scan"; 
+      JCN   BA99; 
+
+      L     0; 
+      T     #s_Offset_List_Record; 
+
+      OPN   #i_DB_List; 
+
+      L     DBNO; 
+      T     #t_LNK_DB_List_Number; 
+
+      OPN   "DB_LNK_List"; // Open LNK list
+      AN    DBX   10.0; 
+      BEC   ; // LNK list not done end
+      L     DBW    0; 
+      L     12; 
+      -I    ; 
+      T     #t_Header_Length; 
+
+      L     P#12.0; 
+      LAR1  ; 
+
+BA01: L     DBW [AR1,P#0.0]; 
+      L     #t_LNK_DB_List_Number; 
+      <>I   ; 
+      JCN   BA02; 
+
+      L     #s_Offset_List_Record; 
+      L     2; 
+      +I    ; 
+      T     #s_Offset_List_Record; 
+      >I    ; 
+      BEC   ; // Not Found end check block
+
+      TAR1  ; 
+      L     P#2.0; // Goto next record
+      +D    ; 
+      LAR1  ; 
+      JU    BA01; 
+
+BA02: SET   ; 
+      S     #s_Offset_Record_done; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check if List is Assigned
+//If entry is not assigned then end block.
+      L     #t_Record_Length; 
+      L     #s_List_Number; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+// Loop to check if entry = 0
+      L     DBW [AR1,P#0.0]; 
+      T     #t_List_LNK_Found; //LNK Number in DB_List
+      L     0; 
+      <>I   ; 
+      JCN   CA99; // List is not Assigned jump to end of the network
+
+      TAR1  #t_AR1_BackUp; 
+
+//Open the LNK_DB & verify the List
+
+      OPN   "DB_LNK_List"; // Open LNK list
+      L     DBW    2; 
+      T     #t_Record_Length; 
+
+      L     #t_List_LNK_Found; 
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      L     #s_Offset_List_Record; 
+      +D    ; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #t_LNK_DB_List_Number; //List assigned in the DB_LNK_List 
+
+
+      L     #s_List_Number; //List to be checked
+      L     #t_LNK_DB_List_Number; //List assigned in the DB_LNK_List 
+      <>I   ; 
+      JCN   CA99; //If Not equall clear the LNK in DB_List
+
+      LAR1  #t_AR1_BackUp; 
+
+      OPN   #i_DB_List; 
+      L     0; 
+      T     DBW [AR1,P#0.0]; //LNK Number in DB_List
+
+//-----Log the Event--------------//
+// Log event will be reported by the FB_CHK_Assigned_LNK when List is cleared
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,34 @@
+TYPE "UDT_VCZ_HMI_Status"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, November 23, 2017 6:52:27 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                      inajos   23-11-17  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Auto
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Spare_0_2 : BOOL ;	//Spare_0_2
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Manual : BOOL ;	//Manual
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   TRS2_Manual_Run : BOOL ;	//TRS2_Manual_Run
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

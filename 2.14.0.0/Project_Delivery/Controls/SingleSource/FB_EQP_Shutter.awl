@@ -1,0 +1,973 @@
+FUNCTION_BLOCK "FB_EQP_Shutter"
+TITLE =%version: 1.16 % CN: 41 
+//Function:
+//Module to Control the Shutter (FD and SD)
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, July 09, 2018 8:32:29 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9872: Section stopped before close on fire alarm  nlHdL    09-07-18   1.16
+//ra#26823: Shutter disable clearing time out on CFG 0  nlHdL    08-03-18   1.15
+//ra#20219: dual shutter control                        nlHdL    14-03-17   1.14
+//ra#17109: Attempt to close without forcing the TRS    nlDY     18-10-16   1.13
+//ra#17109: Freeze shutter when TRS not operational     nlDY     18-10-16   1.13
+//ra#16785: TRS halted while shutter open and not auto  nlDY     09-09-16   1.12
+//ra#13987: Add ST warning restart required             nlHdL    13-06-16   1.11
+//ra#13987: Add ST warning restart required             nlHdL    13-06-16   1.11
+//ra#13986: Add the External Stop status to EQP         nlHdL    02-06-16   1.10
+//ra#12934: Change inhibit receive to disable send      nlJClo   15-04-16   1.09
+//ra#12665: Modify ready to restart IO_available        nlJClo   14-04-16   1.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.07
+//9061: Shutter check item present extra condition add  nlHdL    22-10-15   1.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//23974: Check if upstream PLT is available             nlHdL    12-06-15   1.06
+//18159: Add Fire Alarm Status                          nlMLaut  26-03-14   1.05
+//17299: inhibit receive high on fire alarm             nlHdL    07-01-14   1.04
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   1.03
+//15794: Minor changing + QQ0.16 Trondheim integrated   nlple    26-09-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.16 of PLT version 0
+//
+//Description:
+//- Function Control the Shutter (FD and SD)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command 
+  i_CMD_Controlled_Stop : BOOL ;	//CMD: Controlled stop from the StartStop Manager
+  i_DB_PLT_TRS : BLOCK_DB ;	//Data structure: Position datablock where shutter is mounted
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)  
+  i_CFG_Time_To_Open : INT  := 130;	//CFG: [0.1sec] Time it takes to open the shutter, 0 = No timeout detection
+  i_CFG_Time_To_Close : INT  := 130;	//CFG: [0.1sec] Time it takes to close the shutter, 0 = No timeout detection
+  i_CFG_Time_Contr_Clear : INT  := 100;	//CFG: [0.1sec] Time to execute a controlled close (part of total clear time)
+  i_CFG_Time_Clear_Shutter : INT  := 300;	//CFG: [0.1sec] Total time to execute closing routine (controlled and forced)
+  i_CFG_Time_Force_Run_TRS : INT  := 25;	//CFG: [0.1sec] Time to force run conveyor to clear space underneath the shutter
+  i_CFG_Delay_Conveyor_Run : INT  := 10;	//CFG: [0.1sec] Time to delay the conveyor from running after shutter is open
+  i_CFG_Delay_Safety_Edge : INT  := 10;	//CFG: [0.1sec] Time to delay safety edge posit. edge to prevent too soon closing
+  i_CFG_Position_Shutter : INT ;	//CFG: [cm] Position where start the gap to be clear under the shutter
+  i_CFG_Open_Win_Offset : INT  := 100;	//CFG: [cm] Offset before shutter to open search window 
+  i_CFG_Close_Win_Offset : INT  := 25;	//CFG: [cm] Offset after shutter to close search window 
+  i_IO_NOT_Safety_Edge : BOOL ;	//HW: Signal that detects edge of the shutter ( Bumper switch) 
+  i_IO_PS_Shutter_Opened : BOOL ;	//HW: Shutter is opened, signal from proximity switch shutter
+  i_IO_PS_Shutter_Closed : BOOL ;	//HW: Shutter is closed, signal from proximity switch shutter
+  i_IO_No_Fire_alarm : BOOL  := TRUE;	//HW: No Fire alarm local
+  i_IO_Automatic_Mode : BOOL ;	//HW: Keyswitch on control box shutter in automatic mode
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_CMD_TRS_ST_Energy_Save : BOOL ;	//CMD: Status of conveyor is Energy Save
+END_VAR
+VAR_OUTPUT
+  o_Open_Shutter : BOOL ;	//Request hardware layer to Open the shutter
+  o_Close_Shutter : BOOL ;	//Request hardware layer to Close the shutter
+  o_Action_Active : BOOL ;	//Action Active
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Req_Halt_TRS : BOOL ;	//TRS where shutter is mounted on OR upstream TRS when mounted between 2 sections
+  o_Req_Disable_Send : BOOL ;	//Request signal from to external disable send products
+  o_Force_MTR_TRS : BOOL ;	//Force motor of TRS if item detected while closing
+  o_ST_Started : BOOL ;	//ST: Started
+  o_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_ST_Open_Timeout : BOOL ;	//ST: Timeout opened error 
+  o_ST_Close_timeout : BOOL ;	//ST: Timeout close error 
+  o_ST_Shutter_Open : BOOL ;	//ST: Shutter is in open position 
+  o_ST_Shutter_Close : BOOL ;	//ST: Shutter is in close position 
+  o_ST_Safety_Edge : BOOL ;	//ST: Safety edge detection warning 
+  o_ST_Clearing_Timeout : BOOL ;	//ST: Clearing timeout 
+  o_ST_Fire_Alarm : BOOL ;	//ST: Fire Alarm
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+END_VAR
+VAR
+  s_Cnt_Clearing_Timeout : INT ;	//Counter for monitoring the clearing timeout
+  s_Cnt_Timeout_Opened : INT ;	//Counter for monitoring opened timeout
+  s_Cnt_Timeout_Closed : INT ;	//Counter for monitoring closed timeout
+  s_Cnt_Delay_Conveyor_Run : INT ;	//Time before allowing conveyor to run after opening [0.1sec]
+  s_Cnt_Safety_Edge_delay : INT ;	//Delay time safety edge detected
+  s_Cnt_times_Clearing : INT ;	//Count the attempt to clear the close area (safety edge)
+  s_Cnt_Search_Gap_Timeout : INT ;	//Count to find a gap under the shutter before first closing attempt
+  s_Cnt_Delay_Force_Run : INT ;	//Remaining distance for force run
+  s_Current_Value_Timer : INT ;	//Current value of timer
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_Number_of_items_Found : INT ;	//Number of items found
+  s_Time_Clearing_Done : BOOL ;	//Clearing timeout is done
+  s_FP_Time_Clearing_Done : BOOL ;	//Flank Positive of clearing timeout is done
+  s_Operational_On : BOOL ;	//Operational on signal of this object
+  s_Status_Shutter_Close : BOOL ;	//Shutter closed
+  s_Status_Shutter_Open : BOOL ;	//Shutter open
+  s_Delay_Con_Run_Done : BOOL ;	//Delay time conveyor run done
+  s_Shutter_Open_Command : BOOL ;	//Shutter Open command
+  s_Shutter_Close_Command : BOOL ;	//Shutter close command
+  s_Time_Closed_done : BOOL ;	//Delay time closed done 
+  s_Time_Opened_done : BOOL ;	//Delay time opened done 
+  s_Shutter_Error : BOOL ;	//Shutter Has error
+  s_Shutter_Open_Request : BOOL ;	//Request to open the shutter 
+  s_Shutter_Close_Request : BOOL ;	//Request to close the shutter 
+  s_Safety_Edge_WN_Latch : BOOL ;	//Safety edge warning latch
+  s_Safety_Edge_Detected : BOOL ;	//Safety edge detected
+  s_Safety_Edge_Dect_delay : BOOL ;	//Safety edge detected delayed
+  s_FP_Safety_Edge_Trig : BOOL ;	//Positive Safety Edge trigged
+  s_OS_Safety_Edge_Trig : BOOL ;	//One short Safety Edge trigged
+  s_Edge_Trig_While_Closin : BOOL ;	//Force conveyor to clear due to safety edge detected
+  s_Item_Detect_While_Clos : BOOL ;	//Force conveyor to clear due to item detected
+  s_Shutter_Close_Run : BOOL ;	//Shutter close run
+  s_Shutter_Open_Run : BOOL ;	//Shutter open run
+  s_Shutter_Close_Req_1 : BOOL ;	//Shutter Close condition-1 (System Stop)
+  s_Shutter_Close_Req_2 : BOOL ;	//Shutter Close condition-2 (Conveyor energy save)
+  s_Shutter_Close_Req_3 : BOOL ;	//Shutter Close condition-3 (Fire Alarm)
+  s_Mon_Closed_Timeout : BOOL ;	//Monitor Shutter closed timeout 
+  s_Mon_Opened_Timeout : BOOL ;	//Monitor Shutter opened timeout 
+  s_Actions_Active : BOOL ;	//Indicate there are still actions active by the shutter
+  s_FP_Start_Cnt_Force : BOOL ;	//Flank Positive signal to start counter for forcing TRS
+  s_Force_Run_Active : BOOL ;	//Start counter for forcing TRS
+  s_Triggerd_While_Closing : BOOL ;	//Item present or safety edge triggered while closing
+  s_Item_Was_DetWhilClos : BOOL ;	//Delayed off safety edge triggered or item detected while closing
+  s_Item_Present : BOOL ;	//Item present underneath the shutter
+  s_Leading_Edge_Found : BOOL ;	//Leading edge found in PLT
+  s_Trailing_Edge_Found : BOOL ;	//Trailing edge found in PLT
+  s_FP_Item_Present : BOOL ;	//Positive edge item present under shutter
+  s_OS_Item_Present : BOOL ;	//One short item present under shutter
+  s_FN_Force_MTR : BOOL ;	//Detection negative flank force MTR
+  s_FP_Close_Request : BOOL ;	//Detection positive flank of close_request
+  s_Wait_For_Gap : BOOL ;	//Wait until area under the shutter is clear of items
+  s_Contr_Close_Timeout : BOOL ;	//Timeout for 'controlled close'
+  s_TRS_Operational_On : BOOL ;	//Operational on signal of the section
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Start_Position : INT ;	//Start position search function item present underneath shutter
+  t_Length_window : INT ;	//Length window search function item present underneath shutter
+  t_Length_Section : INT ;	//Length section TRS
+  t_DB_PLT_Num_Upstr : INT ;	//Upstream DB PLT number
+  t_DB_PLT_Num_Dwstr : INT ;	//Downstream DB PLT number
+  t_DB_Num_PLT : INT ;	//TRS DB PLT number
+  t_Found_DB_PLT : INT ;	//DB number of found PLT
+  t_Position_Found : INT ;	//Found Position
+  t_Length_Bag : INT ;	//Lengte Bag
+  t_Max_bag_Window : INT ;	//Maximum window with max bag length
+  t_Position_before : INT ;	//Position before shutter
+  t_Found_DB_PLT_Before : INT ;	//Found PLT DB before shutter
+  t_OS_FN_Force_MTR : BOOL ;	//One shot stop force MTR
+  t_Disable_Clearing : BOOL ;	//Disable Clearing if CFG = 0
+  t_Section_Stopped : BOOL ;	//Section is stopped
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+
+      OPN   #i_DB_PLT_TRS; // Open DB PLT
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      L     DBW   12; // Retreive length of the TRS
+      T     #t_Length_Section; 
+
+      L     DBW    6; // Retreive PLt number upstream of the TRS
+      T     #t_DB_PLT_Num_Upstr; 
+
+      L     DBW    8; // Retreive PLT number downstream of the TRS
+      T     #t_DB_PLT_Num_Dwstr; 
+
+      A     DBX   10.5; // Operational ON signal of the TRS
+      =     #s_TRS_Operational_On; 
+
+      A     DBX   11.1; 
+      =     #t_Section_Stopped; 
+NETWORK
+TITLE =BA: Error Detections 
+
+      NOP   0; // Hold comment
+      L     0; 
+      L     #i_CFG_Time_Clear_Shutter; // THEN preset counter
+      ==I   ; 
+      =     #t_Disable_Clearing; 
+
+// Set status Clearing timeout
+      AN    #s_Shutter_Close_Request; // IF a shutter close request is NOT active
+      JCN   BA01; 
+      T     #s_Cnt_Clearing_Timeout; 
+BA01: NOP   0; 
+      A     #s_Shutter_Close_Request; // IF a shutter close request is active
+      A     "M_OS_/0.1_sec."; 
+      JCN   BA03; 
+      L     #s_Cnt_Clearing_Timeout; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Clearing_Timeout; 
+      JPZ   BA02; 
+      L     0; 
+BA02: T     #s_Cnt_Clearing_Timeout; 
+
+BA03: L     #s_Cnt_Clearing_Timeout; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      AN    #t_Disable_Clearing; 
+      =     #s_Time_Clearing_Done; // Delay Done
+
+      A     #s_Time_Clearing_Done; // Delay Done
+      FP    #s_FP_Time_Clearing_Done; // Flank Positive
+      S     #o_ST_Clearing_Timeout; // SET clearing timeout
+
+      A     #i_CMD_Reset; // IF reset command
+      A     #i_IO_NOT_Safety_Edge; // AND Safety Edge
+      ON    #i_Available_IO; // OR not IO_Available
+      R     #o_ST_Clearing_Timeout; // RESET clearing timeout
+
+      O     #o_ST_Open_Timeout; // OR Timeout Shutter opened
+      O     #o_ST_Close_timeout; // OR Timeout Shutter closed
+      O     #o_ST_Clearing_Timeout; // OR Clearing timeout
+      O     #i_Ext_Req_Stop; // OR Request stop
+      =     #s_Shutter_Error; 
+
+NETWORK
+TITLE =CA: Determine 'Operational_ON' status for shutter
+
+      A     #i_CMD_Start; // IF start
+      S     #s_Operational_On; // THEN set operational on
+      A(    ; 
+      ON    #i_CMD_Enable; // OR not enable
+      ON    #i_Available_IO; // OR Not IO Available
+      ON    #i_Safety_OK; // Or Not Safety
+      O     #i_Ext_Req_Stop; // OR external stop request
+      O     #s_Shutter_Error; // OR Shutter error
+      )     ; 
+      R     #s_Operational_On; // THEN reset operational On
+NETWORK
+TITLE =DA: Ready to start status for shutter
+
+      AN    #s_Operational_On; // AND Shutter operational on
+      A     #i_CMD_Enable; // AND Enabled
+      AN    #s_Shutter_Error; // AND no shutter error
+      AN    #i_Ext_Req_Stop; 
+      A     #i_Safety_OK; 
+      A     #i_Available_IO; 
+      =     #o_Ready_To_Restart; // THEN ready to start
+      =     #o_ST_WN_Restart; 
+NETWORK
+TITLE =EA: Determine Status of Shutter OPEN ,CLOSE 
+
+      NOP   0; // Hold the comment line
+// Determine status shutter is closed
+      AN    #i_IO_PS_Shutter_Opened; // IF Shutter is NOT open
+      A     #i_IO_PS_Shutter_Closed; // AND shutter is closed
+      A     #i_Available_IO; // AND IO is avalable
+      =     #o_ST_Shutter_Close; // THEN  status closed
+      =     #s_Status_Shutter_Close; 
+
+// Determine status shutter is opened
+      A     #i_IO_PS_Shutter_Opened; // IF shutter is open 
+      AN    #i_IO_PS_Shutter_Closed; // AND NOT shutter is closed
+      A     #i_Available_IO; // AND IO is avalable
+      =     #o_ST_Shutter_Open; // THEN set state open
+      =     #s_Status_Shutter_Open; 
+NETWORK
+TITLE =FA: Request Halt to upstream section/sections
+
+      AN    #s_Status_Shutter_Open; // IF no startup
+      JCN   FA01; 
+      L     #i_CFG_Delay_Conveyor_Run; // THEN preset start up counter
+      T     #s_Cnt_Delay_Conveyor_Run; 
+FA01: NOP   0; 
+      A     #s_Status_Shutter_Open; // Countdown Start-Up counter on time-base
+      A     "M_OS_/0.1_sec."; 
+      JCN   FA03; 
+      L     #s_Cnt_Delay_Conveyor_Run; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Delay_Conveyor_Run; 
+      JPZ   FA02; 
+      L     0; 
+FA02: T     #s_Cnt_Delay_Conveyor_Run; 
+
+FA03: L     #s_Cnt_Delay_Conveyor_Run; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Delay_Con_Run_Done; // Delay Done
+
+      AN    #s_Delay_Con_Run_Done; // IF TRS not yet allowed to run after opening
+      ON    #s_Status_Shutter_Open; // OR shutter is not open
+      O(    ; // OR shutter error and not in local mode
+      A     #s_Shutter_Error; 
+      A     #i_IO_Automatic_Mode; 
+      )     ; 
+      =     #o_Req_Halt_TRS; // Halt Request to the upstream conveyor
+
+NETWORK
+TITLE =GA: Opened timeout
+//If the shutter does not fully open within a certain timeout period after an 
+//'open' command was given, an error is reported (opened timeout).
+      L     #i_CFG_Time_To_Open; 
+      L     0; // Check time setting >0
+      >I    ; 
+      A     #s_Shutter_Open_Command; // IF Shutter open command
+      AN    #i_IO_PS_Shutter_Opened; // AND not open switch 
+      =     #s_Mon_Opened_Timeout; // THEN monitor opened timeout
+
+      AN    #s_Mon_Opened_Timeout; // IF no Energy-save
+      JCN   GA01; 
+      L     #i_CFG_Time_To_Open; // THEN presetcounter
+      T     #s_Cnt_Timeout_Opened; 
+GA01: NOP   0; 
+      A     #s_Mon_Opened_Timeout; // Countdown counter on time-base
+      A     "M_OS_/0.1_sec."; 
+      JCN   GA03; 
+      L     #s_Cnt_Timeout_Opened; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Timeout_Opened; 
+      JPZ   GA02; 
+      L     0; 
+GA02: T     #s_Cnt_Timeout_Opened; 
+
+GA03: L     #s_Cnt_Timeout_Opened; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Time_Opened_done; // Delay Done
+
+// Error 
+      A     #i_CMD_Reset; // IF reset command
+      ON    #i_Available_IO; // OR not IO_Available
+      ON    #i_IO_Automatic_Mode; // IF Shutter is NOT in Automatic mode
+      R     #o_ST_Open_Timeout; // THEN reset error
+
+      A     #i_Available_IO; // IF IO_Available
+      A     #s_Time_Opened_done; // IF Opened timeout
+      A     #s_Mon_Opened_Timeout; 
+      A     #i_IO_Automatic_Mode; // IF Shutter is in Automatic mode
+      S     #o_ST_Open_Timeout; // THEN Set Error
+NETWORK
+TITLE =HA: Closed timeout
+//If the shutter does not fully close within a certain timeout period after a 
+//'close' command was given, an error is reported (closed timeout).
+      L     #i_CFG_Time_To_Close; 
+      L     0; // Check time setting >0
+      >I    ; 
+      A     #s_Shutter_Close_Command; // IF Shutter open command
+      AN    #i_IO_PS_Shutter_Closed; // AND not close switch 
+      =     #s_Mon_Closed_Timeout; // THEN monitor opened timeout
+
+      AN    #s_Mon_Closed_Timeout; // IF no Energy-save
+      JCN   HA01; 
+      L     #i_CFG_Time_To_Close; // THEN presetcounter
+      T     #s_Cnt_Timeout_Closed; 
+HA01: NOP   0; 
+      A     #s_Mon_Closed_Timeout; // Countdown counter on time-base
+      A     "M_OS_/0.1_sec."; 
+      JCN   HA03; 
+      L     #s_Cnt_Timeout_Closed; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Timeout_Closed; 
+      JPZ   HA02; 
+      L     0; 
+HA02: T     #s_Cnt_Timeout_Closed; 
+
+HA03: L     #s_Cnt_Timeout_Closed; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Time_Closed_done; // Delay Done
+
+// Error 
+      A     #i_CMD_Reset; // IF reset command
+      ON    #i_Available_IO; // OR not IO_Available
+      ON    #i_IO_Automatic_Mode; // IF Shutter is NOT in Automatic mode
+      R     #o_ST_Close_timeout; // THEN reset error
+
+      A     #i_Available_IO; // IF IO_Available
+      A     #s_Time_Closed_done; // IF closed timeout
+      A     #s_Mon_Closed_Timeout; 
+      A     #i_IO_Automatic_Mode; // IF Shutter is in Automatic mode
+      S     #o_ST_Close_timeout; // THEN Set Error
+NETWORK
+TITLE =IA: Clear conveyors request due to safety edge activation
+//When safety edge detected while shutter is closing. It will initiate the 
+//precess 
+//of clearing. 
+//1. The shutter will be opened again
+//2. The system should know there is still an action active (shutter closing).
+//3. The shutter will be closed again.
+//
+//This clearing procedure attempts for a configured time. Then the 
+//clearing timeout is generated. 
+//
+      NOP   0; // hold comments
+// Determine if edge is triggered
+      AN    #i_IO_NOT_Safety_Edge; // Safety edge  Switch activated.. 
+      A     #i_Available_IO; // AND IO is ok
+      =     #s_Safety_Edge_Detected; // THEN set 
+
+// Set output "clearing error due to safety edge"
+      A     #s_Safety_Edge_Detected; // IF Safety Edge Detected
+      O     #s_Safety_Edge_WN_Latch; // If waring Latch
+      A     #i_Available_IO; // AND IO is ok
+      =     #o_ST_Safety_Edge; // Status Safety Edge Warning
+
+// Make a delay on of safety edge, so that shutter is not opened immediatly after edge is triggered.
+// This way short pulses will be ignored (they will only temporarily halt shutter movement and send a warning to OP/SCADA)
+      AN    #s_Safety_Edge_Detected; // IF edge is not triggered
+      JCN   IA01; 
+      L     #i_CFG_Delay_Safety_Edge; // THEN preset counter
+      T     #s_Cnt_Safety_Edge_delay; 
+IA01: NOP   0; 
+      A     #s_Safety_Edge_Detected; // IF edge triggered
+      A     "M_OS_/0.1_sec."; // THEN countdown counter on time-base
+      JCN   IA03; 
+      L     #s_Cnt_Safety_Edge_delay; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Safety_Edge_delay; 
+      JPZ   IA02; 
+      L     0; 
+IA02: T     #s_Cnt_Safety_Edge_delay; 
+
+IA03: L     #s_Cnt_Safety_Edge_delay; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Safety_Edge_Dect_delay; // Delay Done
+
+// Set "clearing error due to safety edge"
+      A     #s_Safety_Edge_Dect_delay; // IF the safety edge is detected
+      A     #s_Status_Shutter_Open; // AND shutter is opened
+      O(    ; 
+      A     #s_Item_Present; // IF item is present 
+      A     #s_Safety_Edge_Dect_delay; // AND Safety edge detected
+      )     ; 
+      O(    ; 
+      A     #o_ST_Clearing_Timeout; 
+      A     #s_Safety_Edge_Dect_delay; 
+      )     ; 
+      =     #s_Safety_Edge_WN_Latch; // THEN set safety edge Warning
+
+// Make the counter for the maximum number of clearing attempts (due to item founded or safety-edge)
+// NOTE: This counter is only for monitoring for the engineer during commissioning
+// The counter is farther not used in the code
+
+      AN    #o_ST_Clearing_Timeout; // AND clearing timeout is not expired
+      A     #s_Shutter_Close_Request; // AND shutter closing request
+      A     #s_Safety_Edge_Dect_delay; // AND Safety Edge is trigger
+      FP    #s_FP_Safety_Edge_Trig; 
+      =     #s_OS_Safety_Edge_Trig; // One short of safety edge trigger
+      JCN   IA04; 
+      L     #s_Cnt_times_Clearing; // Increment counter
+      L     1; // By 1
+      +I    ; 
+      T     #s_Cnt_times_Clearing; // Update the counter
+
+IA04: NOP   0; 
+      A     #s_OS_Safety_Edge_Trig; // One short safety edge trigger
+      S     #s_Edge_Trig_While_Closin; // SET the Safety Edge is triggered while closing
+
+      A     #s_Status_Shutter_Open; // And Shutter is opened
+      O     #s_Status_Shutter_Close; // OR Shutter closed
+      O     #s_Shutter_Error; // OR Tecnical error
+      R     #s_Edge_Trig_While_Closin; // RESET the Safety Edge is triggered while closing
+
+      L     #s_Cnt_times_Clearing; // Increment counter
+      L     3; 
+      >=I   ; 
+      A     #t_Disable_Clearing; 
+      S     #o_ST_Close_timeout; // THEN Set Error
+NETWORK
+TITLE =JA: Shutter open request
+//Shutter Open condition
+//1. At system start-up, shutter will be triggered to open.
+      NOP   0; // Hold the comments
+      A     #s_Operational_On; // AND Operational ON
+      A(    ; 
+      A     #s_TRS_Operational_On; // AND TRS is operational
+      O     #s_Shutter_Open_Request; // finish opening when opening action already started
+      )     ; 
+      AN    #i_CMD_TRS_ST_Energy_Save; // AND TRS not in energy save
+      AN    #s_Status_Shutter_Open; // AND the shutter is not already open
+      A     #i_Safety_OK; // AND Safety okay
+      A     #i_IO_No_Fire_alarm; // AND no fire alarm
+      AN    #s_Shutter_Close_Run; // AND Shutter is NOT closing
+      AN    #i_CMD_Controlled_Stop; // When other equipment report actions active the shutter should remain closed
+      =     #s_Shutter_Open_Request; // Shutter open request
+
+NETWORK
+TITLE =KA: Shutter close Request
+//Shutter Close condition
+//1. At system stop, shutter will be triggered to close.
+//2. When a transport section underneath a shutter goes into energy save, the 
+//   shutter will be triggered to close with a delay.
+//3. Fire alarm detected.
+      NOP   0; //Hold comments
+
+      A     #i_Available_IO; // IF IO available
+      A     #i_CMD_Controlled_Stop; // AND the start stop manager reports a controlled stop
+      AN    #s_Item_Present; // AND no item present underneath the shutter
+      AN    #s_Status_Shutter_Close; // AND the shutter is not already closed
+      AN    #s_Shutter_Error; // AND no Shutter error
+      A     #i_Safety_OK; // AND Safety okay
+      A     #s_TRS_Operational_On; // AND TRS operational on
+      S     #s_Shutter_Close_Req_1; // SET Shutter close condition-1
+
+      A     #s_Status_Shutter_Close; // IF Shutter us closed
+      O     #i_CMD_Start; // OR start command recieved
+      R     #s_Shutter_Close_Req_1; // RESET Shutter close condition-1
+
+      A     #i_Available_IO; // IF IO Available
+      A(    ; 
+      AN    #s_TRS_Operational_On; // AND TRS is operational
+      A     #s_Shutter_Close_Req_2; // finish closing when closing action already started
+      O     #i_CMD_TRS_ST_Energy_Save; // AND TRS in energy save
+      )     ; 
+      A     #s_Operational_On; // AND Operational ON
+      AN    #s_Status_Shutter_Close; // AND shutter is not already closed
+      AN    #s_Shutter_Error; // AND 
+      =     #s_Shutter_Close_Req_2; 
+
+      AN    #i_IO_No_Fire_alarm; // IF fire Alarm
+      AN    #s_Status_Shutter_Close; // AND shutter is not already closed
+      =     #s_Shutter_Close_Req_3; 
+
+// Shutter close request
+      A     #s_Shutter_Close_Req_1; 
+      O     #s_Shutter_Close_Req_2; 
+      O     #s_Shutter_Close_Req_3; 
+      =     #s_Shutter_Close_Request; // Shutter close request
+
+NETWORK
+TITLE =KB: Fire alarm detected
+//Condition fire Alarm Status
+      NOP   0; //Hold comments
+      AN    #i_IO_No_Fire_alarm; // IF Fire Alarm
+      =     #o_ST_Fire_Alarm; // Fire Alarm (DS) Status
+NETWORK
+TITLE =LA: Detection item under shutter
+//Check if an item is detected under the shutter
+      NOP   0; 
+      AN    #s_Shutter_Close_Request; 
+      R     #s_Item_Present; 
+      JC    LA05; 
+
+      L     #i_CFG_Open_Win_Offset; 
+      L     #i_CFG_Close_Win_Offset; 
+      +I    ; 
+      T     #t_Length_window; 
+
+// Calculation start position and window length for the search function
+      L     #i_CFG_Position_Shutter; 
+      L     #i_CFG_Open_Win_Offset; 
+      +I    ; 
+      T     #t_Start_Position; 
+
+//Check if upstream PLT is available
+      L     #t_DB_PLT_Num_Upstr; // THEN search in upstream PLT
+      L     1; 
+      >I    ; 
+      JCN   LA01; 
+
+// Start search from upstream PLT if start positioin is bigger than length of the TRS
+      L     #t_Start_Position; // IF start position > length
+      L     #t_Length_Section; 
+      >I    ; 
+      JCN   LA01; 
+      L     #t_Start_Position; // THEN calculate start position in upstream PLT
+      L     #t_Length_Section; 
+      -I    ; 
+      T     #t_Start_Position; 
+
+      L     #t_DB_PLT_Num_Upstr; // THEN search in upstream PLT
+      T     #t_DB_Num_PLT; 
+
+      JU    LA02; 
+LA01: L     #s_DB_Num_PLT; // ELSE search in TRS PLT
+      T     #t_DB_Num_PLT; 
+
+LA02: NOP   0; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_Length_window,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #s_Number_of_items_Found);
+
+      L     #s_Number_of_items_Found; 
+      L     0; 
+      <>I   ; 
+      =     #s_Leading_Edge_Found; 
+
+// Calculation start position and window length for the search function
+      L     #i_CFG_Position_Shutter; 
+      L     #i_CFG_Close_Win_Offset; 
+      -I    ; 
+      T     #t_Start_Position; 
+      L     0; 
+      <I    ; 
+      JCN   LA03; 
+
+//Check if downstream PLT is available
+      L     #t_DB_PLT_Num_Dwstr; // THEN search in downstream PLT
+      L     1; 
+      >I    ; 
+      JCN   LA03; 
+
+// Start search from downstream PLT if start positioin is smaller than zero
+      OPN   DB [#t_DB_PLT_Num_Dwstr]; 
+      L     DBW   12; 
+      T     #t_Length_Section; 
+
+      L     #t_Length_Section; 
+      L     #t_Start_Position; // THEN calculate start position in downstream PLT
+      +I    ; 
+      T     #t_Start_Position; 
+
+      L     #t_DB_PLT_Num_Dwstr; // THEN search in dwnstream PLT
+      T     #t_DB_Num_PLT; 
+
+      JU    LA04; 
+LA03: L     #s_DB_Num_PLT; // ELSE search in TRS PLT
+      T     #t_DB_Num_PLT; 
+
+LA04: NOP   0; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := #t_Length_window,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Found_DB_PLT,
+           o_Number_Items_Found     := #t_Not_Used_Int,
+           o_Length_Diff            := #t_Not_Used_Int);
+
+      L     #t_Found_DB_PLT; 
+      L     0; 
+      <>I   ; 
+      =     #s_Trailing_Edge_Found; 
+
+      A     #s_Leading_Edge_Found; 
+      O     #s_Trailing_Edge_Found; 
+      =     #s_Item_Present; 
+
+//If No item found check the window with the maximum bag length to be sure item is not within the window
+      AN    #s_Item_Present; 
+      JCN   LA05; //Skip if item is found
+
+      L     "DB_Setting".common.Max_Product_Length; 
+      L     #i_CFG_Close_Win_Offset; 
+      -I    ; 
+      T     #t_Max_bag_Window; 
+      L     0; 
+      >I    ; 
+      JCN   LA05; // Negative window no extra check needed
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #i_CFG_Position_Shutter,
+           i_Window                 := #t_Max_bag_Window,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Found_DB_PLT,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Found_DB_PLT; 
+      L     0; 
+      >I    ; 
+      JCN   LA05; // No item
+
+// search for trailing edge of Bag and trailing edge before shutter, when this is the same then item is present under the shutter.
+
+      L     #t_Found_DB_PLT; 
+      T     #t_DB_Num_PLT; 
+
+      L     #t_Position_Found; 
+      T     #t_Start_Position; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Start_Position,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Found_DB_PLT,
+           o_Number_Items_Found     := #t_Not_Used_Int,
+           o_Length_Diff            := #t_Length_Bag);
+
+      L     #t_Length_Bag; 
+      L     0; 
+      >I    ; 
+      JCN   LA05; // No Length, No item
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #i_CFG_Position_Shutter,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Position_before,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Found_DB_PLT_Before,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+//Check if trailing edges are equal 
+      L     #t_Found_DB_PLT; 
+      L     #t_Found_DB_PLT_Before; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Position_Found; 
+      L     #t_Position_before; 
+      ==I   ; 
+      )     ; 
+      =     #s_Item_Present; 
+
+// Make the counter for the maximum number of clearing attempts (due to item founded or safety-edge) 
+// NOTE: This counter is only for monitoring for the engineer during commissioning
+// The counter is farther not used in the code
+
+LA05: AN    #o_ST_Clearing_Timeout; // AND clearing timeout is not expired
+      A     #s_Shutter_Close_Request; // AND shutter should be closed..
+      A     #s_Item_Present; // AND item is present
+      A     #s_Contr_Close_Timeout; 
+      FP    #s_FP_Item_Present; 
+      =     #s_OS_Item_Present; // One shot item present under conveyor
+      JCN   LA06; 
+      L     #s_Cnt_times_Clearing; // Increment counter
+      L     1; // By 1
+      +I    ; 
+      T     #s_Cnt_times_Clearing; // Update the counter
+
+LA06: NOP   0; 
+
+// When force motor is executed reset item detected while closing to close shutter
+      A     #o_Force_MTR_TRS; 
+      FN    #s_FN_Force_MTR; 
+      =     #t_OS_FN_Force_MTR; 
+
+      A     #s_Status_Shutter_Open; // And Shutter is opened
+      O     #o_ST_Clearing_Timeout; // OR clearing timeout
+      O     #s_Status_Shutter_Close; // IF Shutter Closed
+      O     #t_OS_FN_Force_MTR; // OR Force MTR is finished
+      R     #s_Item_Detect_While_Clos; // RESET item is detected while closing
+
+      A     #s_OS_Item_Present; // One short PEC upstream trigger
+      S     #s_Item_Detect_While_Clos; // SET the item detected while closing 
+
+      A     #s_Status_Shutter_Close; // IF Shutter Closed
+      O     #s_Shutter_Error; // OR Technical error
+      JCN   LA99; //           
+      L     0; // Reset counter
+      T     #s_Cnt_times_Clearing; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Search for gap to close
+//There are two phases in closing the shutter:
+//
+//1) the shutter will search for an available gap to close for a configurable 
+//time (=controlled close)
+//
+//2) if the shutter is unable to find a gap, the TRS will be forced to run and 
+//the shutter will try to close. Step 2 is repeated until the total clearing time 
+//has passed (and the clutch of the shutter is released)
+      A     #s_Shutter_Close_Request; 
+      A     #s_Status_Shutter_Open; 
+      AN    #s_Contr_Close_Timeout; 
+      FP    #s_FP_Close_Request; 
+      S     #s_Wait_For_Gap; 
+
+      A     #s_Status_Shutter_Close; 
+      ON    #s_Status_Shutter_Open; 
+      ON    #s_Item_Present; 
+      ON    #s_Shutter_Close_Request; 
+      O     #s_Shutter_Error; 
+      O     #s_Contr_Close_Timeout; 
+      R     #s_Wait_For_Gap; 
+
+//Timeout for gap search
+      AN    #s_Shutter_Close_Request; // If looking for a gap
+      JCN   MA01; 
+      L     #i_CFG_Time_Contr_Clear; // THEN preset counter
+      T     #s_Cnt_Search_Gap_Timeout; 
+MA01: NOP   0; 
+      A     #s_Shutter_Close_Request; // IF a shutter close request is active
+      A     "M_OS_/0.1_sec."; 
+      JCN   MA03; 
+      L     #s_Cnt_Search_Gap_Timeout; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Search_Gap_Timeout; 
+      JPZ   MA02; 
+      L     0; 
+MA02: T     #s_Cnt_Search_Gap_Timeout; 
+
+MA03: A     #s_Force_Run_Active; // PLT information might no longer be correct
+      JCN   MA04; 
+
+      L     0; 
+      T     #s_Cnt_Search_Gap_Timeout; 
+
+MA04: L     #s_Cnt_Search_Gap_Timeout; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Contr_Close_Timeout; // Delay Done
+NETWORK
+TITLE =MB: Shutter Close run
+
+      AN    #o_ST_Safety_Edge; // IF  Safety Detected
+      A     #s_Shutter_Close_Request; // AND close request
+      AN    #s_Edge_Trig_While_Closin; // AND the Safety Edge is NOT triggered while closing
+      AN    #s_Item_Detect_While_Clos; // AND the PEC is NOT triggered while closing
+      AN    #s_Force_Run_Active; // AND the section is not forced to run
+      AN    #s_Wait_For_Gap; // AND shutter is no longer looking for a gap to close
+      =     #s_Shutter_Close_Run; // THEN close run
+NETWORK
+TITLE =NA: Shutter open run
+
+      A     #s_Edge_Trig_While_Closin; // IF Safety Edge is triggered during closing
+      O     #s_Item_Detect_While_Clos; // OR the PEC is NOT triggered while closing
+      O     #s_Force_Run_Active; // OR the section is forced to run
+      O     #s_Shutter_Open_Request; // OR there is a shutter open request for normal reasons
+      AN    #s_Status_Shutter_Open; // AND shutter is not opened      
+      =     #s_Shutter_Open_Run; // THEN open shutter
+NETWORK
+TITLE =OA: Shutter commands
+//The commands checked for both outputs from being true at the same time 
+      A     #s_Shutter_Close_Run; // IF Shutter close Run
+      AN    #s_Shutter_Open_Run; // AND NOT open run
+      =     #s_Shutter_Close_Command; 
+
+      A     #s_Shutter_Open_Run; // IF Shutter Open Run
+      AN    #s_Shutter_Close_Run; // AND NOT close run
+      =     #s_Shutter_Open_Command; 
+NETWORK
+TITLE =PA: Set outputs and Request run up/downstream conveyor 
+//Set the shutter command outputs. Report to the StartStop Manager that there is 
+//still an action active. Make the TRS Inhibit to receive item when the system is 
+//stopping.
+      NOP   0; 
+
+// Report that an action is still active
+      A     #s_Shutter_Open_Request; 
+      O     #i_IO_PS_Shutter_Opened; 
+      S     #s_Actions_Active; // There is still an action active
+
+      A     #i_IO_PS_Shutter_Closed; // IF the shutter is closed
+      R     #s_Actions_Active; // There is still an action active
+
+// Write output disable send to upstream section to stop the incoming flow so shutter can be closed 
+      A     #i_CMD_Controlled_Stop; // IF the system is stopping
+      ON    #i_IO_No_Fire_alarm; // OR fire Alarm
+      =     #o_Req_Disable_Send; // THEN set Disable Send to Upstream section
+
+// Shutter close
+      A     #s_Shutter_Close_Command; 
+      A     #t_Section_Stopped; 
+      =     #o_Close_Shutter; // SET Close shutter
+
+// Shutter open
+      A     #s_Shutter_Open_Command; 
+      =     #o_Open_Shutter; // SET open Shutter
+
+NETWORK
+TITLE =QA : Status for the shutter
+
+      NOP   0; 
+// Status started
+      A     #s_Operational_On; 
+      =     #o_ST_Started; 
+
+// Status request stop 
+      A     #i_Ext_Req_Stop; 
+      A     #i_Available_IO; 
+      =     #o_ST_Request_Stop; 
+
+// Status external stop
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      =     #o_ST_External_Stop; 
+NETWORK
+TITLE =RA: Force motor to clear section underneath shutter
+//The motor of the section underneath the shutter will be forced to run for a 
+//configurable time when the shutter is opened after the PEC or safety edge was 
+//triggerd while closing.  
+//
+//Suggested way of calculating i_CFG_Time_Force_Run_TRS:
+//Aim for the first available gap.
+//
+//SAG = Smalest Available Gap 
+//      E.g.: H2H is 2m and max bag length is 120cm => SAG = 80 cm
+//      E.g.: Gap is always 100 cm (gap control) => SAG = 100 cm
+//CS = Conveyor Speed
+//
+//SAG (cm) * 100
+//-------------- = i_CFG_Time_Force_Run_TRS (0.1 sec)
+// CS (mm/sec)
+      A     #s_Edge_Trig_While_Closin; 
+      O     #s_Item_Detect_While_Clos; 
+      =     #s_Triggerd_While_Closing; 
+
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #s_Triggerd_While_Closing,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 5,
+           i_Current_Value          := #s_Current_Value_Timer,
+           o_Status                 := #s_Item_Was_DetWhilClos,
+           o_Current_Value          := #s_Current_Value_Timer);
+
+      A     #s_Status_Shutter_Open; 
+      A     #s_Item_Was_DetWhilClos; 
+      A     #s_Contr_Close_Timeout; // Only start forcing when controlled close failed
+      FP    #s_FP_Start_Cnt_Force; 
+      S     #s_Force_Run_Active; 
+
+      L     #s_Cnt_Delay_Force_Run; 
+      L     0; 
+      <=I   ; 
+      R     #s_Force_Run_Active; 
+
+      AN    #s_Force_Run_Active; 
+      JCN   RA01; 
+      L     #i_CFG_Time_Force_Run_TRS; // THEN preset counter
+      T     #s_Cnt_Delay_Force_Run; 
+RA01: NOP   0; 
+      A     #s_Force_Run_Active; 
+      A     "M_OS_/0.1_sec."; 
+      JCN   RA03; 
+      L     #s_Cnt_Delay_Force_Run; 
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Delay_Force_Run; 
+      JPZ   RA02; 
+      L     0; 
+RA02: T     #s_Cnt_Delay_Force_Run; 
+
+RA03: L     #s_Cnt_Delay_Force_Run; 
+      L     #i_CFG_Time_Force_Run_TRS; 
+      <I    ; 
+      =     #o_Force_MTR_TRS; 
+
+NETWORK
+TITLE =SA: Actions active
+
+      NOP   0; 
+// Action active is reported if the shutter is in automatic mode and IO are available
+      A     #s_Actions_Active; 
+      A     #i_Available_IO; 
+      A     #i_IO_Automatic_Mode; 
+      =     #o_Action_Active; 
+
+END_FUNCTION_BLOCK
+

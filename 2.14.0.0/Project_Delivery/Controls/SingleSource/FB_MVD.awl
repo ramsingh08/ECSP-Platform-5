@@ -1,0 +1,1919 @@
+FUNCTION_BLOCK "FB_MVD"
+TITLE =%version: 1.27 % CN: 60
+//Function:
+//Module to control a vertimerge
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, September 25, 2018 11:19:46 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#28433: Clear PLT data on manual mode               nlHdL    25-09-18   1.27
+//ra#28839: SVD/MVD add LCC_IO_Available for switch     nlHdL    15-05-18   1.26
+//ra#26298: Position info too SWS                       nlHdL    18-12-17   1.25
+//ra#25250: SVD/MVD stop manual on fence opened         nlHdL    29-11-17   1.24
+//ra#26328: Initiate cascade start-up for RAW zones     nlHdL    14-11-17   1.23
+//ra#24228: Tracking cleared when safety fence opened   nlHdL    09-10-17   1.22
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   1.21
+//ra#24236: HAC PEC error before halt switch            nlHdL    23-08-17   1.20
+//ina#6646: SVD01: i_CFG_Dieback_Inf value is too high  nlHdL    16-08-17   1.19
+//bhs#18874: Sending Tracking report twice              nlHdL    22-05-17   1.18
+//ra#47812: Flow control configuration                  nlJClo   24-01-17   1.17
+//ra#18817: Clear PLT function Update                   inajos   07-12-16   1.16
+//ra#16165: renamed double detection                    nlJClo   08-09-16   1.15
+//ra#15770: Update because of HAC PEC                   nlJClo   18-07-16   1.14
+//ra#15770: Update the MVD according MCFV decomposition nlHdL    18-07-16   1.13
+//ra#15770: Update the MVD according MCFV decomposition nlHdL    18-07-16   1.13
+//9043: Check bag from infeed before Switch to Semi     nlHdL    21-10-15   1.13
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.12
+//24205: MVD local mode commands not reset in auto      nlHdL    10-06-15   1.12
+//24180: Item in HO upstream section add operation chk  nlHdL    01-06-15   1.11
+//24055: MVD Capacity inhibit conditions & default rec  nlHdL    19-05-15   1.10
+//23190: MVD blocked flow not active for switching      nlHdL    24-04-15   1.09
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   1.08
+//19494: PR: switch direction on UFO infeed             nlHdL    02-07-14   1.07
+//17442: Modified naming Fieldbus error                 nlHdL    26-06-14   1.06
+//17442: Generic block for handling Fieldbus device     nlHdL    18-04-14   1.05
+//12269: CFG_Record_Type removed. Default LNK           nlHdL    09-01-14   1.04
+//17417: missing upstream PLT number on first scan      nlHdL    07-01-14   1.03
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.34 of PLT version 0
+//
+//Description:
+//The Vertimerge consists of two belts capable of tilting up and down. They are 
+//mechanically linked together in such way that if switch belt 1 tilts up switch 
+//belt 2 tilts down by the same angle.
+//
+//Products will come from both infeeds. Neither flow has right of way. But if 
+//several parcels come shortly after one another it is more efficient to handle 
+//more than one parcel of the active flow before switching to the other flow.
+//Therefore a time-out timer will be monitored.
+//
+//If parcels follow within the pre-set distance they will be counted. After the 
+//count value is reached or the distance monitor times out, the Vertimerge will 
+//switch to the other flow if it has parcels waiting.
+//
+//A of right of way mechanism can be achieved by pre-setting different values in 
+//both counters. The counter with the value zero has no priority. The timers 
+//should be used to get optimum performance regarding average parcel length, 
+//conveyor speed and switching time.
+//
+//The VERTIMERGE® zone comprises of sections as detailed below:
+//- High Infeed Conveyor section
+//- Low Infeed Conveyor section
+//- Outfeed Conveyor section
+//- Switch Motor section
+//The VERTIMERGE® zone comprises elements as detailed below:
+//- Collision Detection PECs
+//- Gap Clear PEC
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_LCC_Available_IO : BOOL  := TRUE;	//Signal for indication IO of LCC is OK (no Fieldbus or IO error)
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Setting : "UDT_MVD_Sett";	//Data Structure: Setting Record
+  i_Commands : "UDT_SVD_MVD_Cmd";	//CMD: Commands Interface
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_Switch_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave 2 is not present
+  i_Switch_FieldB_Error : BOOL ;	//Fieldbus Slave 2 has an error
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Ext_Req_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_Ext_Req_Rst_ESave : BOOL ;	//Request signal from external reset energy saving
+  i_IO_NOT_PEC_Coll_Up : BOOL  := TRUE;	//HW: Collision error moving Up signal of PEC(TRUE = No error)
+  i_IO_NOT_PEC_Coll_Down : BOOL  := TRUE;	//HW: Collision error moving Down signal of PEC(TRUE = No error)
+  i_IO_NOT_PEC_Switch_Area : BOOL  := TRUE;	//HW: Switch area clear signal of PEC (TRUE = No product)
+  i_IO_Fence_Closed : BOOL  := TRUE;	//HW: Proximity switch Fence position closed (TRUE = Fence closed)
+  i_IO_MS_Automatic_mode : BOOL  := TRUE;	//HW: Main Switch of Vertimerge in 'ON' position (ON=TRUE)
+  i_IO_KS_Maint_Mode : BOOL ;	//HW: KeySwitch in maintenance mode
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_CFG_Start_Up_Distance : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_CFG_PEC_Block_Length : INT  := 300;	//CFG: [cm] Delay for detecting a PEC blockage for all sections in MVD
+  i_CFG_DieBack_Inf : INT  := 25;	//CFG: [cm] Die Back position before the end of the infeed conveyors.
+  i_SWS_Setting : "UDT_EQP_Switch_Sett";	//Data Structure: Setting Record SWS
+  i_SWS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_SWS_IO_PS_Up : BOOL ;	//HW: Proximity switch SWS in Up position (TRUE =Upper position)
+  i_SWS_IO_PS_Down : BOOL ;	//HW: Proximity switch SWS in Down position (TRUE = Lower position)
+  i_SWS_IO_NOT_THO : BOOL  := TRUE;	//HW: Switch motor thermal overload signal from motor (TRUE=no therm overload)
+  i_TRS1_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting Record TRS1
+  i_TRS1_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_TRS1_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS1_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS1_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS1_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_TRS2_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting Record TRS2
+  i_TRS2_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS2
+  i_TRS2_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS2_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS2_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_TRS3_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting Record TRS3
+  i_TRS3_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS3
+  i_TRS3_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS3_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS3_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS3_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Action_Active : BOOL ;	//Action Active
+  o_ST_Manual : BOOL ;	//ST: Mode Disabled (Offline or Manual)
+  o_ST_MS_Not_Automatic : BOOL ;	//ST: Maintenance Switch of zone in 'OFF' position
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_FieldB_NotPrsnt_2 : BOOL ;	//ST: Fieldbus Slave 2 not present
+  o_ST_FieldB_Error_2 : BOOL ;	//ST: Fieldbus Slave 2 error
+  o_ST_Fence_opened : BOOL ;	//ST: Security fence opened
+  o_ST_Fixed_Up : BOOL ;	//ST: Fixed up mode activated
+  o_ST_Fixed_Down : BOOL ;	//ST: Fixed down mode activated
+  o_ST_Maint_Mode : BOOL ;	//ST: Maintenance mode active (For manual run TRS while fence open)
+  o_SWS_IO_MTR_Up : BOOL ;	//HW: Run signal to motor up
+  o_SWS_IO_MTR_Down : BOOL ;	//HW: Run signal to motor down
+  o_SWS_IO_MTR_Up_Manual : BOOL ;	//HW: Manual run signal motor up
+  o_SWS_IO_MTR_Down_Manual : BOOL ;	//HW: Manual run signal motor down
+  o_SWS_ST_Started : BOOL ;	//ST: Started
+  o_SWS_ST_Running : BOOL ;	//ST: Section is running
+  o_SWS_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_SWS_ST_Up : BOOL ;	//ST: SwitchSection in Up (High) position
+  o_SWS_ST_Down : BOOL ;	//ST: SwitchSection in down (low) position  
+  o_SWS_ST_THO : BOOL ;	//ST: Thermal overload
+  o_SWS_ST_Move_Time_Out : BOOL ;	//ST: Switch motor time out moving
+  o_SWS_ST_HAC_Blockage : BOOL ;	//ST: PEC blockage on Gap Clear PEC (at outfeed belt)
+  o_SWS_ST_HAC_Switch : BOOL ;	//ST: The HAC PEC (at the outfeed belt) was triggered during a switch action
+  o_SWS_ST_Coll_Jam_Up : BOOL ;	//ST: Collision error while moving up
+  o_SWS_ST_Coll_Jam_Dwn : BOOL ;	//ST: Collision error while moving down
+  o_SWS_ST_Pos_Sens_Error : BOOL ;	//ST: Switch motor position sensor error
+  o_TRS1_IO_MTR : BOOL ;	//HW: Run signal to motor of conveyor
+  o_TRS1_ST_Items : BOOL ;	//ST: Items present on the section
+  o_TRS1_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS1_ST_Started : BOOL ;	//ST: Started
+  o_TRS1_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS1_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS1_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS1_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS1_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS1_ST_Bad_Update : BOOL ;	//ST: Update Tracking Performance is below warning level
+  o_TRS1_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS1_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS2_IO_MTR : BOOL ;	//HW: Run signal to motor of conveyor
+  o_TRS2_ST_Items : BOOL ;	//ST: Items present on the section
+  o_TRS2_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS2_ST_Started : BOOL ;	//ST: Started
+  o_TRS2_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS2_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS2_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS2_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS2_ST_Bad_Update : BOOL ;	//ST: Update Tracking Performance is below warning level
+  o_TRS2_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS2_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS3_IO_MTR : BOOL ;	//HW: Run signal to motor of conveyor
+  o_TRS3_ST_Items : BOOL ;	//ST: Items present on the section
+  o_TRS3_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS3_ST_Started : BOOL ;	//ST: Started
+  o_TRS3_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS3_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS3_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS3_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS3_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS3_ST_Bad_Update : BOOL ;	//ST: Update Tracking Performance is below warning level
+  o_TRS3_ST_THO : BOOL ;	//ST: Thermal overload
+  o_TRS3_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+END_VAR
+VAR
+  s_SWS_EQP_Switch : "FB_EQP_Switch";	//Block call static FB_EQP_Switch
+  s_SWS_MTR_2Dir : "FB_HW_MTR_2DIR_MS";	//Block call static FB_HW_MTR_2DIR_MS
+  s_TRS3_EQP_PEC : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS3_EQP_BASIC : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS3_TRK_Track : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS3_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS1_EQP_PEC : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS1_EQP_BASIC : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS1_TRK_Track : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS1_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS2_EQP_PEC : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS2_EQP_BASIC : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS2_TRK_Track : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS2_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_PEC_Switch_Gap : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC_Trigger
+  s_FB_DAT_MVD : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_SWS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_TRS3 : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_TRS2 : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_TRS1 : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_TRS3_PEC_Offset : INT ;	//Offset of outfeed conveyor PEC
+  s_TRS1_PEC_Offset : INT ;	//Offset of infeed high conveyor PEC
+  s_TRS2_PEC_Offset : INT ;	//Offset of infeed low conveyor PEC
+  s_TRS3_LPos : INT ;	//Position of outfeed conveyor PEC
+  s_TRS1_LPos : INT ;	//Position of infeed high conveyor PEC
+  s_TRS2_LPos : INT ;	//Position of infeed low conveyor PEC
+  s_DB_Event_Zone_nr : INT ;	//DB number of zone events
+  s_LNK_Outfeed : INT ;	//LNK data on end of infeed
+  s_Cnt_Flow_High : INT ;	//Flow counter infeed high
+  s_Cnt_TimeOut_High : INT ;	//Time-out timer infeed high
+  s_Cnt_Flow_Low : INT ;	//Flow counter infeed low
+  s_Cnt_TimeOut_Low : INT ;	//Time-out timer infeed low
+  s_Length_Switch_Area_CLR : INT ;	//Switch gap size + distance switch area
+  s_Mode_Manual : BOOL ;	//Manual mode active
+  s_Mode_Semi_Up : BOOL ;	//Semi-Automatic mode up active
+  s_Mode_Semi_Down : BOOL ;	//Semi_Automatic mode down acctive
+  s_SWS_Req_Halt : BOOL ;	//Request Halt to SWS
+  s_SWS_Req_Stop : BOOL ;	//Request stop to SWS
+  s_Req_Dir_B : BOOL ;	//Request to switch motor to switch UP
+  s_SWS_Req_MTR_Run : BOOL ;	//Request motor run to SWS
+  s_SWS_Req_MTR_Reverse : BOOL ;	//Request motor reverse to SWS
+  s_FP_Item_Merged : BOOL ;	//Positive Flank of item merged
+  s_Switch_Area_Clear : BOOL ;	//Switch area is not clear, halt switch movement
+  s_PEC_Clear_Latch : BOOL ;	//Filtered PEC signal of Switch Gap
+  s_Merge_Up : BOOL ;	//Request switch motor up [0 = motor down]
+  s_TRS1_Req_MTR_Run : BOOL ;	//Request motor run infeed high
+  s_TRS1_Req_Stop : BOOL ;	//Request stop to TRS1
+  s_TRS2_Req_MTR_Run : BOOL ;	//Request motor run infeed low
+  s_TRS2_Req_Stop : BOOL ;	//Request stop to TRS2
+  s_TRS3_Req_MTR_Run : BOOL ;	//Request motor run outfeed
+  s_TRS3_Req_Stop : BOOL ;	//Request stop to TRS3
+  s_Die_Back_Inf_High : BOOL ;	//Halt (Die-Back) Infeed section high on position xx
+  s_Request_Switch_High : BOOL ;	//Bag in front of infeed high should wait before entering the infeed
+  s_Flow_High_Active : BOOL ;	//Flow active on infeed high
+  s_FP_Flow_High_Active : BOOL ;	//Positive Flank flow active on infeed high
+  s_Priority_High : BOOL ;	//Priority high configured
+  s_Flow_Cnt_Expired_High : BOOL ;	//Flow counter expired flow high
+  s_Flow_TimeOut_High : BOOL ;	//Time-out timer expired flow high
+  s_Switch_Gap_Clear_High : BOOL ;	//Switch gap clear on infeed high
+  s_Die_Back_Inf_Low : BOOL ;	//Halt (Die-Back) Infeed section low on position xx
+  s_Request_Switch_Low : BOOL ;	//Bag in front of infeed low should wait before entering the infeed
+  s_Flow_Low_Active : BOOL  := TRUE;	//Flow active on infeed low
+  s_FP_Flow_Low_Active : BOOL ;	//Positive Flank flow active on infeed low
+  s_Priority_Low : BOOL ;	//Priority low configured
+  s_Flow_Cnt_Expired_Low : BOOL ;	//Flow count expired flow low
+  s_Flow_TimeOut_Low : BOOL ;	//Time-out timer expired flow low
+  s_Switch_Gap_Clear_Low : BOOL ;	//Switch gap clear on infeed low
+  s_SWS_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  s_TRS1_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  s_TRS2_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  s_TRS3_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  s_FP_Preset_Timer_Low : BOOL ;	//Positive flank preset time out position low detection
+  s_FP_Preset_Timer_High : BOOL ;	//Positive flank preset time out position high detection
+  s_ST_MS_Not_Auto : BOOL ;	//Status Maintenance Switch of zone in 'OFF' position
+  s_ST_FieldB_NotPrsnt : BOOL ;	//Status Fieldbus Slave not present
+  s_ST_FieldB_Error : BOOL ;	//Status Fieldbus Slave error
+  s_ST_FieldB_NotPrsnt_2 : BOOL ;	//Status Fieldbus Slave not present
+  s_ST_FieldB_Error_2 : BOOL ;	//Status Fieldbus Slave error
+  s_SWS_ST_Coll_Jam_Up : BOOL ;	//Status Collision error while moving up
+  s_SWS_ST_Coll_Jam_Dwn : BOOL ;	//Status Collision error while moving down
+  s_SWS_ST_HAC_Switch : BOOL ;	//Status Gap Clear PEC (at the outfeed belt) was triggered during a switch acti
+  s_ST_Fence_opened : BOOL ;	//Status Security fence opened
+  s_TRS1_Manual_Run : BOOL ;	//Request run in manual mode TRS1
+  s_TRS2_Manual_Run : BOOL ;	//Request run in manual mode TRS2
+  s_TRS3_Manual_Run : BOOL ;	//Request run in manual mode TRS3
+  s_FN_Handover_Upstr_TRS1 : BOOL ;	//Flank Negative of handover signal between high infeed and it's upstream section
+  s_FN_Handover_Upstr_TRS2 : BOOL ;	//Flank Negative of handover signal between low infeed and it's upstream section
+  s_FN_Upst_High_HandOver : BOOL ;	//Flank Negative of handover signal between high infeed and it's upstream section
+  s_FN_Upst_Low_HandOver : BOOL ;	//Flank Negative of handover signal between low infeed and it's upstream section
+  s_Flow_High_Can_Stop : BOOL ;	//Flow of high section can stop
+  s_Flow_Low_Can_Stop : BOOL ;	//Flow of low section can stop
+  s_Flow_High_Req : BOOL ;	//Bag in handover position on upstream section of high infeed
+  s_Flow_Low_Req : BOOL ;	//Bag in handover position on upstream section of low infeed
+  s_Req_Inh_Rcv_Item_High : BOOL ;	//Request to set the inhibit receive item signal towards infeed high section
+  s_Req_Inh_Rcv_Item_Low : BOOL ;	//Request to set the inhibit receive item signal towards infeed low section
+  s_FN_Manual_Mode : BOOL ;	//Detection negative flank manual mode
+  s_Item_on_outfeed : BOOL ;	//Item is on outfeed
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_RET_VAL_int : INT ;	//Return value integer of function
+  t_DB_PLT_TRS1 : INT ;	//DB number of infeed High PLT
+  t_DB_PLT_TRS2 : INT ;	//DB number of infeed Low PLT
+  t_DB_PLT_Outfeed : INT ;	//DB number of outfeed PLT
+  t_Info : INT ;	//Info from search
+  t_DieBack_Position : INT ;	//Die-Back position on infeed sections
+  t_Num_Items : INT ;	//Number of found items
+  t_Length_Upstr_High : INT ;	//Length of section upstream of Infeed High conveyor
+  t_Length_Upstr_Low : INT ;	//Length of section upstream of Infeed Low conveyor
+  t_Length_Outfeed_Conv : INT ;	//Length of outfeed conveyor
+  t_Displacement_TRS1 : INT ;	//Displacement of the Infeed High conveyor
+  t_Displacement_TRS2 : INT ;	//Displacement of the Infeed Low conveyor
+  t_Displacement_TRS3 : INT ;	//Displacement of the Outfeed conveyor
+  t_Pos_Update_Infeed : INT ;	//Position of last update by track of infeed
+  t_Data_Update_Infeed : INT ;	//Data of last update by track of infeed
+  t_DB_PLT_Upstream_High : INT ;	//PLT DB number of TRS1 upstream PLT DB
+  t_DB_PLT_Upstream_Low : INT ;	//PLT DB number of TRS2 upstream PLT DB
+  t_DB_Event_Section : INT ;	//Event DB number of section
+  t_Rep_Route_Record : INT ;	//Route record number
+  t_DB_No_Route : INT ;	//DB number of route list
+  t_LIC : INT ;	//LIC record number
+  t_Item_on_TRS3 : BOOL ;	//Item in switch area new item allowed
+  t_MVD_has_Items : BOOL ;	//MVD has items
+  t_Halt_Infeed_High : BOOL ;	//Halt request infeed high
+  t_Halt_Infeed_Low : BOOL ;	//Halt request infeed low
+  t_Section_Run_Outfeed : BOOL ;	//Section Run of downstream section of the infeed (High or Low)
+  t_Available_IO_Below : BOOL ;	//IO available is below
+  t_Item_on_infeed : BOOL ;	//Item is on infeed
+  t_SWS_ST_HAC_Blockage : BOOL ;	//Gap Blockage of switch gap PEC
+  t_OS_Data_Infeed : BOOL ;	//One Shot Data is updated by track of infeed
+  t_Req_Reset_E_Save : BOOL ;	//Request to reset Energy Save to section
+  t_Item_At_HandOver_Low : BOOL ;	//Item at handover infeed low
+  t_Item_At_HandOver_High : BOOL ;	//Item at handover infeed high
+  t_Upstream_High_HandOver : BOOL ;	//Handover signal between high infeed conveyor and it's upstream section
+  t_Upstream_Low_HandOver : BOOL ;	//Handover signal between high infeed conveyor and it's upstream section
+  t_NO_Entr_Pres_Upst_High : BOOL ;	//No entries are present in the PLT DB of the high infeed section
+  t_NO_Entr_Pres_Upst_Low : BOOL ;	//No entries are present in the PLT DB of the low infeed section
+  t_PresetPEC_ClrPLT_TRS1 : BOOL ;	//Preset PEC and clear PLT in case of manual mode with item not allowed on TRS1
+  t_PresetPEC_ClrPLT_TRS2 : BOOL ;	//Preset PEC and clear PLT in case of manual mode with item not allowed on TRS2
+  t_PresetPEC_ClrPLT_TRS3 : BOOL ;	//Preset PEC and clear PLT in case of manual mode with item not allowed on TRS3
+  t_OS_FN_Manual_Mode : BOOL ;	//One shot negative flank manual mode
+  t_DB_PLT_TRS1_Done : BOOL ;	//PLT intialization done
+  t_DB_PLT_TRS2_Done : BOOL ;	//PLT intialization done
+  t_DB_PLT_TRS3_Done : BOOL ;	//PLT intialization done
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: PLT data from the infeed
+
+      NOP   0; 
+
+//Transport section 1 (high conveyor)
+      OPN   #i_TRS1_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_PLT_TRS1; 
+
+      L     DBW    2; 
+      T     #t_Displacement_TRS1; 
+
+      A     DBX   10.6; 
+      A     #o_TRS1_ST_Started; 
+      =     #t_Item_At_HandOver_High; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Upstream_High; 
+
+      A     DBX   10.0; 
+      =     #t_DB_PLT_TRS1_Done; 
+//Transport section 2 (low conveyor)
+      OPN   #i_TRS2_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_PLT_TRS2; 
+
+      L     DBW    2; 
+      T     #t_Displacement_TRS2; 
+
+      A     DBX   10.6; 
+      A     #o_TRS2_ST_Started; 
+      =     #t_Item_At_HandOver_Low; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Upstream_Low; 
+
+      A     DBX   10.0; 
+      =     #t_DB_PLT_TRS2_Done; 
+//Transport section 3 (outfeed conveyor)
+      OPN   #i_TRS3_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_PLT_Outfeed; 
+
+      L     DBW    2; 
+      T     #t_Displacement_TRS3; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_Outfeed; 
+
+      L     DBW   12; 
+      T     #t_Length_Outfeed_Conv; 
+
+      A     DBX   10.0; 
+      =     #t_DB_PLT_TRS3_Done; 
+
+//Check that all PLT DB's are initialized 
+      A     #t_DB_PLT_TRS1_Done; 
+      A     #t_DB_PLT_TRS2_Done; 
+      A     #t_DB_PLT_TRS3_Done; 
+      JCN   AA99; 
+//Upstream sections of high infeed
+      OPN   DB [#t_DB_PLT_Upstream_High]; 
+      A     DBX   10.6; 
+      A     DBX   10.5; 
+      =     #t_Upstream_High_HandOver; 
+
+      L     DBW   12; 
+      T     #t_Length_Upstr_High; 
+
+//Upstream sections of low infeed
+      OPN   DB [#t_DB_PLT_Upstream_Low]; 
+      A     DBX   10.6; 
+      A     DBX   10.5; 
+      =     #t_Upstream_Low_HandOver; 
+
+      L     DBW   12; 
+      T     #t_Length_Upstr_Low; 
+
+//Write DB number for zone events
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #s_DB_Event_Zone_nr; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Handle Electrical Input statuses 
+
+      NOP   0; 
+
+// IO available below
+      A     #i_Available_IO; //No fieldbus master error and power is supplied
+      A     #i_LCC_Available_IO; //Power switch is OK
+      AN    #s_ST_FieldB_NotPrsnt; //Fieldbus Slaves are present
+      AN    #s_ST_FieldB_Error; 
+      AN    #s_ST_FieldB_NotPrsnt_2; 
+      AN    #s_ST_FieldB_Error_2; 
+      =     #t_Available_IO_Below; //IO Available signal for equipment within the zone
+
+// Maintenance switch
+      AN    #i_IO_MS_Automatic_mode; // Maintenance Switch not in 'On' position
+      A     #t_Available_IO_Below; // AND IO available
+      =     #s_ST_MS_Not_Auto; // Status of Maintanace Switch in 'Off' position
+
+// Auto mode
+      A     #i_Commands.Auto; 
+      R     #s_Mode_Manual; 
+
+// Manual mode
+      A     #i_Commands.Manual; 
+      S     #s_Mode_Manual; 
+
+// Semi-Automatic mode up
+      A     #i_Commands.Fixed_Down; 
+      O     #i_Commands.Manual; 
+      O     #i_Commands.Auto; 
+      R     #s_Mode_Semi_Up; 
+
+      A     #i_Commands.Fixed_Up; 
+      AN    #i_Commands.Manual; 
+      S     #s_Mode_Semi_Up; 
+      R     #s_Mode_Semi_Down; 
+      R     #s_Mode_Manual; 
+
+// Semi_Automatic mode down
+      A     #i_Commands.Fixed_Up; 
+      O     #i_Commands.Manual; 
+      O     #i_Commands.Auto; 
+      R     #s_Mode_Semi_Down; 
+
+      A     #i_Commands.Fixed_Down; 
+      AN    #i_Commands.Manual; 
+      S     #s_Mode_Semi_Down; 
+      R     #s_Mode_Semi_Up; 
+      R     #s_Mode_Manual; 
+
+// OS flank negative manual mode
+      A     #s_Mode_Manual; 
+      FN    #s_FN_Manual_Mode; 
+      =     #t_OS_FN_Manual_Mode; 
+
+// Manual command
+      A     #i_Commands.Manual_TRS1_Start; 
+      S     #s_TRS1_Manual_Run; 
+
+      A     #i_Commands.Manual_TRS1_Stop; 
+      O     #t_OS_FN_Manual_Mode; 
+      O(    ; 
+      AN    #i_IO_KS_Maint_Mode; 
+      A     #s_ST_Fence_opened; 
+      )     ; 
+      R     #s_TRS1_Manual_Run; 
+
+      A     #i_Commands.Manual_TRS2_Start; 
+      S     #s_TRS2_Manual_Run; 
+
+      A     #i_Commands.Manual_TRS2_Stop; 
+      O     #t_OS_FN_Manual_Mode; 
+      O(    ; 
+      AN    #i_IO_KS_Maint_Mode; 
+      A     #s_ST_Fence_opened; 
+      )     ; 
+      R     #s_TRS2_Manual_Run; 
+
+      A     #i_Commands.Manual_TRS3_Start; 
+      S     #s_TRS3_Manual_Run; 
+
+      A     #i_Commands.Manual_TRS3_Stop; 
+      O     #t_OS_FN_Manual_Mode; 
+      O(    ; 
+      AN    #i_IO_KS_Maint_Mode; 
+      A     #s_ST_Fence_opened; 
+      )     ; 
+      R     #s_TRS3_Manual_Run; 
+
+// Reset errors
+      A     #i_CMD_Reset; // Reset errors
+      ON    #t_Available_IO_Below; // OR IO not available
+      R     #s_SWS_ST_Coll_Jam_Up; 
+      R     #s_SWS_ST_Coll_Jam_Dwn; 
+      R     #s_ST_Fence_opened; 
+
+      A     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; // OR IO not available
+      R     #s_ST_FieldB_NotPrsnt; 
+      R     #s_ST_FieldB_Error; 
+
+      A     #i_CMD_Reset; // Reset errors
+      ON    #i_LCC_Available_IO; // OR IO not available
+      R     #s_ST_FieldB_NotPrsnt_2; 
+      R     #s_ST_FieldB_Error_2; 
+
+      A     #i_CMD_Reset; // Reset errors
+      A     #i_IO_NOT_PEC_Switch_Area; 
+      ON    #t_Available_IO_Below; // OR IO not available
+      R     #s_SWS_ST_HAC_Switch; 
+
+// Fence opened
+      AN    #i_IO_Fence_Closed; 
+      A     #t_Available_IO_Below; 
+      S     #s_ST_Fence_opened; 
+
+// Fieldbus errors
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      A     #i_LCC_Available_IO; 
+      AN    #i_Switch_FieldB_NotPrsnt; 
+      AN    #i_Switch_FieldB_Error; // module is located after switch
+      S     #s_ST_FieldB_NotPrsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      A     #i_LCC_Available_IO; 
+      AN    #i_Switch_FieldB_NotPrsnt; 
+      AN    #i_Switch_FieldB_Error; // module is located after switch
+      S     #s_ST_FieldB_Error; 
+
+      A     #i_Switch_FieldB_NotPrsnt; 
+      A     #i_LCC_Available_IO; 
+      S     #s_ST_FieldB_NotPrsnt_2; 
+
+      A     #i_Switch_FieldB_Error; 
+      A     #i_LCC_Available_IO; 
+      S     #s_ST_FieldB_Error_2; 
+
+// Collision errors
+      AN    #i_IO_NOT_PEC_Coll_Up; // Collision error
+      AN    #o_ST_Manual; 
+      A     #t_Available_IO_Below; // AND IO available
+      S     #s_SWS_ST_Coll_Jam_Up; // Error: Collision Error Up
+
+      AN    #i_IO_NOT_PEC_Coll_Down; // Collision error
+      AN    #o_ST_Manual; 
+      A     #t_Available_IO_Below; // AND IO available
+      S     #s_SWS_ST_Coll_Jam_Dwn; // Error: Collision Error Down
+
+NETWORK
+TITLE =CA: Determine Priority High or Low
+//The flow baggage handling has 3 flow regulation modes:
+//1. First Come First Serve:
+//     A flow can stop if n parcels are handled or more then t seconds expired 
+//     since the last parcel past the PEC. If parcels come on the other flow this 
+//     flow will be stopped if the conditions are met.
+//2. Priority High infeed belt: (When the setting Flow_Ratio_Low = 0)
+//     The baggage from the High infeed belt gets priority over the Low infeed 
+//     belt. Baggage on the Low infeed belt first will be handled if no baggage 
+//     is present at the High infeed belt for a specific time.
+//3. Priority Low infeed belt: (When the setting Flow_Ratio_High = 0)
+//     The baggage from the Low infeed belt gets priority over the High infeed 
+//     belt. Baggage on the High infeed belt first will be handled if no baggage 
+//     is present at the Low infeed belt for a specific time. When both Priority 
+//     setting are zero, The high infeed will get the priority.
+      NOP   0; 
+
+// Set priority high infeed when the setting flow ratio low = 0
+      L     #i_Setting.Flow_Ratio_Low; 
+      L     0; 
+      ==I   ; 
+      =     #s_Priority_High; 
+
+// Set priority low infeed when the setting flow ratio high = 0
+      L     #i_Setting.Flow_Ratio_High; 
+      L     0; 
+      ==I   ; 
+      AN    #s_Priority_High; // AND NOT priority high infeed
+      =     #s_Priority_Low; 
+
+NETWORK
+TITLE =DA: Detect parcel movements at upstream infeed high and low
+//Detect the negative flank of a parcel being transfered from the upstream 
+//sections onto the low and high infeed belts. Also detect the positive flank of 
+//a parcel being transferred from the upstream sections onto the low and high 
+//infeed belts.
+      NOP   0; 
+
+//Get negative flank of handover signal between high infeed and its upstream section.
+      A     #t_Upstream_High_HandOver; 
+      FN    #s_FN_Handover_Upstr_TRS1; 
+      =     #s_FN_Upst_High_HandOver; 
+
+// Get negative flank of handover signal between low infeed and its upstream section
+      A     #t_Upstream_Low_HandOver; 
+      FN    #s_FN_Handover_Upstr_TRS2; 
+      =     #s_FN_Upst_Low_HandOver; 
+
+      A     #o_TRS1_ST_Items; 
+      O     #o_TRS2_ST_Items; 
+      O     #o_TRS3_ST_Items; 
+      =     #t_MVD_has_Items; 
+NETWORK
+TITLE =EA: Determine when flow high can Stop
+//1. First Come First Serve:
+//     A flow can stop if n parcels are handled or more then x has been expired   
+// 
+//     since the last parcel past the PEC. If parcels come on the other flow this 
+// 
+//     flow will be stopped if the conditions are met.
+//2. Priority High infeed belt: 
+//     The baggage from the High infeed belt gets priority over the Low infeed 
+//     belt. Baggage on the Low infeed belt first will be handled if no baggage 
+//     is present at the High infeed belt for a specific time. 
+//     The priority high is detected when the preset flow counter of the lower 
+//     infeed = 0 (Flow_Low_Parcel)
+//3. Priority Low infeed belt:
+//     The baggage from the Low infeed belt gets priority over the High infeed 
+//     belt. Baggage on the High infeed belt first will be handled if no baggage  
+//     is present at the Low infeed belt for a specific time. 
+//     The priority low is detected when the preset flow counter of the higher 
+//     infeed = 0 (Flow_High_Parcel)
+      A     #s_Flow_High_Active; 
+      FP    #s_FP_Flow_High_Active; 
+      JCN   EA01; 
+      L     #i_Setting.Flow_Ratio_High; 
+      T     #s_Cnt_Flow_High; 
+
+//Item counter higher flow
+EA01: A(    ; 
+      L     #s_Cnt_Flow_High; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     #s_Flow_High_Active; // IF Flow high active
+      A     #s_FN_Upst_High_HandOver; 
+      JCN   EA02; 
+      L     #s_Cnt_Flow_High; 
+      +     -1; // Countdown
+      T     #s_Cnt_Flow_High; 
+
+EA02: L     #s_Cnt_Flow_High; 
+      L     0; 
+      <=I   ; // When counter is elapsed
+      =     #s_Flow_Cnt_Expired_High; // Counter higher flow is expired
+
+//Time-out counter higher flow
+      A     #s_Flow_High_Active; 
+      FP    #s_FP_Preset_Timer_High; 
+      O     #t_Item_At_HandOver_High; 
+      JCN   EA03; //Then Reset timer.
+      L     #i_Setting.Ratio_TimeOut_Time; //Set the Time-out timer to default settings
+      T     #s_Cnt_TimeOut_High; 
+EA03: L     #s_Cnt_TimeOut_High; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   EA04; //If Negative then
+      L     0; //Keep counter to zero
+EA04: T     #s_Cnt_TimeOut_High; 
+      L     #i_Setting.Ratio_TimeOut_Time; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_Cnt_TimeOut_High; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_Flow_TimeOut_High; //.. And set Time_Out flow high
+
+//Flow high can stop
+      A     #s_Flow_Cnt_Expired_High; 
+      AN    #s_Priority_High; 
+      O     #s_Flow_TimeOut_High; 
+      O(    ; 
+      A     #s_Priority_Low; 
+      A     #t_Upstream_Low_HandOver; 
+      )     ; 
+      A     #s_Flow_High_Active; 
+      A     #i_SWS_IO_PS_Up; 
+      O     #s_Mode_Semi_Down; 
+      =     #s_Flow_High_Can_Stop; 
+NETWORK
+TITLE =FA: Determine when flow low can Stop
+//See description of previous network
+      A     #s_Flow_Low_Active; 
+      FP    #s_FP_Flow_Low_Active; 
+      JCN   FA01; 
+      L     #i_Setting.Flow_Ratio_Low; 
+      T     #s_Cnt_Flow_Low; 
+
+//Item counter lower flow
+FA01: A(    ; 
+      L     #s_Cnt_Flow_Low; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     #s_Flow_Low_Active; // IF Flow low active
+      A     #s_FN_Upst_Low_HandOver; 
+      JCN   FA02; 
+      L     #s_Cnt_Flow_Low; 
+      +     -1; // Countdown
+      T     #s_Cnt_Flow_Low; 
+
+FA02: L     #s_Cnt_Flow_Low; 
+      L     0; 
+      <=I   ; // When counter is elapsed
+      =     #s_Flow_Cnt_Expired_Low; // Counter lower flow is expired
+
+//Time-out counter lower flow
+      A     #s_Flow_Low_Active; 
+      FP    #s_FP_Preset_Timer_Low; 
+      O     #t_Item_At_HandOver_Low; 
+      JCN   FA03; //Then Reset timer.
+      L     #i_Setting.Ratio_TimeOut_Time; //Set the Time-out timer to default settings
+      T     #s_Cnt_TimeOut_Low; 
+FA03: L     #s_Cnt_TimeOut_Low; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   FA04; //If Negative then
+      L     0; //Keep counter to zero
+FA04: T     #s_Cnt_TimeOut_Low; 
+      L     #i_Setting.Ratio_TimeOut_Time; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_Cnt_TimeOut_Low; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_Flow_TimeOut_Low; //.. And set Time_Out flow low
+
+//Flow low can stop
+      A     #s_Flow_Cnt_Expired_Low; 
+      AN    #s_Priority_Low; 
+      O     #s_Flow_TimeOut_Low; 
+      O(    ; 
+      A     #s_Priority_High; 
+      A     #t_Upstream_High_HandOver; 
+      )     ; 
+      A     #s_Flow_Low_Active; 
+      A     #i_SWS_IO_PS_Down; 
+      O     #s_Mode_Semi_Up; 
+      =     #s_Flow_Low_Can_Stop; 
+
+NETWORK
+TITLE =GA: Infeed flow control
+//Conditions to determine if Flow_High of Flow_Low should be active
+      NOP   0; 
+
+      AN    #o_TRS1_ST_Items; 
+      O     #s_Mode_Semi_Down; 
+      =     #t_NO_Entr_Pres_Upst_High; // NO items present on section upstream of High infeed section
+
+// Determine if there are entries present in the PLT db of the Low section
+      AN    #o_TRS2_ST_Items; 
+      O     #s_Mode_Semi_Up; 
+      =     #t_NO_Entr_Pres_Upst_Low; // NO items present on section upstream of Low infeed section
+
+//Determine when flow high should be active
+      AN    #s_Flow_Low_Active; // AND.. NOT flow low active
+      AN    #s_Mode_Semi_Down; 
+      A     #s_Flow_High_Req; // AND.. a parcel at upstream high infeed
+      S     #s_Flow_High_Active; // SET.. flow high active flag
+
+      A     #s_Flow_Low_Req; // AND flow low request
+      A     #s_Flow_High_Can_Stop; // AND flow high is allowed to stop
+      A     #t_NO_Entr_Pres_Upst_High; // AND NO items present on infeed section
+      A     #s_Req_Inh_Rcv_Item_High; // AND flow infeed conveyor is stopped
+      ON    #o_TRS1_ST_Started; // OR infeed not started
+      R     #s_Flow_High_Active; // RESET.. flow high active flag
+
+      A     #t_Upstream_High_HandOver; // AND.. a parcel at upstream high infeed
+      O     #o_TRS1_ST_Items; 
+      A     #o_TRS1_ST_Started; 
+      AN    #s_Mode_Semi_Down; // Mode not Semi
+      AN    #s_Mode_Semi_Up; 
+      O(    ; 
+      A     #s_Mode_Semi_Up; 
+      AN    #o_TRS2_ST_Items; 
+      )     ; 
+      =     #s_Flow_High_Req; // Flow high request flag
+
+//Determine when flow low should be active
+      AN    #s_Flow_High_Active; // AND.. NOT flow high active
+      AN    #s_Mode_Semi_Up; 
+      A     #s_Flow_Low_Req; 
+      S     #s_Flow_Low_Active; // SET.. flow low active flag
+
+      A     #s_Flow_High_Req; // AND flow high request 
+      A     #s_Flow_Low_Can_Stop; // AND flow low is allowed to stop
+      A     #t_NO_Entr_Pres_Upst_Low; // AND NO items present on infeed section
+      A     #s_Req_Inh_Rcv_Item_Low; // AND flow infeed conveyor is stopped
+      ON    #o_TRS2_ST_Started; // OR infeed not started
+      R     #s_Flow_Low_Active; // RESET.. flow low active flag
+
+      A     #t_Upstream_Low_HandOver; // AND.. a parcel at upstream low infeed
+      O     #o_TRS2_ST_Items; 
+      A     #o_TRS2_ST_Started; 
+      AN    #s_Mode_Semi_Up; //Mode not Semi
+      AN    #s_Mode_Semi_Down; 
+      O(    ; 
+      A     #s_Mode_Semi_Down; 
+      AN    #o_TRS1_ST_Items; 
+      )     ; 
+      =     #s_Flow_Low_Req; // Flow low request flag
+
+NETWORK
+TITLE =HA: Handle switch requests for higher and lower infeed
+//Handle switch requests for the higher and lower infeed and enable/disable flow 
+//from infeeds.
+      NOP   0; 
+
+//Determine when a request to switch to high flow needs to be given
+      A     #s_Flow_High_Active; // AND flow high is active
+      AN    #s_Flow_Low_Active; // AND NOT flow low is active
+      AN    #s_Request_Switch_Low; // AND NOT vertiMerge down request
+      AN    #t_Item_At_HandOver_Low; // AND NOT item in handover on lower infeed belt (*) 
+      S     #s_Request_Switch_High; // THEN SET vertiMerge high request
+
+      AN    #s_Flow_High_Active; // AND NOT flow high active
+      A     #s_Switch_Gap_Clear_High; // AND high infeed belt is empty 
+      O(    ; 
+      A     #s_Flow_Low_Active; 
+      A     #s_Mode_Semi_Down; 
+      )     ; 
+      R     #s_Request_Switch_High; // THEN SET vertiMerge high request
+
+//Determine when a request to switch to low flow needs to be given
+      A     #s_Flow_Low_Active; // AND flow low is active
+      AN    #s_Flow_High_Active; // AND NOT flow high is active
+      AN    #s_Request_Switch_High; // AND NOT vertiMerge high request
+      AN    #t_Item_At_HandOver_High; // AND NOT item in handover on higher infeed belt (*) 
+      S     #s_Request_Switch_Low; // THEN SET vertiMerge low request
+
+      AN    #s_Flow_Low_Active; // AND NOT flow low active
+      A     #s_Switch_Gap_Clear_Low; // AND low infeed belt is empty 
+      O(    ; 
+      A     #s_Flow_High_Active; 
+      A     #s_Mode_Semi_Up; 
+      )     ; 
+      R     #s_Request_Switch_Low; // THEN SET vertiMerge low request
+
+//Handle switch requests for the higher and lower infeed
+      A     #s_Request_Switch_High; // AND vertiMerge up request
+      O(    ; 
+      AN    #s_Request_Switch_Low; 
+      AN    #s_Request_Switch_High; 
+      A     #t_Item_At_HandOver_High; // OR no up and down request and item on high infeed belt (*)
+      )     ; 
+      O(    ; 
+      A     #s_Merge_Up; // OR vertiMerge already up 
+      AN    #s_Request_Switch_Low; 
+      AN    #s_Request_Switch_High; // AND NOT up or down request
+      AN    #t_Item_At_HandOver_Low; // AND no item on low infeed belt (*)  
+      )     ; 
+      =     #s_Merge_Up; // THEN switch vertiMerge up (if not true then vertiMerge down)
+
+// (*) marked comment lines only needed to handle items on lower or upper infeed belt after manual intervention or software download  
+
+NETWORK
+TITLE =IA: Disable infeeds when MVD is not able to switch
+
+      NOP   0; 
+
+// Search for items in switch gap area on high and outfeed conveyor
+      A     #s_Flow_Low_Active; 
+      S     #t_Item_on_TRS3; 
+
+      A     #s_Flow_Low_Can_Stop; 
+      JCN   IA01; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS2,
+           i_Position               := #i_Setting.Dist_Switch_Area,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items);
+
+      L     #t_Num_Items; 
+      L     0; 
+      ==I   ; 
+      =     #t_Item_on_TRS3; 
+
+// Disable high infeed when flow low is active or when flow low request is active and flow high can stop
+IA01: A     #s_Flow_Low_Active; // AND flow Low is active
+      A     #t_Item_on_TRS3; 
+      O(    ; 
+      A     #s_Flow_Low_Req; 
+      A     #s_Flow_High_Can_Stop; 
+      A(    ; 
+      ON    #t_Upstream_High_HandOver; 
+      O     #s_Req_Inh_Rcv_Item_High; 
+      )     ; 
+      )     ; 
+      A     #t_MVD_has_Items; 
+      O(    ; 
+      A     #s_Mode_Semi_Down; 
+      A(    ; 
+      AN    #t_Upstream_High_HandOver; 
+      O     #s_Req_Inh_Rcv_Item_High; 
+      )     ; 
+      )     ; 
+      =     #s_Req_Inh_Rcv_Item_High; 
+
+      A     #s_Req_Inh_Rcv_Item_High; 
+      OPN   #i_TRS1_DB_PLT; // IF Flow from higher infeed can be disabled
+      =     DBX   11.0; // THEN set Inhibit_Receive_Item in PLT DB of TRS1 to disable flow from higher infeed
+
+// Disable low infeed when flow high is active or when flow high request is active and flow low can stop
+      A     #s_Flow_High_Active; 
+      S     #t_Item_on_TRS3; 
+
+      A     #s_Flow_High_Can_Stop; 
+      JCN   IA02; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #i_Setting.Dist_Switch_Area,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items);
+
+      L     #t_Num_Items; 
+      L     0; 
+      ==I   ; 
+      =     #t_Item_on_TRS3; 
+
+IA02: A     #s_Flow_High_Active; // AND flow High is active
+      A     #t_Item_on_TRS3; 
+      O(    ; 
+      A     #s_Flow_High_Req; 
+      A     #s_Flow_Low_Can_Stop; 
+      A(    ; 
+      ON    #t_Upstream_Low_HandOver; 
+      O     #s_Req_Inh_Rcv_Item_Low; 
+      )     ; 
+      )     ; 
+      A     #t_MVD_has_Items; 
+      O(    ; 
+      A     #s_Mode_Semi_Up; 
+      A(    ; 
+      AN    #t_Upstream_Low_HandOver; 
+      O     #s_Req_Inh_Rcv_Item_Low; 
+      )     ; 
+      )     ; 
+      =     #s_Req_Inh_Rcv_Item_Low; 
+
+      A     #s_Req_Inh_Rcv_Item_Low; 
+      OPN   #i_TRS2_DB_PLT; // IF Flow from lower infeed can be disabled
+      =     DBX   11.0; // THEN set Inhibit_Receive_Item in PLT DB of TRS1 to disable flow from lower infeed
+NETWORK
+TITLE =JA: Switch gap clear
+//Determine when the switch gap is clear.
+      NOP   0; 
+
+// Determine length of switch gap area
+      L     #i_Setting.Switch_Gap_Size; 
+      L     #i_Setting.Dist_Switch_Area; 
+      +I    ; 
+      T     #s_Length_Switch_Area_CLR; // Length of switch area = switch gap size + distance switch area
+
+// Search for items in switch gap area on high and outfeed conveyor
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #i_Setting.Switch_Gap_Size,
+           i_Window                 := #s_Length_Switch_Area_CLR,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items);
+
+      L     #t_Num_Items; 
+      L     0; 
+      <=I   ; 
+      ON    #o_SWS_ST_Up; 
+      =     #s_Switch_Gap_Clear_High; 
+
+// Search switch gap size UP from END of low conveyor
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS2,
+           i_Position               := #i_Setting.Switch_Gap_Size,
+           i_Window                 := #s_Length_Switch_Area_CLR,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items);
+
+      L     #t_Num_Items; 
+      L     0; 
+      <=I   ; 
+      ON    #o_SWS_ST_Down; 
+      =     #s_Switch_Gap_Clear_Low; 
+
+// Determine when the switch area is not clear
+      A     #s_Switch_Gap_Clear_High; // AND the switch gap on the high conveyor is clear
+      A     #s_Switch_Gap_Clear_Low; // AND the switch gap on the low conveyor is clear
+      =     #s_Switch_Area_Clear; // THEN the switch area is clear
+
+NETWORK
+TITLE =KA: Switch Gap PEC Blockage detection
+
+      CALL #s_PEC_Switch_Gap (
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Length,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_IO_NOT_PEC_Switch_Area,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_Displacement_TRS3,
+           o_ST_PEC_Blk             := #t_SWS_ST_HAC_Blockage,
+           o_PEC_Flap_Filter        := #s_PEC_Clear_Latch);
+
+//Generate error if switch is made while switch area is not clear
+      O     #o_SWS_IO_MTR_Up; 
+      O     #o_SWS_IO_MTR_Down; 
+      AN    #i_SWS_IO_PS_Up; 
+      AN    #i_SWS_IO_PS_Down; 
+      A     #s_PEC_Clear_Latch; 
+      AN    #o_ST_Manual; 
+      S     #s_SWS_ST_HAC_Switch; 
+
+NETWORK
+TITLE =LA: Equipment Switch Motor S1
+
+      NOP   0; 
+
+// Request stop
+      A     #s_ST_MS_Not_Auto; 
+      O     #s_Mode_Manual; 
+      O     #s_SWS_ST_HAC_Switch; 
+      O     #s_ST_Fence_opened; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_FieldB_NotPrsnt_2; 
+      O     #s_ST_FieldB_Error_2; 
+      O     #s_SWS_ST_Coll_Jam_Up; 
+      O     #s_SWS_ST_Coll_Jam_Dwn; 
+      O     #t_SWS_ST_HAC_Blockage; 
+      O     #o_SWS_ST_Move_Time_Out; 
+      O     #o_SWS_ST_Pos_Sens_Error; 
+      O     #o_SWS_ST_THO; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_SWS_Req_Stop; 
+
+// Request halt
+      A     #i_Ext_Req_Halt; 
+      O     #s_PEC_Clear_Latch; 
+      ON    #s_Switch_Area_Clear; // OR switch area is not clear
+      O     #s_Mode_Manual; // OR manual mode
+      =     #s_SWS_Req_Halt; // THEN request halt switch motor
+
+// Make request to switch motor in semi auto or auto mode
+      A     #s_Merge_Up; // AND MVD up request 
+      AN(   ; 
+      A     #s_Mode_Semi_Down; // OR Semi automatic mode up is active
+      A     #s_Flow_Low_Active; // OR Semi automatic mode down is active
+      )     ; 
+      O(    ; 
+      A     #s_Mode_Semi_Up; // OR MVD in semi automatic mode and command to switch UP
+      A     #s_Flow_High_Active; // OR Semi automatic mode down is active
+      )     ; 
+      =     #s_Req_Dir_B; 
+
+      CALL #s_SWS_EQP_Switch (
+           i_Available_IO           := #t_Available_IO_Below,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_IO_PS_A                := #i_SWS_IO_PS_Down,
+           i_IO_PS_B                := #i_SWS_IO_PS_Up,
+           i_Ext_Req_Stop           := #s_SWS_Req_Stop,
+           i_Ext_Req_Halt           := #s_SWS_Req_Halt,
+           i_Req_Dir_B              := #s_Req_Dir_B,
+           i_Timeout_Dir            := #i_SWS_Setting.Timeout_Dir,
+           o_CMD_MTR_Run            := #s_SWS_Req_MTR_Run,
+           o_CMD_MTR_Reverse        := #s_SWS_Req_MTR_Reverse,
+           o_ST_Running             := #o_SWS_ST_Running,
+           o_ST_Started             := #o_SWS_ST_Started,
+           o_ST_External_Stop       := #o_SWS_ST_Ext_Stop,
+           o_ST_Movement_Time_out   := #o_SWS_ST_Move_Time_Out,
+           o_ST_PS_Double           := #o_SWS_ST_Pos_Sens_Error,
+           o_Ready_To_Restart       := #s_SWS_Ready_To_Restart);
+
+      CALL #s_SWS_MTR_2Dir (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_SWS_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_SWS_Req_MTR_Run,
+           i_CMD_Req_Motor_Reverse  := #s_SWS_Req_MTR_Reverse,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           o_IO_MTR_Fwd             := #o_SWS_IO_MTR_Down,
+           o_IO_MTR_Rev             := #o_SWS_IO_MTR_Up,
+           o_ST_THO                 := #o_SWS_ST_THO);
+
+// This code is used because the switch motor is not controled by a LMS
+// and the standard switch motor 2Dir block is dedicated for a LMS
+// In this case the two extra outputs dedicated to manual control imply
+// a work around for the switch block to control the SWS in manual mode.
+
+      A     #s_Mode_Manual; 
+      AN    #i_Commands.Manual_Up; 
+      A     #i_Commands.Manual_Down; 
+      =     #o_SWS_IO_MTR_Down_Manual; 
+
+      A     #s_Mode_Manual; 
+      A     #i_Commands.Manual_Up; 
+      AN    #i_Commands.Manual_Down; 
+      =     #o_SWS_IO_MTR_Up_Manual; 
+
+NETWORK
+TITLE =MA: Merge report
+
+      A     #s_Item_on_outfeed; 
+      FP    #s_FP_Item_Merged; 
+      JCN   MA05; 
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Section; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK_Outfeed,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section,
+           o_INT                    := #t_Rep_Route_Record);
+
+      L     #t_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   MA01; 
+
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK_Outfeed,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section,
+           o_LNK                    := #t_Rep_Route_Record);
+
+MA01: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK_Outfeed,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section,
+           o_INT                    := #t_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK_Outfeed,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection1,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection2,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      A     #i_SWS_IO_PS_Down; 
+      JCN   MA02; 
+
+// Write Direction From to the current ECS Record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+      JU    MA03; 
+
+MA02: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 1,
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+MA03: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,// 5 = Transport Default
+           i_DB_Event_Num           := #t_DB_Event_Section);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_LNK_Outfeed,
+           i_DB_Event_Num           := #t_DB_Event_Section,
+           o_Return_Value           := #t_RET_VAL_int);
+
+MA05: CALL #s_FB_DAT_SWS (
+           i_ID_Section             := #i_SWS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =NA: Halt high infeed section (Die-Back) before end of section
+
+      L     #i_CFG_Run_Out_Distance; 
+      L     #i_CFG_DieBack_Inf; 
+      +I    ; 
+      T     #t_DieBack_Position; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #t_Item_on_infeed; // Item found on infeed at dieback position
+
+      AN    #t_Section_Run_Outfeed; // IF outfeed section is not running
+      ON    #o_SWS_ST_Up; // OR MVD not in UP position
+      A     #t_Item_on_infeed; // AND item on infeed at Dieback position
+      S     #s_Die_Back_Inf_High; // SET Die back on high infeed
+
+      A     #t_Section_Run_Outfeed; // IF outfeed section is running
+      A     #o_SWS_ST_Up; // OR MVD in UP position
+      ON    #t_Item_on_infeed; // OR NO items on infeed at Dieback position
+      R     #s_Die_Back_Inf_High; // RESET Die back on high infeed
+NETWORK
+TITLE =OA: Equipment Infeed High conveyor S2
+//When the vertimerge is in UP position write outfeed PLT DB number
+//in downstream PLT db field in PLT DB of the HIGH conveyor.
+//When the vertimerge is no longer in the UP position write 0 in
+//downstream PLT db field in PLT DB of the HIGH conveyor.
+      NOP   0; 
+// In case of item not allowed detected at PEC, removing item manually (manual mode), preset PEC and clear PLT DB
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS1_IO_NOT_PEC; 
+      =     #t_PresetPEC_ClrPLT_TRS1; 
+
+      A     #o_SWS_ST_Up; // When MVD reached UP Position
+      JCN   OA01; 
+
+      L     #t_DB_PLT_Outfeed; // Load Outfeed DB PLT number
+      OPN   #i_TRS1_DB_PLT; 
+      T     DBW    8; // INTO DB_PLT_nr_Downstream of DB PLT TRS1
+
+      L     #t_DB_PLT_TRS1; // Load Infeed up DB PLT number
+      OPN   #i_TRS3_DB_PLT; 
+      T     DBW    6; // INTO DB_PLT_nr_Upstream of DB PLT TRS3
+
+      JU    OA02; 
+
+OA01: L     0; // OTHERWISE load 0
+      OPN   #i_TRS1_DB_PLT; 
+      T     DBW    8; // INTO DB_PLT_nr_Downstream of DB PLT TRS1
+
+OA02: CALL #s_TRS1_EQP_PEC (
+           i_Setting                := #i_TRS1_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_PresetPEC_ClrPLT_TRS1,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS1_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS1_LPos,
+           o_PEC_Position           := #s_TRS1_PEC_Offset,
+           o_ST_PEC_Blk             := #o_TRS1_ST_PEC_Blk);
+
+// Request stop
+      A     #s_ST_MS_Not_Auto; 
+      O     #s_Mode_Manual; 
+      O     #s_SWS_ST_HAC_Switch; 
+      O     #s_ST_Fence_opened; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_FieldB_NotPrsnt_2; 
+      O     #s_ST_FieldB_Error_2; 
+      O     #s_SWS_ST_Coll_Jam_Up; 
+      O     #s_SWS_ST_Coll_Jam_Dwn; 
+      O     #t_SWS_ST_HAC_Blockage; 
+      O     #o_TRS1_ST_PEC_Blk; 
+      O     #o_TRS1_ST_PEC_Miss; 
+      O     #o_TRS1_ST_THO; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_TRS1_Req_Stop; 
+
+// Request halt
+      A     #s_Die_Back_Inf_High; 
+      O     #i_Ext_Req_Halt; 
+      =     #t_Halt_Infeed_High; 
+
+// Request reset energy save
+      A     #i_Ext_Req_Rst_ESave; 
+      =     #t_Req_Reset_E_Save; 
+
+      CALL #s_TRS1_EQP_BASIC (
+           i_ID_Section             := #i_TRS1_ID,
+           i_Basic_Offset           := #i_TRS1_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS1_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS1_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS1_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS1_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS1_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS1_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS1_Req_Stop,
+           i_Ext_Req_Halt           := #t_Halt_Infeed_High,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #t_Req_Reset_E_Save,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_PresetPEC_ClrPLT_TRS1,
+           o_External               := #o_TRS1_EXT_Outputs,
+           o_Motor_Run              := #s_TRS1_Req_MTR_Run,
+           o_ST_Items               := #o_TRS1_ST_Items,
+           o_ST_Running             := #o_TRS1_ST_Running,
+           o_ST_Started             := #o_TRS1_ST_Started,
+           o_ST_Request_Halt        := #o_TRS1_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS1_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS1_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS1_Ready_To_Restart);
+
+      CALL #s_TRS1_TRK_Track (
+           i_Setting                := #i_TRS1_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS1_PEC_Offset,
+           i_LPOS                   := #s_TRS1_LPos,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS1_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #s_Mode_Manual,
+           o_ST_PEC_Miss            := #o_TRS1_ST_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS1_ST_Bad_Update);
+
+      CALL #s_TRS1_MTR_MS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #t_Available_IO_Below,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS1_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS1_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           i_CMD_Manual_Run         := #s_TRS1_Manual_Run,
+           o_IO_MTR                 := #o_TRS1_IO_MTR,
+           o_ST_THO                 := #o_TRS1_ST_THO);
+
+      CALL #s_FB_DAT_TRS1 (
+           i_ID_Section             := #i_TRS1_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =PA: Halt low infeed section (Die-Back) before end of section
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS2,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #t_Item_on_infeed; // Item found on infeed at dieback position
+
+      AN    #t_Section_Run_Outfeed; // IF outfeed section is not running
+      ON    #o_SWS_ST_Down; // OR MVD not in DOWN position
+      A     #t_Item_on_infeed; // AND item on infeed at Dieback position
+      S     #s_Die_Back_Inf_Low; // SET Die back on low infeed
+
+      A     #t_Section_Run_Outfeed; // IF outfeed section is running
+      A     #o_SWS_ST_Down; // OR MVD in DOWN position
+      ON    #t_Item_on_infeed; // OR NO items on infeed at Dieback position
+      R     #s_Die_Back_Inf_Low; // RESET Die back on low infeed
+
+NETWORK
+TITLE =QA: Equipment Infeed Low conveyor S3
+//When the vertimerge is in DOWN position write outfeed PLT DB number
+//in downstream PLT db field in PLT DB of the LOW conveyor.
+//When the vertimerge is no longer in the DOWN position write 0 in
+//downstream PLT db field in PLT DB of the LOW conveyor.
+      NOP   0; 
+// In case of item not allowed detected at PEC, removing item manually (manual mode), preset PEC and clear PLT DB
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS2_IO_NOT_PEC; 
+      =     #t_PresetPEC_ClrPLT_TRS2; 
+
+      A     #o_SWS_ST_Down; // When MVD reached DOWN Position
+      JCN   QA01; 
+
+      L     #t_DB_PLT_Outfeed; // Load Outfeed DB PLT number
+      OPN   #i_TRS2_DB_PLT; 
+      T     DBW    8; // INTO DB_PLT_nr_Downstream of DB PLT TRS2
+
+      L     #t_DB_PLT_TRS2; // Load Infeed down DB PLT number
+      OPN   #i_TRS3_DB_PLT; 
+      T     DBW    6; // INTO DB_PLT_nr_Upstream of DB PLT TRS3
+
+      JU    QA02; 
+
+QA01: L     0; // OTHERWISE load 0
+      OPN   #i_TRS2_DB_PLT; 
+      T     DBW    8; // INTO DB_PLT_nr_Downstream of DB PLT TRS2
+
+QA02: CALL #s_TRS2_EQP_PEC (
+           i_Setting                := #i_TRS2_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_PresetPEC_ClrPLT_TRS2,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS2_LPos,
+           o_PEC_Position           := #s_TRS2_PEC_Offset,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC_Blk);
+
+// Request stop
+      A     #s_ST_MS_Not_Auto; 
+      O     #s_Mode_Manual; 
+      O     #s_SWS_ST_HAC_Switch; 
+      O     #s_ST_Fence_opened; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_FieldB_NotPrsnt_2; 
+      O     #s_ST_FieldB_Error_2; 
+      O     #s_SWS_ST_Coll_Jam_Up; 
+      O     #s_SWS_ST_Coll_Jam_Dwn; 
+      O     #t_SWS_ST_HAC_Blockage; 
+      O     #o_TRS2_ST_PEC_Blk; 
+      O     #o_TRS2_ST_PEC_Miss; 
+      O     #o_TRS2_ST_THO; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_TRS2_Req_Stop; 
+
+// Request halt
+      A     #s_Die_Back_Inf_Low; 
+      O     #i_Ext_Req_Halt; 
+      =     #t_Halt_Infeed_Low; 
+
+// Request reset energy save
+      A     #i_Ext_Req_Rst_ESave; 
+      =     #t_Req_Reset_E_Save; 
+
+      CALL #s_TRS2_EQP_BASIC (
+           i_ID_Section             := #i_TRS2_ID,
+           i_Basic_Offset           := #i_TRS2_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS2_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS2_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS2_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS2_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS2_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS2_Req_Stop,
+           i_Ext_Req_Halt           := #t_Halt_Infeed_Low,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #t_Req_Reset_E_Save,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_PresetPEC_ClrPLT_TRS2,
+           o_External               := #o_TRS2_EXT_Outputs,
+           o_Motor_Run              := #s_TRS2_Req_MTR_Run,
+           o_ST_Items               := #o_TRS2_ST_Items,
+           o_ST_Running             := #o_TRS2_ST_Running,
+           o_ST_Started             := #o_TRS2_ST_Started,
+           o_ST_Request_Halt        := #o_TRS2_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS2_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS2_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS2_Ready_To_Restart);
+
+      CALL #s_TRS2_TRK_Track (
+           i_Setting                := #i_TRS2_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS2_PEC_Offset,
+           i_LPOS                   := #s_TRS2_LPos,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS2_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #s_Mode_Manual,
+           o_ST_PEC_Miss            := #o_TRS2_ST_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS2_ST_Bad_Update);
+
+      CALL #s_TRS2_MTR_MS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #t_Available_IO_Below,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS2_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS2_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           i_CMD_Manual_Run         := #s_TRS2_Manual_Run,
+           o_IO_MTR                 := #o_TRS2_IO_MTR,
+           o_ST_THO                 := #o_TRS2_ST_THO);
+
+      CALL #s_FB_DAT_TRS2 (
+           i_ID_Section             := #i_TRS2_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =RA: Equipment Outfeed conveyor TRS3
+
+      NOP   0; 
+// In case of item not allowed detected at PEC, removing item manually (manual mode), preset PEC and clear PLT DB
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS3_IO_NOT_PEC; 
+      =     #t_PresetPEC_ClrPLT_TRS3; 
+
+      AN    #o_SWS_ST_Down; // When MVD is not in DOWN Position
+      AN    #o_SWS_ST_Up; // When MVD is not in UP Position
+      JCN   RA01; 
+
+      L     0; // THEN load 0
+      OPN   #i_TRS3_DB_PLT; 
+      T     DBW    6; // INTO DB_PLT_nr_Ustream of DB PLT TRS3
+
+RA01: NOP   0; 
+
+      CALL #s_TRS3_EQP_PEC (
+           i_Setting                := #i_TRS3_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_PresetPEC_ClrPLT_TRS3,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS3_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #t_Available_IO_Below,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS3_LPos,
+           o_PEC_Position           := #s_TRS3_PEC_Offset,
+           o_ST_PEC_Blk             := #o_TRS3_ST_PEC_Blk);
+
+// Request stop
+      A     #s_ST_MS_Not_Auto; 
+      O     #s_Mode_Manual; 
+      O     #s_SWS_ST_HAC_Switch; 
+      O     #s_ST_Fence_opened; 
+      O     #s_ST_FieldB_NotPrsnt; 
+      O     #s_ST_FieldB_Error; 
+      O     #s_ST_FieldB_NotPrsnt_2; 
+      O     #s_ST_FieldB_Error_2; 
+      O     #s_SWS_ST_Coll_Jam_Up; 
+      O     #s_SWS_ST_Coll_Jam_Dwn; 
+      O     #t_SWS_ST_HAC_Blockage; 
+      O     #o_TRS3_ST_PEC_Blk; 
+      O     #o_TRS3_ST_PEC_Miss; 
+      O     #o_TRS3_ST_THO; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_TRS3_Req_Stop; 
+
+// Request reset energy save
+      A     #i_Ext_Req_Rst_ESave; 
+      O     #o_SWS_IO_MTR_Up; 
+      O     #o_SWS_IO_MTR_Down; 
+      =     #t_Req_Reset_E_Save; 
+
+      CALL #s_TRS3_EQP_BASIC (
+           i_ID_Section             := #i_TRS3_ID,
+           i_Basic_Offset           := #i_TRS3_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_DwnStr,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS3_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS3_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS3_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS3_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS3_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS3_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_Available_IO           := #t_Available_IO_Below,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS3_Req_Stop,
+           i_Ext_Req_Halt           := #i_Ext_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #t_Req_Reset_E_Save,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_PresetPEC_ClrPLT_TRS3,
+           o_External               := #o_TRS3_EXT_Outputs,
+           o_Motor_Run              := #s_TRS3_Req_MTR_Run,
+           o_ST_Items               := #o_TRS3_ST_Items,
+           o_ST_Running             := #o_TRS3_ST_Running,
+           o_ST_Started             := #o_TRS3_ST_Started,
+           o_ST_Request_Halt        := #o_TRS3_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS3_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS3_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS3_Ready_To_Restart);
+
+      CALL #s_TRS3_TRK_Track (
+           i_Setting                := #i_TRS3_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS3_PEC_Offset,
+           i_LPOS                   := #s_TRS3_LPos,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS3_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #s_Mode_Manual,
+           o_ST_PEC_Miss            := #o_TRS3_ST_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS3_ST_Bad_Update,
+           o_OS_Data_Updated        := #t_OS_Data_Infeed,
+           o_Data_Last_Update       := #t_Data_Update_Infeed,
+           o_Position_Last_Update   := #t_Pos_Update_Infeed);
+
+      CALL #s_TRS3_MTR_MS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #t_Available_IO_Below,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS3_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS3_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #s_Mode_Manual,
+           i_CMD_Manual_Run         := #s_TRS3_Manual_Run,
+           o_IO_MTR                 := #o_TRS3_IO_MTR,
+           o_ST_THO                 := #o_TRS3_ST_THO);
+
+      CALL #s_FB_DAT_TRS3 (
+           i_ID_Section             := #i_TRS3_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =SA: Search for items on outfeed to send merge report
+//Search should be done after basic block, as this updates the PLT entries with 
+//the displacement.
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Outfeed,
+           i_Position               := #t_Length_Outfeed_Conv,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #s_LNK_Outfeed,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #s_Item_on_outfeed; 
+
+NETWORK
+TITLE =TA: Data Layer of MVD
+//    
+      CALL #s_FB_DAT_MVD (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+NETWORK
+TITLE =UA: Write zone status
+
+      A     #i_Available_IO; 
+      A     #i_SWS_IO_PS_Up; 
+      =     #o_SWS_ST_Up; 
+
+      A     #i_Available_IO; 
+      A     #i_SWS_IO_PS_Down; 
+      =     #o_SWS_ST_Down; 
+
+      A     #s_ST_FieldB_NotPrsnt; 
+      =     #o_ST_FieldB_NotPrsnt; 
+
+      A     #s_ST_FieldB_Error; 
+      =     #o_ST_FieldB_Error; 
+
+      A     #s_ST_FieldB_NotPrsnt_2; 
+      =     #o_ST_FieldB_NotPrsnt_2; 
+
+      A     #s_ST_FieldB_Error_2; 
+      =     #o_ST_FieldB_Error_2; 
+
+      A     #s_SWS_ST_Coll_Jam_Up; 
+      =     #o_SWS_ST_Coll_Jam_Up; 
+
+      A     #s_SWS_ST_Coll_Jam_Dwn; 
+      =     #o_SWS_ST_Coll_Jam_Dwn; 
+
+      A     #s_SWS_ST_HAC_Switch; 
+      =     #o_SWS_ST_HAC_Switch; 
+
+      A     #t_SWS_ST_HAC_Blockage; 
+      =     #o_SWS_ST_HAC_Blockage; 
+
+      A     #s_ST_MS_Not_Auto; 
+      =     #o_ST_MS_Not_Automatic; 
+
+      A     #s_ST_Fence_opened; 
+      =     #o_ST_Fence_opened; 
+
+      A     #s_Mode_Manual; 
+      A     #i_IO_KS_Maint_Mode; 
+      =     #o_ST_Maint_Mode; 
+
+      A     #s_Mode_Semi_Up; 
+      =     #o_ST_Fixed_Up; 
+
+      A     #s_Mode_Semi_Down; 
+      =     #o_ST_Fixed_Down; 
+
+      A     #s_Mode_Manual; 
+      =     #o_ST_Manual; 
+
+      O     #s_SWS_Ready_To_Restart; 
+      O     #s_TRS1_Ready_To_Restart; 
+      O     #s_TRS2_Ready_To_Restart; 
+      O     #s_TRS3_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+
+      A     #o_SWS_ST_Running; 
+      AN    #s_SWS_Req_Stop; 
+      AN    #s_TRS1_Req_Stop; 
+      AN    #s_TRS2_Req_Stop; 
+      AN    #s_TRS3_Req_Stop; 
+      =     #o_Action_Active; 
+
+END_FUNCTION_BLOCK
+

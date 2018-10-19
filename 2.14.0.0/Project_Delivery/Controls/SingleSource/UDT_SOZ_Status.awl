@@ -1,0 +1,39 @@
+TYPE "UDT_SOZ_Status"
+TITLE =%version: 0.03 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, March 29, 2017 8:48:01 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21109: SOZ status item not allowed                 nlHdL    29-03-17   0.03
+//ra#15840: Update the SOZ according MCFV decomposition nlHdL    18-07-16   0.02
+//ra#15840: Update the SOZ according MCFV decomposition nlHdL    18-07-16   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//CR12405 Initial version                               nlple    17-01-13   0.01                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Item_Not_Allowed : BOOL ;	//Bag on EOS of zone is not allowed to transport in this direction
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Spare_0_2 : BOOL ;	//Spare_0_2
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

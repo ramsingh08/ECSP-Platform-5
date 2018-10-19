@@ -1,0 +1,26 @@
+TYPE "UDT_Msg_PendingMaint"
+TITLE =%version: 0.02 % CN: 11
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, December 13, 2016 9:28:21 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18904 : Process 4/5 removed ,block updated         inajos   13-12-16  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+   Message_Type : INT ;	//100 = Handover message, 200 = lifesign request, 201 = lifesign reply
+   Message_Identifier : DINT ;	//Message indentifier SSSTLLLL (SSS = Sequence number T = Type LLLL = LIC number)
+   Process_1 : "UDT_Pending_Maint";	//Screening Process 1 (Screening)
+   Process_2 : "UDT_Pending_Maint";	//Screening Process 2 (Customs)
+   Process_3 : "UDT_Pending_Maint";	//Screening Process 3
+  END_STRUCT ;	
+END_TYPE
+

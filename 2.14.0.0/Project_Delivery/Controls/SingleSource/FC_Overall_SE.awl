@@ -1,0 +1,27 @@
+FUNCTION "FC_Overall_SE" : VOID
+TITLE =%version: 0.01 % CN: 40
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, December 19, 2016 9:24:28 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nleg     25-11-16   0.01
+//
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+END_FUNCTION
+

@@ -1,0 +1,37 @@
+DATA_BLOCK "DB_PLT_Example"
+TITLE =%version: 1.01 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, April 18, 2018 2:48:27 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26076: Based on v1.05 of DB_PLT_Templ              nlHdL    18-04-18   1.05
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entries_Used : INT ;	//Number of entries used in tracking DB
+   Displacement : INT ;	//Displacement last PLC cycle used by read tracking functions  
+   Entries_Present : INT ;	//Number of entries present in tracking DB
+   DB_PLT_nr_Upstream : INT ;	//DB PLT number of the upstream
+   DB_PLT_nr_Downstream : INT ;	//DB PLT number of the downstream
+   Done : BOOL ;	//Header data is written in the PLT DB.
+   Motor_Run : BOOL ;	//Motor running signal
+   Motor_On_Speed : BOOL ;	//Motor on speed signal 
+   Cascade_Start_up : BOOL ;	//Cascade start up downstream
+   Section_Available : BOOL ;	//Section is available to recieve items (TEP=1)
+   Section_Operational : BOOL ;	//Section is started 
+   Item_at_Handover : BOOL ;	//Item at Handover position 
+   PEC_Latch : BOOL ;	//PEC Latch at EOS
+   Inhibit_Receive_Item : BOOL ;	//Section is setting the inhibit to receive item found in upstream handover
+   Section_Stopped : BOOL ;	//Section is stopped. (Actuele speed = 0)
+   Length_Section : INT ;	//Length of the conveyor
+   Entry : ARRAY  [1 .. 20 ] OF "UDT_PLT_Entry";	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

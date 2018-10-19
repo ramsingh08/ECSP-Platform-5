@@ -1,0 +1,25 @@
+DATA_BLOCK "DB_ICSMainRep"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by: nljmol %
+//              %date_created: Wednesday, August 09, 2017 11:42:25 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24302: Record_Data_Length DB_ICSMainRep incorrect  nlJMol   09-08-17   0.02
+//Initial Version                                       nlJMol   04-05-17   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   Header : "UDT_FIFO";	
+   Request : ARRAY  [1 .. 20 ] OF "UDT_Msg_ICSMaintRep";	
+  END_STRUCT ;	
+BEGIN
+   Header.Setting.Prefull_Num_Of_Records := 15; 
+   Header.Setting.Record_Data_Length := 24; 
+END_DATA_BLOCK
+

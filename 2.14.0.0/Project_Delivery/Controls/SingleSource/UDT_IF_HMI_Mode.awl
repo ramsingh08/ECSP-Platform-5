@@ -1,0 +1,26 @@
+TYPE "UDT_IF_HMI_Mode"
+TITLE =%version: 0.03 % CN: 11
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, November 30, 2017 8:34:06 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26626: comment change DB_HMI_Zone_Command          nlHdL    30-11-17   0.03
+//ra#45674 Command removed and pointer for same added  inajos   27-10-16   0.02
+//ra#13652 Initial version based on FB_HMI_IF_SSM      inajos   27-09-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Mark_Code : STRING  [6 ];	//Engineer: VI Markcode, Format = MMMMMM ['A'..'ZZZZZZ']
+   ID : DWORD ;	//Engineer: ID of the component in HEX AAAZZSS
+   Start_Address_Status : INT ;	//Engineer: Start Address of the status for Zone in DB_Status
+   Start_Address_DB_Command : INT ;	//Engineer: Start Address of the command for Zone in DB_Command
+   Start_Address_DB_HMI_Cmd : INT ;	//Engineer: Start Address of the command for Zone in DB_HMI_Zone_Command
+   Zone_Function_No : INT ;	//Engineer: Zone Func No (1=A/St,2=A/Red,3=A,St,Sort,4=A,Up/Dn,5=A,Lt,Rt...)
+  END_STRUCT ;	
+END_TYPE
+

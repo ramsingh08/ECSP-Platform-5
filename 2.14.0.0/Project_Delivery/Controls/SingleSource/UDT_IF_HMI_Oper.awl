@@ -1,0 +1,49 @@
+TYPE "UDT_IF_HMI_Oper"
+TITLE =%version: 0.02 % CN: 11
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, November 14, 2016 4:59:51 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189 Structure Name Display_Menu_Bits Updated     inajos   14-11-16   0.02
+//ra#45674 Initial version based on FB_HMI_IF_SSM       inajos   27-09-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Display_Bits : STRUCT 	//Enable Disable text based on these bits
+    Par_ID_Name_Bit : BOOL ;	
+    Par_Mode_Name_bit : BOOL ;	
+    ID_Text_bit : BOOL ;	
+    ID_Status_Text_bit : BOOL ;	
+    Button1_bit : BOOL ;	
+    Button2_bit : BOOL ;	
+    Button3_bit : BOOL ;	
+    Button4_bit : BOOL ;	
+   END_STRUCT ;	
+   Fixed : STRUCT 	
+    Function_No : INT ;	//Engineer:Func No (1=Manual,2  SWS Up/Down,  3 TRS Start/TRS Stop etc....)
+    Par_ID_Name : INT ;	//Engineer:Parameter Name (ID,Carrier ID)
+    Par_Mode_Name : INT ;	//Engineer:Parameter Mode Name (Mode,Status,Position)
+    Status : INT ;	
+    Button1 : INT ;	//Engineer:Button 1 Text 
+    Button2 : INT ;	//Engineer:Button 2 Text 
+    Button3 : INT ;	//Engineer:Button 3 Text 
+    Button4 : INT ;	//Engineer:Button 4 Text 
+   END_STRUCT ;	
+   Display_Menu_Bits : STRUCT 	//Enable Disable Zone specific HMI Menu Bits
+    Button1 : BOOL ;	
+    Button2 : BOOL ;	
+    Button3 : BOOL ;	
+    Button4 : BOOL ;	
+    Button5 : BOOL ;	
+    Button6 : BOOL ;	
+    Button7 : BOOL ;	
+    Button8 : BOOL ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

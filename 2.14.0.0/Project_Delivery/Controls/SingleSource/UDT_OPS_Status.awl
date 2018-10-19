@@ -1,0 +1,37 @@
+TYPE "UDT_OPS_Status"
+TITLE =%version: 0.02 % CN: 10
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Wednesday, September 21, 2016 2:49:36 PM %
+//
+//Modification History:                                 By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//23801: add ASI modules to OPZ01                       nlHdL    08-05-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+
+
+  STRUCT 	
+   WN_LifeSignPlanning : BOOL ;	//Warning OPS Station LifeSign error with OPM
+   WN_LifeSignProcesContr : BOOL ;	//Warning OPS Station LifeSign error with PDM
+   ER_NoFlightPlanReceiv : BOOL ;	//Error OPS Station No Flight plan has been received
+   WN_CM : BOOL ;	//Warning OPS Station CM Warning
+   ER_CM : BOOL ;	//Error OPS Station CM Error or connection is lost
+   WN_PackageInfoTimeout : BOOL ;	//Warning OPS Station Package Info Timeout
+   WN_Task_Instr_Timeout : BOOL ;	//Warning OPS Station Task Instruction Timeout
+   ER_Printer : BOOL ;	//Error OPS Station Printer Error or connection is lost
+   WN_TemperatureTooHigh : BOOL ;	//Warning OPS Station CPU temperature exceeds the set threshold
+   ER_GetProblemBagList : BOOL ;	//Error OPS Station No Problem bag list has been received
+   ER_NoSpecialDesRec : BOOL ;	//Error OPS Station No special destinations have been received
+   Bit_1_3 : BOOL ;	//Spare
+   Bit_1_4 : BOOL ;	//Spare
+   Bit_1_5 : BOOL ;	//Spare
+   ER_Comm_Error : BOOL ;	//Error OPS Station Communication error
+   WN_Station_Closed : BOOL ;	//Warning OPS Station closed are in error
+  END_STRUCT ;	
+END_TYPE
+

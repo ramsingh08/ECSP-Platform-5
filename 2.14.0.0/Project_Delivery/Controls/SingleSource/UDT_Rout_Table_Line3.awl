@@ -1,0 +1,23 @@
+TYPE "UDT_Rout_Table_Line3"
+TITLE =%version: 0.01 % CN: 10
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, May 18, 2016 8:48:18 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision based on 0.05 2 dir                  nlHdL    18-05-16   0.01
+FAMILY : General
+
+
+  STRUCT 	
+   Direction_A : BYTE ;	//0 = No preference, 1 = High , 3 = Low, 7 = Blocked
+   Direction_B : BYTE ;	//0 = No preference, 1 = High , 3 = Low, 8 = Blocked
+   Direction_C : BYTE ;	//0 = No preference, 1 = High , 3 = Low, 9 = Blocked
+   Spare_Dir : BYTE ;	//Spare Byte NOT USED
+  END_STRUCT ;	
+END_TYPE
+

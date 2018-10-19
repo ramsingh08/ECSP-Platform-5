@@ -1,0 +1,50 @@
+FUNCTION_BLOCK "FB_Cycl_Failsafe"
+TITLE =%version: 0.05 % CN: 50
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, November 14, 2016 9:12:09 AM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Changed name block to "FB_Cycl_Failsafe"              nleg     14-11-16   0.05
+//Added text to modification history                    nlwlu    29-09-16   0.04
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.03
+//Changed block description                             nleg     19-07-16   0.02
+//Initial version                                       nlcsu    09-04-15   0.01
+//
+//
+//To ensure a good execution of the safety program the function blocks have to be 
+//called in the following order:
+//RECEIVE failsafe data:
+// 1.Receive failsafe data (optional, SC/SC, SC/TC Communication)
+// 2.Reset communication error (optional, SC/SC, SC/SC Communication)
+//CONTROL data:
+// 3.Acknowledge/reset safety error
+// 4.Copy safety events inputs (SC)
+// 5.Evaluate safety events (SC)
+// 6.Evaluate safety status powergroup (SC)
+// 7.Control Power groups (TC)
+// 8.Control External Interfaces (SC)
+//SEND failsafe data:
+// 9.Reset communication error (optional, SC/TC, SC/SC Communication)
+//10.Send Failsafe Data (optional, SC/TC, SC/SC Communication)
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+
+END_FUNCTION_BLOCK
+

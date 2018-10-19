@@ -1,0 +1,274 @@
+FUNCTION "FC_Local_Item_Dir" : VOID
+TITLE =%version: 0.07 % CN: 33
+//Function:
+//Retreive preffered direction for instance DB and check the local constrains
+//local constrains are security and the dimensions 
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 7:00:21 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.07
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.03
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.02
+//Initial Revision                                      nlHdL    03-10-11   0.01
+//
+//Description:
+//Retreive preffered direction for instance DB and check the local constrains
+//local constrains are security and the dimensions 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Item_Secure : BOOL ;	//When TRUE item is secure
+  i_Item_Class_ST : BOOL ;	//When TRUE item is Class ST (Standard)
+  i_ANY_Preferred_Dir : ANY ;	//ANY pointer to the preferred direction
+  i_Local_Unsecure_Dir : INT ;	//CFG: [Dir] Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care
+  i_Local_Dimension_Dir : INT ;	//CFG: [Dir] Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_Preference_C : BYTE ;	//Preference for Direction C
+  t_DecisionLvl : BYTE ;	//Decision Level	
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_Direction : BYTE ;	//Direction selected
+  t_DINO : INT ;	//DB number of instance	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Preference_B; 
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Preference_C; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_FailedReason_B; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_FailedReason_C; 
+      L     DIB [AR2,P#9.0]; 
+      T     #t_Direction; 
+
+      L     DINO; 
+      T     #t_DINO; 
+NETWORK
+TITLE =BA: Check if Local Unsecure Direction
+
+      L     #i_Local_Unsecure_Dir; 
+      L     0; 
+      <>I   ; 
+      JCN   BA99; 
+
+      L     #t_Direction; 
+      L     0; 
+      ==I   ; 
+      JCN   BA99; 
+
+      AN    #i_Item_Secure; 
+      JCN   BA99; 
+// If item is Secure then don't use Local Unsecure Direction
+
+      L     #i_Local_Unsecure_Dir; 
+      L     1; 
+      ==I   ; 
+      JCN   BA01; 
+//Check direction A
+
+// If local UnSecure direction is set, then preferred is setting
+      L     #i_Local_Unsecure_Dir; 
+      T     #t_Direction; 
+
+//If local unsecure Item direction then decisionlevel = 8
+      L     8; // Local UnSecure direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_A; 
+      T     #t_Preference_B; 
+      T     #t_Preference_C; 
+
+      L     1; 
+      T     #t_Preference_A; 
+
+      JU    BA99; 
+
+BA01: L     #i_Local_Unsecure_Dir; 
+      L     2; 
+      ==I   ; 
+      JCN   BA02; 
+//Check direction B
+
+
+// If local UnSecure direction is set, then preferred is setting
+      L     #i_Local_Unsecure_Dir; 
+      T     #t_Direction; 
+
+//If local unsecure Item direction then decisionlevel = 8
+      L     8; // Local UnSecure direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_B; 
+      T     #t_Preference_A; 
+      T     #t_Preference_C; 
+
+      L     1; 
+      T     #t_Preference_B; 
+
+BA02: L     #i_Local_Unsecure_Dir; 
+      L     3; 
+      ==I   ; 
+      JCN   BA99; 
+//Check direction C
+
+
+// If local UnSecure direction is set, then preferred is setting
+      L     #i_Local_Unsecure_Dir; 
+      T     #t_Direction; 
+
+//If local unsecure Item direction then decisionlevel = 8
+      L     8; // Local UnSecure direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_C; 
+      T     #t_Preference_A; 
+      T     #t_Preference_B; 
+
+      L     1; 
+      T     #t_Preference_C; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check if Local Dimension Direction
+
+      L     #i_Local_Dimension_Dir; 
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+      L     #t_Direction; 
+      L     0; 
+      ==I   ; 
+      JCN   CA99; 
+
+      AN    #i_Item_Class_ST; 
+      JCN   CA99; 
+// If item is Class ST don't use Local Non-ST Direction
+
+      L     #i_Local_Dimension_Dir; 
+      L     1; 
+      ==I   ; 
+      JCN   CA01; 
+//Check direction A
+
+// If local dimension direction is set, then preferred is setting
+      L     #i_Local_Dimension_Dir; 
+      T     #t_Direction; 
+
+//If local Non-SC bag direction then decisionlevel = 7
+      L     7; // Local Non-SC direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_A; 
+
+      JU    CA99; 
+
+CA01: L     #i_Local_Dimension_Dir; 
+      L     2; 
+      ==I   ; 
+      JCN   CA02; 
+//Check direction B
+
+// If local dimension direction is set, then preferred is setting
+      L     #i_Local_Dimension_Dir; 
+      T     #t_Direction; 
+
+//If local Non-SC bag direction then decisionlevel = 7
+      L     7; // Local Non-SC direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_B; 
+
+CA02: L     #i_Local_Dimension_Dir; 
+      L     3; 
+      ==I   ; 
+      JCN   CA99; 
+//Check direction C
+
+// If local dimension direction is set, then preferred is setting
+      L     #i_Local_Dimension_Dir; 
+      T     #t_Direction; 
+
+//If local Non-SC bag direction then decisionlevel = 7
+      L     7; // Local Non-SC direction
+      T     #t_DecisionLvl; 
+
+      L     0; 
+      T     #t_FailedReason_C; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Write data to preferred direction
+
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     #t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+END_FUNCTION
+

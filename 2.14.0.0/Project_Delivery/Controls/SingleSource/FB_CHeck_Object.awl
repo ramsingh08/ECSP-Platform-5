@@ -1,0 +1,408 @@
+FUNCTION_BLOCK "FB_CHeck_Object"
+TITLE =%version: 0.05 % CN: 33
+//Function:
+//Check Object (Length and Height)
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Tuesday, October 18, 2016 11:10:47 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18003: ASi errors cannot be reset remotely         nldy     18-10-16   0.05
+//ina#2437: CHO needs area restart after bag size fault nldy     12-10-16   0.04
+//ina#1392: Move CHO to RAW                             nlHdL    06-09-16   0.03
+//ra#13987: Add ST warning restart required             nlHdL    13-06-16   0.03
+//ra#13857: Add Check Object CN 33 to source            nlHdL    24-05-16   0.02
+//Initial version based on Height Check version 0.06    nlHdL    19-05-16   0.01
+//
+//Description:
+//Check Object, will check the length of on item or the height of on item.
+//Check is xx by a PEC signal. 2 PECs for each function.
+//Check object includeds the ASI modules.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_CFG_Delay_On_Height : INT ;	//CFG: [cm] Delay on leading edge of product (flap filter)
+  i_CFG_Delay_On_Length : INT  := 5;	//CFG: [cm] Delay on leading edge of product (flap filter)
+  i_CFG_Horn_Period : INT  := 10;	//CFG: [sec] Time period for horn signal (0 = disabled)
+  i_CFG_PEC_Length_Pos : INT  := 150;	//CFG: [cm] position of the physical Length PEC
+  i_CFG_Length_Chk_dis : INT  := 120;	//CFG: [cm] length check distance used to check multiple items between PECs
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IO_NOT_PEC_Height : BOOL  := TRUE;	//HW: Height signal of photo electric cell (TRUE= no product) 
+  i_IO_NOT_PEC_Length : BOOL  := TRUE;	//HW: Length signal of photo electric cell (TRUE= no product) 
+  i_CFG_Length_Chk_Prsnt : BOOL ;	//CFG: Length check is present
+  i_PB_IO_Reset_Check : BOOL ;	//HW: Push Button Reset Check
+  i_ASI_NotPrsnt_1 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_1 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_2 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_2 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_3 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_3 : BOOL ;	//ASI has an Error
+END_VAR
+VAR_OUTPUT
+  o_IO_PB_Fault : BOOL ;	//HW: PBB Light that indicates fault 
+  o_IO_SL_Fault : BOOL ;	//HW: SLC Light that indicates fault 
+  o_IO_Horn_Fault : BOOL ;	//HW: Horn indicates fault
+  o_Req_Halt_TRS : BOOL ;	//Request halt section
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+  o_ST_Height_Error : BOOL ;	//ST: Height check error
+  o_ST_Length_Error : BOOL ;	//ST: Length check error
+  o_ST_ASI_NotPrsnt_1 : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_1 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI_NotPrsnt_2 : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_2 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI_NotPrsnt_3 : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_3 : BOOL ;	//ST: ASI slave has an error
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+END_VAR
+VAR
+  s_Cnt_Delay_On_Height : INT ;	//Counter for delay-on Height PEC
+  s_Cnt_Delay_On_Length : INT ;	//Counter for delay-on Length PEC
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_Timer_Horn_Period : INT ;	//Timer value Horn period
+  s_Section_Run : BOOL ;	//Section Run signal from the PLT DB
+  s_PEC_Latch : BOOL ;	//PEC Latch of EOS in PLT DB
+  s_Height_Check_Error : BOOL ;	//Height check error detected
+  s_Length_Check_Error : BOOL ;	//Length check error detected
+  s_FP_Length_Check_PEC : BOOL ;	//Flank positive length check PEC
+  s_Eqp_Operational_On : BOOL ;	//Operational on signal of this section
+END_VAR
+VAR_TEMP
+  t_Height_check_PEC : BOOL ;	//Height check PEC signal after flap filtering (delay-on)
+  t_Length_check_PEC : BOOL ;	//Length check PEC signal after flap filtering (delay-on)
+  t_DB_PLT_Num : INT ;	//DB PLT Number
+  t_Position_untill_PEC : INT ;	//Position before the PEC
+  t_Int_Not_Used : INT ;	//Int not used
+  t_number_found : INT ;	//Number of items found
+  t_DB_Event_Num : INT ;	//DB Event number
+  t_Position : INT ;	//Position
+  t_OS_PEC_Latch_Length : BOOL ;	//One Shot PEC latch Length check
+  t_Start_Horn_Fault : BOOL ;	//Start Horn Fault
+  t_Stop_Horn_Fault : BOOL ;	//Stop Horn Fault
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB and section data
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+      L     DBW    2; //Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      A     DBX   10.1; //Read the section run signal of the PLT DB.
+      =     #s_Section_Run; 
+
+      A     DBX   10.7; 
+      =     #s_PEC_Latch; 
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+NETWORK
+TITLE =BA: ASI Slave not present
+
+      A     #i_CMD_Reset; // OR reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_NotPrsnt_1; // RESET Slave not Present
+      R     #o_ST_ASI_NotPrsnt_2; // RESET Slave not Present
+      R     #o_ST_ASI_NotPrsnt_3; // RESET Slave not Present
+
+      A     #i_ASI_NotPrsnt_1; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt_1; // SET the Slave not present
+
+      A     #i_ASI_NotPrsnt_2; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt_2; // SET the Slave not present
+
+      A     #i_ASI_NotPrsnt_3; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt_3; // SET the Slave not present
+NETWORK
+TITLE =CA : ASI Slave Error
+
+      A     #i_CMD_Reset; // OR reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_Error_1; // RESET ASI Slave error
+      R     #o_ST_ASI_Error_2; // RESET ASI Slave error
+      R     #o_ST_ASI_Error_3; // RESET ASI Slave error
+
+      A     #i_ASI_Error_1; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error_1; // SET ASI Slave Error
+
+      A     #i_ASI_Error_2; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error_2; // SET ASI Slave Error
+
+      A     #i_ASI_Error_3; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error_3; // SET ASI Slave Error
+
+NETWORK
+TITLE =DA: Flap Filtering Delay On Height PEC handling.
+//To overrule the influence of flaps, the delay ON used. 
+//On-delay pre-set is adjustable through input parameter. 
+//If a value of 0 is pre-set, the PEC signal will follow the input immediately. 
+//This function uses displacement for the countdown of the delay. 
+//         
+//                           +--------------------------+                  
+//  PEC ---------------------+                          +-----------------        
+//                                                       
+//                                                       
+//                                                     
+//                            <--------->                             
+//                             delay ON  +--------------+
+//  PEC Flap_Filter ---------------------+              +---------
+//
+      A     #i_IO_NOT_PEC_Height; // IF PEC Not blocked
+      JCN   DA01; 
+      L     #i_CFG_Delay_On_Height; 
+      T     #s_Cnt_Delay_On_Height; // THEN pre-set counter on-Delay 
+DA01: NOP   0; 
+      AN    #i_IO_NOT_PEC_Height; // IF height PEC blocked Countdown delay 
+      JCN   DA99; 
+      L     #s_Cnt_Delay_On_Height; // Load delay-on counter value
+      L     #s_Displacement; // Load displacement of previous scan cycle
+      -I    ; 
+      T     #s_Cnt_Delay_On_Height; // THEN delay counter := delay counter -diaplacement
+      JPZ   DA02; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+DA02: T     #s_Cnt_Delay_On_Height; 
+DA99: L     #s_Cnt_Delay_On_Height; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      AN    #i_IO_NOT_PEC_Height; // AND PEC is blocked
+      =     #t_Height_check_PEC; // THEN assign PEC Flap Filter
+NETWORK
+TITLE =EA: Height check Error
+
+      A     #i_PB_IO_Reset_Check; // Reset error
+      A     #i_IO_NOT_PEC_Height; // AND Height detection PEC is not blocked
+      ON    #i_Available_IO; // OR IO not available 
+      R     #s_Height_Check_Error; // Reset the height check error
+
+      A     #i_CMD_Enable; // Enable
+      A     #t_Height_check_PEC; // AND Height detection PEC is blocked
+      A     #s_Section_Run; // AND Section is running
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI_NotPrsnt_1; // AND No ASI 1 Not present
+      AN    #o_ST_ASI_Error_1; // AND No ASI 1 Error
+      S     #s_Height_Check_Error; // THEN Set the Height check Error
+NETWORK
+TITLE =FA: Flap Filtering Delay On Length PEC handling.
+//To overrule the influence of flaps, the delay ON used. 
+//On-delay pre-set is adjustable through input parameter. 
+//If a value of 0 is pre-set, the PEC signal will follow the input immediately. 
+//This function uses displacement for the countdown of the delay. 
+//
+//                           +--------------------------+                  
+//  PEC ---------------------+                          +-----------------        
+//
+//
+//
+//                            <--------->                             
+//                             delay ON  +--------------+
+//  PEC Flap_Filter ---------------------+              +---------
+//
+      A     #i_CFG_Length_Chk_Prsnt; 
+      JCN   FA98; // If check is not present end network
+
+      L     #i_CFG_PEC_Length_Pos; 
+      L     #i_CFG_Length_Chk_dis; 
+      -I    ; 
+      L     #s_Displacement; 
+      -I    ; 
+      T     #t_Position_untill_PEC; 
+
+// Clear virtual code before after blockage length check
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position_untill_PEC,
+           i_Window                 := 30,
+           i_Info                   := -4,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_number_found);
+
+      L     #t_number_found; 
+      L     0; 
+      >I    ; 
+      JCN   FA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #t_Position,
+           i_Info_Physical          := -4,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+FA01: A     #i_IO_NOT_PEC_Length; // IF PEC Not blocked
+      JCN   FA02; 
+      L     #i_CFG_Delay_On_Length; 
+      T     #s_Cnt_Delay_On_Length; // THEN pre-set counter on-Delay 
+FA02: NOP   0; 
+      AN    #i_IO_NOT_PEC_Length; // IF length PEC blocked Countdown delay 
+      JCN   FA98; 
+      L     #s_Cnt_Delay_On_Length; // Load delay-on counter value
+      L     #s_Displacement; // Load displacement of previous scan cycle
+      -I    ; 
+      T     #s_Cnt_Delay_On_Length; // THEN delay counter := delay counter -diaplacement
+      JPZ   FA03; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+FA03: T     #s_Cnt_Delay_On_Length; 
+FA98: L     #s_Cnt_Delay_On_Length; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      AN    #i_IO_NOT_PEC_Length; // AND PEC is blocked
+      A     #i_CFG_Length_Chk_Prsnt; 
+      =     #t_Length_check_PEC; // THEN assign PEC Flap Filter
+NETWORK
+TITLE =GA: Lenght check Error
+
+      A     #i_PB_IO_Reset_Check; // Reset error
+      A     #i_IO_NOT_PEC_Length; // AND Length detection PEC is not blocked
+      ON    #i_Available_IO; // OR IO not available 
+      R     #s_Length_Check_Error; // Reset the height check error
+
+//When PEC Length is triggerd, check the PEC Latch
+//If both are active, check PLT for single item between the PECs.
+      A     #t_Length_check_PEC; 
+      FP    #s_FP_Length_Check_PEC; 
+      =     #t_OS_PEC_Latch_Length; 
+
+      A     #t_OS_PEC_Latch_Length; 
+      JCN   GA01; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_CFG_PEC_Length_Pos,
+           i_Info_State             := W#16#800,
+           i_Info_Physical          := -4,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+
+GA01: AN    #s_PEC_Latch; 
+      R     #t_Length_check_PEC; 
+
+      A     #t_Length_check_PEC; 
+      JCN   GA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_CFG_PEC_Length_Pos,
+           i_Window                 := #i_CFG_Length_Chk_dis,
+           i_Info                   := -4,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_number_found);
+
+      L     #t_number_found; 
+      L     0; 
+      >I    ; 
+      R     #t_Length_check_PEC; 
+// If trailing edge is found more then 1 item is present
+
+      A     #i_CMD_Enable; // Enable
+      A     #i_CFG_Length_Chk_Prsnt; 
+      A     #t_Length_check_PEC; // AND Lenght detection PEC is blocked
+      A     #s_Section_Run; // AND Section is running
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI_NotPrsnt_1; // AND No ASI 1 Not present
+      AN    #o_ST_ASI_Error_1; // AND No ASI 1 Error
+      S     #s_Length_Check_Error; // THEN Set the Lenght check Error
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Indication Horn Fault 
+
+      L     #i_CFG_Horn_Period; 
+      L     0; 
+      >I    ; 
+      JCN   HA99; 
+
+      A     #s_Height_Check_Error; // Height check error
+      O     #s_Length_Check_Error; 
+      AN    #o_ST_ASI_Error_3; 
+      AN    #o_ST_ASI_NotPrsnt_3; 
+      =     #t_Start_Horn_Fault; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_Horn_Fault,
+           i_CFG_Timer_Value        := #i_CFG_Horn_Period,
+           i_Setpoint               := #s_Timer_Horn_Period,
+           o_Setpoint               := #s_Timer_Horn_Period,
+           o_Timer_Elapsed          := #t_Stop_Horn_Fault);
+
+      A     #t_Start_Horn_Fault; 
+      AN    #t_Stop_Horn_Fault; 
+      =     #o_IO_Horn_Fault; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      S     #s_Eqp_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #o_ST_ASI_NotPrsnt_1; 
+      O     #o_ST_ASI_Error_1; 
+      )     ; 
+      R     #s_Eqp_Operational_On; 
+      NOP   0; 
+NETWORK
+TITLE =JA: Indication and Detailed status
+
+      A     #s_Height_Check_Error; // Height check error
+      =     #o_ST_Height_Error; // Detailed status
+
+      A     #s_Length_Check_Error; 
+      =     #o_ST_Length_Error; 
+
+      A     #s_Height_Check_Error; // Height check error
+      O     #s_Length_Check_Error; 
+      AN    #o_ST_ASI_Error_2; 
+      AN    #o_ST_ASI_NotPrsnt_2; 
+      =     #o_IO_PB_Fault; 
+
+      A     #s_Height_Check_Error; // Height check error
+      O     #s_Length_Check_Error; 
+      AN    #o_ST_ASI_Error_3; 
+      AN    #o_ST_ASI_NotPrsnt_3; 
+      =     #o_IO_SL_Fault; // Indication
+
+      AN    #i_Available_IO; 
+      O     #o_ST_Height_Error; 
+      O     #o_ST_Length_Error; 
+      O     #o_ST_ASI_NotPrsnt_1; 
+      O     #o_ST_ASI_Error_1; 
+      ON    #s_Eqp_Operational_On; 
+      =     #o_Req_Halt_TRS; 
+
+// Create Ready to Restart if EQP not operational on 
+      AN    #s_Eqp_Operational_On; 
+      A     #i_CMD_Enable; 
+      A     #i_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt_1; 
+      AN    #o_ST_ASI_Error_1; 
+      =     #o_Ready_To_Restart; 
+      =     #o_ST_WN_Restart; 
+END_FUNCTION_BLOCK
+

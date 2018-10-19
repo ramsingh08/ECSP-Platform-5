@@ -1,0 +1,169 @@
+FUNCTION_BLOCK "FB_SW_ADN01"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Advanced dieback detection node
+//
+//History:
+//This version  %created_by: nlhhop %
+//              %date_created: Tuesday, February 28, 2017 4:16:39 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlhhop   28-02-17   0.01
+//
+//Description:
+//The advanced dieback detection node function is used to indicate that an 
+//obstruction of the flow has occurred downstream of the section where it is 
+//located. The dieback signal is translated into a TEP value by this function. 
+//It is not a direct copy of the downstream section dieback logic but it uses 
+//additional delay on and delay off functions to create an initial TEP value.
+//
+//The advanced dieback detection node is to be located directly upstream of a 
+//sort zone. Typically this is a sort zone in the system where secure and 
+//unsecure/pending items are separated.
+//
+//This block sets an "unreasonably big number" (configurable) for the TEP, 
+//depending on whether the considered downstream section is in dieback. To 
+//prevent flickering behavior of the system, a hysteresis function is applied to 
+//the dieback signal.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Default_TEP : INT ;	//CFG: Default TEP when no dieback is detected
+  i_CFG_Dieback_Delay_On : INT ;	//CFG: [0.1 sec] Dieback delay on filter
+  i_CFG_Dieback_Delay_Off : INT ;	//CFG: [sec] Dieback delay off filter
+  i_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+END_VAR
+VAR_OUTPUT
+  o_TEP : INT ;	//Total empty positions
+END_VAR
+VAR
+  s_Delay_On_Setpoint : INT ;	//Set point value for delay on timer
+  s_Delay_Off_Setpoint : INT ;	//Set point value for delay on timer
+  s_Section_DieBack : BOOL ;	//Section is in dieback
+  s_Dieback_Detected : BOOL ;	//Dieback detected
+  s_Off_Delay_Tmr_Active : BOOL ;	//Signal to indicate off delay timer is active
+END_VAR
+VAR_TEMP
+  t_DB_PLT_Num : INT ;	//Number of DB PLT
+  t_Dieback_Delay_On_Msec : INT ;	//Dieback delay on filter value in milliseconds
+  t_Section_Running : BOOL ;	//Section is running
+  t_Section_Available : BOOL ;	//Section is available
+  t_Section_Operational : BOOL ;	//Section operational
+  t_Section_Item_Handover : BOOL ;	//Item in handover area
+  t_On_Delay_Tmr_Elapsed : BOOL ;	//The on delay timer is elapsed
+  t_Off_Delay_Tmr_Elapsed : BOOL ;	//The off delay timer is elapsed
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get information from Data Blocks
+
+      NOP   0; 
+
+// Copy PLT information
+      OPN   #i_DB_PLT; 
+
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+// Check if a valid DB number is connected to the input
+      L     #t_DB_PLT_Num; 
+      L     1; 
+      >=I   ; 
+      JCN   AA99; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Running; 
+
+      A     DBX   10.4; 
+      =     #t_Section_Available; 
+
+      A     DBX   10.5; 
+      =     #t_Section_Operational; 
+
+      A     DBX   10.6; 
+      =     #t_Section_Item_Handover; 
+
+// Determine section dieback
+      A     #t_Section_Available; 
+      A     #t_Section_Operational; 
+      A     #t_Section_Item_Handover; 
+      AN    #t_Section_Running; 
+      =     #s_Section_DieBack; 
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Delay on filter for detecting dieback
+
+      NOP   0; 
+
+// Convert 0,1 seconds to milliseconds
+      L     #i_CFG_Dieback_Delay_On; 
+      L     100; 
+      *I    ; 
+      T     #t_Dieback_Delay_On_Msec; 
+
+// Delay on filter for detecting dieback
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Section_DieBack,
+           i_CFG_Timer_Value        := #t_Dieback_Delay_On_Msec,
+           i_Setpoint               := #s_Delay_On_Setpoint,
+           o_Setpoint               := #s_Delay_On_Setpoint,
+           o_Timer_Elapsed          := #t_On_Delay_Tmr_Elapsed);
+
+NETWORK
+TITLE =CA: Delay off filter for detecting dieback
+
+      NOP   0; 
+
+// Start off delay timer
+      AN    #s_Section_DieBack; 
+      A     #s_Dieback_Detected; 
+      =     #s_Off_Delay_Tmr_Active; 
+
+// Delay off filter for detecting dieback
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #s_Off_Delay_Tmr_Active,
+           i_CFG_Timer_Value        := #i_CFG_Dieback_Delay_Off,
+           i_Setpoint               := #s_Delay_Off_Setpoint,
+           o_Setpoint               := #s_Delay_Off_Setpoint,
+           o_Timer_Elapsed          := #t_Off_Delay_Tmr_Elapsed);
+
+NETWORK
+TITLE =DA: Determine when dieback is detected
+//Dieback is detected when the section is in dieback and the on delay timer is 
+//elapsed. This continues until the off delay timer is no longer active.
+      NOP   0; 
+
+// Determine when dieback is detected (taking delay filters into account)
+      A     #s_Section_DieBack; 
+      A     #t_On_Delay_Tmr_Elapsed; 
+      O(    ; 
+      A     #s_Off_Delay_Tmr_Active; 
+      AN    #t_Off_Delay_Tmr_Elapsed; 
+      )     ; 
+      =     #s_Dieback_Detected; 
+
+NETWORK
+TITLE =EA: Determine the TEP value for the output
+
+      NOP   0; 
+
+// By default the TEP value is equal to the configured TEP value
+      L     #i_CFG_Default_TEP; 
+      T     #o_TEP; 
+
+// When dieback is detected the TEP value is 0
+      A     #s_Dieback_Detected; 
+      JCN   EA99; 
+      L     0; 
+      T     #o_TEP; 
+EA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

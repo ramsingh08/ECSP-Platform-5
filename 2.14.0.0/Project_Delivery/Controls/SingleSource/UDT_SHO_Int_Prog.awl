@@ -1,0 +1,30 @@
+TYPE "UDT_SHO_Int_Prog"
+TITLE =%version: 1.05 % CN: 10 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, June 18, 2018 11:00:54 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29307: Add Controlled_Stop to UDT_SHO_Int_Prog     nlHdL    18-06-18   1.05
+//ra#27797: Int prog with HW_Request_Halt               nlHdL    13-02-18   1.04
+//ra#20219: dual shutter control                        nlHdL    14-03-17   1.03
+//ra#20173: SHO int programming UDT add TRS energy save nlHdL    31-01-17   1.02
+//Initial revision                                      nlHdL    26-01-17   1.01
+//
+FAMILY : GEN
+
+
+  STRUCT 	
+   Request_Shutter_Open : BOOL ;	//Request to open shutter
+   Request_Shutter_Close : BOOL ;	//Request to close shutter
+   Request_Halt_TRS : BOOL ;	//Request to halt TRS for closing shutter
+   Request_Disable_Send : BOOL ;	//Request to external disable send products
+   TRS_Energy_Saving : BOOL ;	//Status transport section is Energy Save
+   Force_MTR_TRS : BOOL ;	//Force motor of TRS if item detected while closing
+   No_Fire_Alarm : BOOL ;	//No fire alarm from control
+   Controlled_Stop : BOOL ;	//Signal to stop equipment controlled
+  END_STRUCT ;	
+END_TYPE
+

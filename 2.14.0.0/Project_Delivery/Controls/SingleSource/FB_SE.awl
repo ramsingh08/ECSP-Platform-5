@@ -1,0 +1,54 @@
+FUNCTION_BLOCK "FB_SE"
+TITLE =%version: 0.06 % CN: 40
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, February 20, 2017 7:24:40 AM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Add parameter "i_ack"                                 nleg     20-02-17   0.06
+//Add AUTHOR                                            nltre    15-11-16   0.05
+//Changed name block to "FB_SE"                         nleg     14-11-16   0.04
+//Added text to modification history                    nlwlu    23-09-16   0.03
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.02
+//Initial version based on Tmp_FB_SE YVR v0.01          nlbvers  08-04-15   0.01
+//
+//
+//Example network (Call F_ESTOP1 for all ESx and ESSx):
+//
+//ES_ZZ_01
+//
+//      A     "DB_SE_SIF".ES_ZZ_01_Input; 
+//      =     L      0.0; 
+//      BLD   103; 
+//      A     "DI_Failsafe_Reset".o_FN_Reset_Pulse; 
+//      =     L      0.2; 
+//      BLD   103; 
+//      CALL "F_ESTOP1" , "F_DI_ES_ZZ_01" (
+//           E_STOP                   := L      0.0,
+//           ACK                      := L      0.2,
+//           Q                        := "DB_SE_SIF".ES_ZZ_01_OK);
+//
+//      NOP   0; 
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+VAR_INPUT
+  i_Ack : BOOL ;	//Acknowledgement Signal
+END_VAR
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+END_FUNCTION_BLOCK
+

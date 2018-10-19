@@ -1,0 +1,34 @@
+FUNCTION_BLOCK "F_ESTOP1"
+TITLE =%version: 0.02 % CN: 30
+//Function: Used only for generation purposes.
+//This block needs to be replaced by Siemens fail-safe block (F_ESTOP1).
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.02
+//Initial version                                       nleg     19-07-16   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+
+VAR_INPUT
+  E_STOP : BOOL ;	//
+  ACK_NEC : BOOL ;	//
+  ACK : BOOL ;	//
+  TIME_DEL :Time ;	//
+END_VAR
+VAR_OUTPUT
+  Q : BOOL ;	//
+  Q_DELAY : BOOL ;	//
+  ACK_REQ : BOOL ;	//
+  DIAG : Byte ;	//
+END_VAR
+
+BEGIN
+NETWORK
+TITLE = Dummy
+
+END_FUNCTION_BLOCK
+

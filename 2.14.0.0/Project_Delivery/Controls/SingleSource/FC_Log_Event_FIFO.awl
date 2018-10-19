@@ -1,0 +1,315 @@
+FUNCTION "FC_Log_Event_FIFO" : VOID
+TITLE =%version: 0.05 % CN: 26
+//Function:
+//Log on event to the FIFO
+//
+//History:
+//
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:00:18 %
+//              %release: VI_RAW/RA_Dev %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//PR14161 Update violation coding convention 9          nlple    26-06-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//PR5877 Initial Revision                               nlple    10-02-11   0.01
+//
+//Description:
+//In this function the following functions are executed.
+//1. If the event logging level is higher than the required logging level then 
+//the function will be ended.
+//2. Make and collect the temporary variables which are used in the program.
+//3. Calculated the maximum number of records. And determine the last record.
+//4. Copy all the data into DB_Log_Event_FIFO
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Event_ID : INT ;	//[ID] Identification of the log event
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+END_VAR
+VAR_TEMP
+  t_Record_Data_length : INT ;	//Equal to Record Length [Nr of bytes]
+  t_Max_Num_Of_Records : INT ;	//Maximal Number Of Records to Store
+  t_Offset_To_First_Record : INT ;	//Number of bytes used for the offset to the data
+  t_Calculated_log_level : INT ;	//Log level of the event
+  t_Prefull_Num_Of_Record : INT ;	//DW 2: Number Of Records to store, before FIFO will be Full
+  t_Num_Of_Records_Stored : INT ;	//DW 6: Actual Number Of Records Stored in FIFO
+  t_Next_Record_Store : INT ;	//DW 10:Next Record to Store to in FIFO
+  t_Next_Record_Retrieve : INT ;	//DW 12:Next Record to Retrieve from FIFO
+  t_FIFO_length : WORD ;	//Total Length of the FIFO
+  t_Status_Bits : WORD ;	//DW 0: Status Bits for Empty, Prefull, Full etc
+  t_Error : WORD ;	//If > 0 error is present
+  t_Empty : BOOL ;	//FIFO is empty
+  t_Prefull : BOOL ;	//FIFO is not empty and not full
+  t_Full : BOOL ;	//FIFO is full
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check which logging level is active
+//If the event logging level is higher than the required logging level then 
+//the function will be ended.
+// 
+      NOP   0; 
+      L     #i_Event_ID; // Load logging level
+      L     3000; 
+      -I    ; 
+      L     100; 
+      /D    ; 
+      T     #t_Calculated_log_level; 
+
+      L     #t_Calculated_log_level; // Check if log should be logged
+      L     "DB_Setting".common.Internal_Log_Level; 
+      <=I   ; 
+      JCN   FA99; 
+
+NETWORK
+TITLE =BA: FIFO Managment
+//Remark:
+//Each call the length of the DB is checked and with the entry length the number 
+//of entries is checked. 
+//(This could also be done only initial.) 
+//
+      L     0; 
+      T     #t_Error; 
+
+//Preset Offset to First Record (equal to General FIFO-Managment Number-Of-Bytes)
+      L     14; // Offset to first record in "DB_Log_Error_Event"
+      T     #t_Offset_To_First_Record; 
+
+// Copy General FIFO-Management on Temporary Variable
+      OPN   "DB_LOG_Event_FIFO"; 
+
+      L     DBW    0; 
+      T     #t_Status_Bits; 
+
+      L     DBW    2; 
+      T     #t_Prefull_Num_Of_Record; 
+
+      L     DBW    4; 
+      T     #t_Record_Data_length; 
+
+      L     DBW    6; 
+      T     #t_Num_Of_Records_Stored; 
+
+      L     DBW    8; 
+      T     #t_Max_Num_Of_Records; 
+
+      L     DBW   10; 
+      T     #t_Next_Record_Store; 
+
+      L     DBW   12; 
+      T     #t_Next_Record_Retrieve; 
+
+
+// Check for Initial use
+      L     #t_Next_Record_Store; 
+      L     0; 
+      ==I   ; // IF No Record Stored (Initial)
+      JCN   BA01; // THEN Initialise FIFO
+
+// Initiate FIFO
+      L     0; 
+      T     #t_Num_Of_Records_Stored; 
+
+      L     1; 
+      T     #t_Next_Record_Store; 
+      T     #t_Next_Record_Retrieve; 
+
+BA01: NOP   0; 
+
+// Calculate maxmimum number of entries in FIFO
+      L     DBLG; // load DB length [bytes]
+      L     #t_Offset_To_First_Record; 
+      -I    ; 
+      T     #t_FIFO_length; 
+
+      L     #t_Record_Data_length; // Repetition factor
+      /D    ; 
+      T     #t_Max_Num_Of_Records; 
+      L     0; // Minimum size 1
+      <=I   ; 
+      JCN   BA02; 
+
+      L     W#16#3104; // Error 3104: 'Record Length Too long'
+      T     #t_Error; 
+
+      L     2#100000000000; // Bit 0.3: 'Record Length Too long'
+      T     #t_Status_Bits; 
+
+      JU    DA00; 
+
+BA02: L     #t_FIFO_length; 
+      L     #t_Record_Data_length; // Repetition factor
+      MOD   ; 
+      L     0; 
+      <>I   ; 
+      JCN   BA03; 
+
+      L     W#16#3105; // Error 3105: 'Wrong record length'
+      T     #t_Error; 
+
+      L     2#1000000000000; // Bit 0.4: 'Wrong record length'
+      T     #t_Status_Bits; 
+
+      JU    DA00; 
+
+BA03: L     #t_Prefull_Num_Of_Record; 
+      L     #t_Max_Num_Of_Records; 
+      >I    ; 
+      JCN   BA99; 
+
+      L     W#16#3106; // Error 3106: 'Setting prefull incorrect'
+      T     #t_Error; 
+
+      L     2#100000000000000; // Bit 0.6: 'Setting prefull incorrect'
+      T     #t_Status_Bits; 
+
+      JU    DA00; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: FIFO IN: Write entry
+
+      L     #t_Next_Record_Store; 
+      +     -1; 
+      L     #t_Record_Data_length; 
+      *D    ; 
+      L     #t_Offset_To_First_Record; 
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // AR1 := dest.pointer
+
+      L     "MW_Date"; 
+      T     DBW [AR1,P#0.0]; // Move date to DB
+
+      L     "MD_Time_Of_Day"; 
+      T     DBD [AR1,P#2.0]; // Move time to DB
+
+      L     #i_Event_ID; // Move event-ID to DB
+      T     DBW [AR1,P#6.0]; 
+
+      L     #i_ID; // Move location ID to DB
+      T     DBD [AR1,P#8.0]; 
+
+// Update FIFO management
+      L     #t_Next_Record_Store; 
+      +     1; // Increment Next_Record_Store
+      T     #t_Next_Record_Store; 
+
+      L     #t_Max_Num_Of_Records; 
+      >D    ; 
+      JCN   CA02; 
+
+      L     1; 
+      T     #t_Next_Record_Store; 
+
+CA02: L     #t_Num_Of_Records_Stored; 
+      L     #t_Max_Num_Of_Records; 
+      <I    ; 
+      JCN   CA03; // Increment NumberOfRecords_Stored only when t_Num_Of_Records_Stored < t_Max_Num_Of_Records
+
+      L     #t_Num_Of_Records_Stored; 
+      +     1; 
+      T     #t_Num_Of_Records_Stored; 
+
+      JU    DA00; 
+
+CA03: L     #t_Max_Num_Of_Records; // FIFO is full, copy t_Max_Num_Of_Records to t_Num_Of_Records_Stored
+      T     #t_Num_Of_Records_Stored; 
+
+      L     #t_Next_Record_Store; // With a full FIFO that is uses as logging #t_Next_Record_Retrieve must equal #t_Next_Record_Store
+      T     #t_Next_Record_Retrieve; 
+
+      NOP   0; 
+
+NETWORK
+TITLE =DA: Status Bits
+//IF the Mode is status, then there will be No Full, Empty Or Blockmove
+//Error, so then the return value contains the Prefull status.
+DA00: L     2#0; // Init: Clear status bits 
+      T     #t_Status_Bits; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     0; 
+      <=I   ; 
+      =     #t_Empty; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     #t_Prefull_Num_Of_Record; 
+      >=I   ; 
+      =     #t_Prefull; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     #t_Max_Num_Of_Records; 
+      >=I   ; 
+      =     #t_Full; 
+
+//Empty Indication
+      A     #t_Empty; 
+      JCN   DA02; 
+
+      L     2#100000000; // Bit 0.0 : "Empty Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+//Prefull Indication
+DA02: A     #t_Prefull; 
+      JCN   DA03; 
+
+      L     2#1000000000; // Bit 0.1 : "Prefull Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+//Full Indication
+DA03: A     #t_Full; 
+      JCN   DA99; 
+
+      L     2#10000000000; // Bit 0.2 : "Full Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Update BINARY RESULT (BR) Bit
+//According Siemens rules:
+//
+//Block ended with error:       BR = 0         RET_VAL < 0
+//Block ended without error:    BR = 1         RET_VAL >= 0
+      L     #t_Error; // RET_VALUE >=0 when no error 
+      L     0; 
+      >=I   ; 
+      SAVE  ; // Save RLO to BR     
+NETWORK
+TITLE =FA: Copy Temp Var which have been Modified to General FIFO
+
+      L     #t_Status_Bits; 
+      T     DBW    0; 
+
+      L     #t_Num_Of_Records_Stored; 
+      T     DBW    6; 
+
+      L     #t_Max_Num_Of_Records; 
+      T     DBW    8; 
+
+      L     #t_Next_Record_Store; 
+      T     DBW   10; 
+
+      L     #t_Next_Record_Retrieve; 
+      T     DBW   12; 
+
+FA99: NOP   0; 
+END_FUNCTION
+

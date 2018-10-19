@@ -1,0 +1,134 @@
+FUNCTION "FC_VBZ11" : VOID
+TITLE =%version: 1.03 % CN: 61 
+//Function:
+//- Template for vertibelt zone VBZ11
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Wednesday, August 15, 2018 2:32:21 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                  By:       Date:    Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#28705: VBZ position status on SWS                  nlHdL    15-08-18   1.03
+//ra#29647: Removed HAC PEC Switch gap error            inajos   18-06-18   1.02
+//Initial Version                                       inajos   31-05-18   1.01
+//
+//Description:
+//
+//This block executes the Fixed part of VBZ11 zone along 
+//with the configurable and optional block calls
+//Bags can be sorted in straight or divert directions based on sorting constraints 
+//or via Semi Auto functionality.
+//
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =#Insert# //Insertion point code generator
+//The generated source will be added overhere.
+//
+//
+//NETWORK
+//TITLE =AA: VBZ
+//
+//      CALL "FB_VBZ11_F" , "DI_VBZ_ZZ_00" (
+//           i_Setting                := "DB_Setting".VBZ_ZZ_00,
+//           i_ID                     := "DB_Status_Index".VBZ_ZZ_00.ID,
+//           i_CMD_Enable             := "DB_System_Control".VBZ_ZZ_00.Enable,
+//           i_CMD_Start              := "DB_System_Control".VBZ_ZZ_00.OS_Start,
+//           i_CMD_Reset              := "DB_System_Control".VBZ_ZZ_00.OS_Reset,
+//           i_CMD_Send_Stat          := "DB_System_Control".VBZ_ZZ_00.OS_Send_Statistics,
+//           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+//           i_Local_Commands         := "DB_Command".VBZ_ZZ_00,
+//           i_Safety_OK              := "DB_System_Control".VBZ_ZZ_00.Safety_OK,
+//           i_Available_IO           := "DB_System_Control".VBZ_ZZ_00.IO_Available,
+//           i_DB_PLT_Sorter          := "DB_ZZ_SS_PLT",//SOZ PLT
+//           i_DB_Default_Route_Table := "DB_Def_Rout_VBZ_ZZ_00",
+//           i_DB_System_Route_Table  := "DB_Sys_Rout_VBZ_ZZ_00",
+//           i_CFG_PEC_Block_Length   := "DB_Setting".common.PEC_Blockage_Length,
+//           i_CFG_Dir_A_Preference   := 1,
+//           i_CFG_Dir_B_Preference   := 1,
+//           i_CFG_UnSecure_Not_Allow := 1,
+//           i_CFG_Dimen_SC_Not_Allow := 1,
+//           i_CFG_Local_Unsecure_Dir := 2,
+//           i_CFG_Local_Dimensn_Dir  := 2,
+//           i_CFG_Sorter_PEC_Offset  := 60,
+//           i_CFG_Sorter_Conv_Speed  := 1000,
+//           i_CFG_Sorter_Run_Out     := 14,
+//           i_Ext_Req_Stop           := "DB_External".VBZ_ZZ_00.Inputs.Request_Stop,
+//           i_Ext_Req_Halt           := "DB_External".VBZ_ZZ_00.Inputs.Request_Halt,
+//           i_VBS_ID                 := "DB_Status_Index".VB_ZZ_02.ID,
+//           i_VBS_LMS_NotPrsnt       := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_VBS_LMS_Error          := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           i_VBS_IO_LMS_Auto        := "I_ZZ_02_A12_LMS_AUTO",
+//           i_VBS_IO_LMS_Healthy     := "I_ZZ_02_A12_LMS_HLTY",
+//           i_VBS_IO_NOT_PEC_HAC     := "I_ZZ_02_B24_PEC_HAC",
+//           i_SWS_ID                 := "DB_Status_Index".SWS_ZZ_01.ID,
+//           i_SWS_Setting            := "DB_Setting".SWS_ZZ_01,
+//           i_SWS_LMS_NotPrsnt       := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_SWS_LMS_Error          := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           i_SWS_IO_LMS_Auto        := "I_ZZ_01_A12_LMS_AUTO",
+//           i_SWS_IO_LMS_Healthy     := "I_ZZ_01_A12_LMS_HLTY",
+//           i_SWS_IO_PS_In           := "I_ZZ_01_B22_PS_IN",
+//           i_SWS_IO_PS_Out          := "I_ZZ_01_B23_PS_OUT",
+//           i_CH_ID                  := "DB_Status_Index".CH_ZZ_03.ID,
+//           i_CH_DB_PLT              := "DB_ZZ_03_PLT",
+//           i_CH_ASI_NotPrsnt        := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_CH_ASI_Error           := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           i_CH_IO_NOT_PEC_Full     := "I_ZZ_03_B21_PEC_FULL",
+//           i_CH_Basic_Offset        := "DB_Setting".CH_ZZ_03.Offset,
+//           i_Arrived_Position       := 101,// Location number
+//           i_SLC_ASI_NotPrsnt       := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_SLC_ASI_Error          := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           o_Ready_To_Restart       := "DB_System_Control".VBZ_ZZ_00.Ready_To_Start,
+//           o_Req_Halt_Sorter        := "DB_Int_Prog_Zone".VBZ_ZZ_00.Req_Halt_Sorter,
+//           o_Req_Stop_Sorter        := "DB_Int_Prog_Zone".VBZ_ZZ_00.Req_Stop_Sorter,
+//           o_ST_Fixed_Straight      := "DB_Status".VBZ_ZZ_00.Fixed_Straight_On,
+//           o_ST_Fixed_Divert        := "DB_Status".VBZ_ZZ_00.Fixed_Divert,
+//           o_ST_Switch_Gap_NotClear := "DB_Status".VBZ_ZZ_00.Switch_Gap_Not_Clear,
+//           o_ST_No_Route_Available  := "DB_Status".VBZ_ZZ_00.No_Route_Available,
+//           o_ST_Not_AllowedItem_SOZ := "DB_Status".SOZ_03_00.Item_Not_Allowed,
+//           o_VBS_IO_MTR_Fwd         := "Q_ZZ_02_M11_MTR_FWD",
+//           o_VBS_ST_Running         := "DB_Status".VB_ZZ_02.Running,
+//           o_VBS_ST_Started         := "DB_Status".VB_ZZ_02.Started,
+//           o_VBS_ST_Ext_Stop        := "DB_Status".VB_ZZ_02.Ext_Stop,
+//           o_VBS_ST_LMS_ASI_NotPrst := "DB_Status".VB_ZZ_02.LMS_ASI_Not_Prsnt,
+//           o_VBS_ST_LMS_ASI_Err     := "DB_Status".VB_ZZ_02.LMS_ASI_Error,
+//           o_VBS_ST_LMS_Not_Auto    := "DB_Status".VB_ZZ_02.LMS_Not_Auto,
+//           o_VBS_ST_LMS_Not_Hthy    := "DB_Status".VB_ZZ_02.LMS_Not_Hthy,
+//           o_VBS_ST_HAC_Blockage    := "DB_Status".VB_ZZ_02.HAC_PEC_Blk,
+//           o_SWS_IO_MTR_Fwd         := "Q_ZZ_01_M11_MTR_FWD",
+//           o_SWS_IO_MTR_Rev         := "Q_ZZ_01_M11_MTR_REV",
+//           o_SWS_ST_Started         := "DB_Status".SWS_ZZ_01.Running,
+//           o_SWS_ST_Running         := "DB_Status".SWS_ZZ_01.Started,
+//           o_SWS_ST_Ext_Stop        := "DB_Status".SWS_ZZ_01.Ext_Stop,
+//           o_SWS_ST_LMS_ASI_NotPrst := "DB_Status".SWS_ZZ_01.LMS_ASI_Not_Prsnt,
+//           o_SWS_ST_LMS_ASI_Error   := "DB_Status".SWS_ZZ_01.LMS_ASI_Error,
+//           o_SWS_ST_Not_Automatic   := "DB_Status".SWS_ZZ_01.LMS_Not_Auto,
+//           o_SWS_ST_Not_Healthy     := "DB_Status".SWS_ZZ_01.LMS_Not_Hthy,
+//           o_SWS_ST_Move_Time_Out   := "DB_Status".SWS_ZZ_01.Move_Time_Out,
+//           o_SWS_ST_Err_PS_Double   := "DB_Status".SWS_ZZ_01.Error_PS_Double,
+//           o_SWS_ST_Straight_On     := "DB_Status".SWS_ZZ_01.Straight_On,
+//           o_SWS_ST_Divert          := "DB_Status".SWS_ZZ_01.Divert,
+//           o_SWS_Action_Active      := "DB_System_Control".VBZ_ZZ_00.Action_Active,
+//           o_CH_Items               := "DB_Status".CH_ZZ_03.Items,
+//           o_CH_ST_Running          := "DB_Status".CH_ZZ_03.Running,
+//           o_CH_ST_Started          := "DB_Status".CH_ZZ_03.Started,
+//           o_CH_ST_Req_Halt         := "DB_Status".CH_ZZ_03.Req_Halt,
+//           o_CH_ST_Req_Stop         := "DB_Status".CH_ZZ_03.Req_Stop,
+//           o_CH_ST_Ext_Stop         := "DB_Status".CH_ZZ_03.Ext_Stop,
+//           o_ST_CH_ASI_NotPrsnt     := "DB_Status".CH_ZZ_03.ASI_Not_Prsnt,
+//           o_ST_CH_ASI_Error        := "DB_Status".CH_ZZ_03.ASI_Error,
+//           o_ST_CH_Full_Warning     := "DB_Status".CH_ZZ_03.Chute_Full_WR,
+//           o_ST_CH_Full_Error       := "DB_Status".CH_ZZ_03.Chute_Full_ER,
+//           o_ST_ASI_NotPrsnt        := "DB_Status".VBZ_ZZ_00.ASI_Not_Prsnt,
+//           o_ST_ASI_Error           := "DB_Status".VBZ_ZZ_00.ASI_Error,
+//           o_IO_SL_Full             := "Q_ZZ_99_P02_SL_FULL",
+//           o_IO_BP_Full             := "Q_ZZ_99_P01_BP_FULL");
+//
+END_FUNCTION
+

@@ -1,0 +1,196 @@
+FUNCTION "FC_Local_Mode_Dir" : VOID
+TITLE =%version: 0.07 % CN: 33
+//Function:
+//Retreive data for instance DB and check the preffered destination with the
+// fixed mode for direction 1, and for direction 2. 
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 7:00:15 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.07
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.03
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.02
+//Initial Revision                                      nlHdL    03-10-11   0.01
+//
+//Description:
+//Retreive data for instance DB and check the preffered destination with the
+// fixed mode for direction 1, and for direction 2. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Fixed_Mode_Dir1 : BOOL ;	//The hardware is fixed in direction A
+  i_Fixed_Mode_Dir2 : BOOL ;	//The hardware is fixed in direction B
+  i_Fixed_Mode_Dir3 : BOOL ;	//The hardware is fixed in direction C
+  i_ANY_Preferred_Dir : ANY ;	//ANY pointer to the preferred direction
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_Preference_C : BYTE ;	//Preference for Direction C
+  t_DecisionLvl : BYTE ;	//Decision Level	
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_Direction : BYTE ;	//Direction selected
+  t_DINO : INT ;	//DB number of instance	
+  t_Succses_Dir : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      L     W [AR1,P#2.0]; 
+      L     6; 
+      >I    ; 
+      =     #t_Succses_Dir; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Preference_A; 
+
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Preference_B; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Preference_C; 
+
+      L     DIB [AR2,P#5.0]; 
+      T     #t_DecisionLvl; 
+
+      L     DIB [AR2,P#6.0]; 
+      T     #t_FailedReason_A; 
+
+      L     DIB [AR2,P#7.0]; 
+      T     #t_FailedReason_B; 
+
+      L     DIB [AR2,P#8.0]; 
+      T     #t_FailedReason_C; 
+
+      L     DIB [AR2,P#9.0]; 
+      T     #t_Direction; 
+
+      L     DINO; 
+      T     #t_DINO; 
+NETWORK
+TITLE =BA: Check if Local Mode with out preferred direction
+
+      AN    #i_Fixed_Mode_Dir1; 
+      AN    #i_Fixed_Mode_Dir2; 
+      AN    #i_Fixed_Mode_Dir3; 
+      BEC   ; 
+//No local mode end block
+
+      L     #t_Direction; 
+      L     0; 
+      <>I   ; 
+      BEC   ; 
+
+//Goto check local mode for the routing destination
+
+      A     #i_Fixed_Mode_Dir1; 
+      JCN   BA01; 
+// If equipment is in fixed dir 1 mode (Local mode)
+
+      L     1; 
+      T     #t_Direction; 
+      T     #t_Preference_A; 
+
+      L     0; 
+      T     #t_FailedReason_A; 
+
+//Decision Level = 6 ("Local mode")
+      L     6; 
+      T     #t_DecisionLvl; 
+
+      JU    BA99; 
+//End fixed mode dir 1
+
+BA01: A     #i_Fixed_Mode_Dir2; 
+      JCN   BA02; 
+// If equipment is in fixed dir 2 mode (Local mode)
+
+      L     2; 
+      T     #t_Direction; 
+      T     #t_Preference_B; 
+
+      L     0; 
+      T     #t_FailedReason_B; 
+
+//Decision Level = 6 ("Local mode")
+      L     6; 
+      T     #t_DecisionLvl; 
+
+//End fixed mode dir 2
+
+BA02: A     #i_Fixed_Mode_Dir3; 
+      JCN   BA99; 
+// If equipment is in fixed dir 3 mode (Local mode)
+
+      L     3; 
+      T     #t_Direction; 
+      T     #t_Preference_C; 
+
+      L     0; 
+      T     #t_FailedReason_C; 
+
+//Decision Level = 6 ("Local mode")
+      L     6; 
+      T     #t_DecisionLvl; 
+
+//End fixed mode dir 3
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Write data to preferred direction
+
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     #t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+END_FUNCTION
+

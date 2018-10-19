@@ -1,0 +1,240 @@
+FUNCTION_BLOCK "FB_Cascade"
+TITLE =%version: 0.18 % CN: 40
+//Function:
+//Start up the section in cascade and initiate the cascade.
+//Also after die-back, it will delay the start up with the sett delay time. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:09:49 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.18
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.18
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.18
+//23709: reset bit Delay start-up no item in handover   nlHdL    20-04-15   0.18
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.17
+//PR14161 Update violation coding convention 9          nlple    25-06-13   0.16
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.15
+//CR7918 Init cascade if i_Cascade_Delay_Time = 0       nlHHop   26-03-12   0.14
+//PR8295 Added restart, renew cascade start up          nlHdL    15-11-11   0.13
+//PR7667 Init if section is in error                    nlHdL    22-09-11   0.12
+// Section stop safety not ok, restart without cascade
+//Changed condition for die-back cascade delay          nlJBax   28-01-11   0.11
+//Set function used for cascade start up                nlHdL    10-12-10   0.10
+//Modified init cascade start-up                        nlHdL    30-11-10   0.09
+//Update naming output to be consistent                 nlMvK    17-11-10   0.08 
+//Minor adjustments for the Major update                nlMRe    16-09-10   0.07
+//PR5421: Initiate doesn't work if downstream not runs  nlMRe    26-07-10   0.06
+//PR5142: Cascade start-up is stopped due error         nlMRe    05-05-10   0.05
+//PR5144: Smart blocks can not write in PLT             nlMRe    03-05-10   0.04
+//Shift Cascade bit of PLT DB because of DB_PLT change  nlLvdG   12-04-10   0.03
+//Changed interface for monitoring purposes             nlMRe    09-04-10   0.02
+//Initial revision                                      nlMRe    15-03-10   0.01
+//
+//Description:                                  
+//
+//In cascade all conveyors are started one by one, with a sett delay time. The 
+//sequence of start up is from downstream to upstream. This is mainly done to 
+//prevent the thermal overloads to tripp.
+//During the resolve of a die-back situation, the same delay time is taken. When 
+//the downstream section starts to run, the delay time is started. 
+//
+//The cascade function receives the cascade trigger through the downstream PLT 
+//DB. 
+//When the trigger is received, the delay is started. After the delay expires, 
+//the cascade bit in own PLT DB is set. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Cascade_Delay_Time : INT ;	//CFG: [msec] Delay time used for start up, if 0 this is the first conv to start
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_Eqp_Operational_On : BOOL ;	//Operational on signal of the section
+  i_Section_Run : BOOL ;	//Section Run Signal
+  i_Cascade_Start_Up : BOOL ;	//Cascade Start up signal
+  i_Section_Run_Downstream : BOOL ;	//Section Run Signal Downstream
+  i_Cascase_Start_Up_Downs : BOOL ;	//Cascade Start up signal Downstream
+  i_Item_In_Handover_Area : BOOL ;	//Indicating that a item is in the handover area
+END_VAR
+VAR_OUTPUT
+  o_Cascade_Run_OK : BOOL ;	//Indicating that for the Cascade function its ok to run the section
+  o_Cascade_Start_Up : BOOL ;	//This section is started in cascade
+  o_Delay_Started : BOOL ;	//This section is delay started
+END_VAR
+VAR
+  s_Initiate_Cascade_Start : BOOL ;	//The first cascade conveyor to start up 
+  s_cascade_delay_time : INT ;	//Cascade delay timer value [ms]
+  s_start_up_delay_time : INT ;	//Start up delay timer value [ms]
+  s_FP_Enable : BOOL ;	//One shot Enable
+  s_Cascade_Start_Up : BOOL ;	//Cascade start up bit of this section
+  s_Start_Up_Run_Motor : BOOL ;	//Start up run motor signal
+  s_Cascade_Restart : BOOL ;	//Start up delay active during not operation on
+  s_FN_Operational_on : BOOL ;	//Negative flank operational on
+END_VAR
+VAR_TEMP
+  t_OS_Not_Operational_On : BOOL ;	//One Shot not operational on
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear temporaries
+
+      A     "M_First_Scan"; 
+      JCN   AA01; 
+
+      BEU   ; 
+
+AA01: A     #i_Cascade_Start_Up; 
+      =     #s_Cascade_Start_Up; 
+NETWORK
+TITLE =BA: Initiate Cascade 
+
+      NOP   0; 
+
+// If the cascade delay time is set to 0 this is the first conveyor to start.
+      L     #i_Cascade_Delay_Time; 
+      L     0; 
+      ==I   ; 
+      =     #s_Initiate_Cascade_Start; 
+
+      A     #i_CMD_Enable; // If the section is operational on
+      A     #s_Initiate_Cascade_Start; // ..And this section initiates the cascade start-up
+      JCN   BA99; 
+
+      SET   ; // Then set the start-up
+      S     #s_Cascade_Start_Up; 
+      S     #s_Start_Up_Run_Motor; 
+
+      L     0; // Set cascade delay at zero
+      T     #s_cascade_delay_time; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Load cascade timer
+
+      A     #s_Cascade_Start_Up; 
+      ON    #i_CMD_Enable; 
+      R     #s_Cascade_Restart; 
+
+      A     #i_Eqp_Operational_On; 
+      FN    #s_FN_Operational_on; 
+      =     #t_OS_Not_Operational_On; 
+
+//Restart the cascade start up when section is not operational on
+      A     #i_CMD_Enable; 
+      A     #s_Cascade_Start_Up; 
+      A     #t_OS_Not_Operational_On; 
+      S     #s_Cascade_Restart; 
+
+      A     #i_CMD_Enable; // On the operation on signal
+      FP    #s_FP_Enable; // Take a one-shot
+      O     #t_OS_Not_Operational_On; // OR restart after error
+      AN    #s_Initiate_Cascade_Start; // But not if it starts the cascade
+      JCN   CA99; 
+
+      L     #i_Cascade_Delay_Time; // Load the delay time
+      T     #s_cascade_delay_time; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: delay start cascade
+
+      A     #i_CMD_Enable; // If the section is operational on
+      AN    #s_Initiate_Cascade_Start; // ..And does not initiate the cascade start up
+      A     #i_Cascase_Start_Up_Downs; // ..And the downstream is started up
+      AN    #s_Cascade_Start_Up; // ..And the section itself is not yet started
+      AN    #s_Cascade_Restart; 
+      O(    ; 
+      A     #s_Cascade_Restart; 
+      A     #i_Eqp_Operational_On; 
+      A(    ; 
+      O     #s_Initiate_Cascade_Start; // ..And does not initiate the cascade start up
+      O     #i_Cascase_Start_Up_Downs; // ..And the downstream is started up
+      )     ; 
+      )     ; 
+      JCN   DA99; 
+
+      L     #s_cascade_delay_time; // Count down the cascade delay time
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   DA01; // If below zero
+      L     0; // ..Then put back to zero
+DA01: T     #s_cascade_delay_time; 
+
+      L     #s_cascade_delay_time; // If the delay is at zero
+      L     0; 
+      <=I   ; 
+      JCN   DA99; 
+
+      SET   ; // Then allow to start the section in cascade
+      S     #s_Cascade_Start_Up; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Reset cascade bit
+
+      AN    #i_CMD_Enable; // If the enable drops
+      O     #t_OS_Not_Operational_On; // OR Not operational
+      R     #s_Cascade_Start_Up; // Then the section is not started any more
+NETWORK
+TITLE =FA: Delay start-up (after Die-Back)
+
+      NOP   0; 
+//Preset start-up bit
+      A     #i_Eqp_Operational_On; // If the section is operational on
+      AN    #i_Section_Run_Downstream; // ..AND the downstream is running
+      AN    #i_Section_Run; // ..AND this seciton is running
+      A     #i_Item_In_Handover_Area; 
+      JCN   FA01; 
+
+      L     #i_Cascade_Delay_Time; // Then preset the start-up delay
+      T     #s_start_up_delay_time; 
+
+FA01: A     #i_Eqp_Operational_On; // If the section is operational on
+      AN    #i_Section_Run; // ..but this section is not yet running
+      A     #i_Section_Run_Downstream; // ..AND the downstream section is running
+      JCN   FA03; 
+
+      L     #s_start_up_delay_time; // Then count down the start-up delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   FA02; // If below zero, then set back at zero
+      L     0; 
+FA02: T     #s_start_up_delay_time; 
+
+FA03: L     #s_start_up_delay_time; // If the delay time is zero
+      L     0; 
+      <=I   ; 
+      JCN   FA04; 
+
+      SET   ; // Then allow to start up
+      S     #s_Start_Up_Run_Motor; 
+
+      JU    FA99; 
+
+FA04: SET   ; 
+      R     #s_Start_Up_Run_Motor; 
+
+      AN    #i_Item_In_Handover_Area; 
+      A     #i_Eqp_Operational_On; // If the section is operational on
+      S     #s_Start_Up_Run_Motor; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Create cascade OK signal and set ouputs
+
+      A     #s_Cascade_Start_Up; // If the cascade allows to run
+      A     #s_Start_Up_Run_Motor; // ..AND the start-up allows to run
+      =     #o_Cascade_Run_OK; // Then the cascade function allows to run the motor
+
+      A     #s_Cascade_Start_Up; 
+      =     #o_Cascade_Start_Up; 
+
+      A     #s_Start_Up_Run_Motor; 
+      =     #o_Delay_Started; 
+END_FUNCTION_BLOCK
+

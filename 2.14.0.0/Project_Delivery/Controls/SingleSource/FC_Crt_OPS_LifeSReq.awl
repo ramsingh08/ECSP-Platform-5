@@ -1,0 +1,107 @@
+FUNCTION "FC_Crt_OPS_LifeSReq" : VOID
+TITLE =%version: 0.02 % CN: 32
+//Function:
+//Create lifesign message for OPS station and copy complete message into 
+//the FIFO DB.
+//
+//History:
+//This version  %created_by:  nljclo %
+//              %date_created:  Wednesday, September 21, 2016 2:26:45 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//24455: Cancel requested window OPS mess Area ID       nlHdL    29-06-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//Description:
+//The lifesign message contains a message header and a message body like 
+//displayed below.
+//Message header:
+// -> Event time
+// -> Message type
+// -> Message identifier
+// -> Sending area ID
+//Message body:
+// -> Sequence number
+// -> Filler
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_FIFO_TCTC_DB_num : INT ;	//Number of DB TCTC FIFO
+  i_Message_ID : INT ;	//200 = Lifesign request, 201 = Lifesign response
+  i_Sequence_Number : INT ;	//Sequence number to be used in this message
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Set message header
+//In this network the message header is created and copied into 
+//DB_OPS_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+// -> Sending area ID [DINT]
+      NOP   0; 
+// Copy date and time into message header
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_OPS_Outgoing_Msgs".Lifesign_Message.Header.EventTime);
+
+// Copy message type into message header (200 = Lifesign request, 201 = Lifesign response)
+      L     #i_Message_ID; 
+      T     "DB_OPS_Outgoing_Msgs".Lifesign_Message.Header.Message_Type; 
+
+// Clear the message identifier field
+      L     0; 
+      T     "DB_OPS_Outgoing_Msgs".Lifesign_Message.Header.Message_Identifier; 
+
+// Copy the Sending Area ID into the message header
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_OPS_Outgoing_Msgs".Lifesign_Message.Header.Sending_AreaID; // Transfer to outgoing messages
+
+NETWORK
+TITLE =BA: Copy sequence number to message
+//Copy sequence number to DB_OPS_Outgoing_Msgs.
+      L     #i_Sequence_Number; 
+      T     "DB_OPS_Outgoing_Msgs".Lifesign_Message.Sequence_Number; 
+
+NETWORK
+TITLE =CA: Put message in buffer
+//Copy complete message into FIFO DB.
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_OPS_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_OPS_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_OPS_Outgoing_Msgs".Lifesign_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_OPS_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_TCTC_DB_num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := "DB_OPS_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+END_FUNCTION
+

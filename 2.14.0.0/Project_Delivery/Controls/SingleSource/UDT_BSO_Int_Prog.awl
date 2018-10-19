@@ -1,0 +1,19 @@
+TYPE "UDT_BSO_Int_Prog"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by:   nluhl %
+//              %date_created:   Wednesday, July 25, 2018 2:33:38 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29441: Initial revision                                      nluhl    18-06-18   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Request_Halt_TRS : BOOL ;	//Request to halt TRS from scanner
+  END_STRUCT ;	
+END_TYPE
+

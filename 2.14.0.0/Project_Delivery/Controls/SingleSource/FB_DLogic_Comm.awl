@@ -1,0 +1,405 @@
+FUNCTION_BLOCK "FB_DLogic_Comm"
+TITLE =%version: 0.03 % CN: 33
+//Function:
+//Control interfacing with Datalogic scanner. (SC6000 controller + DS6300)
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Tuesday, July 19, 2016 2:27:32 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#15851: Add BSO from RAW to General Library         nlHdL    19-07-16   0.03
+//ra#15851: Add BSO from RAW to General Library         nlHdL    19-07-16   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.01 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Control interfacing with Datalogic scanner. (SC6000 controller + DS6300)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_DB_DL_Data : BLOCK_DB ;	//CFG: DataLogic Scanner DATABLOCK
+  i_CFG_Input_StartAddr : INT ;	//CFG: Start address of input range for communication (See hardware config)
+  i_CFG_Output_StartAddr : INT ;	//CFG: Start address of output range for communication (See hardware config)
+  i_CFG_LifeSignReq_Interv : INT ;	//CGF: Life sign request interval (1 sec)
+  i_CFG_LifeSignResp_Time : INT ;	//CFG: [sec] LifeSign response time 
+  i_CFG_Profibus_Addr : INT ;	//CFG: Profibus Address of Scanner
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+END_VAR
+VAR_OUTPUT
+  o_ST_Communication_Error : BOOL ;	//ST: Communication error with scanner
+  o_Dispatch_Received : BOOL ;	//A Dispatch message is received from MID
+END_VAR
+VAR
+  s_Base_Address : DWORD ;	//Base address of instance in multi-instance DB
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_Send_Buffer : "UDT_Scnr_Msg_Send";	//Buffer for sending the message to Scanner
+  s_Recv_Buffer : "UDT_Scnr_Msg_Rcv";	//Buffer for receiving the message from Scanner
+  s_Recv_Buffer_2 : "UDT_Scnr_Msg_Rcv2";	//Buffer 2 for receiving the message from Scanner
+  s_Cnt_Msg_Send_Time_Out : INT ;	//Time-out counter for Sending_Msg
+  s_Cnt_Life_Sign_Time_Out : INT ;	//Time-out counter for Sending_Msg
+  s_Previous_Toggle_Val : BOOL ;	//Previous toggle bit value, if different new message arrived
+  s_synchronize : BOOL ;	//Synchronze with scanner (lifesign)
+  s_Control_Field_Rcv : STRUCT 	//Control Field receive
+   Tx_Buffer_Full : BOOL ;	
+   Tx_Buffer_Empty : BOOL ;	
+   Resync_Acknoledge : BOOL ;	
+   More_Bit : BOOL ;	
+   Bit_4 : BOOL ;	
+   Bit_5 : BOOL ;	
+   Bit_6 : BOOL ;	
+   Bit_7 : BOOL ;	
+  END_STRUCT ;	
+  s_Control_Field_Send : STRUCT 	//Control Field send
+   Tx_Buffer_Empty : BOOL ;	
+   Tx_Buffer_Full : BOOL ;	
+   Resync_Request : BOOL ;	
+   More_Bit : BOOL ;	
+   Bit_4 : BOOL ;	
+   Bit_5 : BOOL ;	
+   Bit_6 : BOOL ;	
+   Bit_7 : BOOL ;	
+  END_STRUCT ;	
+  s_No_Char_Rcv : INT ;	//Number of charater received
+END_VAR
+VAR_TEMP
+  t_Ret_Val_INT : INT ;	//Return value, used for monitoring purposes only
+  t_Start_Address : WORD ;	//Start address for Scannet interface
+  t_DBno_Scr_Data : WORD ;	//DB number of Data from scanner
+  t_Start_Address_2 : WORD ;	//Start address for next data
+  t_Ret_Value2_INT : INT ;	//Return value, used for monitoring purposes only
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+//
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #s_Base_Address; // 'relative address'
+
+      SET   ; // Set bit to indicate that this network has been called
+      =     #s_Done; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =AB: Handle reset
+
+      A     #o_ST_Communication_Error; 
+      A     #i_CMD_Reset; 
+      R     #o_ST_Communication_Error; 
+      R     #s_synchronize; 
+
+NETWORK
+TITLE =BA: Receive messages
+
+      L     #i_CFG_Input_StartAddr; //Load input starting address
+      T     #t_Start_Address; 
+
+      L     #i_CFG_Input_StartAddr; //Check hardware configuration
+      L     32; //..to take next configured available input start address
+      +I    ; 
+      T     #t_Start_Address_2; //..Load 2nd starting address
+
+//1st time to read the 32 bytes(as per hardware configuration)
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_Start_Address,
+           RET_VAL                  := #t_Ret_Val_INT,
+           RECORD                   := #s_Recv_Buffer);
+
+//2nd time to read the additional 8 bytes (as per hardware configuration)
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_Start_Address_2,
+           RET_VAL                  := #t_Ret_Value2_INT,
+           RECORD                   := #s_Recv_Buffer_2);
+
+
+      L     P##s_Control_Field_Rcv; 
+      L     #s_Base_Address; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+
+      L     #s_Recv_Buffer.Control_Byte; 
+      T     B [AR1,P#0.0]; 
+
+NETWORK
+TITLE =CA: Check if new message is received
+// 
+//If the toggle bit is toggled there is a new message in the buffer
+      A     #s_Control_Field_Rcv.Tx_Buffer_Full; //Receive toggle bit, toggles if new message in buffer
+      AN    #s_Previous_Toggle_Val; //Previous toggle bit value
+      O(    ; 
+      AN    #s_Control_Field_Rcv.Tx_Buffer_Full; 
+      A     #s_Previous_Toggle_Val; 
+      )     ; 
+      =     #o_Dispatch_Received; //Message received
+
+      A     #s_Control_Field_Rcv.Tx_Buffer_Full; //Load valua toggle bit
+      =     #s_Previous_Toggle_Val; //And store it for next scan
+
+      AN    #o_Dispatch_Received; //If no new message received countdown 
+      JCN   CA10; 
+
+      L     #i_CFG_LifeSignReq_Interv; //If new message received reset timer
+      T     #s_Cnt_Msg_Send_Time_Out; 
+
+CA10: A     "M_OS_/1.0_sec."; //If one shot 1 sec  
+      JCN   CA15; 
+
+      L     #s_Cnt_Msg_Send_Time_Out; //Load timer and decrement with one
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Msg_Send_Time_Out; 
+      JPZ   CA15; 
+
+      L     0; 
+      T     #s_Cnt_Msg_Send_Time_Out; 
+
+CA15: L     #s_Cnt_Msg_Send_Time_Out; 
+      L     0; //Is the timer equal to zero 
+      ==I   ; 
+      =     #s_synchronize; //Synchronize with scanner
+
+      JU    CA99; 
+
+      AN    #s_Control_Field_Rcv.Resync_Acknoledge; 
+      JC    CA55; 
+
+      L     #i_CFG_LifeSignResp_Time; 
+      T     #s_Cnt_Life_Sign_Time_Out; 
+
+CA55: A     "M_OS_/1.0_sec."; //If one shot 1 sec  
+      JCN   CA60; 
+
+      L     #s_Cnt_Msg_Send_Time_Out; //Load timer and decrement with one
+      L     1; 
+      -I    ; 
+      T     #s_Cnt_Msg_Send_Time_Out; 
+      JPZ   CA60; 
+
+      L     0; 
+      T     #s_Cnt_Msg_Send_Time_Out; 
+
+CA60: L     #s_Cnt_Msg_Send_Time_Out; 
+      L     0; //Is the timer equal to zero 
+      ==I   ; 
+      =     #o_ST_Communication_Error; //Synchronize time out
+
+CA99: NOP   0; 
+
+      A     #s_synchronize; //If synchronize active
+      A     #s_Control_Field_Rcv.Resync_Acknoledge; //AND synchronize acknowledge by scanner
+      R     #s_synchronize; //Reset synchronize
+
+NETWORK
+TITLE =DA: Store received message
+//In this network the buffer is copied to the dispatch bytes.
+//The copy begin from the byte 5 of the buffer, this to filter the start 
+//character(STX)
+//
+//
+//    
+      OPN   #i_CFG_DB_DL_Data; // BSO Data DB
+      L     DBNO; 
+      T     #t_DBno_Scr_Data; 
+
+      A     #s_synchronize; 
+      ON    #o_Dispatch_Received; 
+      JC    DA99; 
+
+//Get address of the receive buffer
+
+      L     P##s_Recv_Buffer; 
+      L     #s_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+
+//Get address of the place where the dispatch message should be stored
+
+
+      L     B [AR1,P#3.0]; // Number of characters without 'start'(STX) and end characters (CR,LF)
+      L     3; 
+      -I    ; 
+      T     #s_No_Char_Rcv; 
+      T     "DB_Scanner_Data_1".BSO.Data.Number_Of_Chars; // 
+
+
+      L     B [AR1,P#4.0]; //  Byte 5 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[1]; //  Byte 1 LPN
+
+      L     B [AR1,P#5.0]; //  Byte 6 buffer 
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[2]; //  Byte 2 LPN
+
+      L     B [AR1,P#6.0]; //  Byte 7 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[3]; //  Byte 3 LPN
+
+      L     B [AR1,P#7.0]; //  Byte 8 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[4]; //  Byte 4 LPN
+
+      L     B [AR1,P#8.0]; //  Byte 9 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[5]; //  Byte 5 LPN
+
+      L     B [AR1,P#9.0]; //  Byte 10 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[6]; //  Byte 6 LPN
+
+      L     B [AR1,P#10.0]; //  Byte 11 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[7]; //  Byte 7 LPN
+
+      L     B [AR1,P#11.0]; //  Byte 12 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[8]; //  Byte 8 LPN
+
+      L     B [AR1,P#12.0]; //  Byte 13 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[9]; //  Byte 9 LPN
+
+      L     B [AR1,P#13.0]; //  Byte 13 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN1[10]; //  Byte 10 LPN
+
+//2nd LPN
+
+      L     B [AR1,P#14.0]; //  Byte 14 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[1]; //  Byte 14 LPN
+
+      L     B [AR1,P#15.0]; //  Byte 15 buffer 
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[2]; //  Byte 15 LPN
+
+      L     B [AR1,P#16.0]; //  Byte 16 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[3]; //  Byte 16 LPN
+
+      L     B [AR1,P#17.0]; //  Byte 17 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[4]; //  Byte 17 LPN
+
+      L     B [AR1,P#18.0]; //  Byte 18 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[5]; //  Byte 18 LPN
+
+      L     B [AR1,P#19.0]; //  Byte 19 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[6]; //  Byte 19 LPN
+
+      L     B [AR1,P#20.0]; //  Byte 20 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[7]; //  Byte 20 LPN
+
+      L     B [AR1,P#21.0]; //  Byte 21 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[8]; //  Byte 21 LPN
+
+      L     B [AR1,P#22.0]; //  Byte 22 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[9]; //  Byte 22 LPN
+
+      L     B [AR1,P#23.0]; //  Byte 23 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN2[10]; //  Byte 23 LPN
+
+
+//3nd LPN
+
+      L     B [AR1,P#24.0]; //  Byte 24 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[1]; //  Byte 24 LPN
+
+      L     B [AR1,P#25.0]; //  Byte 25 buffer 
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[2]; //  Byte 25 LPN
+
+      L     B [AR1,P#26.0]; //  Byte 26 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[3]; //  Byte 26 LPN
+
+      L     B [AR1,P#27.0]; //  Byte 27 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[4]; //  Byte 27 LPN
+
+      L     B [AR1,P#28.0]; //  Byte 28 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[5]; //  Byte 28 LPN
+
+      L     B [AR1,P#29.0]; //  Byte 29 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[6]; //  Byte 29 LPN
+
+      L     B [AR1,P#30.0]; //  Byte 30 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[7]; //  Byte 30 LPN
+
+      L     B [AR1,P#31.0]; //  Byte 31 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[8]; //  Byte 31 LPN
+
+      L     #s_Recv_Buffer_2.Message_Body_29; // Byte 32 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[9]; //  Byte 32 LPN
+
+      L     #s_Recv_Buffer_2.Message_Body_30; // Byte 33 buffer
+      T     "DB_Scanner_Data_1".BSO.Data.Body.Scanresult.LPN3[10]; //  Byte 33 LPN
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Prepare message
+
+      A     #o_Dispatch_Received; //If a message is received
+      JCN   EA12; 
+
+      A     #s_Control_Field_Send.Tx_Buffer_Empty; //Toggle bit is TRUE
+      JC    EA11; 
+
+      SET   ; 
+      S     #s_Control_Field_Send.Tx_Buffer_Empty; //Toggle Bit to acknowledge to scanner that the message is received
+
+      JU    EA12; 
+EA11: SET   ; 
+      R     #s_Control_Field_Send.Tx_Buffer_Empty; //Toggle Bit to acknowledge to scanner that the message is received
+
+EA12: SET   ; 
+      R     #s_Control_Field_Send.Tx_Buffer_Full; //Bit should toggle is PLC sends a message to the scanner
+      R     #s_Control_Field_Send.Resync_Request; //Must be set to 1 to send a resync request 
+      R     #s_Control_Field_Send.More_Bit; //If the message to the scanner is larger than the messagebody this bit should be set
+      R     #s_Control_Field_Send.Bit_4; //Must set to 0 if this protocol is used
+      R     #s_Control_Field_Send.Bit_5; //Must set to 0 if this protocol is used
+      R     #s_Control_Field_Send.Bit_6; //Must set to 0 if this protocol is used
+      R     #s_Control_Field_Send.Bit_7; //Must set to 0 if this protocol is used
+
+      AN    #o_Dispatch_Received; //If no message received
+      A     #s_synchronize; //AND a resync request
+      S     #s_Control_Field_Send.Resync_Request; //Set to 1 to send a resync request 
+
+      L     #i_CFG_Profibus_Addr; //Load address of scanner in message
+      T     #s_Send_Buffer.Profibus_Address_Byte; 
+
+      L     0; // Load 0 in the SAP byte, not used                                                                                      
+      T     #s_Send_Buffer.SAP_Byte; 
+
+      L     0; //Load 0 in the message length byte, not used 
+      T     #s_Send_Buffer.Length_Byte; 
+NETWORK
+TITLE =HA: Write to scanner
+
+      L     #i_CFG_Output_StartAddr; 
+      T     #t_Start_Address; 
+
+      L     P##s_Control_Field_Send; 
+      L     #s_Base_Address; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     B [AR1,P#0.0]; 
+      T     #s_Send_Buffer.Control_Byte; 
+
+      CALL "DPWR_DAT" (//Send message
+           LADDR                    := #t_Start_Address,
+           RECORD                   := #s_Send_Buffer,
+           RET_VAL                  := #t_Ret_Val_INT);
+
+// New data received.......
+      A     #o_Dispatch_Received; 
+      =     "DB_Scanner_Data_1".OS_New_Data_Received; 
+END_FUNCTION_BLOCK
+

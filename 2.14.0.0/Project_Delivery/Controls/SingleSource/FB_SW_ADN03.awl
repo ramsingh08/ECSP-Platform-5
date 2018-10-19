@@ -1,0 +1,93 @@
+FUNCTION_BLOCK "FB_SW_ADN03"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Advanced dieback sort node
+//
+//History:
+//This version  %created_by: nlhhop %
+//              %date_created: Tuesday, February 28, 2017 4:16:42 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlhhop   28-02-17   0.01
+//
+//Description:
+//The advanced dieback sort node function is to be used when the available TEP 
+//information from two lines have to be combined to one incoming line at a sort 
+//zone.
+//
+//This function is only to be used upstream of the sort zone. When both 
+//downstream lines are not in dieback the two TEP values should be added up and 
+//combined to one TEP value at the output of this function. When both downstream 
+//lines are in dieback the same applies.
+//
+//When one of the downstream lines is in dieback a slightly different policy 
+//is required. To indicate that one of the two lines is in dieback (TEP < 
+//i_CFG_TEP_No_Dieback) the TEP value at the output of this function is 
+//manipulated to a predefined value.
+//
+//Note: that the empty positions available on the sort zone itself are not taken 
+//in consideration, only sections located in a transport zone are to be taken in 
+//to account to determine the available TEP of a line.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Default_TEP : INT ;	//CFG: Default TEP when dieback is detected on one of the incomming lines
+  i_CFG_TEP_No_Dieback : INT ;	//CFG: TEP value for detecting dieback on downstream line
+  i_TEP_Dwnstr_Straight : INT ;	//Total empty positions downstream straight
+  i_TEP_Dwnstr_Side : INT ;	//Total empty positions downstream side
+END_VAR
+VAR_OUTPUT
+  o_TEP : INT ;	//Total empty positions
+END_VAR
+VAR_TEMP
+  t_Dieback_Straight : BOOL ;	//Downstream straight line is in dieback
+  t_Dieback_Side : BOOL ;	//Downstream side line is in dieback
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine if one of the downstream lines is in dieback
+
+      NOP   0; 
+
+// Determine if the downstream straight direction is in dieback
+      L     #i_TEP_Dwnstr_Straight; 
+      L     #i_CFG_TEP_No_Dieback; 
+      <I    ; 
+      =     #t_Dieback_Straight; 
+
+// Determine if the downstream side direction is in dieback
+      L     #i_TEP_Dwnstr_Side; 
+      L     #i_CFG_TEP_No_Dieback; 
+      <I    ; 
+      =     #t_Dieback_Side; 
+
+NETWORK
+TITLE =BA: Calculate the TEP value for the output of this function
+
+      NOP   0; 
+
+// By default the TEP of both lines is combined to create the TEP for the output of this function
+      L     #i_TEP_Dwnstr_Straight; 
+      L     #i_TEP_Dwnstr_Side; 
+      +I    ; 
+      T     #o_TEP; 
+
+// When one of the downstream lines is in dieback (on not both) the default TEP value is used as the output TEP value
+      A     #t_Dieback_Straight; 
+      O     #t_Dieback_Side; 
+      AN(   ; 
+      A     #t_Dieback_Straight; 
+      A     #t_Dieback_Side; 
+      )     ; 
+      JCN   BA99; 
+      L     #i_CFG_Default_TEP; 
+      T     #o_TEP; 
+BA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

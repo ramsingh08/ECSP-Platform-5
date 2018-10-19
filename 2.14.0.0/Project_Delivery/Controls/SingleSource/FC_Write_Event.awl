@@ -1,0 +1,177 @@
+FUNCTION "FC_Write_Event" : VOID
+TITLE =%version: 0.08 % CN: 30
+//Function:
+//This Module places a event in the local event buffer.
+//The Data layer is needed to handle the events.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, September 08, 2016 8:34:40 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16984: Write db number when buffer is full 3133    nlHdL    08-09-16   0.08
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    11-08-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR10482 Modified DB_LOG_Txt... into FC_LOG_Txt_...    nlHHop   26-06-12   0.05
+//Added 3133 DB_Event is full                           nlHdL    30-03-12   0.04
+//CR6275 No modification                                nlple    17-01-11   0.03
+//Block update during data layer test                   nlHdL    15-10-10   0.02
+//Initial revision                                      nlMRe    03-09-10   0.01
+//
+//Description:
+// 
+// Return Value:
+// -----------------------------------
+// After execution, the module will return with a value. The meaning of these 
+// values is explaned below.
+// The following error codes are possible: 
+// 8000: No Message Id filled in 
+// 8001: No value present (No Link number)
+// 8002: No buffer number filled in
+// 8003: Local buffer full 
+// 
+//Otherwise: Message number in the Local Message Buffer
+//
+//Message_Id to routing explanation:
+//1201) TrackingReport
+//1202) TransportDirectionReport
+//1203) IDChangeReport
+//1204) CapacityReport
+//1205) RegisterPackage
+//1206) DeRegisterPackage
+//1209) PackageReportScanned
+//1210) PackageReportScreening
+//1211) PackageReportRoute (Arrived)
+//1212) PackageReportVolume
+//1213) PackageReportReclaimScanned
+//1221) AvailabilityReport
+//1401) SegmentStatusReport
+//1403) SegmentPerformanceReport
+//1404) EBSLaneStatusReport
+//
+//2000) Statistical
+//
+//3000 - 3999) Logging messages, see FC_LOG_Txt_3000_3999 for details.
+//                                                                        
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Message_ID : INT ;	//ID of the message which needs to be handled
+  i_Event_value : INT ;	//Event Value
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_Return_Value : INT ;	//Return value, error if wrong
+END_VAR
+VAR_TEMP
+  t_Local_Buffer : INT ;	//copy of i_Local_Buffer
+  t_Entries_Used : INT ;	//Number of entries used in Local Buffer
+  t_Entries_Present : INT ;	//Number of entries present
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read Local Message Buffer
+
+      L     #i_DB_Event_Num; // Put DB number on temp
+      T     #t_Local_Buffer; 
+
+      OPN   DB [#t_Local_Buffer]; // Open the DB
+
+      L     DBLG; // Load Local HLC DB length
+      L     4; // Bytes length header
+      -I    ; 
+      L     6; // Divide by the record length in byte 
+      /I    ; 
+      T     DBW    2; // = Max number of entries in the HLC DB 
+      T     #t_Entries_Present; 
+
+      L     DBW    0; // Load number of entries used in Local HLC DB
+      T     #t_Entries_Used; // Transfer to temporery
+
+NETWORK
+TITLE =BA: Check for errors
+
+      L     #i_Message_ID; // Check if message ID is bigger dan 0
+      L     0; 
+      <=I   ; 
+      JCN   BA01; 
+
+      L     8000; 
+      T     #o_Return_Value; 
+
+      BEU   ; 
+
+BA01: L     #i_Event_value; // Check if Link DB number is bigger than 1
+      L     0; 
+      <=I   ; 
+      JCN   BA02; 
+
+      L     8001; 
+      T     #o_Return_Value; 
+
+
+BA02: L     #i_DB_Event_Num; // Check if Local message DB number is bigger than 1
+      L     1; 
+      <=I   ; 
+      JCN   BA03; 
+
+      L     8002; 
+      T     #o_Return_Value; 
+
+      BEU   ; 
+
+BA03: L     #t_Entries_Used; // Check if local message DB is not full
+      L     #t_Entries_Present; 
+      >=I   ; 
+      JCN   BA04; 
+
+      L     8003; 
+      T     #o_Return_Value; 
+
+//If last entry is used to write on event this event will be overwritten
+      L     #i_DB_Event_Num; 
+      T     #i_Event_value; 
+//Change message ID to DB_Event full
+      L     3133; //Event DB is full
+      T     #i_Message_ID; 
+
+//Write in lost entrie of event DB
+      L     #t_Entries_Used; 
+      L     1; 
+      -I    ; 
+      T     #t_Entries_Used; 
+
+BA04: NOP   0; 
+NETWORK
+TITLE =CA: Write message in buffer
+
+      L     #t_Entries_Used; 
+      L     6; 
+      *I    ; 
+      L     4; 
+      +I    ; 
+      SLW   3; 
+      L     DW#16#84000000; 
+      OD    ; 
+      LAR1  ; 
+
+      L     #i_Event_value; // Write link number
+      T     DBW [AR1,P#0.0]; 
+
+      L     #i_Message_ID; 
+      T     DBW [AR1,P#2.0]; // Write which message has to be send
+
+      L     1; 
+      L     #t_Entries_Used; // Increase number of records used
+      +I    ; 
+      T     DBW    0; 
+      T     #o_Return_Value; 
+END_FUNCTION
+

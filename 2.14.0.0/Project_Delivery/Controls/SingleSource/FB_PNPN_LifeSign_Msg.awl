@@ -1,0 +1,424 @@
+FUNCTION_BLOCK "FB_PNPN_LifeSign_Msg"
+TITLE =%version: 0.05 % CN: 33
+//Function:
+//Handle lifesign messages.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, April 23, 2018 8:20:01 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9916: PNPN slave change Lifesign too 30s 3 times  nlHdL    23-04-18   0.05
+//ra#17711: Rename naming FIFO DB's HOO                 nlHdL    05-12-16   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//8673: Reset:Restart for errors via  PNPN interface    nlHdL    29-10-15   0.03
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description:
+//This block handles the lifesign messages to check if the message 
+//communication is working. Input "i_CFG_Send_Lifesign_Req" can be used to 
+//configure if this side of the PN/PN coupler will be used as server (send 
+//lifesign requests) or as client (respond to lifesign requests with a lifesign 
+//response).
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_Send_FIFO : BLOCK_DB ;	//Data Structure: DB send FIFO
+  i_Any_Recv_LifeSign_FIFO : ANY ;	//Any pointer to receive LifeSign message FIFO
+  i_CFG_Send_Lifesign_Req : BOOL ;	//CFG: True = send lifesign request, false = send lifesign reply
+  i_CFG_Lifesign_Interval : INT  := 30;	//CFG: [sec] Interval for sending a LifeSignRequest msg (0 = send no LifeSigns)
+  i_CFG_NumLifeSgnMiss_Err : INT  := 3;	//CFG: [Num] Number of Lifesign responses to be missed before an error is set
+  i_CFG_Suppress_LS_Error : BOOL ;	//CFG: Suppress lifesign error if PN handover data communication is not used
+END_VAR
+VAR_OUTPUT
+  o_LifeSign_Err : BOOL ;	//Report LifeSign Error to the parent
+END_VAR
+VAR
+  s_Msg_PN_LifeSign : "UDT_PN_Msg_Lifesign";	//Content of lifesign response message that was received
+  s_Last_Sent_Seq_Num : INT ;	//Sequence/signature number of the last Life Sign Request that was sent
+  s_Timer_LifeSign_Reply : INT ;	//Timer to evaluate if the lifesign Reply signal was received on time
+  s_Timer_LifeSignInterval : INT ;	//Current value of the timer that is used to send the LifeSignRequest
+  s_Cnt_LifeSigns_Missed : INT ;	//Number of consecutive lifesign Responses not received from LM
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_Communication_Error : BOOL ;	//No LifeSign received from LM
+  s_Last_Received_Seq_Num : INT ;	//Sequence/signature number of the last Life Sign Request that was received
+  s_Wait_For_Reply : BOOL ;	//The LifeSign Request was send and timer "wait for reply" is running
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Return Value of Block Move module (not analyzed in this module)
+  t_DB_Send_LifeSign_FIFO : INT ;	//Number of the Send DB FIFO that contain the LifeSign Signals	
+  t_Message_Received : BOOL ;	//New Message Received
+  t_Send_Lifesign_Request : BOOL ;	//Send lifesign request signals
+  t_Send_Lifesign_Reply : BOOL ;	//Send lifesign reply signals
+  t_OS_LifeSign_Reply_Mis : BOOL ;	//One shot - time to receive the lifesign elapsed
+  t_OS_LifeSign_Interval : BOOL ;	//One shot - send life sign request/life sign shall be received
+  t_Incorrect_Reply_MSG : BOOL ;	// The received LifeSignResponse contain incorrect signature
+  t_Any_LifeSign_Msgs : ANY ;	
+  t_AR1_P0 : DWORD ;	
+  t_AR1_P4 : WORD ;	
+  t_AR1_P6 : DWORD ;	
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init
+//Copy DB numbers to temporary, get base address and initialize timers.
+      OPN   #i_DB_Send_FIFO; 
+      L     DBNO; 
+      T     #t_DB_Send_LifeSign_FIFO; 
+
+// Retrieve Base Address for farther use
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+// As a Initial value the communication error shall be set
+      SET   ; // Initially set LifeSign error
+      =     #s_Communication_Error; 
+
+// Initialize Timers
+      L     0; 
+      T     #s_Timer_LifeSignInterval; 
+      T     #s_Timer_LifeSign_Reply; 
+
+// Set bit to indicate that this network has been called
+      SET   ; 
+      =     #s_Done; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Check if the lifesign check procedure shall be executed
+//The lifesign check procedure shall only be executed when the 
+//i_CFG_Lifesign_Interval is not configured to be 0 and handover data is 
+//send message based via the PN/PN coupler.
+      NOP   0; 
+// Check if the LifeSign signal shall be evaluated
+      L     #i_CFG_Lifesign_Interval; 
+      L     0; 
+      ==I   ; 
+      O     #i_CFG_Suppress_LS_Error; 
+      JCN   BA01; // Don't send a lifesign request message if interval = 0
+
+// Reset the error status output if the error status must be suppressed.
+      R     #o_LifeSign_Err; 
+      BEU   ; 
+
+// Initialize Temp Variables
+BA01: CLR   ; 
+      =     #t_Message_Received; 
+      =     #t_OS_LifeSign_Interval; 
+      =     #t_OS_LifeSign_Reply_Mis; 
+NETWORK
+TITLE =CA: Retrieve the lifesign reply message
+//All the LifeSign messages for one connection are stored within one DB FIFO
+//(DB_Rcv_LifeSign_FIFO). When a new message is detected in the FIFO DB the 
+//message type within the message has to be checked at first. Only when the 
+//retrieved message is a lifesign request (200) or a lifesign response (201) it 
+//shall be retrieved from the FIFO DB.
+      L     P##i_Any_Recv_LifeSign_FIFO; 
+      L     #t_Base_Address; 
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     #t_AR1_P0; 
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     #t_AR1_P4; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     #t_AR1_P6; 
+
+      LAR1  P##t_Any_LifeSign_Msgs; 
+      L     #t_AR1_P0; 
+      T     LD [AR1,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     #t_AR1_P4; // Byte4..5=DB number 
+      T     LW [AR1,P#4.0]; 
+      L     #t_AR1_P6; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Any_LifeSign_Msgs,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_Msg_PN_LifeSign);
+
+// Retrieve the message from the FIFO DB
+//      CALL  "FC_FIFO"
+//       i_FIFO_DB_Num :=#t_DB_Recv_LifeSign_FIFO
+//       i_Mode        :='O'
+//       i_ANY_Data    :=#s_Msg_PN_LifeSign
+//       i_ID          :=#i_ID
+//       o_RET_VAL_FIFO:=#t_Ret_Val_Word
+
+// Retrieve the message type from the message to check if it is a lifesign request or lifesign response (200 or 201)
+      A(    ; // IF the retrieved message is a Lifesign Request
+      L     #s_Msg_PN_LifeSign.Header.Message_Type; // Retrieve the message type from the first available message from DB_FIFO
+      L     200; // Compare the retrieved message type with 200.
+      ==D   ; 
+      )     ; 
+      O(    ; // OR the retrieved message is a Lifesign Response
+      L     #s_Msg_PN_LifeSign.Header.Message_Type; // Retrieve the message type from the first available message from DB_FIFO
+      L     201; // Compare the retrieved message type with 200.
+      ==D   ; 
+      )     ; 
+      JCN   CA99; // If the message is a lifesign request, then retrieve the record
+
+      L     #s_Last_Received_Seq_Num; 
+      L     #s_Msg_PN_LifeSign.Sequence_Number; 
+      <>I   ; 
+      JCN   CA99; 
+
+      T     #s_Last_Received_Seq_Num; 
+      S     #t_Message_Received; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Check block mode and update timers
+//The timers are run to be able to send a lifesign request message every x 
+//seconds or evaluate if the new lifesign request shall be received (depending on 
+//the configuration) as well as the evaluation if the lifesign reply was received 
+//in time.
+      NOP   0; 
+// Check the configured mode
+      A     #i_CFG_Send_Lifesign_Req; // If the input is True then the block works as an server
+      =     #t_Send_Lifesign_Request; 
+      NOT   ; // IF False then it shall act as a client
+      =     #t_Send_Lifesign_Reply; 
+
+// Update Timers
+// The LifeSign signal/request and the LifeSign response shall send/receive within the pre-configured time
+// therefore the following timers are introduced.
+
+// LifeSignInterval timer 
+// The "Timer_LifeSignInterval" specifies the time, when the lifesign request shall be
+// send/received (depending on the mode)
+      L     #s_Timer_LifeSignInterval; 
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_Timer_LifeSignInterval; 
+
+// LifeSign_Reply timer
+// The Timer_LifeSign_reply in necessary of the evaluation, if the LifeSign reply 
+// was received within the configured time and it is used only in the Server Mode
+      A     #s_Wait_For_Reply; 
+      A     #t_Send_Lifesign_Request; 
+      JCN   DA99; 
+
+      L     #s_Timer_LifeSign_Reply; 
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_Timer_LifeSign_Reply; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Evaluate timer statuses
+
+      NOP   0; 
+// Evaluate lifesign interval timer
+// Check if the timer has elapsed
+      A     #t_Send_Lifesign_Reply; 
+      JCN   EA01; 
+
+      L     #i_CFG_Lifesign_Interval; 
+      L     1000; // Multiply with 1000 to convert to milli seconds
+      *D    ; 
+      L     #s_Timer_LifeSignInterval; 
+      <=D   ; 
+      S     #t_OS_LifeSign_Interval; 
+
+EA01: A     #t_Send_Lifesign_Request; 
+      JCN   EA02; 
+
+      L     #i_CFG_Lifesign_Interval; 
+      L     1000; // Multiply with 1000 to convert to milli seconds
+      *D    ; 
+      L     #s_Timer_LifeSignInterval; 
+      <=D   ; 
+      S     #t_OS_LifeSign_Interval; 
+
+
+// Reset LifeSignInterval Time
+EA02: A     #t_OS_LifeSign_Interval; 
+      JCN   EA03; 
+
+      L     0; 
+      T     #s_Timer_LifeSignInterval; 
+
+// Evaluate LifeSign_reply Timer
+EA03: L     #i_CFG_Lifesign_Interval; 
+      L     1000; // Multiply with 1000 to convert to milli seconds
+      *D    ; 
+      L     #s_Timer_LifeSign_Reply; 
+      <=D   ; 
+      A     #t_Send_Lifesign_Request; 
+      S     #t_OS_LifeSign_Reply_Mis; 
+      JCN   EA99; 
+
+      L     0; 
+      T     #s_Timer_LifeSign_Reply; 
+
+      L     #s_Last_Sent_Seq_Num; // To make sure that the reply that was received to late will not be counted as a correct reply message
+      +I    ; 
+      T     #s_Last_Sent_Seq_Num; 
+
+      CLR   ; 
+      =     #s_Wait_For_Reply; 
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Handle the received message and send lifesign response
+//This block call can works as a server (Life Sign Request generator) and in this 
+//case the received LifeSign message shall has Message_Type_ID equal to "201"
+//
+//If the received message is a Life Sign Response to the Life Sign Request that 
+//was last sent for this area and the Life Sign was received before the maximum 
+//response time is elapsed:
+//(1) Set the Life Sign Response received bit. 
+//(2) Reset the No Communication error.
+//(3) Reset the LifeSigns-missed counter.
+//(4) Reset the LifeSign reply timer
+//
+//The second mode supported by that block is a client (Life Sign Response 
+//generator). and in that case the received LifeSign message shall have 
+//Message_Type_ID equal to "200"
+//
+//If the received message is a Life Sign Request the Life Sign Response shall be 
+//send immediately back to the server.
+//
+//the mode in which the block shall operate is specified via the 
+//input "i_Mode".
+      NOP   0; 
+// Evaluate the Life Sign Response Msg
+      L     201; //IF the received message is a...
+      L     #s_Msg_PN_LifeSign.Header.Message_Type; //Life Sign Response message
+      ==I   ; 
+      A     #t_Message_Received; // AND it is a new message      
+      A     #t_Send_Lifesign_Request; // AND the Block is configured as a server
+      JCN   FA01; // Then
+
+      A(    ; 
+      L     #s_Last_Sent_Seq_Num; //IF the Life Sign Response message...
+      L     #s_Msg_PN_LifeSign.Sequence_Number; //has the correct sequence number
+      ==I   ; 
+      )     ; 
+      NOT   ; 
+      =     #t_Incorrect_Reply_MSG; 
+
+      CLR   ; 
+      =     #s_Wait_For_Reply; 
+
+      L     0; //AND reset the LifeSigns missed counter
+      T     #s_Timer_LifeSign_Reply; 
+
+      A     #t_Incorrect_Reply_MSG; 
+      JC    FA99; 
+
+      CLR   ; 
+      =     #s_Communication_Error; //and reset the Communication Error
+
+      L     0; 
+      T     #s_Cnt_LifeSigns_Missed; 
+
+// Evaluate the Life Sign Request Msg
+FA01: L     200; //IF the received message is a...
+      L     #s_Msg_PN_LifeSign.Header.Message_Type; //Life Sign Request message
+      ==I   ; 
+      A     #t_Message_Received; // AND it is a new message
+      A     #t_Send_Lifesign_Reply; // AND the Block is configured as a client
+      JCN   FA99; 
+
+      CALL "FC_Crt_Lifesign_Msg" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_Send_LifeSign_FIFO,
+           i_Message_ID             := 201,
+           i_Sequence_Number        := #s_Msg_PN_LifeSign.Sequence_Number);
+
+      CLR   ; 
+      =     #s_Communication_Error; //AND reset the Communication Error
+
+//Restart the timers
+      L     0; //AND reset the LifeSigns missed counter
+      T     #s_Cnt_LifeSigns_Missed; 
+      T     #s_Timer_LifeSignInterval; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Send lifesign request message
+
+      NOP   0; 
+// Send the Lifesign request message on OS from the timer.
+      A     #t_OS_LifeSign_Interval; 
+      A     #t_Send_Lifesign_Request; 
+      A     #s_Done; 
+      JCN   GA99; 
+
+// Send LifeSignRequest message
+// Update the sequence number
+      L     #s_Last_Sent_Seq_Num; 
+      +     1; 
+      T     #s_Last_Sent_Seq_Num; 
+
+      L     9999; 
+      >I    ; 
+      JCN   GA01; 
+      L     0; 
+      T     #s_Last_Sent_Seq_Num; 
+
+// Send the message
+GA01: CALL "FC_Crt_Lifesign_Msg" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_Send_LifeSign_FIFO,
+           i_Message_ID             := 200,
+           i_Sequence_Number        := #s_Last_Sent_Seq_Num);
+
+      SET   ; 
+      =     #s_Wait_For_Reply; 
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Check if error needs to be set
+//Count the number of LifeSign Responses that was not received. Set the 
+//communication error when a preset number of LifeSign responses was missed.
+      NOP   0; 
+//IF a LifeSign response has not been received in time
+      A(    ; 
+      A     #t_OS_LifeSign_Reply_Mis; 
+      A     #t_Send_Lifesign_Request; 
+      )     ; 
+      O(    ; 
+      A     #t_Incorrect_Reply_MSG; 
+      A     #t_Message_Received; // AND it is a new message  
+      A     #t_Send_Lifesign_Request; 
+      )     ; 
+      O(    ; 
+      A     #t_OS_LifeSign_Interval; 
+      A     #t_Send_Lifesign_Reply; 
+      )     ; 
+      JCN   HA01; 
+
+// Increase the LifeSign Missed Counter
+      L     #s_Cnt_LifeSigns_Missed; 
+      +     1; 
+      T     #s_Cnt_LifeSigns_Missed; 
+
+//IF the number of LifeSigns missed is equal to or higher than the number at which
+//an error should be set, set the 'no communication' error.
+HA01: L     #s_Cnt_LifeSigns_Missed; 
+      L     #i_CFG_NumLifeSgnMiss_Err; 
+      >=I   ; 
+      S     #s_Communication_Error; 
+NETWORK
+TITLE =HA: Handle collected status
+// 
+      A     #s_Communication_Error; 
+      =     #o_LifeSign_Err; 
+END_FUNCTION_BLOCK
+

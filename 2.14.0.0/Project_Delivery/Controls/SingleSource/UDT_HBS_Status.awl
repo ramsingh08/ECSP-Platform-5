@@ -1,0 +1,53 @@
+TYPE "UDT_HBS_Status"
+TITLE =%version: 0.04 % CN: 10 
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, June 07, 2017 3:14:21 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22950: Align with latest IDD and PDB                nldy    07-06-17  0.04
+//ra#8499: Renamed 'service mode' to 'test mode'         nldy    23-02-17  0.03
+//ra#18963: Development                                  nldy    05-12-16  0.02
+//Initial version based on version 0.01 in BHS_ESO_GEN   nldy    15-11-16  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Items : BOOL ;	//Items present on the section
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   spare_0_6 : BOOL ;	//Spare_0_6
+   spare_0_7 : BOOL ;	//Spare_0_7
+   LMS_ASI_Not_Prsnt : BOOL ;	//LMS ASI slave not present
+   LMS_ASI_Error : BOOL ;	//LMS ASI slave error
+   LMS_Not_Auto : BOOL ;	//LMS not automatic
+   LMS_Not_Hthy : BOOL ;	//LMS not healthy
+   MS_Not_Auto : BOOL ;	//Maintenance Switch of motor in 'OFF' position
+   THO_Overload : BOOL ;	//Thermal overload 
+   PPI_Error : BOOL ;	//PPI error
+   EOS_PEC_Blk : BOOL ;	//End Of Section PEC blockage
+   EOS_PEC_Miss : BOOL ;	//End Of Section PEC jam due to successive missings
+   EOS_PEC_BadTr : BOOL ;	//End Of Section PEC Performance is below warning level
+   SOS_PEC_Blk : BOOL ;	//Start Of Section PEC blockage  	
+   SOS_PEC_Miss : BOOL ;	//Start Of Section PEC jam due to successive missings
+   SOS_PEC_BadTr : BOOL ;	//Start Of Section PEC Performance is below warning level
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   Prsnt_PEC_Blk : BOOL ;	//Present PEC blockage
+   Conveyor_Fault : BOOL ;	//Machine reports: Conveyor fault
+   Unattended : BOOL ;	//Unattended bag
+   Test_Mode : BOOL ;	//Test mode activated
+   PBB_ASI_Not_Prsnt : BOOL ;	//Push Button Box ASI slave not present
+   PBB_ASI_Error : BOOL ;	//Push Button Box ASI slave error
+   Not_Conveyed_In : BOOL ;	//Machine reports: Annouced object not conveyed in
+   Not_Accept : BOOL ;	//Machine reports: System does not accept announced object
+   No_Ack : BOOL ;	//Machine reports: No acknowledged on conveying object out
+  END_STRUCT ;	
+END_TYPE
+

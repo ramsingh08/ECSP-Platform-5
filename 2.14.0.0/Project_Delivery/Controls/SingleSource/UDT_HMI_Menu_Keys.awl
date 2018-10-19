@@ -1,0 +1,43 @@
+TYPE "UDT_HMI_Menu_Keys"
+TITLE =%version: 0.03 % CN: 12
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Monday, November 14, 2016 1:31:30 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#45674 Command added and renamed                    inajos   27-10-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial version                                       insmahi  10-06-10   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Function1 : "UDT_HMI_Keys_Prop";	
+   Function2 : "UDT_HMI_Keys_Prop";	
+   Function3 : "UDT_HMI_Keys_Prop";	
+   Function4 : "UDT_HMI_Keys_Prop";	
+   Function5 : "UDT_HMI_Keys_Prop";	
+   Function6 : "UDT_HMI_Keys_Prop";	
+   Function7 : "UDT_HMI_Keys_Prop";	
+   Function8 : "UDT_HMI_Keys_Prop";	
+   Command1 : "UDT_HMI_Keys_Prop";	
+   Command2 : "UDT_HMI_Keys_Prop";	
+   Command3 : "UDT_HMI_Keys_Prop";	
+   Command4 : "UDT_HMI_Keys_Prop";	
+   Command5 : "UDT_HMI_Keys_Prop";	
+   Command6 : "UDT_HMI_Keys_Prop";	
+   Command7 : "UDT_HMI_Keys_Prop";	
+   Command8 : "UDT_HMI_Keys_Prop";	
+   ESC : "UDT_HMI_Keys_Prop";	
+   ENTER : "UDT_HMI_Keys_Prop";	
+   Password_Expired : "UDT_HMI_Keys_Prop";	
+   Screen_Expired : "UDT_HMI_Keys_Prop";	
+  END_STRUCT ;	
+END_TYPE
+

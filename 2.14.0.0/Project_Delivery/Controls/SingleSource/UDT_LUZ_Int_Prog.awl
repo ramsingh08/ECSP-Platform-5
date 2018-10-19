@@ -1,0 +1,35 @@
+TYPE "UDT_LUZ_Int_Prog"
+TITLE =%version: 1.02 % CN: 10 
+//History:
+//This version  %created_by:   inajos %
+//              %date_created:   Wednesday, March 29, 2017 11:17:42 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:      Rev:
+//---------------------------------------------------  -------  --------   -----
+//ra#51111:Code Update                                  inajos   29-03-17   1.02
+//ra#38710: Initial version                             nljclo   03-11-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   LUZ_Error : BOOL ;	//Luffer Zone has an error
+   SWS_Error : BOOL ;	//Switch section has an error
+   TRS_Error : BOOL ;	//Transport section has an error
+   Req_Dis_Send : BOOL ;	//Request to disable send to upstream section
+   Req_Halt : BOOL ;	//Request to halt
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

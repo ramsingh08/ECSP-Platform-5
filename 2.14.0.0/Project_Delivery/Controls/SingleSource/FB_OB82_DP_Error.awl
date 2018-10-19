@@ -1,0 +1,217 @@
+FUNCTION_BLOCK "FB_OB82_DP_Error"
+TITLE =%version: 0.02 % CN: 30
+//Function: 
+//Module for acyclic diagnose of diagnostic interrupts (module errors) in DP 
+//slaves
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:00:56 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description: 
+//On the basis of OB82 Event class, Fault ID and module address the DP slave 
+//error bitmap belonging to a DP master system is updated dependent on the type 
+//of event and the master system ID input setting.  
+//                     
+//IMPORTANT: This module must be called from within OB82 and could not be used on 
+//another location!
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DP_Master_System_ID : INT  := 1;	//DP Master System Identification Setting
+  i_DP_Error_Bitmap : ANY ;	//ANY pointer to DP Error Bitmap
+END_VAR
+VAR
+  s_Error : BOOL ;	//Error during execution
+END_VAR
+VAR_TEMP
+  t_OB82_EV_CLASS : BYTE ;	//Temp Event Class OB82
+  t_OB82_FLT_ID : BYTE ;	//Temp Fault Identification OB82
+  t_OB82_MDL_ADDR : WORD ;	//Temp Module Address OB82
+  t_DB_num : INT ;	//Temp DB number bitmaps
+  t_RET_VAL : INT ;	//Temp return value SFC49
+  t_AREA : BYTE ;	//Temp AREA SFC49
+  t_RACK : WORD ;	//Temp RACK SFC49
+  t_SLOT : WORD ;	//Temp SLOT SFC49
+  t_SUBADDR : WORD ;	//Temp SUBADDR SFC49
+  t_Slave_Master_System_ID : BYTE ;	//Temp DP Master System Identification
+  t_Slave_Station_Number : BYTE ;	//Temp Slave station number
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_bitmaps_changed : BOOL ;	//Bitmaps during exeution changed
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+NETWORK
+TITLE =BA: Load local data OB82
+//Load EV_CLASS, FLT_ID and MDL_ADDR from OB82 local data stack
+      L     DW#16#87000000; // Load local data OB82
+      LAR1  ; 
+      L     B [AR1,P#0.0]; // Load EV_CLASS
+      T     #t_OB82_EV_CLASS; // Transfer to temp
+      L     B [AR1,P#1.0]; // Load FLT_ID
+      T     #t_OB82_FLT_ID; // Transfer to temp
+      L     W [AR1,P#6.0]; // Load MDL_ADDR
+      T     #t_OB82_MDL_ADDR; // Transfer to temp
+
+NETWORK
+TITLE =CA: Detect DP slave errors
+//First the logical address of the faulty module is converted. If the conversion 
+//is correctly executed (RET_VAL = 0), the area code is correct (<= 2) and the 
+//error code is correct (B#16#42) then continue, else end with error (BEU). If 
+//the area code is 2 there is a fault in a DP slave station. If not, the function 
+//ends without error.
+      CALL "LGC_GADR" (// Retrieve Area (S7 system or DP system)
+           IOID                     := B#16#54,// Retrieve Rack (Rack number or DP station number+master system ID)
+           LADDR                    := #t_OB82_MDL_ADDR,// Retrieve Slot (slot number in the station)
+           RET_VAL                  := #t_RET_VAL,
+           AREA                     := #t_AREA,
+           RACK                     := #t_RACK,
+           SLOT                     := #t_SLOT,
+           SUBADDR                  := #t_SUBADDR);
+
+      L     #t_RET_VAL; // IF return value < 0 (conversion error)
+      L     0; 
+      <I    ; 
+      O(    ; // OR no correct area code..
+      L     #t_AREA; 
+      L     B#16#2; 
+      >I    ; 
+      )     ; 
+      O(    ; // OR no correct fault ID..
+      L     #t_OB82_FLT_ID; 
+      L     B#16#42; 
+      <>I   ; 
+      )     ; 
+// ************** TODO: Error handling **************
+      S     #s_Error; // ..THEN end with error
+      JC    CA01; // ..ELSE continue
+
+// Detect error in DP slave station            
+      L     #t_AREA; // IF area code 2 (DP system)..
+      L     2; 
+      <>I   ; // ..THEN continue --> error in DP slave
+      JCN   CA99; // ..ELSE end without error
+
+CA01: BEU   ; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Handling of error in DP slave station
+//If the slave is in Fault (incoming event) and the master system ID is the same 
+//as the input setting a flag is SET in the Slave Error Bitmap on the station 
+//number of the slave. If the slave is not in Fault anymore (outgoing event) a 
+//flag is RESET in the Slave Error Bitmap on the station number of the slave
+      CLR   ; // Reset bitmaps changed temp
+      =     #t_bitmaps_changed; 
+
+      L     #t_RACK; // Extract slave station number from t_Rack
+      L     W#16#FF; 
+      AW    ; 
+      T     #t_Slave_Station_Number; 
+
+      L     #t_RACK; // Extract master system ID from t_Rack
+      SRW   8; 
+      T     #t_Slave_Master_System_ID; 
+
+      L     #t_Slave_Master_System_ID; // IF Master system ID == Setting Master system ID..
+      L     #i_DP_Master_System_ID; 
+      ==I   ; // ..THEN continue
+      JCN   DA99; // ..ELSE end without error
+
+      L     #t_Slave_Station_Number; // IF station number > 127..
+      L     127; 
+      >I    ; 
+// ************** TODO: Error handling **************
+      S     #s_Error; // ..THEN end with error
+      JC    DA99; // ..ELSE continue
+
+      L     P##i_DP_Error_Bitmap; // Load pointer to DP Slave Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number DP Slave Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of DP Slave Error bitmap in DB
+      L     #t_Slave_Station_Number; // And add Offset in DP Slave Error bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1  
+
+      OPN   DB [#t_DB_num]; // Open DB of DP Slave Error bitmap (temp DB number)
+      L     #t_OB82_EV_CLASS; // IF incoming event (Error)..
+      L     B#16#39; 
+      ==I   ; 
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on slave station position (AR1)
+      S     #t_bitmaps_changed; // ..SET bitmaps changed temp
+
+      L     #t_OB82_EV_CLASS; // IF outgoing event (No Error anymore)..
+      L     B#16#38; 
+      ==I   ; 
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on slave station position (AR1)   
+      S     #t_bitmaps_changed; // ..SET bitmaps changed temp
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: SET Global Merker belonging to Master Syst. ID
+
+      A     #t_bitmaps_changed; // IF bitmaps changed..
+      JCN   EA99; 
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 1..
+      L     1; 
+      ==I   ; 
+      S     "M_DP1_Diag_Interrupt"; // ..SET Merker M_DP1_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 2..
+      L     2; 
+      ==I   ; 
+      S     "M_DP2_Diag_Interrupt"; // ..SET Merker M_DP2_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 3..
+      L     3; 
+      ==I   ; 
+      S     "M_DP3_Diag_Interrupt"; // ..SET Merker M_DP3_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 4..
+      L     4; 
+      ==I   ; 
+      S     "M_DP4_Diag_Interrupt"; // ..SET Merker M_DP4_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 5..
+      L     5; 
+      ==I   ; 
+      S     "M_DP5_Diag_Interrupt"; // ..SET Merker M_DP5_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 6..
+      L     6; 
+      ==I   ; 
+      S     "M_DP6_Diag_Interrupt"; // ..SET Merker M_DP6_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 7..
+      L     7; 
+      ==I   ; 
+      S     "M_DP7_Diag_Interrupt"; // ..SET Merker M_DP7_Diag_interrupt
+
+EA99: NOP   0; 
+END_FUNCTION_BLOCK
+

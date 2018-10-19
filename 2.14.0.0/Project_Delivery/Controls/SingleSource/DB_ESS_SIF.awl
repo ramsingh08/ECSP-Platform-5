@@ -1,0 +1,32 @@
+DATA_BLOCK "DB_ESS_SIF"
+TITLE =%version: 0.05 % CN: 20
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, December 19, 2016 9:32:27 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Correct version number to 0.05                        nleg     19-12-16   0.05
+//Added "Author"                                        nleg     15-11-16   0.04
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.03
+//Data Block name changed to improve compile action     nleg     19-09-16   0.02
+//Initial version based on Tmp_DB_ESS_SIF YVR v0.01     nlbvers  08-04-15   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+  STRUCT 	
+   Insert : BOOL ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;
+  
+BEGIN
+END_DATA_BLOCK
+

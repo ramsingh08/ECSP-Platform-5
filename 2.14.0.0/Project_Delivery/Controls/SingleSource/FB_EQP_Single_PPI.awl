@@ -1,0 +1,112 @@
+FUNCTION_BLOCK "FB_EQP_Single_PPI"
+TITLE =%version: 0.01 % CN: 40 
+//Function:
+//Handle a PPI signal for a section
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, May 02, 2018 10:24:53 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Revision based on v0.08 FB_EQP_PPI            nlHdL    02-05-18   0.01
+//
+//Description:
+//On every leading edge from the PPI a one shot is generated  
+//On every PPI one shot the calculated displacement is corrected 
+//A PPI error is generated when a pulse is not seen within a sett time period.
+//- Calculate displacement/plc scan
+//- Make PPI one-shots on received PPI Pulse
+//- Checking PPI error
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_PPI_Resolution : INT ;	//CFG: [mm] Travel distance of belt, to generate 1 PPI-pulse (hardware setting)
+  i_CFG_Time_Out_Error : INT ;	//CFG: [msec] Time before a PPI error is created
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_IO_PPI : BOOL ;	//HW: The PPI signal
+  i_Eqp_Available_IO : BOOL ;	//CMD: Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+END_VAR
+VAR_OUTPUT
+  o_PPI_Displacement_mm : INT ;	//The PPI displacement in [mm]
+  o_ST_PPI_Err : BOOL ;	//ST: PPI Error
+END_VAR
+VAR
+  s_Error_Delay : INT ;	//Timer PPI Error
+  s_Copy_FP_PPI : BOOL ;	//Positive flank detection of PPI block-signal
+  s_Copy_FN_PPI : BOOL ;	//Negative flank detection of PPI block-signal
+  s_Section_On_Speed : BOOL ;	//PLT: Section on speed
+  s_OS_PPI : BOOL ;	//One Shot of the PPI
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:  Read PLT DB
+//The PLT is opened to get the section run signal.
+      OPN   #i_DB_PLT; // Open PLT DB
+
+      A     DBX   10.2; // Read Section on speed
+      =     #s_Section_On_Speed; 
+NETWORK
+TITLE =BA: Make PPI one-shots
+//If the PPI is used, the PPI block-wave signal 'i_PPI' will be converted to an 
+//One-Shot-signal 't_OS_PPI' by using the positive of block 
+//signal.
+//                                    ____          ____          ____      
+//'i_PPI'   (bock-wave signal):  ____|    |________|    |________|    |________   
+//
+//'t_OS_PPI' (One-Shot signal):  ____|_____________|_____________|_____________
+      A     #i_IO_PPI; // IF
+      FP    #s_Copy_FP_PPI; // Positive flank of an PPI-pulse.. 
+      =     #s_OS_PPI; // .. THEN generate PPI one-shot-pulses
+NETWORK
+TITLE =CA: Set/Reset PPI Error
+//When the motor is running the error timer started. A new PPI pulse resets the 
+//timer with the default value. When the timer elaps a PPI error is set. The PPI 
+//error dissapears as soon as a reset is given.
+      A     #i_CMD_Reset; //Reset PPI Error
+      ON    #i_Eqp_Available_IO; 
+      R     #o_ST_PPI_Err; 
+
+      A     #s_OS_PPI; //when a new pulse is seen
+      O     #o_ST_PPI_Err; //..Or when there is a PPI error
+      O     "M_First_Scan"; //..OR it is the first scan
+      ON    #s_Section_On_Speed; //..OR no section run 
+      JCN   CA01; 
+
+      L     #i_CFG_Time_Out_Error; //Set the default value in the timer.
+      T     #s_Error_Delay; 
+
+CA01: A     #s_Section_On_Speed; //If the section is running
+      JCN   CA99; 
+
+      L     #s_Error_Delay; //Count down the PPI Error timer
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JP    CA02; //If the error timer is below zero
+      A     #i_Eqp_Available_IO; 
+      S     #o_ST_PPI_Err; 
+      L     0; //set back to zero
+CA02: T     #s_Error_Delay; //Set new value in timer
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Calculate and write displacement
+//If there is a PPI pulse, write the displacement in [mm] in the output.
+      L     0; //Set current displacement output to zero.
+      T     #o_PPI_Displacement_mm; 
+
+      A     #s_OS_PPI; //If there is a PPI pulse
+      AN    #o_ST_PPI_Err; //..And no PPI error is active
+      JCN   DA99; 
+
+      L     #i_CFG_PPI_Resolution; //Then write the current displacement (is same as resolution!)
+      T     #o_PPI_Displacement_mm; //To the output.
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

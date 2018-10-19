@@ -1,0 +1,43 @@
+TYPE "UDT_SVD_MVD_Status"
+TITLE =%version: 0.07 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, November 29, 2016 1:23:54 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18563: Aligned for HMI                             inajos   23-11-16   0.07
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.06
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//24150: comment change udt MVD / SVD                   nlHdL    03-06-15   0.06
+//24150: comment change udt MVD / SVD                   nlHdL    03-06-15   0.05
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR10260 lifesign bargraph added in HMI                nlple    19-06-12  0.02
+//PR6738 Initial revision                               nlple    01-04-10  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Auto
+   Fixed_Up : BOOL ;	//Fixed Up Mode
+   Fixed_Down : BOOL ;	//Fixed Down Mode
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Manual : BOOL ;	//Manual
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Pos_SWS_Up : BOOL ;	//Switch position up
+   Pos_SWS_Down : BOOL ;	//Switch position down
+   TRS1_Manual_Run : BOOL ;	//TRS1_Manual_Run
+   TRS2_Manual_Run : BOOL ;	//TRS2_Manual_Run
+   TRS3_Manual_Run : BOOL ;	//TRS3_Manual_Run
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

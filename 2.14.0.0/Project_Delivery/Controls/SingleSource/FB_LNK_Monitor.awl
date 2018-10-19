@@ -1,0 +1,202 @@
+FUNCTION_BLOCK "FB_LNK_Monitor"
+TITLE =%version: 0.02 % CN: 40
+//Function:
+//This block can monitor Link or a LIC number.
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Monday, December 05, 2016 9:53:29 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  ----
+//Updated with Coding Requirements                      inajos  05-12-16   0.02
+//Initial version based on Testing tool                 inajos  29-11-16   0.01 
+//
+//Description:
+//Based on the inputs connected,this block can:-
+//-Search the position in PLT and provide LIC/TIC and ECS details
+//-Monitor a specified Lnk number and provide LIC/TIC and ECS details
+//-Monitor a specified LIC number and provide LIC and ECS details
+//
+FAMILY : General
+VERSION : 0.0
+
+
+
+VAR_INPUT
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DB
+  i_DB_Num_PLT : INT ;	//Number of PLT DB, if 0 then fill in LNK or LIC number
+  i_Read_Position_LNK : INT ;	//Read Position in PLT DB
+  i_LNK : INT ;	//Link Number
+  i_LIC : INT ;	//Local Identification Number
+END_VAR
+VAR
+  s_ProductData_LIC : "UDT_LIC_Record";	//Product Data: Local Identification Number
+  s_ProductData_TIC : "UDT_TIC_Record";	//Product Data: Transport Identification
+  s_ProductData_ECS : "UDT_ECS_Record";	//Product Data: Equipment Controls Information
+  s_LIC : INT ;	//Store for the current LIC
+  s_LNK : INT ;	//Store for the current LNK
+  s_LNK_Current : INT ;	//Store for the current LNK
+  s_TIC : INT ;	//Store for the current TIC
+  s_ECS : INT ;	//Store for the current ECS
+END_VAR
+VAR_TEMP
+  t_NOT_Used_INT : INT ;	//Integer Not Used
+  t_LNK : INT ;	//temp LNK number
+  t_Info : INT ;	//temp Info field
+  t_Position_Search : INT ;	//temp PLT Position where Data is Found
+  t_DB_Event_Num : INT ;	//Event DB number
+  t_PLT_DB_Used : BOOL ;	//temp PLT DB Used
+  t_LNK_Used : BOOL ;	//temp Link Used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read needed info
+//Read all required parameters.
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      CLR   ; 
+      =     #t_PLT_DB_Used; 
+      =     #t_LNK_Used; 
+
+      L     #i_DB_Num_PLT; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      SET   ; 
+      =     #t_PLT_DB_Used; 
+
+      JU    AA99; 
+
+AA01: L     #i_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; 
+
+      SET   ; 
+      =     #t_LNK_Used; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Make snapshot of product data
+
+      A     #t_PLT_DB_Used; 
+      JCN   BA01; 
+
+      L     0; 
+      T     #s_LNK; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #i_DB_Num_PLT,
+           i_Position               := #i_Read_Position_LNK,
+           i_Window                 := 20,
+           o_Position               := #t_Position_Search,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_NOT_Used_INT,
+           o_Number_Items_Found     := #t_NOT_Used_INT);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      JCN   BA02; 
+
+      L     #t_LNK; 
+      T     #s_LNK; 
+
+      JU    BA02; 
+
+BA01: A     #t_LNK_Used; 
+      JCN   BA03; 
+
+      L     #i_LNK; 
+      T     #s_LNK; 
+
+BA02: L     #s_LNK; 
+      L     0; 
+      <>I   ; 
+      JCN   BA99; 
+
+      L     #s_LNK; 
+      T     #s_LNK_Current; 
+
+//Convert LNK to LIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC);
+
+//Convert LNK to TIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_TIC);
+
+//Convert LNK to TIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_ECS);
+
+      JU    BA04; 
+
+BA03: NOP   0; 
+
+      L     0; 
+      T     #s_LNK_Current; 
+
+      L     #i_LIC; 
+      T     #s_LIC; 
+
+BA04: NOP   0; 
+
+      L     #s_LIC; 
+      L     0; 
+      >I    ; 
+      JCN   BA05; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record",
+           i_ANY_Data               := #s_ProductData_LIC,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA05: L     #s_TIC; 
+      L     0; 
+      >I    ; 
+      JCN   BA06; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_TIC,
+           i_ANY_Data_Record        := "DB_UDT_TIC_Record",
+           i_ANY_Data               := #s_ProductData_TIC,
+           i_DB                     := "DB_TIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA06: L     #s_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_ECS,
+           i_ANY_Data_Record        := "DB_UDT_ECS_Record",
+           i_ANY_Data               := #s_ProductData_ECS,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

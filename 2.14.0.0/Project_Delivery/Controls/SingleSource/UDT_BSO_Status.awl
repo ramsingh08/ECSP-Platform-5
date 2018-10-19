@@ -1,0 +1,62 @@
+TYPE "UDT_BSO_Status"
+TITLE =%version: 0.10 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, August 03, 2018 8:19:39 AM %
+//              %release: VI_GEN/RA_Dev % 
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21520: Added BSO40 invalid data entered Warning    inajos   03-08-18   0.10
+//ra#29441: Added Restart and Disabled status           nluhl    25-07-18   0.09
+//ra#27505: Add unexpected data WN and ER to status     nlHdL    25-01-18   0.08
+//ra#15851: Add BSO from RAW to General Library         nlHdL    19-07-16   0.07
+//ra#15587: Update Tracking block of IDZ01              nlHdL    19-07-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//24004: BSO and IO_Available DP to Fieldbus            nlHdL    12-05-15   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//PR9153 disable mode removed to zone level             nlHdL    06-04-12   0.05
+//PR9153 Added disable mode                             nlHdL    06-04-12   0.04
+//CR5856 Changed ATR into BSO                           nlJBax   26-10-10   0.03
+//Chopped the sparebit from 32 to 16 bit                inpna    23-09-10   0.02
+//Initial version                                       inpna    15-07-10   0.01                                        
+//
+FAMILY : General
+
+
+  STRUCT 	
+   BSO_Scan_Warning : BOOL ;	//Scanner Warning
+   BSO_Scan_Error : BOOL ;	//Scanner Error
+   BSO_WN_Multiple_Read : BOOL ;	//Multiple read has been received
+   BSO_WN_No_Read : BOOL ;	//The scanner data was a no-read
+   BSO_WN_No_Data_Rcvd : BOOL ;	//No-data was received
+   BSO_WN_Unex_Data_Rcvd : BOOL ;	//Unexpected data has been received
+   FieldB_Not_Prsnt : BOOL ;	//Fieldbus Slave not Present
+   FieldB_Error : BOOL ;	//Fieldbus Slave error
+   BSO_ER_No_Read : BOOL ;	//Too many successive no-reads situations have occured
+   BSO_ER_No_Data_Rcvd : BOOL ;	//Too many successive no-data situations have occured
+   BSO_ER_Unex_Data_Rcvd : BOOL ;	//Too many successive unexpected-data situations have occured
+   BSO_ER_Inva_Data_Rcvd : BOOL ;	//Invalid-data was received
+   BSO_Comm_Error : BOOL ;	//No communication with scanner
+   HMI_Communication_Error : BOOL ;	//Communication error with the touch panel
+   Restart_required : BOOL ;	//Restart is required
+   Disabled : BOOL ;	//Disable mode activated (Transport Mode)
+   BSO_WN_Inva_Data_Rcvd : BOOL ;	//Invalid-data entered Applicable for BSO40
+   spare_2_1 : BOOL ;	//spare_2_1
+   spare_2_2 : BOOL ;	//spare_2_2
+   spare_2_3 : BOOL ;	//spare_2_3
+   spare_2_4 : BOOL ;	//spare_2_4
+   spare_2_5 : BOOL ;	//spare_2_5
+   spare_2_6 : BOOL ;	//spare_2_6
+   spare_2_7 : BOOL ;	//spare_2_7
+   spare_3_0 : BOOL ;	//spare_3_0
+   spare_3_1 : BOOL ;	//spare_3_1
+   spare_3_2 : BOOL ;	//spare_3_2
+   spare_3_3 : BOOL ;	//spare_3_3
+   spare_3_4 : BOOL ;	//spare_3_4
+   spare_3_5 : BOOL ;	//spare_3_5
+   spare_3_6 : BOOL ;	//spare_3_6
+   spare_3_7 : BOOL ;	//spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

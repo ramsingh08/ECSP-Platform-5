@@ -1,0 +1,299 @@
+FUNCTION "FC_Write_ANY_RecOff" : VOID
+TITLE =%version: 0.01 % CN: 31
+//Function: 
+//Writes data specified with an ANY to a specified position in a specified Record 
+//within a DB.
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, September 15, 2017 2:16:43 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on v0.09 of FC_Write_ANY_Record nldy     15-09-17  0.01
+//
+//Description:
+//
+//REMARK: This function can not be used for a single BOOL.
+//DO NOT define i_ANY_Data as a TEMP on the outside. 
+//
+//  Return value:
+//       0: no error 
+//    3122: DB_Number not valid
+//    3123: Record_Number not valid
+//    3124: DB is too small or record number too big
+//    3128: i_ANY_Data pointer out of range, defined as temp
+//   other: return value from BlockMove
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Record_Number : INT ;	//Record number
+  i_Pointer_Offset : INT ;	//[bytes] offset from pointer on i_ANY_Data_Record
+  i_ANY_Data_Record : ANY ;	//ANY pointer to the data in a Record
+  i_ANY_Data : ANY ;	//ANY pointer to the data that must be written
+  i_DB : BLOCK_DB ;	//DataBlock of the record where to write to
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_ANY_Data : ANY ;	
+  t_ANY_Data_In_Record : ANY ;	
+  t_Type : BYTE ;	
+  t_DB_Number : INT ;	//DB number of Record DB lay-out
+  t_Record_Length : INT ;	//Length of one record
+  t_Data_Length : INT ;	//Length of data to be copied
+  t_Offset : INT ;	//Offset from the start of the record to information to write
+  t_RET_VAL_BLKMOV : INT ;	
+  t_Event_Data : INT ;	//Temp event data
+  t_Ret_Event : INT ;	//Return value for Write Event
+END_VAR
+BEGIN
+NETWORK
+TITLE =BA: Check DB number
+//If the DB number is not a valid DB number then the FB is ended.
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+      L     0; // IF DB_number is not correct
+      <=I   ; // Then end this module
+      JCN   BA99; 
+
+      L     0; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "DB Number does not excist" (3122)
+           i_Message_ID             := 3122,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check Record Number
+//If the record number is not a valid Record number then the FB is ended.
+      L     #i_Record_Number; 
+      L     0; 
+      <=I   ; // IF Record Num <= 0 THEN..
+      JCN   CA99; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "Invalid Record Number" (3123)
+           i_Message_ID             := 3123,
+           i_Event_value            := #i_Record_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Check if i_ANY_Data is defined as TEMP
+//If the ANY pointer i_ANY_Data is defined as TEMP on de outside then the FB is 
+//ended. No TEMPS are allowed as pointer.
+      L     P##i_ANY_Data; 
+      LAR1  ; 
+
+      L     B [AR1,P#6.0]; 
+      L     W#16#87; 
+      ==I   ; 
+      JCN   DA99; 
+
+      L     B [AR1,P#6.0]; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "Pointer out of range" (3128)
+           i_Message_ID             := 3128,
+           i_Event_value            := #t_Event_Data,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Prepare ANY_Data on temps
+
+      L     P##i_ANY_Data; 
+      LAR1  ; 
+
+      L     P##t_ANY_Data; 
+      LAR2  ; 
+
+      L     D [AR1,P#0.0]; 
+      T     LD [AR2,P#0.0]; 
+
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; 
+
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; 
+
+NETWORK
+TITLE =FA: Analyse the ANY to the LIC Record
+//The input parameter i_ANY_Data_Record indicates the field of the data in the 
+//record. Therefor this ANY points to the correct field in DB_UDT_Record.
+//Via this ANY the required information; start and length of field can be 
+//gathered.
+//
+      L     P##i_ANY_Data_Record; //Load pointer to Input parameter 
+      LAR1  ; 
+
+      L     B [AR1,P#1.0]; //Load data type of ANY
+      L     B#16#19; //19H: BLOCK_DB
+      ==I   ; 
+      JCN   FA01; //* ANY of type BLOCK_DB
+
+      L     B#16#2; 
+      T     #t_Type; 
+
+      L     W [AR1,P#8.0]; 
+      T     #t_DB_Number; 
+
+      OPN   DB [#t_DB_Number]; //Open DB_UDT_Record
+
+      L     DBLG; //and determine the length, which is also the length
+      T     #t_Record_Length; //of the record
+      T     #t_Data_Length; 
+
+      L     0; 
+      T     #t_Offset; 
+
+      JU    FA99; 
+
+FA01: NOP   0; //* ANY of any other type
+
+      L     B [AR1,P#1.0]; //Load type out of ANY
+      T     #t_Type; 
+
+      L     W [AR1,P#2.0]; //Load number out of ANY
+      T     #t_Data_Length; 
+
+      L     W [AR1,P#4.0]; //Load DB number out of the ANY
+      T     #t_DB_Number; //This DB contains only one UDT of a specific record
+
+      OPN   DB [#t_DB_Number]; //Open DB_UDT_Record
+
+      L     DBLG; //and determine the length, which is also the length
+      T     #t_Record_Length; //of the record
+
+      L     D [AR1,P#6.0]; //Load pointer out of ANY
+      T     #t_Offset; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Check if DB is too small or record number too big
+
+      OPN   #i_DB; 
+      L     DBLG; // AND get its length..
+      L     DBW    0; // Length of Header
+      -D    ; 
+      L     #t_Record_Length; 
+      /D    ; // Maximum record number
+      L     #i_Record_Number; // Actual record number
+      <I    ; 
+      JCN   GA01; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+
+      CALL "FC_Write_Event" (// Report event "DB is too small" (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+GA01: L     #t_Offset; 
+      SRD   3; 
+      L     #i_Pointer_Offset; 
+      +D    ; 
+      L     #t_Record_Length; 
+      >D    ; 
+      JCN   GA99; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+
+      CALL "FC_Write_Event" (// Report event "DB is too small" (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Prepare pointer to ANY data in LIC Record
+
+      L     P##t_ANY_Data_In_Record; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+//* Prepare the ANY pointer
+      L     B#16#10; //Fill the ANY with the type 'byte'
+      T     LB [AR1,P#0.0]; 
+
+      L     #t_Type; //Store type in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     #t_Data_Length; //Store number in ANY
+      T     LW [AR1,P#2.0]; 
+
+      OPN   #i_DB; //Store DB number in ANY
+
+      L     DBNO; 
+      T     LW [AR1,P#4.0]; 
+
+      L     #i_Record_Number; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Included header length
+      +D    ; 
+      L     #i_Pointer_Offset; // Including requested offset
+      +D    ; 
+      SLD   3; //Convert byte address to Pointer format
+      L     #t_Offset; //Load the offset in Record out of i_ANY_Record
+      +D    ; 
+      T     LD [AR1,P#6.0]; //and write pointer in t_ANY_Data_In_Record
+
+      L     B#16#84; //Store 84H: DBX Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+NETWORK
+TITLE =IA: Copy ANY_Data to ANY in Specified Record
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Data,
+           RET_VAL                  := #t_RET_VAL_BLKMOV,
+           DSTBLK                   := #t_ANY_Data_In_Record);
+
+      L     #t_RET_VAL_BLKMOV; 
+      L     0; 
+      <>I   ; 
+      JCN   IA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3127,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+IA99: NOP   0; 
+
+END_FUNCTION
+

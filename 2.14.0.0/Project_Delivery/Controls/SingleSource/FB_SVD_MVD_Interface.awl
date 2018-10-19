@@ -1,0 +1,204 @@
+FUNCTION_BLOCK "FB_SVD_MVD_Interface"
+TITLE =%version: 0.11 % CN: 30
+//Function:
+//Module to combined commands from HMI and SCADA to SVD/MVD 
+//
+//History:
+//Original version  %created_by:  nlhdl %
+//                  %date_created: Wednesday, November 29, 2017 10:37:57 AM %
+//                  %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25250: SVD/MVD stop manual on fence opened         nlHdL    29-11-17   0.11
+//ra#25250: SVD/MVD stop manual on fence opened         nlHdL    13-11-17   0.10
+//ra#18563: Aligned for HMI                             inajos   23-11-16   0.09
+//ina#2171: At Flank Detect SVD_MVD_Interface command   nlHdL    15-09-16   0.08
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.07
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//24150: comment change udt MVD / SVD                   nlHdL    03-06-15   0.07
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//CR10260 lifesign bargraph added in HMI                nlple    19-06-12   0.02
+//PR6738 initial version                                nlple    04-04-11   0.01
+//
+//Description:
+//This function combined (OR function) the commands coming from the SCADA and the 
+//operator panel for the SVZ/MVZ blocks
+//The status given to operator panel are also made in this function
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_SCADA_Auto : BOOL ;	//CMD: For SCADA Auto
+  i_CMD_SCADA_Manual : BOOL ;	//CMD: For SCADA Manual
+  i_CMD_SCADA_Fixed_Up : BOOL ;	//CMD: For SCADA Fixed up
+  i_CMD_SCADA_Fixed_Down : BOOL ;	//CMD: For SCADA Fixed down
+  i_CMD_SCADA_Manual_Up : BOOL ;	//CMD: For SCADA Manual Up
+  i_CMD_SCADA_Manual_Down : BOOL ;	//CMD: For SCADA Manual Down
+  i_CMD_SCADA_ManTRS1Start : BOOL ;	//CMD: For SCADA manual TRS1 start
+  i_CMD_SCADA_ManTRS1Stop : BOOL ;	//CMD: For SCADA manual TRS1 stop
+  i_CMD_SCADA_ManTRS2Start : BOOL ;	//CMD: For SCADA manual TRS2 start
+  i_CMD_SCADA_ManTRS2Stop : BOOL ;	//CMD: For SCADA manual TRS2 stop
+  i_CMD_SCADA_ManTRS3Start : BOOL ;	//CMD: For SCADA manual TRS3 start
+  i_CMD_SCADA_ManTRS3Stop : BOOL ;	//CMD: For SCADA manual TRS3 stop
+  i_CMD_OP_Auto : BOOL ;	//CMD: For OP Auto
+  i_CMD_OP_Manual : BOOL ;	//CMD: For OP Manual
+  i_CMD_OP_Fixed_Up : BOOL ;	//CMD: For OP Fixed up
+  i_CMD_OP_Fixed_Down : BOOL ;	//CMD: For OP Fixed down
+  i_CMD_OP_Manual_Up : BOOL ;	//CMD: For OP Manual Up
+  i_CMD_OP_Manual_Down : BOOL ;	//CMD: For OP Manual Down
+  i_CMD_OP_ManTRS1Start : BOOL ;	//CMD: For OP manual TRS1 start
+  i_CMD_OP_ManTRS1Stop : BOOL ;	//CMD: For OP manual TRS1 stop
+  i_CMD_OP_ManTRS2Start : BOOL ;	//CMD: For OP manual TRS2 start
+  i_CMD_OP_ManTRS2Stop : BOOL ;	//CMD: For OP manual TRS2 stop
+  i_CMD_OP_ManTRS3Start : BOOL ;	//CMD: For OP manual TRS3 start
+  i_CMD_OP_ManTRS3Stop : BOOL ;	//CMD: For OP manual TRS3 stop
+  i_ST_Manual : BOOL ;	//ST: Mode Disabled (Offline or Manual)
+  i_ST_Fixed_Up : BOOL ;	//ST: Fixed up mode activated
+  i_ST_Fixed_Down : BOOL ;	//ST: Fixed down mode activated
+  i_ST_Up : BOOL ;	//ST: SVD/MVD in Up (High) position
+  i_ST_Down : BOOL ;	//ST: SVD/MVD in Down (Low) position  
+  i_ST_Fence_opened : BOOL ;	//ST: Security fence opened
+  i_ST_Maint_Mode : BOOL ;	//ST: Maintenance mode active (For manual run TRS while fence open)
+END_VAR
+VAR_OUTPUT
+  o_Command : "UDT_SVD_MVD_Cmd";	//Command to SVD/MVZ block
+  o_OP_Status : "UDT_SVD_MVD_Status";	//Status to OP
+END_VAR
+VAR
+  s_FP_Command_Auto : BOOL ;	//Flank Positive Command Auto
+  s_FP_Command_Manual : BOOL ;	//Flank Positive Command Manual
+  s_FP_Command_Fixed_Up : BOOL ;	//Flank Positive Command Fixed Up
+  s_FP_Command_Fixed_Down : BOOL ;	//Flank Positive Command Fixed Down
+END_VAR
+VAR_TEMP
+  t_RST_Manual_Run : BOOL ;	//Reset manual run when Fence open and No maintenance mode
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Commands From SCADA or OP to SVD/MVD
+
+      A     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_OP_Auto; 
+      FP    #s_FP_Command_Auto; 
+      =     #o_Command.Auto; 
+
+      A     #i_CMD_SCADA_Manual; 
+      O     #i_CMD_OP_Manual; 
+      FP    #s_FP_Command_Manual; 
+      =     #o_Command.Manual; 
+
+      A     #i_CMD_SCADA_Fixed_Up; 
+      O     #i_CMD_OP_Fixed_Up; 
+      FP    #s_FP_Command_Fixed_Up; 
+      =     #o_Command.Fixed_Up; 
+
+      A     #i_CMD_SCADA_Fixed_Down; 
+      O     #i_CMD_OP_Fixed_Down; 
+      FP    #s_FP_Command_Fixed_Down; 
+      =     #o_Command.Fixed_Down; 
+
+      A     #i_CMD_OP_Manual_Up; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_Up; 
+
+      A     #i_CMD_OP_Manual_Down; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_Down; 
+
+      A     #i_CMD_OP_ManTRS1Start; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_TRS1_Start; 
+
+      A     #i_CMD_OP_ManTRS1Stop; 
+      =     #o_Command.Manual_TRS1_Stop; 
+
+      A     #i_CMD_OP_ManTRS2Start; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_TRS2_Start; 
+
+      A     #i_CMD_OP_ManTRS2Stop; 
+      =     #o_Command.Manual_TRS2_Stop; 
+
+      A     #i_CMD_OP_ManTRS3Start; 
+      A     #i_ST_Manual; 
+      =     #o_Command.Manual_TRS3_Start; 
+
+      A     #i_CMD_OP_ManTRS3Stop; 
+      =     #o_Command.Manual_TRS3_Stop; 
+
+NETWORK
+TITLE =BA: Status to operator panel
+
+      AN    #i_ST_Manual; 
+      AN    #i_ST_Fixed_Up; 
+      AN    #i_ST_Fixed_Down; 
+      =     #o_OP_Status.Auto; 
+
+      A     #i_ST_Fence_opened; 
+      AN    #i_ST_Maint_Mode; 
+      =     #t_RST_Manual_Run; 
+
+      A     #i_ST_Manual; 
+      =     #o_OP_Status.Manual; 
+
+      A     #i_ST_Fixed_Up; 
+      =     #o_OP_Status.Fixed_Up; 
+
+      A     #i_ST_Fixed_Down; 
+      =     #o_OP_Status.Fixed_Down; 
+
+      A     #i_ST_Up; 
+      =     #o_OP_Status.Pos_SWS_Up; 
+
+      A     #i_ST_Down; 
+      =     #o_OP_Status.Pos_SWS_Down; 
+
+
+      A     #o_Command.Manual_TRS1_Start; 
+      AN    #o_Command.Manual_TRS1_Stop; 
+      A     #i_ST_Manual; 
+      S     #o_OP_Status.TRS1_Manual_Run; 
+
+      A(    ; 
+      AN    #o_Command.Manual_TRS1_Start; 
+      A     #o_Command.Manual_TRS1_Stop; 
+      )     ; 
+      ON    #i_ST_Manual; 
+      O     #t_RST_Manual_Run; 
+      R     #o_OP_Status.TRS1_Manual_Run; 
+
+      A     #o_Command.Manual_TRS2_Start; 
+      AN    #o_Command.Manual_TRS2_Stop; 
+      A     #i_ST_Manual; 
+      S     #o_OP_Status.TRS2_Manual_Run; 
+
+      A(    ; 
+      AN    #o_Command.Manual_TRS2_Start; 
+      A     #o_Command.Manual_TRS2_Stop; 
+      )     ; 
+      ON    #i_ST_Manual; 
+      O     #t_RST_Manual_Run; 
+      R     #o_OP_Status.TRS2_Manual_Run; 
+
+      A     #o_Command.Manual_TRS3_Start; 
+      AN    #o_Command.Manual_TRS3_Stop; 
+      A     #i_ST_Manual; 
+      S     #o_OP_Status.TRS3_Manual_Run; 
+
+      A(    ; 
+      AN    #o_Command.Manual_TRS3_Start; 
+      A     #o_Command.Manual_TRS3_Stop; 
+      )     ; 
+      ON    #i_ST_Manual; 
+      O     #t_RST_Manual_Run; 
+      R     #o_OP_Status.TRS3_Manual_Run; 
+
+END_FUNCTION_BLOCK
+

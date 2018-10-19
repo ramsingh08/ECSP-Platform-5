@@ -1,0 +1,257 @@
+FUNCTION "FC_Crt_UpdPend_Stat" : VOID
+TITLE =%version: 0.07 % CN: 32
+//Function:
+//Create Update Pending status message for TCTC interface and copy complete 
+//message into the FIFO DB.
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Wednesday, August 01, 2018 11:59:08 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History    :                              By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24842: Correction of variable name                  inajos  01-08-18  0.07
+//ra#24941: Remove dummy code                            nldy    31-10-17  0.06
+//ra#24941: Screening pending updates                    nldy    25-10-17  0.05
+//ra#21133: Screening pending Update                     inajos  18-09-17  0.04
+//ra#22220: Match new UDT_HBS_Record structure           nldy    22-05-17  0.03
+//ra#18904 : Block updated                               inajos  13-12-16  0.02
+//Initial version based on  SIN_T1_CONV_COMPONENT        inajos  28-11-16  0.01
+//
+//
+//Description:
+//The Update Pending status message contains a message header and a message body 
+//like displayed below.
+//Message header:
+// -> Event time
+// -> Message type (For UpdatePendingStatus is 20)
+// -> Message identifier (Not used, can be 0)
+//Message body:
+// -> HBA_LNK (From the sending area)
+// -> TRA_LNK (From the receiving area)
+// -> UpdateReason (0= Lost, not in tracking; 1=Update transport LNK)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_FIFO_Pending_DB_Num : INT ;	//Number of Pending FIFO DB
+  i_MessageIdentifier : DWORD ;	//Message identifier (SSSTLLLL)
+  i_Process : INT ;	//Applicable process (0 is all processes)
+  i_LNK : INT ;	//LNK Number of the item
+  i_UpdateReason : INT ;	//0 = Bag no longer on this area, not pending anymore; 1 = Update Transport LNK
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Return Value Integer
+  t_Ret_Val_Word : WORD ;	//Return Value Word
+  t_HBS : INT ;	//HBS Record Number
+  t_HBS_Byte_Offset : INT ;	//Offset to process record in HBS list
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Create message header and copy to DB_PNPN_OutgoingMsgs
+//In this network the message header is created and copied into 
+//DB_PNPN_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+      NOP   0; 
+
+// Copy date and time into message header
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.EventTime);
+
+// Copy message type into message header
+      L     20; // Pending Update Message (20)
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Message_Type; 
+
+// Copy correct message identifier into message header
+      L     #i_MessageIdentifier; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Message_Identifier; 
+
+NETWORK
+TITLE =AB: Initialize Variables
+
+      NOP   0; 
+
+//Initialize Variables
+      L     0; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.HBA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.TRA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.UpdateReason; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.HBA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.TRA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.UpdateReason; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.HBA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.TRA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.UpdateReason; 
+NETWORK
+TITLE =BA: Read HBA_LNK and TRA_LNK
+//HBA_LNK and TRA_LNK numbers are retrieved from the HBS List DB
+//The retrieved contents are written into the Outgoing Messages for PNPN TCTC
+      A(    ; 
+      L     #i_Process; 
+      L     0; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     #i_Process; 
+      L     3; // Can currently only handle 3 processes due to pendingUpdate_Message
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     #i_Process; 
+      L     "DB_HBS_List".Number_Of_Processes; 
+      >I    ; 
+      )     ; 
+      ON    "DB_HBS_List".s_Pending_Items_Allowed; 
+      BEC   ; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      <=I   ; 
+      BEC   ; 
+
+      A(    ; 
+      L     #i_Process; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Process; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      JCN   BA01; 
+
+      L     0; 
+      T     #t_HBS_Byte_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_HBS_Byte_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1.HBA_LNK,
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.HBA_LNK,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.HBA_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   BA01; 
+
+      L     #i_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.TRA_LNK; 
+
+      L     #i_UpdateReason; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_1.UpdateReason; 
+
+BA01: A(    ; 
+      L     #i_Process; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Process; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      JCN   BA02; 
+
+      L     "DB_HBS_List".HBS_Process_Length; 
+      T     #t_HBS_Byte_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_HBS_Byte_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1.HBA_LNK,
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.HBA_LNK,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.HBA_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   BA02; 
+
+      L     #i_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.TRA_LNK; 
+
+      L     #i_UpdateReason; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_2.UpdateReason; 
+
+BA02: A(    ; 
+      L     #i_Process; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Process; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      JCN   BA99; 
+
+      L     "DB_HBS_List".HBS_Process_Length; 
+      L     2; 
+      *I    ; 
+      T     #t_HBS_Byte_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_HBS_Byte_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1.HBA_LNK,
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.HBA_LNK,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.HBA_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+      L     #i_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.TRA_LNK; 
+
+      L     #i_UpdateReason; 
+      T     "DB_PNPN_OutgoingMsgs".PendingUpdate_Message.Process_3.UpdateReason; 
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Create message in the Buffer DB
+
+      NOP   0; // Hold comments
+
+// Write message to the FIFO DB
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".PendingUpdate_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_Pending_DB_Num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+END_FUNCTION
+

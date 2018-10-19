@@ -1,0 +1,28 @@
+DATA_BLOCK "DB_SC_GEN"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, December 19, 2016 9:23:52 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nleg     06-12-16   0.01
+//
+FAMILY : SAFE
+VERSION : 0.0
+NON_RETAIN
+
+  STRUCT 	
+   Insert : INT ;	// Insertion point for the S7 Code Generator	
+  END_STRUCT ;	
+
+BEGIN
+END_DATA_BLOCK
+

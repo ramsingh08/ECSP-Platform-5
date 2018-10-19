@@ -1,0 +1,199 @@
+FUNCTION_BLOCK "FB_ESS02_Control"
+TITLE =%version: 0.02 % CN: 30
+//Function: switch on and off external depending on the signals 
+//enable and request on. 
+//Next to that the function is responsible for monitoring the 
+//feedback and making the status switched off.
+//The delay time for a feedback error is fixed at 1 sec.
+//
+//Input parameter     Description
+//i_No_Stop_Cat0      No stop cat 0 (immidiate switch off) active. When not used 
+//                    force to "1" (F_Globdb.VKE1)
+//i_No_Stop_Cat1      No stop cat 1 (delayed switch off) active. When not used 
+//                    force to "1" (F_Globdb.VKE1)
+//i_Time_Delay        Time delay for stop category 1
+//i_Ack               Acknowledgement signal
+//i_ESS_Req_On        Request to turn external safety system on
+//i_ESS_FBK           Feedback signal input, inverse signal state of the external safety system output
+//i_ESS_QBAD          QBAD signal of F-I/O/channel of external safety system output Q (F-I/O DB)
+//i_ESS_Reset         Reset to external safety system 
+//i_ESS_Reset_Time    Reset time to external safety system 
+//
+//Output parameter    Discription
+//o_Q_ESS_On          Turn external safety system on
+//o_ESS_Error         External safety system in Feedback Error
+//o_Q_ESS_Reset       Reset to external safety system
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Code for "Set Reset Output"changed                    nleg     22-02-17   0.02
+//Initial version (Based on project Oslo)               nleg     21-02-17   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+VAR_INPUT
+  i_No_Stop_Cat0 : BOOL ;	//No stop cat 0 (immidiate switch off) active. When not used force to "1"
+  i_No_Stop_Cat1 : BOOL ;	//No stop cat 1 (delayed switch off) active. When not used force to "1"
+  i_Time_Delay : TIME ;	//Time delay for stop category 1
+  i_Ack : BOOL ;	//Acknowledgement signal
+  i_ESS_Req_On : BOOL ;	//Request to turn external on
+  i_ESS_FBK : BOOL ;	//Feedback signal input, inverse signal state of the output
+  i_ESS_QBAD : BOOL ;	//QBAD signal of F-I/O/channel of output Q (F-I/O DB)
+  i_ESS_Reset : BOOL ;	//Reset 
+  i_ESS_Reset_Time : TIME ;	//Time Delay for Reset 
+END_VAR
+VAR_OUTPUT
+  o_Q_ESS_On : BOOL ;	//Turn external on
+  o_ESS_Error : BOOL ;	//External out Feedback Error
+  o_Q_ESS_reset : BOOL ;	//Reset External
+END_VAR
+VAR
+  s_F_FDBack : "F_FDBACK";	
+  s_ESS_On_Delay_TOF : "F_TOF";	//TOF: External off delay
+  s_Safe_Cat0 : BOOL ;	//Category 0 is Safe
+  s_On_Cat0 : BOOL ;	//Category 0 may be turned ON
+  s_Safe_Cat1 : BOOL ;	//Category 1 is Safe
+  s_On_Cat1 : BOOL ;	//External off delay
+  s_Delay_Cat1 : BOOL ;	//Bit used for off delay category 1
+  s_ESS_NOT_FBK : BOOL ;	//Inverted feedback signal input, see network comment.
+  s_ESS_On : BOOL ;	//Indication that it is allowed to turn on the external
+  s_ESS_Safe : BOOL ;	//No stop external active
+  s_ESS_Off : BOOL ;	//Indication that external is off
+  s_T_Reset_off : "F_TON";	//Turn Reset Off Timer
+  s_ESS_reset : BOOL ;	//External Reset Timer Input
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Control When stop category 0
+//Category 0: stopping by immediate removal of power to the machine actuators
+      A     #i_No_Stop_Cat0; 
+      =     #s_Safe_Cat0; 
+      =     #s_On_Cat0; 
+
+NETWORK
+TITLE =BA: Control When stop category 1
+//Category 1: stopping with the power available to the machine actuators to 
+//achieve the stop and then removal the power when the stop is achieved
+      A     #i_No_Stop_Cat1; 
+      =     #s_Safe_Cat1; 
+      A     #s_Safe_Cat1; 
+      =     L      0.0; 
+      A     L      0.0; 
+      =     L      0.1; 
+      BLD   103; 
+
+      CALL #s_ESS_On_Delay_TOF (
+           IN                       := L      0.1,
+           PT                       := #i_Time_Delay,
+           Q                        := #s_Delay_Cat1);
+
+      NOP   0; 
+      A     L      0.0; 
+      BLD   102; 
+      S     #s_On_Cat1; 
+
+NETWORK
+TITLE =CA: Reset On delay 
+//Delay on on signal needs to be turned off when:
+//Time expired 
+//OR
+//External already turned off
+      AN    #s_Safe_Cat1; 
+      A     #s_ESS_Off; 
+      ON    #s_Delay_Cat1; 
+      R     #s_On_Cat1; 
+
+NETWORK
+TITLE =DA: Combine safe signal
+//Only safe when both Cat0 and Cat1 are safe.
+      A     #s_Safe_Cat0; 
+      A     #s_Safe_Cat1; 
+      =     #s_ESS_Safe; 
+
+NETWORK
+TITLE =EA: Combine On signal
+//Only On when both Cat0 and Cat1 are safe.
+      A     #s_On_Cat0; 
+      A     #s_On_Cat1; 
+      =     #s_ESS_On; 
+
+NETWORK
+TITLE =KA: Invert feedback signal input. 
+//Background info:
+//The fail-safe module "1 F-RO DC24V/AC24..230V/5A" with article no. 6ES7138-
+//4FR00-0AA0 is an output module with relay output of the ET 200S. In the input 
+//address of this module are two bits (Bit x.0 and Bit x.1), which the user can 
+//access. You can use this bit information as follows:
+//-With Bit x.0 you can evaluate the read back signal of the "1 F-RO" module in 
+//the safety program. With the load contacts closed, Bit x.0 has the signal 
+//status 1. Interconnect the read back signal inverted at the FEEDBACK input, if 
+//it is to be evaluated by the F_FDBACK instruction.
+//-Bit x.1 has no relevance
+      AN    #i_ESS_FBK; 
+      =     #s_ESS_NOT_FBK; 
+
+NETWORK
+TITLE =LA: Switch on/off external and monitor the feedback
+//External is only on when enabled and requested.
+      A     #s_ESS_On; 
+      A     #i_ESS_Req_On; 
+      =     L      1.0; 
+      BLD   103; 
+      A     #s_ESS_NOT_FBK; 
+      =     L      1.1; 
+      BLD   103; 
+      A     #i_ESS_QBAD; 
+      =     L      1.2; 
+      BLD   103; 
+      A     #i_Ack; 
+      =     L      1.4; 
+      BLD   103; 
+      CALL #s_F_FDBack (
+           ON                       := L      1.0,
+           FEEDBACK                 := L      1.1,
+           QBAD_FIO                 := L      1.2,
+           ACK                      := L      1.4,
+           FDB_TIME                 := T#1S,
+           Q                        := #o_Q_ESS_On,
+           ERROR                    := #o_ESS_Error);
+      NOP   0; 
+
+NETWORK
+TITLE =MA: Make status switched off.
+//External status switch off is only high when input off is high and no 
+//feedback error and output not energized. In this way the off status is a fail 
+//safe.
+      AN    #s_F_FDBack.Q; 
+      AN    #s_F_FDBack.ERROR; 
+      A     #s_ESS_NOT_FBK; 
+      =     #s_ESS_Off; 
+
+NETWORK
+TITLE =Set Reset Output
+      O     #i_Ack;
+      O     #i_ESS_Reset;
+      S     #o_Q_ESS_reset; 
+      S     #s_ESS_reset; 
+
+NETWORK
+TITLE =Turn Reset Off Timer
+
+      A     #s_ESS_reset; 
+      =     L      1.0; 
+      BLD   103; 
+
+      CALL #s_T_Reset_off (
+           IN                       := L      1.0,
+           PT                       := #i_ESS_Reset_Time);
+      NOP   0; 
+NETWORK
+TITLE =Turn Reset Off
+
+      A     #s_T_Reset_off.Q; 
+      R     #o_Q_ESS_reset; 
+      R     #s_ESS_reset;
+      
+END_FUNCTION_BLOCK
+

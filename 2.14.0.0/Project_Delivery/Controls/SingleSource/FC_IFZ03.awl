@@ -1,0 +1,409 @@
+FUNCTION "FC_IFZ03" : VOID
+TITLE =%version: 1.05 % CN: 61 
+//Function:
+//This block contains a InFeed Zone (type 03) with one transport section
+//and a belt junction.
+//
+//
+// 
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Friday, March 09, 2018 12:33:05 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                  By:       Date:    Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21656: Synchronisation of zone template            inajos   09-03-18   1.05
+//ra#24634: Update DAT Layer                            nlHdL    04-09-17   1.04
+//ra#20083: Flow control configuration                  nlJClo   26-01-17   1.03
+//ra#15981:change example "DB_Int_prog_Zone"            nljClo   20-10-16   1.02
+//ra#15468:Initial version                              nlJClo   08-07-16   1.01
+//
+//
+//Description:
+//
+//The infeed zone releases individual baggage items into a window in a 
+//controlled way
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+BEGIN
+NETWORK
+TITLE =#Insert# //Insertion point code generator
+//The generated source will be added overhere.
+
+
+//NETWORK
+//TITLE =..: HOO 02- Handover object - Receive
+//NETWORK
+//// Add This Network only if Handover Object is present upstream of Infeed zone
+//
+//      CALL  "FB_TCTC_PNPN_Receive" , "DI_HOO_ZZ_90" (
+//           i_TRS_ID                := "DB_Status_Index".HOO_ZZ_90.ID,
+//           i_Available_IO          := "DB_System_Control".HOO_ZZ_90.IO_Available,
+//           i_CMD_Enable            := "DB_System_Control".HOO_ZZ_90.Enable,
+//           i_CMD_Start             := "DB_System_Control".HOO_ZZ_90.OS_Start,
+//           i_CMD_Reset             := "DB_System_Control".HOO_ZZ_90.OS_Reset,
+//           i_Event_DB              := "DB_Event_Section",
+//           i_DB_PLT_Buffer         := "DB_ZZ_90_PLT",
+//           i_DB_Send_Pending_FIFO  := "DB_LCC_00_XX_Pending",
+//           i_DB_Recv_HandOver_FIFO := "DB_LCC_00_XX_RCV",
+//           i_CFG_Default_Record    := 1,
+//           i_CFG_LM_Border         := FALSE,
+//           i_CFG_Track_Present     := TRUE,
+//           i_Link_Err_Interface    := "M_LCC_00_XX_Link_Err",
+//           i_Rcv_RTS               := "I_ZZ_90_RTS",
+//           i_Rcv_IHO               := "I_ZZ_90_IHO",
+//           i_Rcv_Motor_Run         := "I_ZZ_90_MotorRun",
+//           i_Rcv_TIP               := "I_ZZ_90_TIP",
+//           i_Rcv_Reset_E_Saving    := "I_ZZ_90_ResetESave",
+//           i_Rcv_Lifesign          := "I_ZZ_90_LifeSignRequest",
+//           i_Rcv_Window_Code       := "I_ZZ_90_WindowCode",
+//           i_Rcv_ResetRestart      := "I_ZZ_90_ResetRestart",
+//           i_Rcv_Item_Length       := "IW_ZZ_90_ItemLength",
+//           i_Rcv_Message_Identifier:= "ID_ZZ_90_MessageID",
+//           i_DB_PLT_DwnStr         := "DB_ZZ_01_PLT",
+//           i_TEP_Downstream        := 0,
+//           i_TOP_Downstream        := 0,
+//           i_Minimum_Gap           := 0,
+//           i_Add_Gap_Stop          := 0,
+//           i_Minimum_Head_To_Head  := 0,
+//           i_Add_Head_To_Head_Stop := 0,
+//           i_Dwnstr_Cnv_Speed      := XXXX,
+//           i_Dwnstr_Run_out_Dist   := 8,
+//           i_Dwnstr_StartUp_Dist   := 8,
+//           o_Snd_RTR               := "Q_ZZ_90_RTR",
+//           o_Snd_Lifesign_Reply    := "Q_ZZ_90_LifeSignResponse",
+//           o_Snd_ResetRestart      := "Q_ZZ_90_ResetRestart",
+//           o_Snd_TEP               := "QW_ZZ_90_TEP",
+//           o_Snd_TOP               := "QW_ZZ_90_TOP",
+//           o_Req_Halt_TRS          := "DB_Int_Prog_Section".HOO_ZZ_90.Request_Halt,
+//           o_Reset_E_Save_Section  := "DB_External".TRS_ZZ_01.Inputs.Request_Reset_EnergySave,
+//           o_ST_Link_Error         := "DB_Status".HOO_ZZ_90.Connection_Error,
+//           o_ST_WN_Restart         := "DB_Status".HOO_ZZ_90.Restart_required,
+//           o_Ready_To_Restart      := "DB_System_Control".HOO_ZZ_90.Ready_To_Start);
+//
+//
+//      CALL  "FB_DAT" , "DI_DAT_ZZ_90"(
+//           i_ID_Section            := "DB_Status_Index".HOO_ZZ_90.ID,
+//           i_DB_Event              := "DB_Event_Section",
+//           i_PLC_Log_FIFO_DB       := "DB_LOG_Event_FIFO",
+//           i_CFG_BPI_Log_Level     := "DB_Setting".common.External_Log_Level,
+//           i_CFG_PLC_Log_Level     := "DB_Setting".common.Internal_Log_Level,
+//           i_CFG_PLC_Log_Route_Msgs:= FALSE,
+//           i_CFG_PLC_LOG_BPI_Stat  := FALSE,
+//           i_CFG_PLC_No_Msg_To_Rout:= FALSE,
+//           i_CFG_PLC_No_Msg_To_BPI := FALSE);
+//
+//
+//NETWORK
+//TITLE =..: Transport section
+//
+// Create IO Available signal
+//      A     "DB_System_Control".TRS_ZZ_01.IO_Available;
+//      AN    "DB_Status".TRS_ZZ_01.LMS_ASI_Not_Prsnt;
+//      AN    "DB_Status".TRS_ZZ_01.LMS_ASI_Error;
+//      =     #t_TRS_ZZ_01_IO_Available;
+//
+// comment:Equipment layer PEC          
+//      CALL "FB_EQP_PEC" , "DI_TRS_ZZ_01_PEC"(
+//           i_Setting                := "DB_Setting".TRS_ZZ_01.PEC_1D,
+//           i_DB_PLT                 := "DB_ZZ_01_PLT",
+//           i_DB_Event               := "DB_Event_Section",
+//           i_Dwnstr_PLT_Pos         := 0,
+//           i_CFG_Blockage_Length    := 300,
+//           i_CFG_Delay_On_Filter    := 0,
+//           i_CFG_Delay_Off_Filter   := 20,
+//           i_CFG_Min_Product_Length := 15,
+//           i_CFG_Preset_PEC_Latch   := "DB_Status".TRS_ZZ_01.LMS_Not_Auto,
+//           i_CFG_Track_Present      := TRUE,
+//           i_CFG_Reset_Block_PEC_Oc := FALSE,
+//           i_IO_NOT_PEC             := "I_ZZ_01_B21_PEC_EOS",
+//           i_Eqp_Available_IO       := t_TRS_ZZ_01_IO_Available,
+//           i_CMD_Reset              := "DB_System_Control".TRS_ZZ_01.OS_Reset,
+//           o_LPOS                   := "DB_Int_Prog_Section".TRS_ZZ_01.LPOS,
+//           o_PEC_Position           := "DB_Int_Prog_Section".TRS_ZZ_01.PEC_Offset,
+//           o_ST_PEC_Blk             := "DB_Status".TRS_ZZ_01.EOS_PEC_Blk);
+//
+//// Call This PPI Block only if BF09 or BF11 is used in Zone
+//// Equipment layer - PPI
+//      CALL  "FB_EQP_PPI" , "DI_TRS_ZZ_01_PPI" (
+//           i_CFG_PPI_Resolution := 82,
+//           i_CFG_Time_Out_Error := 492,
+//           i_DB_PLT             := "DB_ZZ_01_PLT",
+//           i_IO_PPI             := "I_ZZ_01_B22_PPI_PULS",
+//           i_Eqp_Available_IO   := #t_TRS_ZZ_01_IO_Available,
+//           i_CMD_Reset          := "DB_System_Control".TRS_ZZ_01.OS_Reset,
+//           o_PPI_Displacement_mm:= "DB_Int_Prog_Section".TRS_ZZ_01.PPI_Displacement,
+//           o_ST_PPI_Err         := "DB_Status".TRS_ZZ_01.PPI_Error);
+// 
+//// comment:Condition to request Stop 
+//      A     "DB_Status".TRS_ZZ_01.EOS_PEC_Blk; 
+//      O     "DB_Status".TRS_ZZ_01.EOS_PEC_Miss; 
+//      O     "DB_Status".TRS_ZZ_01.LMS_ASI_Not_Prsnt;
+//      O     "DB_Status".TRS_ZZ_01.LMS_ASI_Error; 
+//      O     "DB_Status".TRS_ZZ_01.LMS_Not_Auto;
+//      O     "DB_Status".TRS_ZZ_01.LMS_Not_Hthy;
+//      O     "DB_Status".TRS_ZZ_01.PPI_Error: // Add this interlock only if BF09 or BF11 used in Zone
+//      =     "DB_External".TRS_ZZ_01.Inputs.Request_Stop;     
+// 
+//// comment:Condition to Request Halt
+//      A     "DB_Int_Prog_Section".TRS_ZZ_01.HW_Request_Halt; 
+//      O     "DB_Int_Prog_Section".HOO_ZZ_90.Request_Halt;
+//      =     "DB_External".TRS_ZZ_01.Inputs.Request_Halt;
+//     
+// comment:Equipment Basic
+//      CALL "FB_EQP_Basic" , "DI_TRS_ZZ_01_BASIC" (
+//           i_ID_Section             := "DB_Status_Index".TRS_ZZ_01.ID,
+//           i_Basic_Offset           := "DB_Setting".TRS_ZZ_01.Basic.Offset, 
+//           i_DB_PLT                 := "DB_ZZ_01_PLT",
+//           i_DB_PLT_DwnStr          := "DB_IND_ZZ_01_PLT",
+//           i_DB_Event               := "DB_Event_Section",
+//           i_CFG_Conveyor_Speed     := XXXX,
+//           i_CFG_Run_Out_Distance   := 14,
+//           i_CFG_Start_Up_Distance  := 7,
+//           i_Minimum_Gap            := "DB_Setting".TRS_ZZ_01.Basic.Minimum_Gap,
+//           i_Add_Gap_Stop           := "DB_Setting".TRS_ZZ_01.Basic.Add_Gap_Stop,
+//           i_Minimum_H2H            := "DB_Setting".TRS_ZZ_01.Basic.Minimum_H2H,
+//           i_Add_H2H_Stop           := "DB_Setting".TRS_ZZ_01.Basic.Add_H2H_Stop,
+//           i_CFG_Cascade_Delay_Time := 0,
+//           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+//           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+//           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+//           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+//           i_CFG_Slave_Mode         := FALSE,
+//           i_CFG_Del_Window_Codes   := FALSE,
+//           i_PPI_Displacement       := "DB_Int_Prog_Section".TRS_ZZ_01.PPI_Displacement,
+//           i_Dwnstr_PLT_Pos         := "DB_Int_Prog_Section".TRS_ZZ_01.PEC_Offset,
+//           i_Available_IO           := "DB_System_Control".TRS_ZZ_01.IO_Available,
+//           i_Safety_OK              := "DB_System_Control".TRS_ZZ_01.Safety_OK,
+//           i_CMD_Enable             := "DB_System_Control".TRS_ZZ_01.Enable,
+//           i_CMD_Start              := "DB_System_Control".TRS_ZZ_01.OS_Start,
+//           i_Ext_Req_Stop           := "DB_External".TRS_ZZ_01.Inputs.Request_Stop,
+//           i_Ext_Req_Halt           := "DB_External".TRS_ZZ_01.Inputs.Request_Halt,
+//           i_Ext_Req_Dis_Send       := "DB_External".TRS_ZZ_01.Inputs.Request_Disable_Send,
+//           i_Ext_Req_Rst_ESave      := "DB_External".TRS_ZZ_01.Inputs.Request_Reset_EnergySave,
+//           i_OS_Direction_Change    := FALSE,
+//           i_Clr_PLT_Data           :=" DB_Status".TRS_ZZ_01.LMS_Not_Auto,
+//           o_External               := "DB_External".TRS_ZZ_01.Outputs,
+//           o_Motor_Run              := "DB_Int_Prog_Section".TRS_ZZ_01.Motor_Run,
+//           o_ST_Items               := "DB_Status".TRS_ZZ_01.Items, 
+//           o_ST_Running             := "DB_Status".TRS_ZZ_01.Running,
+//           o_ST_Started             := "DB_Status".TRS_ZZ_01.Started,
+//           o_ST_Request_Halt        := "DB_Status".TRS_ZZ_01.Req_Halt,
+//           o_ST_Request_Stop        := "DB_Status".TRS_ZZ_01.Req_Stop,
+//           o_ST_External_Stop       := "DB_Status".TRS_ZZ_01.Ext_Stop,
+//           o_Ready_To_Restart       := "DB_System_Control".TRS_ZZ_01.Ready_To_Start);
+//
+// comment:Tracking Layer           
+//      CALL "FB_TRK_Track", "DI_TRS_ZZ_01_TRCK" (
+//           i_Setting                := "DB_Setting".TRS_ZZ_01.Tracking,
+//           i_DB_PLT                 := "DB_ZZ_01_PLT",
+//           i_Event_DB               := "DB_Event_Section",
+//           i_Position_PEC_Update    := "DB_Int_Prog_Section".TRS_ZZ_01.PEC_Offset,
+//           i_LPOS                   := "DB_Int_Prog_Section".TRS_ZZ_01.LPOS,
+//           i_Length_Dif_Accepted    := 0,
+//           i_CFG_Num_Missing_Error  := 3,
+//           i_CFG_Upd_Perf_WN_Level  := 80,
+//           i_CFG_Weighing_Factor    := 5,
+//           i_CFG_Default_Record     := X,
+//           i_Trigger_Send_Stat      := "DB_System_Control".TRS_ZZ_01.OS_Send_Statistics,
+//           i_CMD_Reset              := "DB_System_Control".TRS_ZZ_01.OS_Reset,
+//           i_CFG_Clear_Double_Data  := FALSE,
+//           i_OS_Direction_Change    := FALSE,
+//           i_HW_MTR_Not_Auto        := "DB_Status".TRS_ZZ_01.LMS_Not_Auto,
+//           o_ST_PEC_Miss            := "DB_Status".TRS_2112_19_01.EOS_PEC_Miss,
+//           o_ST_PEC_BadTrack        := "DB_Status".TRS_2112_19_01.EOS_PEC_BadTr);
+//
+// comment:Hardware Layer
+//      CALL "FB_HW_MTR_LMS" , "DI_TRS_ZZ_01_HW"
+//           i_CMD_Send_Stat          := "DB_System_Control".TRS_ZZ_01.OS_Send_Statistics,
+//           i_Event_DB               := "DB_Event_Section",
+//           i_Available_IO           := "DB_System_Control".TRS_ZZ_01.IO_Available,
+//           i_Quick_Stop             := FALSE,
+//           i_LMS_NotPrsnt           := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_LMS_Error              := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           i_IO_LMS_Auto            := "I_ZZ_01_A12_LMS_AUTO", 
+//           i_IO_LMS_Healthy         := "I_ZZ_01_A12_LMS_HLTY",
+//           i_CMD_Reset              := "DB_System_Control".TRS_ZZ_01.OS_Reset,
+//           i_CMD_Req_Motor_Forward  := "DB_Int_Prog_Section".TRS_ZZ_01.Motor_Run,
+//           o_IO_MTR_Fwd             := "Q_ZZ_01_M11_MTR_FWD",
+//           o_ST_ASI_NotPrsnt        := "DB_Status".TRS_ZZ_01.LMS_ASI_Not_Prsnt,
+//           o_ST_ASI_Err             := "DB_Status".TRS_ZZ_01.LMS_ASI_Error,
+//           o_ST_LMS_Not_Auto        := "DB_Status".TRS_ZZ_01.LMS_Not_Auto,
+//           o_ST_LMS_Not_Hthy        := "DB_Status".TRS_ZZ_01.LMS_Not_Hthy);
+//
+// comment:Data Layer           
+//      CALL "FB_DAT" , "DI_TRS_ZZ_01_DAT" (
+//           i_ID_Section             := "DB_Status_Index".TRS_ZZ_01.ID,
+//           i_DB_Event               := "DB_Event_Section",
+//           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+//           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+//           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+//           i_CFG_PLC_Log_Route_Msgs := FALSE,
+//           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+//           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+//           i_CFG_PLC_No_Msg_To_BPI  := FALSE);           
+//           
+//
+//NETWORK
+//TITLE =..: Induct
+//// comment:Induct block call
+//
+//      CALL  "FB_Induct" , "DI_TRS_ZZ_01_Induct"(
+//           i_Setting                := "DB_Setting".IND_ZZ_01,
+//           i_DB_PLT                 := "DB_IND_ZZ_01_PLT",
+//           i_DB_PLT_Merge           := "DB_ZZ_SS_PLT",
+//           i_DB_PLT_Junction        := "DB_ZZ_02_PLT",
+//           i_DB_Reservation         := "DB_RES_ZZ_00",
+//           i_DB_Event               := "DB_Event_Section",
+//           i_CFG_PEC_Offset         := "DB_Int_Prog_Section".TRS_ZZ_SS.PEC_Offset,
+//           i_CFG_Search_Window      := "DB_Int_Prog_Zone".MGZ_ZZ_00.Calculated_H2H_Length,
+//           i_CFG_Gap_Length         := 0,
+//           i_CFG_Induct_Number_FWD  := xx,
+//           i_CFG_Induct_Number_REV  := xx"
+//           i_CFG_Run_Out_Dist_Ind   := 14,
+//           i_CFG_Start_Up_Dist_Ind  := 7
+//           i_CFG_Conveyor_Speed     := XXXX,
+//           i_ID                     := "DB_Status_Index".TRS_ZZ_01.ID,
+//           i_CFG_Straight_Induct    := FALSE);
+//
+//
+//      OPN   "DB_Event_Section"; 
+//      L     DBNO; 
+//      T     "DB_Int_Prog_Zone".IFZ_ZZ_00.Num_DB_Event; 
+//
+//      OPN   "DB_ZZ_xx_PLT";  // PLT DB Merge conveyor
+//      L     DBNO; 
+//      T     "DB_Int_Prog_Zone".IFZ_ZZ_00.Merge_Num_DB_PLT; 
+//
+//      OPN   "DB_ZZ_02_PLT"; // PLT DB Junction
+//      L     DBNO; 
+//      T     "DB_Int_Prog_Zone".IFZ_ZZ_00.Junction_Num_DB_PLT; 
+//
+//      CALL "FC_Induct_Sync" (
+//           i_DB_Event_Num           := "DB_Int_Prog_Zone".IFZ_ZZ_00.Num_DB_Event,
+//           i_DB_PLT_Merge_Num       := "DB_Int_Prog_Zone".IFZ_ZZ_00.Merge_Num_DB_PLT,
+//           i_DB_PLT_Junction_Num    := "DB_Int_Prog_Zone".IFZ_ZZ_00.Junction_Num_DB_PLT);
+//
+//      CALL "FB_DAT" , "DI_TRS_ZZ_01_DAT" (
+//           i_ID_Section             := "DB_Status_Index".TRS_ZZ_01.ID,
+//           i_DB_Event               := "DB_Event_Section",
+//           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+//           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+//           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+//           i_CFG_PLC_Log_Route_Msgs := FALSE,
+//           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+//           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+//           i_CFG_PLC_No_Msg_To_BPI  := FALSE);           
+//
+//NETWORK
+//TITLE =..: Junction.
+//
+//
+//      A     "DB_System_Control".TRS_ZZ_02.IO_Available;
+//      AN    "DB_Status".TRS_ZZ_02.LMS_ASI_Not_Prsnt;
+//      AN    "DB_Status".TRS_ZZ_02.LMS_ASI_Error;
+//      =     #t_TRS_ZZ_02_IO_Available;
+//
+//// comment:Equipment layer PEC
+//      CALL "FB_EQP_PEC_Trigger" , "DI_PEC_ZZ_02_PEC" (
+//           i_CFG_Blockage_Length    := "DB_Setting".common.PEC_Blockage_Length,
+//           i_CFG_Delay_On_Filter    := 0,
+//           i_CFG_Reset_Block_PEC_Oc := TRUE,
+//           i_CFG_Time_Displacement  := TRUE,
+//           i_IO_NOT_PEC             := "I_ZZ_02_B21_PEC_HAC",
+//           i_Eqp_Available_IO       := #t_TRS_ZZ_02_IO_Available,
+//           i_CMD_Reset              := "DB_System_Control".TRS_2131_34_02.OS_Reset,
+//           i_Displacement           := "DB_ZZ_02_PLT".Displacement,
+//           o_ST_PEC_Blk             := "DB_Status".TRS_ZZ_02.HAC_PEC_Blk)
+//
+//// comment:Condition to Request Stop
+//      A     "DB_Status".TRS_ZZ_02.LMS_ASI_Not_Prsnt; 
+//      O     "DB_Status".TRS_ZZ_02.LMS_ASI_Error; 
+//      O     "DB_Status".TRS_ZZ_02.LMS_Not_Auto; 
+//      O     "DB_Status".TRS_ZZ_02.LMS_Not_Hthy; 
+//      O     "DB_Status".TRS_ZZ_02.HAC_PEC_Blk; 
+//      =     "DB_External".TRS_ZZ_02.Inputs.Request_Stop; 
+//
+//// comment:Condition to Request Halt
+//      A     "DB_Int_Prog_Section".TRS_ZZ_02.HW_Request_Halt; 
+//      ON    "DB_Int_Prog_Section".TRS_ZZ_SS.Motor_Run;  //Section Run of Merge
+//      =     "DB_External".TRS_ZZ_02.Inputs.Request_Halt;
+//   
+// comment:Equipment Basic
+//      CALL "FB_EQP_Basic" , "DI_TRS_ZZ_02_BASIC" (
+//           i_ID_Section             := "DB_Status_Index".TRS_ZZ_02.ID,
+//           i_Basic_Offset           := "DB_Setting".TRS_ZZ_02.Basic.Offset, 
+//           i_DB_PLT                 := "DB_ZZ_02_PLT",
+//           i_DB_Event               := "DB_Event_Section",
+//           i_CFG_Conveyor_Speed     := XXXX,
+//           i_CFG_Run_Out_Distance   := 14,
+//           i_CFG_Start_Up_Distance  := 7,
+//           i_Minimum_Gap            := "DB_Setting".TRS_ZZ_02.Basic.Minimum_Gap,
+//           i_Add_Gap_Stop           := "DB_Setting".TRS_ZZ_02.Basic.Add_Gap_Stop,
+//           i_Minimum_H2H            := "DB_Setting".TRS_ZZ_02.Basic.Minimum_H2H,
+//           i_Add_H2H_Stop           := "DB_Setting".TRS_ZZ_02.Basic.Add_H2H_Stop,
+//           i_CFG_Cascade_Delay_Time := 300,
+//           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+//           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+//           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+//           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+//           i_CFG_Slave_Mode         := FALSE,
+//           i_CFG_Del_Window_Codes   := FALSE,
+//           i_PPI_Displacement       := "DB_Int_Prog_Section".TRS_ZZ_02.PPI_Displacement,
+//           i_Dwnstr_PLT_Pos         := "DB_Int_Prog_Section".TRS_ZZ_02.PEC_Offset,
+//           i_Available_IO           := "DB_System_Control".TRS_ZZ_02.IO_Available,
+//           i_Safety_OK              := "DB_System_Control".TRS_ZZ_02.Safety_OK,
+//           i_CMD_Enable             := "DB_System_Control".TRS_ZZ_02.Enable,
+//           i_CMD_Start              := "DB_System_Control".TRS_ZZ_02.OS_Start,
+//           i_Ext_Req_Stop           := "DB_External".TRS_ZZ_02.Inputs.Request_Stop,
+//           i_Ext_Req_Halt           := "DB_External".TRS_ZZ_02.Inputs.Request_Halt,
+//           i_Ext_Req_Dis_Send       := "DB_External".TRS_ZZ_02.Inputs.Request_Disable_Send,
+//           i_Ext_Req_Rst_ESave      := "DB_External".TRS_ZZ_02.Inputs.Request_Reset_EnergySave,
+//           i_OS_Direction_Change    := FALSE,
+//           i_Clr_PLT_Data           :=" DB_Status".TRS_ZZ_01.LMS_Not_Auto,
+//           o_External               := "DB_External".TRS_ZZ_02.Outputs,
+//           o_Motor_Run              := "DB_Int_Prog_Section".TRS_ZZ_02.Motor_Run,
+//           o_ST_Items               := "DB_Status".TRS_ZZ_02.Items, 
+//           o_ST_Running             := "DB_Status".TRS_ZZ_02.Running,
+//           o_ST_Started             := "DB_Status".TRS_ZZ_02.Started,
+//           o_ST_Request_Halt        := "DB_Status".TRS_ZZ_02.Req_Halt,
+//           o_ST_Request_Stop        := "DB_Status".TRS_ZZ_02.Req_Stop,
+//           o_ST_External_Stop       := "DB_Status".TRS_ZZ_02.Ext_Stop,
+//           o_Ready_To_Restart       := "DB_System_Control".TRS_ZZ_02.Ready_To_Start);
+//
+// comment:Hardware Layer
+//      CALL "FB_HW_MTR_LMS" , "DI_TRS_ZZ_02_HW"
+//           i_CMD_Send_Stat          := "DB_System_Control".TRS_ZZ_02.OS_Send_Statistics,
+//           i_Event_DB               := "DB_Event_Section",
+//           i_Available_IO           := "DB_System_Control".TRS_ZZ_02.IO_Available,
+//           i_Quick_Stop             := FALSE,
+//           i_LMS_NotPrsnt           := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Not_Present[x],
+//           i_LMS_Error              := "DB_Diagnose_ASI_PF".Gateway_xx_Channel_x.Slave_Error[x],
+//           i_IO_LMS_Auto            := "I_ZZ_02_A12_LMS_AUTO", 
+//           i_IO_LMS_Healthy         := "I_ZZ_02_A12_LMS_HLTY",
+//           i_CMD_Reset              := "DB_System_Control".TRS_ZZ_02.OS_Reset,
+//           i_CMD_Req_Motor_Forward  := "DB_Int_Prog_Section".TRS_ZZ_02.Motor_Run,
+//           o_IO_MTR_Fwd             := "Q_ZZ_02_M11_MTR_FWD",
+//           o_ST_ASI_NotPrsnt        := "DB_Status".TRS_ZZ_02.LMS_ASI_Not_Prsnt,
+//           o_ST_ASI_Err             := "DB_Status".TRS_ZZ_02.LMS_ASI_Error,
+//           o_ST_LMS_Not_Auto        := "DB_Status".TRS_ZZ_02.LMS_Not_Auto,
+//           o_ST_LMS_Not_Hthy        := "DB_Status".TRS_ZZ_02.LMS_Not_Hthy);
+//
+//      CALL "FB_DAT" , "DI_TRS_ZZ_02_DAT" (
+//           i_ID_Section             := "DB_Status_Index".TRS_ZZ_02.ID,
+//           i_DB_Event               := "DB_Event_Section",
+//           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+//           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+//           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+//           i_CFG_PLC_Log_Route_Msgs := FALSE,
+//           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+//           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+//           i_CFG_PLC_No_Msg_To_BPI  := FALSE); 
+//       
+END_FUNCTION
+

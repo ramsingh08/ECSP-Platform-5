@@ -1,0 +1,959 @@
+FUNCTION_BLOCK "FB_TCTC_Rcv_PrdDat_D"
+TITLE =%version: 0.05 % CN: 40
+//Function: 
+//This block handles the product data for the receiving side of a TCTC interface.
+//
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Wednesday, October 25, 2017 7:52:39 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Screening pending updates                    nldy    25-10-17   0.05
+//ra#21133: Correct misaligned code                      nldy    19-09-17   0.04
+//ra#21133: Screening pending update                     inajos  18-09-17   0.03
+//ra#22220: Match new UDT_HBS_Record structure           nldy    22-05-17   0.02
+//Initial release VBZ07 from SIN_T1_CONV_COMPONENT       inajos  28-11-16   0.01
+//
+//
+//Description:
+//This block receives a product data message that is send from the sending 
+//side of the TCTC interface. This product data message consists out of a message 
+//header and the product data (BIR record) found with the item. The message 
+//header contain the event time, message type, message identifier and sending 
+//area ID. The product data will be checked and when correct linked to the 
+//received item.
+//
+// --------------------+                +------+            +--------------------
+//                     | Message Ident  |      |            |                    
+//                     | -------------> |      |            |                    
+//  Sending Module     |  Product Data  |      | ---------> |  Receiving Module  
+//                     |    Message     |      |            |                    
+//                     | -------------> |      |            |                    
+// --------------------+                +------+            +--------------------
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_TRS_ID : DWORD ;	//ID Record of transport section connected of this receive HEX AAAA - ZZSS/OO
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_DB_PLT_Buffer : BLOCK_DB ;	//Data Structure: Buffer PLT DB for the screening object HBO
+  i_DB_Send_Pending_FIFO : BLOCK_DB ;	//Data Structure: 
+  i_DB_Recv_HandOver_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive Handover message FIFO
+  i_DB_Handl_Area_TableUpd : BLOCK_DB ;	//DB Handling area table update
+  i_Rcv_Window_Code : BOOL ;	//Receiving: Window code
+  i_Rcv_Message_Identifier : DINT ;	//Receiving: Message identifier for product data message
+  i_LNK : INT ;	//LNK number of generated LNK
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link
+  i_CFG_LM_Border : BOOL ;	//CFG: LM transition
+  i_CFG_Track_Present : BOOL ;	//CFG: Tracking layer is used for this section
+  i_Link_Error : BOOL ;	//Link error signal (Lifesign Error)
+  i_Rcv_IHO : BOOL ;	//Receiving: Item Handover
+  i_Rcv_TIP : BOOL ;	//Receiving: Tranfer-In-Progress
+END_VAR
+VAR_OUTPUT
+  o_Wait_For_Data : BOOL ;	//Waiting for data from sender
+END_VAR
+VAR
+  s_Received_Message : "UDT_PN_Msg_Handover";	//Send message layout
+  s_Message_Identifier : DWORD ;	// Message Identifier to link the send via PN/PN coupler and the msg send via TCP
+  s_Cnt_Check_For_Message : INT ;	//Counter to determine time to check for message
+  s_LNK : INT ;	//Copy of LNK number
+  s_LIC : INT ;	//Copy of LIC number
+  s_OS_Copy_FP_TIP : BOOL ;	//Copy of Flank Positive
+  s_OS_FP_TIP : BOOL ;	//Flank Positive of transfer in progress signal
+  s_OS_Copy_FP_IHO : BOOL ;	//Copy of Flank Positive
+  s_OS_FP_IHO : BOOL ;	//Flank Positive of item handover signal
+  s_Check_Mess_Tmr_Elapsed : BOOL ;	//Check message timer is elapsed
+  s_Wait_For_Data : BOOL ;	//Waiting for data from sender
+  s_Data_With_Item : BOOL ;	//Indicating new data is received with the item
+  s_OS_Window_Code : BOOL ;	//One Shot write window code receive
+  s_Snd_TrkRpt_Next_Scan : BOOL ;	//Flag to indicate that tracking report to be sent next scan after IDChange
+  s_HBS_Record : "UDT_HBS_Record";	//HBS Record
+  s_Routing_Records : "UDT_Routing_Records";	//Routing Record
+  s_Direction : STRUCT 	//Direction Structure
+   DirectionTaken : INT ;	//Direction a bag is sorted To
+   DirectionFrom : INT ;	//Direction a bag is merged From
+   DecisionLevel : INT ;	//Decision Level
+   Destination : INT ;	//Sort decicision based on Destination
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_DB_Recv_HO_FIFO_Number : INT ;	//Number of the TCTC FIFO DB
+  t_DB_Send_Pend_FIFO_Num : INT ;	//Number of the Pending FIFO DB
+  t_DB_Event_Num : INT ;	//DB number of the event DB
+  t_DB_PLT_DwnStr : INT ;	//DB PLT number
+  t_RET_VAL : INT ;	//Return Value function call
+  t_ECS : INT ;	//ECS number of generated LNK
+  t_TIC : INT ;	//TIC number of generated LNK
+  t_HBS : INT ;	//HBS number of generated LNK
+  t_DB_Transl_Table_nr : INT ;	//DB number of translation update table
+  t_Destination_1 : INT ;	//Destination 1
+  t_Destination_2 : INT ;	//Destination 2
+  t_Destination_3 : INT ;	//Destination 3
+  t_Destination_4 : INT ;	//Destination 4
+  t_Destination_5 : INT ;	//Destination 5
+  t_Loop : INT ;	//Loop counter
+  t_Entry_pointer : DWORD ;	//Copy the Pointer of the found entry
+  t_Not_Used : INT ;	//Not used return val
+  t_ANY_Source : ANY ;	//ANY pointer to copy entry
+  t_Length_Record : INT ;	//Record length from FIFO DB
+  t_Sequence : INT ;	//Sequnce from the message identifier
+  t_Type : INT ;	//Type from message identifier
+  t_DB_List_Num : INT ;	//DB number of the list DB
+  t_RET_VAL_FIFO : WORD ;	//Return Value of FIFO function
+  t_Window_Code : INT ;	// Window code from message identifier
+  t_Displacement : INT ;	// Displacement receiving section
+  t_Section_Length : INT ;	// Section length from PLT
+  t_Buffer_PLT_DB_Num : INT ;	//Buffer PLT DB
+  t_Rep_Route_No : INT ;	//Route Number
+  t_DB_No_Route : INT ;	//DB Route Number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy DB numbers to temporary  
+//Copy the DB numbers to temps to be able to use them in this block.
+      OPN   #i_DB_Recv_HandOver_FIFO; 
+      L     DBNO; 
+      T     #t_DB_Recv_HO_FIFO_Number; 
+
+      OPN   #i_DB_PLT_Buffer; 
+      L     DBNO; 
+      T     #t_Buffer_PLT_DB_Num; 
+
+      OPN   #i_DB_Send_Pending_FIFO; 
+      L     DBNO; 
+      T     #t_DB_Send_Pend_FIFO_Num; 
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+      OPN   #i_DB_PLT_DwnStr; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_DwnStr; // Determine PLT block DB number
+
+      L     DBW    2; 
+      T     #t_Displacement; 
+
+      L     DBW   12; 
+      T     #t_Section_Length; 
+NETWORK
+TITLE =BA: Check if new data is available
+//When the positive flank of the Transfer In Progress signal is received the 
+//received message identifier will be copied to a static. When the item handover 
+//signal is received the FIFO DB will be checked for new messages during 0.5 
+//second. 
+      SET   ; 
+      R     #s_Data_With_Item; 
+
+// Create flank positive of Transfer In Progress signal
+      A     #i_Rcv_TIP; 
+      FP    #s_OS_Copy_FP_TIP; 
+      =     #s_OS_FP_TIP; 
+
+// Create flank positive of Item HandOver signal
+      A     #i_Rcv_IHO; 
+      FP    #s_OS_Copy_FP_IHO; 
+      =     #s_OS_FP_IHO; 
+
+// Copy received message identifier to static when positive flank of TIP is received
+      A     #s_OS_FP_TIP; 
+      JCN   BA01; 
+      L     #i_Rcv_Message_Identifier; 
+      T     #s_Message_Identifier; 
+
+// SET wait for data signal at positive flank of Item HandOver signal
+BA01: A     #s_OS_FP_IHO; 
+      A     #i_CFG_Track_Present; 
+      S     #s_Wait_For_Data; 
+
+      AN    #s_Wait_For_Data; 
+      JCN   BA02; // Then Reset timer
+
+      L     500; // Check for message during 500 milli seconds (0.5 second)
+      T     #s_Cnt_Check_For_Message; //Set the check message timer to the default settings
+BA02: L     #s_Cnt_Check_For_Message; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   BA03; //If Negative then
+      L     0; //Keep counter to zero
+BA03: T     #s_Cnt_Check_For_Message; 
+      A(    ; 
+      L     #s_Cnt_Check_For_Message; //If the timer has elapsed elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_Check_Mess_Tmr_Elapsed; // Time to check message has elapsed
+
+// When the pre-set waiting time expired or the data is received 
+// Reset wait for data bit
+      A     #s_Check_Mess_Tmr_Elapsed; 
+      O     #s_Data_With_Item; 
+      JCN   BA99; 
+
+      SET   ; 
+      R     #s_Wait_For_Data; 
+      R     #s_Data_With_Item; 
+
+      L     0; 
+      T     #s_Message_Identifier; 
+
+// Generate default record for item.
+      CALL "FC_Gen_Default_LNK" (
+           i_LNK                    := #i_LNK,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check FIFO DB for new message
+//When the FIFO DB is not empty and the check for new message timer has not 
+//elapsed the FIFO DB will be check for a new message. If the message identifier 
+//of this message is the same as the message identifier received via the cyclic 
+//IO the message will be retrieved from the FIFO db and copied into the local 
+//memory.
+      NOP   0; 
+
+// Check for new message when a valid message identifier is received and the wait for data timer is not elapsed
+      L     #s_Message_Identifier; 
+      L     0; 
+      <>D   ; 
+      A     #s_Wait_For_Data; // IF data expected
+      JCN   CA99; 
+
+// Open the FIFO DB
+      OPN   #i_DB_Recv_HandOver_FIFO; 
+
+// Check if FIFO DB is not empty
+      L     DBW    6; // When the FIFO DB is empty the record "Num_Of_Records_stored" within the DB is equal to "0"
+      L     0; 
+      <>I   ; 
+      JCN   CA99; // End this network if FIFO DB is empty or check for message timer is elapsed
+
+// Calculate the offset to the message that shall be retreived   
+      L     0; 
+      LAR1  ; 
+
+      L     DBW   12; // Position of the record (number found at "Next_Record_Retrieve")
+      L     1; 
+      -I    ; 
+      L     DBW    4; // The length of each message in the FIFO DB ("Record_Data_Length")
+      *I    ; 
+      +     14; // Length of the general record in FIFO DB
+      SLD   3; 
+      LAR1  ; // Store the Offset to the first available message in Accumulator 1.
+
+// Retrieve the Message identifier from the message and compare with "s_Message_Identifier"
+      L     DBD [AR1,P#10.0]; // Load message identifier from the message
+      L     #s_Message_Identifier; // Load message identifier recieved via cyclic IO
+      ==D   ; // If they are the same
+      JCN   CA01; // Retrieve one message from FIFO DB
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_DB_Recv_HO_FIFO_Number,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Received_Message,
+           i_ID                     := #i_TRS_ID,
+           o_RET_VAL_FIFO           := #t_RET_VAL_FIFO);
+
+// Set data with item
+      SET   ; 
+      =     #s_Data_With_Item; 
+      R     #s_Wait_For_Data; 
+
+      JU    CA99; 
+
+CA01: NOP   0; 
+//Check all present entries for message identifier
+
+      L     DBW    4; 
+      T     #t_Length_Record; 
+      SLD   3; 
+      T     #t_Entry_pointer; 
+
+      L     DBW    8; // max number present
+      T     #t_Loop; 
+      L     1; 
+      -I    ; 
+      L     DBW    4; // The length of each message in the FIFO DB ("Record_Data_Length")
+      *I    ; 
+      +     14; // Length of the general record in FIFO DB
+      SLD   3; 
+      LAR1  ; // Store the Offset to the first available message in Accumulator 1.
+
+// Retrieve the Message identifier from the message and compare with "s_Message_Identifier"
+CA02: L     DBD [AR1,P#10.0]; // Load message identifier from the message
+      L     #s_Message_Identifier; // Load message identifier recieved via cyclic IO
+      ==D   ; // If they are the same
+      JC    CA03; 
+
+      L     #t_Loop; 
+      L     1; 
+      -I    ; 
+      JMZ   CA99; 
+      T     #t_Loop; 
+
+
+      TAR1  ; 
+      L     #t_Entry_pointer; 
+      -D    ; 
+      LAR1  ; 
+      JU    CA02; 
+
+CA03: NOP   0; 
+//Copy the entry
+      TAR1  ; 
+      T     #t_Entry_pointer; 
+
+      LAR1  P##t_ANY_Source; 
+      L     W#16#1002; // Set to S7 and format BYTE
+      T     LW [AR1,P#0.0]; // Transfer to ANY pointer
+
+      L     #t_Length_Record; // Length of data to copy
+      T     LW [AR1,P#2.0]; // Transfer to ANY pointer
+
+      OPN   #i_DB_Recv_HandOver_FIFO; 
+      L     DBNO; 
+      T     LW [AR1,P#4.0]; // Transfer DB number to ANY pointer
+
+      L     #t_Entry_pointer; 
+      L     DW#16#84000000; // Instance
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Transfer memory area and offset to ANY pointer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_Not_Used,
+           DSTBLK                   := #s_Received_Message);
+
+// Set data with item
+      SET   ; 
+      =     #s_Data_With_Item; 
+      R     #s_Wait_For_Data; 
+
+// Clear message identifier static 
+      L     0; 
+      T     DBW    6; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Copy data and send register and ID change reports
+//When product data is found for the item copy this to the BIR record of the item 
+//and send ID change report to high level. When no correct data is found for the 
+//item send a UFO register package.
+      NOP   0; // Hold comments
+
+// If this flag bit is high then send tracking report
+// Otherwise process with normal data receiving handling
+      AN    #s_Snd_TrkRpt_Next_Scan; 
+      JCN   DA12; 
+
+      A     #s_Data_With_Item; //When data is received
+      AN    #i_Link_Error; //And NO Communication failure
+      JCN   DA99; 
+
+      L     #i_LNK; 
+      T     #s_LNK; 
+
+// Determine the type from the message_identifier
+// Message Identifier = SSSTLLLL
+// SSS = Sequence number from 1 to 999
+// T = Type 1= LIC, 2= TIC, 3= LIC+TIC
+// LLLL = LIC Local Identifer Number
+
+      L     #s_Message_Identifier; 
+      SRD   20; 
+      T     #t_Sequence; 
+
+      L     #s_Message_Identifier; 
+      AD    DW#16#F0000; 
+      SRD   16; 
+      T     #t_Type; 
+
+// Clear message identifier static 
+      L     0; 
+      T     #s_Message_Identifier; 
+
+      L     #t_Type; 
+      L     1; 
+      ==I   ; 
+      JCN   DA01; 
+
+      OPN   "DB_LIC_List"; 
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+DA01: L     #t_Type; 
+      L     2; 
+      ==I   ; 
+      JCN   DA02; 
+
+      OPN   "DB_TIC_List"; 
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+DA02: L     #t_Type; 
+      L     3; 
+      ==I   ; 
+      JCN   DA03; 
+
+      OPN   "DB_LIC_List"; 
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      OPN   "DB_TIC_List"; 
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+// Convert LNK to LIC
+DA03: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC);
+
+// Convert LNK to TIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_TIC);
+
+// Convert LNK to ECS
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+//If NO LIC then goto data copy and no check degraded message
+      L     #s_LIC; 
+      L     0; 
+      >I    ; 
+      JCN   DA11; 
+
+// Copy BIR record        
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := #s_Received_Message.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// When bag has screening status "Pending"
+      A(    ; 
+      L     #s_Received_Message.Process_1_HBA_LNK; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   DA04; 
+
+// Create HBS record on this receiving area
+      OPN   "DB_HBS_List"; 
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+// Write FIFO DB Number where the pending messages to upstream should be send 
+      L     #t_DB_Send_Pend_FIFO_Num; 
+      T     #s_HBS_Record.HBS_General.DBNum_FIFO_Receive_Upstr; 
+
+// Write HBO buffer number on the HBS record
+      L     #t_Buffer_PLT_DB_Num; 
+      T     #s_HBS_Record.HBS_General.DBNum_PLT_Buffer; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_General,
+           i_ANY_Data               := #s_HBS_Record.HBS_General,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     #s_Received_Message.Process_1_HBA_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   DA21; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process_1.Screen_Result,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_RET_VAL,
+           CDT                      := #s_HBS_Record.HBS_Process_1.Timestamp_screening);
+
+// Write HBA_LNK from the upstream area
+      L     #s_Received_Message.Process_1_HBA_LNK; 
+      T     #s_HBS_Record.HBS_Process_1.HBA_LNK; 
+
+// Copy received bag status
+      L     #s_Received_Message.BIR.Bag_Status; 
+      T     #s_HBS_Record.HBS_Process_1.Bag_Status; 
+
+      L     #s_Received_Message.BIR.Process_1.Pseudo_ID; 
+      T     #s_HBS_Record.HBS_Process_1.Screen_Result.Pseudo_ID; 
+
+// Indicate item is received from upstream area  & Pending
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Process_Active; 
+      =     #s_HBS_Record.HBS_Process_1.Received_From_Upstream; 
+      =     #s_HBS_Record.HBS_Process_1.Machine_Result_Rcvd; 
+      =     #s_HBS_Record.HBS_Process_1.Result_Pending; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process_1,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+
+DA21: A     #s_HBS_Record.HBS_Process_1.Received_From_Upstream; 
+      JCN   DA04; 
+
+// Send Update Pending Status message to the upstream area
+      CALL "FC_Crt_UpdPend_Stat" (
+           i_ID                     := #i_TRS_ID,
+           i_FIFO_Pending_DB_Num    := #t_DB_Send_Pend_FIFO_Num,
+           i_MessageIdentifier      := DW#16#0,
+           i_Process                := 1,
+           i_LNK                    := #s_LNK,
+           i_UpdateReason           := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA04: L     #s_Received_Message.BIR.PID; 
+      L     L#0; 
+      ==D   ; // Check if PID value is 0
+      AN    "M_Comm_Degraded"; // And system is NOT in degraded mode
+      JCN   DA11; 
+
+// Send UFO register package to high level and end network
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Write current ID into last location ID field for reporting
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_ECS,
+           i_ANY_Data_Record        := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_ANY_Data               := #i_TRS_ID,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Write update succesfull into record to indicate item will be registered
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+// Goto check TIC
+      JU    DA14; 
+
+// In case of an LM border update BIR record
+DA11: AN    #i_CFG_LM_Border; 
+      JCN   DA14; 
+
+// Send ID change report to high level 
+      CALL "FC_Write_Event" (// Report IDChangeReport (1203)
+           i_Message_ID             := 1203,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+// Set flag send tracking report on the next PLC scan
+      SET   ; 
+      =     #s_Snd_TrkRpt_Next_Scan; 
+
+// Goto Check TIC
+      JU    DA14; 
+
+// This will be executed after IDChange report
+// Flag is immediately cleared after entering this label
+// Send tracking merge report with Direction 2 (Side merge)
+DA12: CLR   ; 
+      =     #s_Snd_TrkRpt_Next_Scan; 
+
+// Check if Route Report record is available
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Rep_Route_No);
+
+      L     #t_Rep_Route_No; 
+      L     0; 
+      <=I   ; 
+      JCN   DA13; 
+
+//IF Rep_route <= 0 THEN create new Routing Report record
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #t_Rep_Route_No);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Rep_Route_No);
+
+//Copy BIR record to Routing Report record
+DA13: CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".Routing_Records,
+           i_ANY_Data               := #s_Routing_Records,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_P_INT_Record           := "DB_UDT_Route_Record".status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,//Status == 0 -> No Routing elements
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_P_INT_Record           := "DB_UDT_Route_Record".RoutingTableType,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,//Status == 0 -> No Routing elements
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; //Fields not used in MergeReport
+      T     #s_Direction.DirectionTaken; 
+      T     #s_Direction.Destination; 
+      L     2; 
+      T     #s_Direction.DirectionFrom; //Always from side flow
+      L     5; 
+      T     #s_Direction.DecisionLevel; //Equipment Transport Default
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := #s_Direction,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     0; //Fields not used in MergeReport
+      T     #s_Direction.DirectionTaken; 
+      T     #s_Direction.Destination; 
+      T     #s_Direction.DirectionFrom; 
+      T     #s_Direction.DecisionLevel; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection1,
+           i_ANY_Data               := #s_Direction,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_No,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection2,
+           i_ANY_Data               := #s_Direction,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+// Check if TIC number is valid
+DA14: L     #t_TIC; 
+      L     0; 
+      >I    ; 
+      JCN   DA15; 
+
+// Copy TIC record        
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_TIC,
+           i_ANY_Data_Record        := "DB_UDT_TIC_Record".TIR,
+           i_ANY_Data               := #s_Received_Message.TIR,
+           i_DB                     := "DB_TIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// In case of an LM border send handling area routing table update
+DA15: A     #i_CFG_LM_Border; 
+      JCN   DA99; 
+
+// Destinations are required in case no handling area update table is present
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_1);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_2);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_3);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_4);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_5);
+
+      OPN   #i_DB_Handl_Area_TableUpd; 
+      L     DBNO; 
+      T     #t_DB_Transl_Table_nr; 
+
+      CALL "FC_HandAreaTableUpd" (
+           i_DB_HandlingArea_Num    := #t_DB_Transl_Table_nr,
+           i_LIC_nr                 := #s_LIC,
+           i_Def_Dest_1             := #t_Destination_1,
+           i_Def_Dest_2             := #t_Destination_2,
+           i_Def_Dest_3             := #t_Destination_3,
+           i_Def_Dest_4             := #t_Destination_4,
+           i_Def_Dest_5             := #t_Destination_5,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Clear PID number from BIR
+      CALL "FC_Write_Dint_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DINT                   := L#0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Set ECS record for register
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Check for window code
+
+      A     #i_Rcv_Window_Code; 
+      JCN   EA90; 
+
+      L     0; 
+      L     #i_Rcv_Message_Identifier; 
+      <D    ; 
+      JCN   EA90; 
+
+      T     #s_Message_Identifier; 
+
+// Determine the type from the message_identifier
+// Message Identifier = SSSTLLLL
+// SSS = Sequence number from 1 to 999
+// T = Type 1= LIC, 2= TIC, 3= LIC+TIC
+// LLLL = LIC Local Identifer Number
+
+      L     #s_Message_Identifier; 
+      SRD   20; 
+      T     #t_Sequence; 
+
+      L     #s_Message_Identifier; 
+      AD    DW#16#F0000; 
+      SRD   16; 
+      T     #t_Type; 
+
+      L     #s_Message_Identifier; 
+      AD    DW#16#FFFF; 
+      T     #t_Window_Code; 
+
+      L     #t_Type; 
+      L     0; 
+      ==I   ; 
+      JCN   EA99; 
+//Check type = 0 (Window code)
+
+      L     #t_Window_Code; 
+      L     -3; 
+      <I    ; 
+      JCN   EA99; 
+//Check in window code < -3
+
+      AN    #s_OS_Window_Code; 
+      JCN   EA02; 
+
+      L     #t_Section_Length; 
+      L     #t_Displacement; 
+      -I    ; 
+      T     #t_Section_Length; 
+
+      L     #t_Window_Code; 
+      L     1; 
+      -I    ; 
+      T     #t_Window_Code; 
+//Lower window code with 1
+
+      CALL "FC_PLT_Write" (// Write leading edge of item in PLT DB
+           i_DB_PLT_Num             := #t_DB_PLT_DwnStr,
+           i_Position               := #t_Section_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #t_Window_Code,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      SET   ; 
+      S     #s_OS_Window_Code; 
+
+// Clear message identifier static 
+EA02: L     0; 
+      T     #s_Message_Identifier; 
+      JU    EA99; 
+
+EA90: A     #s_OS_Window_Code; 
+      R     #s_OS_Window_Code; 
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Write wait for data
+
+      A     #s_Wait_For_Data; 
+      AN    #i_Rcv_TIP; 
+      =     #o_Wait_For_Data; 
+END_FUNCTION_BLOCK
+

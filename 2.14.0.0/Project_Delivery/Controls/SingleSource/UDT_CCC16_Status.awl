@@ -1,0 +1,84 @@
+TYPE "UDT_CCC16_Status"
+TITLE =%version: 0.01 % CN: 11
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, July 25, 2018 11:55:56 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#30140: Add to GEN library                          nldy     25-07-18   0.01
+//WP64045 Added init block to Library                   nlhvas   01-05-18   0.01
+// Based on GEN CCC v0.16
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Mainswitch_OFF : BOOL ;	//Mainswitch OFF 	
+   PLC_Power_Supply_Error : BOOL ;	//PLC Power supply failure
+   PLC_Hardware_Error : BOOL ;	//PLC Hardware failure
+   PLC_Battery_Error : BOOL ;	//PLC Battery failure 
+   CCC_THO_24VDC : BOOL ;	//Thermal overload signal from 24Vdc CCC
+   CCC_THO_24VDC_ESTOP : BOOL ;	//Thermal overload signal from EStop
+   CCC_THO_AMP : BOOL ;	//Thermal overload signal from AMP measuring
+   CCC_THO_Phase : BOOL ;	//Thermal overload signal from Phase
+   CCC_THO_PWR_Relais : BOOL ;	//Power relay supply
+   CCC_Phase_Fault : BOOL ;	//Phase Fault
+   Safety_Comm_Fault : BOOL ;	//Safety Communication Failure
+   Fire_Alarm_Zone_1 : BOOL ;	//Fire Alarm detected
+   Fire_Alarm_Zone_2 : BOOL ;	//Fire Alarm 02 detected
+   ETH_Switch_Fault : BOOL ;	//Ethernet Switch fault
+   HLC_Comm_Fault : BOOL ;	//HLC communication error
+   CAB_Temp_High : BOOL ;	//Cabinet temperature too High
+   CAB_Temp_Error : BOOL ;	//Cabinet temperature time out
+   UPS_THO : BOOL ;	//Thermal Overload UPS power
+   TFC_Comm_Fault : BOOL ;	//TFC communication error
+   Spare_2_3 : BOOL ;	//Spare 2_3
+   PN_Master_NotPrsnt : BOOL ;	//Profinet: PN Master is not present
+   PN_Master_Error : BOOL ;	//Profinet: PN Master has an error
+   HMI_Communication_Error : BOOL ;	//HMI Communication error
+   Connection_Error : BOOL ;	//Connection error
+   THO_Main_Pwr_GRP01 : BOOL ;	//Thermal Overload (Main Power) Motor Group 1
+   THO_Main_Pwr_GRP02 : BOOL ;	//Thermal Overload (Main Power) Motor Group 2
+   THO_Main_Pwr_GRP03 : BOOL ;	//Thermal Overload (Main Power) Motor Group 3
+   THO_Main_Pwr_GRP04 : BOOL ;	//Thermal Overload (Main Power) Motor Group 4
+   THO_Aux_Pwr_GRP01 : BOOL ;	//Thermal Overload (Aux Power) Motor Group 1
+   THO_Aux_Pwr_GRP02 : BOOL ;	//Thermal Overload (Aux Power) Motor Group 2
+   THO_Aux_Pwr_GRP03 : BOOL ;	//Thermal Overload (Aux Power) Motor Group 3
+   THO_Aux_Pwr_GRP04 : BOOL ;	//Thermal Overload (Aux Power) Motor Group 4
+   No_Power_GRP01 : BOOL ;	//No power group 1 Time Out
+   No_Power_GRP02 : BOOL ;	//No power group 2 Time Out
+   No_Power_GRP03 : BOOL ;	//No power group 3 Time Out
+   No_Power_GRP04 : BOOL ;	//No power group 4 Time Out
+   PN1_NotPrsnt : BOOL ;	//PN slave 1 is not present
+   PN1_Error : BOOL ;	//PN slave 1 has an error
+   PN2_NotPrsnt : BOOL ;	//PN slave 2 is not present
+   PN2_Error : BOOL ;	//PN slave 2 has an error
+   PN3_NotPrsnt : BOOL ;	//PN slave 3 is not present
+   PN3_Error : BOOL ;	//PN slave 3 has an error
+   Link_Protect_THO : BOOL ;	//Thermal Overload Link Protector
+   Link_Protect_Fault : BOOL ;	//Link Protector fault
+   SafetyRelais_Err_GRP01 : BOOL ;	//Feedbackerror safetyrelais 1 only used with Isafe 
+   SafetyRelais_Err_GRP02 : BOOL ;	//Feedbackerror safetyrelais 2 only used with Isafe 
+   SafetyRelais_Err_GRP03 : BOOL ;	//Feedbackerror safetyrelais 3 only used with Isafe 
+   SafetyRelais_Err_GRP04 : BOOL ;	//Feedbackerror safetyrelais 4 only used with Isafe 
+   FieldB_NotPrsnt : BOOL ;	//ASI Gateway: Fieldbus Slave not Present
+   FieldB_Error : BOOL ;	//ASI Gateway: Fieldbus Slave error
+   ASI_Not_Prsnt : BOOL ;	//ASI Gateway: ASI slave not present
+   ASI_Error : BOOL ;	//ASI Gateway: ASI slave error
+   ASI_CH1_24V_AUX_Err : BOOL ;	//ASI Gateway: ST: ASI slave Channel 1 error 24 Volt Auxilarry
+   ASI_CH2_24V_AUX_Err : BOOL ;	//ASI Gateway: ST: ASI slave Channel 2 error 24 Volt Auxilarry
+   ASI_1_Delta_Error : BOOL ;	//ASI Gateway: Actual and Config ASI slaves are not the same on ASI network 1
+   ASI_2_Delta_Error : BOOL ;	//ASI Gateway: Actual and Config ASI slaves are not the same on ASI network 2
+   Connection_Error1 : BOOL ;	//ASI Gateway: Connection Error with Fieldbus
+   Spare_7_1 : BOOL ;	//Spare_7_1
+   Spare_7_2 : BOOL ;	//Spare_7_2
+   Spare_7_3 : BOOL ;	//Spare_7_3
+   Spare_7_4 : BOOL ;	//Spare_7_4
+   Spare_7_5 : BOOL ;	//Spare_7_5
+   Spare_7_6 : BOOL ;	//Spare_7_6
+   Spare_7_7 : BOOL ;	//Spare_7_7
+  END_STRUCT ;	
+END_TYPE
+

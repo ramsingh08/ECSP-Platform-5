@@ -1,0 +1,717 @@
+FUNCTION_BLOCK "FB_DecisionPoint"
+TITLE =%version: 0.21 % CN: 35
+//Function:
+//This module makes on decision for a routing system. 
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created: Tuesday, April 03, 2018 8:29:33 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                    By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27790: Comment header Decisionpoint update         nlHdL    03-04-18   0.21
+//ra#27790: Comment header Decisionpoint update         nlHdL    03-04-18   0.21
+//ra#23509: Fallback tags and route table               nlHdL    06-09-17   0.20
+//ra#20483: Reset no route available when LNK = 0       nlHdL    07-02-17   0.19
+//ra#17636: No route available reset if no wait         nlHdL    12-12-16   0.18
+//ra#17636: Add no route availble in decisionpoint      nlHdL    05-12-16   0.17
+//ina#2827: Version number and history incorrect        nlHdL    02-12-16   0.16
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.15
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.14
+//ra#9916: No PID clear rep_route from tracking report  nlHdL    11-12-15   0.14
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.13
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.13
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.13
+//18582: Add o_Sort_Control_Enabled Sign to DP block    nlHdL    17-04-14   0.12
+//12269: LNK Generator update for Default LNK           nlHdL    09-01-14   0.11
+//15797: Keyword release added                          nlwwij   26-09-13   0.10
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.09
+//PR13776: Jump label BA01 update LNK -1                nlHdL    14-05-13   0.08
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.07
+//PR12679: DPoint chck succes dir after local constrain nlHdL    29-03-13   0.06
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.05
+//PR9873 Reset wait before decision                     nlHdL    07-05-12   0.04
+//Changed executions from LIC to LNK                    nlLvdG   23-03-12   0.03
+//CR8095 Comments input CFG changed                     nlple    06-01-12   0.02
+//Initial version based on T5 principle                 nlHdL    28-09-11   0.01
+//
+//Description:
+//The combination of the results of these modules leads to a direction and 
+//information that can be used to assemble a Tracking Report message for High 
+//Level.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LNK : INT ;	//LINK Number of item that is being routed
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_DB_Default_Route_Table : BLOCK_DB ;	//Data Structure: Default Routing Table
+  i_DB_System_Route_Table : BLOCK_DB ;	//Data Structure: System Routing Table
+  i_Degraded_Mode : BOOL ;	//CMD: The system is running in degraded mode
+  i_Fixed_Mode_Dir_A : BOOL ;	//The hardware is fixed in direction A
+  i_Fixed_Mode_Dir_B : BOOL ;	//The hardware is fixed in direction B
+  i_Dir_A_Failure : BOOL ;	//Direction A has Technical Failure
+  i_Dir_A_Full : BOOL ;	//Direction A is Full (Chute)
+  i_Dir_B_Failure : BOOL ;	//Direction A has Technical Failure
+  i_Dir_B_Full : BOOL ;	//Direction A is Full (Chute)
+  i_DB_PLT_Num_Dir_A : INT ;	//Number of DB Position Leading Trailing Edge Dir A
+  i_DB_PLT_Num_Dir_B : INT ;	//Number of DB Position Leading Trailing Edge Dir B
+  i_TEP_Dir_A : INT  := 1;	//TEP value of Direction A
+  i_TEP_Dir_B : INT  := 1;	//TEP value of Direction B
+  i_CFG_Dir_A_Preference : INT ;	//CFG: Preference for Direction A (0 = No Direction 1 = Preferred)
+  i_CFG_Dir_B_Preference : INT ;	//CFG: Preference for Direction B (0 = No Direction 1 = Preferred)
+  i_CFG_Transport_Default : INT ;	//CFG: Transport default direction. (transport technology driven)
+  i_CFG_UnSecure_Not_Allow : INT ;	//CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)
+  i_CFG_Dimen_SC_Not_Allow : INT ;	//CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)
+  i_CFG_Local_Unsecure_Dir : INT ;	//CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)
+  i_CFG_Local_Dimensn_Dir : INT ;	//CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)
+  i_DP_Settings : "UDT_DecisionP_Sett";	//Data Structure: Setting Record Decision Point
+END_VAR
+VAR_OUTPUT
+  o_Direction : BYTE ;	//Direction for the item with i_LNK
+  o_Wait : BOOL ;	//Sorter must send 1 tracking report and wait until siituation changes.
+  o_Sort_Control_Enabled : BOOL ;	//Enable signal for use of sort control
+  o_No_Route_Available : BOOL ;	//No route for the destination available
+END_VAR
+VAR
+  s_LIC : INT ;	//LIC Number of the LNK
+  s_Direction_A : STRUCT 	
+   Destination_LIC : INT ;	
+   Preference_A : BYTE ;	
+   Preference_B : BYTE ;	
+   Preference_C : BYTE ;	
+   DecisionLvl : BYTE ;	
+   FailedReason_A : BYTE ;	
+   FailedReason_B : BYTE ;	
+   FailedReason_C : BYTE ;	
+  END_STRUCT ;	
+  s_Direction_B : STRUCT 	
+   Destination_LIC : INT ;	
+   Preference_A : BYTE ;	
+   Preference_B : BYTE ;	
+   Preference_C : BYTE ;	
+   DecisionLvl : BYTE ;	
+   FailedReason_A : BYTE ;	
+   FailedReason_B : BYTE ;	
+   FailedReason_C : BYTE ;	
+  END_STRUCT ;	
+  s_Succes_Direction : STRUCT 	
+   Destination_LIC : INT ;	
+   Preference_A : BYTE ;	
+   Preference_B : BYTE ;	
+   Preference_C : BYTE ;	
+   DecisionLvl : BYTE ;	
+   FailedReason_A : BYTE ;	
+   FailedReason_B : BYTE ;	
+   FailedReason_C : BYTE ;	
+   Direction : BYTE ;	
+  END_STRUCT ;	
+  s_Item_Secure : BOOL ;	//When TRUE item is secure
+  s_Item_Class_ST : BOOL ;	//When TRUE item is ST class
+  s_Dir_A_RTR : BOOL ;	
+  s_Dir_B_RTR : BOOL ;	
+  s_Max_Time_Elapsed : BOOL ;	
+  s_Next_Hour_Timer : BOOL ;	//Toggle bit for timer check
+  s_Routing_Default : BOOL ;	//Routing default is active
+  s_Default_Routing : BOOL ;	//Use default routing (Degraded and Fallback tag)
+  s_Last_Direction : BYTE ;	
+  s_Nr_DB_Routing : INT ;	//Number of DB Routing
+  s_Last_LIC : INT ;	
+  s_CNT_Max_Time_Elapsed : INT ;	
+  s_CNT_Load_Balance : INT ;	
+  s_Rep_Route_Record : INT ;	//Replay route record
+END_VAR
+VAR_TEMP
+  t_CHECK_Toggle_Bit : BOOL ;	//Check Toggle bit of timer
+  t_ECS : INT ;	//ECS number of LNK data
+  t_No_Route_Table_Valid : BOOL ;	//No Route Table Valid
+  t_No_Direction_Routing : BOOL ;	//No Direction Routing
+  t_Flow_Control_Enabled : BOOL ;	//Flow control is enabled
+  t_DB_No_Route : INT ;	//DB number of Route List
+  t_BIR_Assignment_Reason : BYTE ;	//BIR.Assignment reason check for Fallback [20]
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init direction and count switch time
+//Table data used within DP block
+//DecisionLevel:
+//00 = ROUTING-AUTONOMOUS
+//01 = ROUTING DEFAULT
+//02 = ROUTING_LOGISTICS_CONTROL-DEFAULT
+//03 = ROUTING_LOGISTICS_CONTROL-SYSTEM
+//04 = not used leave element out of message
+//05 = TRANSPORT_EQUIPMENT-DEFAULT_DIRECTION 
+//06 = TRANSPORT_OPERATOR-LOCAL_MODE
+//07 = TRANSPORT_BAG-DIMENTIONS
+//08 = TRANSPORT_BAG-UNSECURE_DIRECTION
+//09 = TRANSPORT_BAG-RECIRCULATE
+//10 = EXECUTING-WAITING
+//11 = EQUIPMENT_CONTROL-ITEM_POSITION
+//
+//FailedReason:
+//00 = not used leave element out of message
+//01 = NO ROUTING DEFAULT
+//02 = NO DIRECTION - LM ROUTING
+//03 = NOT ALLOWED - FLOW CONTROL
+//04 = NOT ALLOWED – SECURITY
+//05 = NOT ALLOWED – DIMENSIONS
+//06 = NOT ALLOWED - FORCED DIRECTION
+//07 = NOT AVAILABLE OR FULL
+//08 = CAPACITY TOO HIGH
+//09 = NOT ALLOWED - BLOCKED BY LM
+//10 = TECHNICAL FAILURE
+//11 = FULL (chute/lateral)
+//12 = NOT USED
+//13 = NOT USED
+//14 = NOT USED
+//
+      SET   ; 
+      R     #s_Max_Time_Elapsed; 
+
+      L     #i_DP_Settings.TEP_Max_Time; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; 
+
+//---- Check Timer value ---------------
+
+      X     "M_Toggle_SecTimer"; // | Toggle | Next_Timer |
+      X     #s_Next_Hour_Timer; // |    0   |      0     | = 1 
+      =     #t_CHECK_Toggle_Bit; // |    1   |      0     | = 0
+      AN    #t_CHECK_Toggle_Bit; // |    0   |      1     | = 0
+      =     #t_CHECK_Toggle_Bit; // |    1   |      1     | = 1
+
+      L     "MW_Hour_Sec"; 
+      L     #s_CNT_Max_Time_Elapsed; 
+      >=I   ; 
+      A     #t_CHECK_Toggle_Bit; 
+      =     #s_Max_Time_Elapsed; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Routing Algorithm
+//Retreive the LIC number from the LNK.
+//Check if LIC is 'new' else end block. Only preform a decision for a new LIC 
+//number.
+//If routing table is present goto destination routing, else goto default routing.
+//
+      L     #i_LNK; 
+      L     -1; 
+      ==I   ; 
+      JCN   BA01; 
+      T     #s_Last_LIC; 
+      BE    ; 
+
+// Convert LNK to LIC
+BA01: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #s_LIC);
+
+      SET   ; 
+      R     #o_Wait; 
+      R     #o_No_Route_Available; 
+
+      L     0; 
+      L     #s_LIC; 
+      ==I   ; 
+      BEC   ; 
+
+      L     #s_Last_LIC; 
+      L     #s_LIC; 
+      ==I   ; 
+      BEC   ; 
+      T     #s_Last_LIC; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #s_Rep_Route_Record);
+
+      L     #s_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   BA02; 
+
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #i_LNK,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_LNK                    := #s_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #s_Rep_Route_Record);
+
+BA02: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".successdirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection1,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection2,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".RoutingTableType,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      SET   ; 
+      R     #t_No_Route_Table_Valid; 
+
+      L     0; 
+      T     #s_Direction_A.Destination_LIC; 
+      T     #s_Direction_A.Preference_A; 
+      T     #s_Direction_A.Preference_B; 
+      T     #s_Direction_A.Preference_C; 
+      T     #s_Direction_A.DecisionLvl; 
+      T     #s_Direction_A.FailedReason_A; 
+      T     #s_Direction_A.FailedReason_B; 
+      T     #s_Direction_A.FailedReason_C; 
+      T     #s_Direction_B.Destination_LIC; 
+      T     #s_Direction_B.Preference_A; 
+      T     #s_Direction_B.Preference_B; 
+      T     #s_Direction_B.Preference_C; 
+      T     #s_Direction_B.DecisionLvl; 
+      T     #s_Direction_B.FailedReason_A; 
+      T     #s_Direction_B.FailedReason_B; 
+      T     #s_Direction_B.FailedReason_C; 
+
+      CALL "FC_Read_Byte_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_BYTE_Record          := "DB_UDT_LIC_Record".BIR.assignment_reason,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BYTE                   := #t_BIR_Assignment_Reason);
+
+      L     #t_BIR_Assignment_Reason; 
+      L     B#16#14; //Dec = 20 = Fallback tag
+      ==I   ; 
+      O     #i_Degraded_Mode; 
+      =     #s_Default_Routing; 
+      JC    BA03; 
+
+//Check system_routing_table
+      OPN   #i_DB_System_Route_Table; 
+      L     DBNO; 
+      T     #s_Nr_DB_Routing; 
+      L     1; 
+      <=I   ; 
+      JCN   BA04; 
+
+//IF no routing table then check default routing setting
+
+//Check default_routing_table
+BA03: NOP   0; 
+      OPN   #i_DB_Default_Route_Table; 
+      L     DBNO; 
+      T     #s_Nr_DB_Routing; 
+      L     1; 
+      <=I   ; 
+      JCN   BA04; 
+
+      SET   ; 
+      =     #t_No_Route_Table_Valid; 
+
+      L     0; 
+      T     #s_Nr_DB_Routing; 
+
+//No valid routing DB found
+      JU    BA05; 
+
+BA04: CALL "FC_Routing_Dest_x" (
+           i_LIC                    := #s_LIC,
+           i_Default_Route_Mode     := #s_Default_Routing,
+           i_CFG_Dir_C              := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Nr_DB_Routing          := #s_Nr_DB_Routing,
+           i_ANY_Direction_A        := #s_Direction_A,
+           i_ANY_Direction_B        := #s_Direction_B,
+           i_ANY_Direction_C        := #s_Direction_B);
+
+//Write RoutingTableDB to ECS record
+BA05: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".routing_result.routingtabledb,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #s_Nr_DB_Routing,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      NOP   0; 
+NETWORK
+TITLE =BB: Default Routing
+
+      SET   ; 
+      R     #s_Routing_Default; 
+
+      L     #s_Direction_A.Preference_A; 
+      L     #s_Direction_A.Preference_B; 
+      +I    ; 
+      L     #s_Direction_B.Preference_A; 
+      +I    ; 
+      L     #s_Direction_B.Preference_B; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      =     #t_No_Direction_Routing; 
+
+      A     #t_No_Route_Table_Valid; 
+      O     #t_No_Direction_Routing; 
+      JCN   BB01; 
+
+//Default routing + check
+
+      CALL "FC_Route_Default_Dir" (
+           i_CFG_Dir_A_Preference   := #i_CFG_Dir_A_Preference,
+           i_CFG_Dir_B_Preference   := #i_CFG_Dir_B_Preference,
+           i_CFG_Dir_C_Preference   := 0,
+           i_ANY_Direction_A        := #s_Direction_A,
+           i_ANY_Direction_B        := #s_Direction_B,
+           i_ANY_Direction_C        := #s_Direction_B,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record,
+           i_CFG_Dir_C              := FALSE);
+
+      SET   ; 
+      =     #s_Routing_Default; 
+
+BB01: NOP   0; 
+      L     #s_Direction_A.Preference_A; 
+      L     #s_Direction_A.Preference_B; 
+      +I    ; 
+      L     #s_Direction_B.Preference_A; 
+      +I    ; 
+      L     #s_Direction_B.Preference_B; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      =     #o_No_Route_Available; 
+NETWORK
+TITLE =CA: Constraints
+//Check the constraints for each destination (1 till 5).
+      NOP   0; 
+
+//Determine item Secure
+      CALL "FC_Security_Check" (
+           i_LIC                    := #s_LIC,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Item_Secure            := #s_Item_Secure);
+
+// Physical Class of item
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Physical_Class_ST,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #s_Item_Class_ST);
+
+//Check Dir_A Available
+      CALL "FC_RTR_PLT_Header" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num_Dir_A,
+           o_RTR                    := #s_Dir_A_RTR);
+
+//Check Dir_B Available
+      CALL "FC_RTR_PLT_Header" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num_Dir_B,
+           o_RTR                    := #s_Dir_B_RTR);
+
+//Check security and dimension for each destination
+      CALL "FC_Secure_Dim_Dest_x" (
+           i_Item_Secure            := #s_Item_Secure,
+           i_Item_Class_ST          := #s_Item_Class_ST,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_A,
+           i_Unsecure_Not_Allowed   := #i_CFG_UnSecure_Not_Allow,
+           i_Dimension_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+      CALL "FC_Secure_Dim_Dest_x" (
+           i_Item_Secure            := #s_Item_Secure,
+           i_Item_Class_ST          := #s_Item_Class_ST,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_B,
+           i_Unsecure_Not_Allowed   := #i_CFG_UnSecure_Not_Allow,
+           i_Dimension_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+//Check fixed mode (local mode)
+      CALL "FC_Local_Mode_Dest_x" (
+           i_Fixed_Mode_Dir_A       := #i_Fixed_Mode_Dir_A,
+           i_Fixed_Mode_Dir_B       := #i_Fixed_Mode_Dir_B,
+           i_Fixed_Mode_Dir_C       := FALSE,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_A,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+      CALL "FC_Local_Mode_Dest_x" (
+           i_Fixed_Mode_Dir_A       := #i_Fixed_Mode_Dir_A,
+           i_Fixed_Mode_Dir_B       := #i_Fixed_Mode_Dir_B,
+           i_Fixed_Mode_Dir_C       := FALSE,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_B,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+//Equipment Constraints
+      CALL "FC_Dir_Avail_Dest_X" (
+           i_Dir_A_Failure          := #i_Dir_A_Failure,
+           i_Dir_A_Available        := #s_Dir_A_RTR,
+           i_Dir_A_Full             := #i_Dir_A_Full,
+           i_Dir_B_Failure          := #i_Dir_B_Failure,
+           i_Dir_B_Available        := #s_Dir_B_RTR,
+           i_Dir_B_Full             := #i_Dir_B_Full,
+           i_Dir_C_Failure          := FALSE,
+           i_Dir_C_Available        := FALSE,
+           i_Dir_C_Full             := FALSE,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_A,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+      CALL "FC_Dir_Avail_Dest_X" (
+           i_Dir_A_Failure          := #i_Dir_A_Failure,
+           i_Dir_A_Available        := #s_Dir_A_RTR,
+           i_Dir_A_Full             := #i_Dir_A_Full,
+           i_Dir_B_Failure          := #i_Dir_B_Failure,
+           i_Dir_B_Available        := #s_Dir_B_RTR,
+           i_Dir_B_Full             := #i_Dir_B_Full,
+           i_Dir_C_Failure          := FALSE,
+           i_Dir_C_Available        := FALSE,
+           i_Dir_C_Full             := FALSE,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Direction_B,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+NETWORK
+TITLE =BC:Flow control
+//Check flow control
+      CALL "FC_Flow_Control_Chck" (
+           i_ANY_Direction_A        := #s_Direction_A,
+           i_ANY_Direction_B        := #s_Direction_B,
+           i_ANY_Direction_C        := #s_Direction_B,
+           i_CFG_Dir_C              := FALSE,
+           o_Enable_Flow_Control    := #t_Flow_Control_Enabled);
+
+      A     #t_Flow_Control_Enabled; 
+      JCN   BC99; 
+
+      CALL "FC_Flow_Dest_x" (
+           i_TEP_Dir_A              := #i_TEP_Dir_A,
+           i_TEP_Dir_B              := #i_TEP_Dir_B,
+           i_TEP_Dir_C              := 0,
+           i_Last_Dir               := #s_Last_Direction,
+           i_ANY_Direction_A        := #s_Direction_A,
+           i_ANY_Direction_B        := #s_Direction_B,
+           i_ANY_Direction_C        := #s_Direction_B,
+           i_Sett_TEP_Dir_A_Flow    := #i_DP_Settings.TEP_Dir_A_Flow,
+           i_Sett_TEP_Dir_B_Flow    := #i_DP_Settings.TEP_Dir_B_Flow,
+           i_Sett_TEP_Dir_C_Flow    := 0,
+           i_Sett_Number_Dir_A      := #i_DP_Settings.Number_Dir_A,
+           i_Sett_Number_Dir_B      := #i_DP_Settings.Number_Dir_B,
+           i_Sett_Number_Dir_C      := 0,
+           i_CNT_Load_Balance       := #s_CNT_Load_Balance,
+           i_Max_Time_Elapsed       := #s_Max_Time_Elapsed,
+           i_CFG_Dir_C              := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record,
+           o_CNT_Load_Balance       := #s_CNT_Load_Balance);
+
+BC99: NOP   0; 
+NETWORK
+TITLE =DA: Check for succes direction
+
+      L     0; 
+      T     #s_Succes_Direction.Destination_LIC; 
+      T     #s_Succes_Direction.Preference_A; 
+      T     #s_Succes_Direction.Preference_B; 
+      T     #s_Succes_Direction.Preference_C; 
+      T     #s_Succes_Direction.DecisionLvl; 
+      T     #s_Succes_Direction.FailedReason_A; 
+      T     #s_Succes_Direction.FailedReason_B; 
+      T     #s_Succes_Direction.FailedReason_C; 
+      T     #s_Succes_Direction.Direction; 
+
+      CALL "FC_Check_Pref_Dest_x" (
+           i_ANY_Direction_A        := #s_Direction_A,
+           i_ANY_Direction_B        := #s_Direction_B,
+           i_ANY_Direction_C        := #s_Direction_B,
+           i_ANY_Preferred_Dir      := #s_Succes_Direction,
+           i_CFG_Dir_C              := FALSE);
+
+NETWORK
+TITLE =EA: Constraints Equipment
+//If there is a direction then no constraints
+      L     0; 
+      L     #s_Succes_Direction.Direction; 
+      ==I   ; 
+      JCN   EA99; 
+
+      CALL "FC_Local_Mode_Dir" (
+           i_Fixed_Mode_Dir1        := #i_Fixed_Mode_Dir_A,
+           i_Fixed_Mode_Dir2        := #i_Fixed_Mode_Dir_B,
+           i_Fixed_Mode_Dir3        := FALSE,
+           i_ANY_Preferred_Dir      := #s_Succes_Direction);
+
+//If there is a direction then no constraints
+      CALL "FC_Local_Item_Dir" (
+           i_Item_Secure            := #s_Item_Secure,
+           i_Item_Class_ST          := #s_Item_Class_ST,
+           i_ANY_Preferred_Dir      := #s_Succes_Direction,
+           i_Local_Unsecure_Dir     := #i_CFG_Local_Unsecure_Dir,
+           i_Local_Dimension_Dir    := #i_CFG_Local_Dimensn_Dir);
+
+      CALL "FC_Secure_Dim_Dest_x" (
+           i_Item_Secure            := #s_Item_Secure,
+           i_Item_Class_ST          := #s_Item_Class_ST,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Succes_Direction,
+           i_Unsecure_Not_Allowed   := #i_CFG_UnSecure_Not_Allow,
+           i_Dimension_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+      CALL "FC_Dir_Avail_Dest_X" (
+           i_Dir_A_Failure          := #i_Dir_A_Failure,
+           i_Dir_A_Available        := #s_Dir_A_RTR,
+           i_Dir_A_Full             := #i_Dir_A_Full,
+           i_Dir_B_Failure          := #i_Dir_B_Failure,
+           i_Dir_B_Available        := #s_Dir_B_RTR,
+           i_Dir_B_Full             := #i_Dir_B_Full,
+           i_Dir_C_Failure          := FALSE,
+           i_Dir_C_Available        := FALSE,
+           i_Dir_C_Full             := FALSE,
+           i_CFG_Dir_C              := FALSE,
+           i_ANY_Decision_mess      := #s_Succes_Direction,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_Rep_Route              := #s_Rep_Route_Record);
+
+      CALL "FC_Transport_Default" (
+           i_CFG_Transport_Default  := #i_CFG_Transport_Default,
+           i_ANY_Preferred_Dir      := #s_Succes_Direction);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =GA: Execution
+
+      CALL "FC_Check_Succ_Dest_x" (
+           i_ANY_Succes_Dir         := #s_Succes_Direction);
+//Check Succes direction
+
+      L     #s_Succes_Direction.Direction; 
+      L     0; 
+      ==I   ; 
+      =     #o_Wait; 
+      JCN   GA01; 
+
+//If no direction, Decisionlevel = 10 ('Waiting')
+      L     10; 
+      T     #s_Succes_Direction.DecisionLvl; 
+
+//Clear the last LIC so decision stays active until direction is determined
+      L     -1; 
+      T     #s_Last_LIC; 
+
+GA01: CALL "FC_Exec_Succ_Dir" (
+           i_LNK                    := #i_LNK,
+           i_ANY_Decision_mess      := #s_Succes_Direction,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           i_CFG_Dir_C              := FALSE);
+
+      L     #s_Succes_Direction.Direction; 
+      T     #o_Direction; 
+
+//IF Decision level between 1 and 3, and flow control is enabled then enable sort control (If Used)
+      L     0; 
+      L     #s_Succes_Direction.DecisionLvl; 
+      <I    ; 
+      A(    ; 
+      L     4; 
+      <I    ; 
+      )     ; 
+      A     #t_Flow_Control_Enabled; 
+      =     #o_Sort_Control_Enabled; 
+
+      AN    #o_Wait; 
+      R     #o_No_Route_Available; 
+NETWORK
+TITLE =HA: Set Time for direction change
+
+      L     #s_Succes_Direction.Direction; 
+      L     #s_Last_Direction; 
+      ==I   ; 
+      BEC   ; 
+
+//----- Preset the Timer ----------------
+
+      A     "M_Toggle_SecTimer"; 
+      =     #s_Next_Hour_Timer; 
+
+      L     "MW_Hour_Sec"; 
+      L     #i_DP_Settings.TEP_Max_Time; 
+      +I    ; 
+      T     #s_CNT_Max_Time_Elapsed; 
+      L     L#3600; 
+      >I    ; 
+      JCN   HA01; 
+      L     #s_CNT_Max_Time_Elapsed; 
+      L     L#3600; 
+      -I    ; 
+      T     #s_CNT_Max_Time_Elapsed; 
+
+//If timer > max sec per hour, toggle bit
+      AN    "M_Toggle_SecTimer"; 
+      =     #s_Next_Hour_Timer; 
+
+HA01: L     #s_Succes_Direction.Direction; 
+      T     #s_Last_Direction; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,29 @@
+TYPE "UDT_Msg_Snd_Body"
+TITLE =%version: 0.08 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 30, 2016 2:17:00 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#14076: Package Instruct and report with pseudoID   nlHdL    14-06-16   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7632: Add blocks BIR12 for platform 4                 nlHdL    29-07-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//23824: Changed Message body to 202                    nlMlaut  29-04-15   0.06
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.05
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.04
+//18060: Update messages ID's for Vibes 3.2             nlHdL    01-04-14   1.10
+//18032: package instr & package rep update             nlHdL    14-02-14   1.02
+//Initial Version based on version 0.02 VIBES3.1        nlHdL    07-11-13   1.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Body : ARRAY  [1 .. 232 ] OF BYTE ;	
+  END_STRUCT ;	
+END_TYPE
+

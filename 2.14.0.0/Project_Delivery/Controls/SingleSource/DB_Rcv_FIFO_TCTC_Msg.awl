@@ -1,0 +1,47 @@
+DATA_BLOCK "DB_Rcv_FIFO_TCTC_Msg"
+TITLE =%version: 0.08 % CN: 20
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, April 20, 2017 4:30:28 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22145: Fifo Prefull_Num_Of_Records values          nlHdL    20-04-17   0.08
+//ina#4815: Reduce array entries in Fifo TCTC           nlHdL    30-03-17   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//23824: Changed Record length to 164                   nlMlaut  29-04-15   0.06
+//20643: DB moved to NON RETAIN memory                  nlHdL    16-09-14   0.05
+//14210: Header init of FIFO DB                         nlHdL    26-09-13   0.04
+//14210: Header init of FIFO DB                         nlHdL    26-09-13   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   General : "UDT_FIFO";	
+   Message : ARRAY  [0 .. 20 ] OF "UDT_PN_Msg_Body";	
+  END_STRUCT ;	
+BEGIN
+   General.Status.Empty := TRUE; 
+   General.Status.Prefull := FALSE; 
+   General.Status.Full := FALSE; 
+   General.Status.Record_Length_Too_Long := FALSE; 
+   General.Status.Wrong_Record_Length := FALSE; 
+   General.Status.Pointer_Out_Of_Range := FALSE; 
+   General.Status.Wrong_Prefull_Value := FALSE; 
+   General.Status.Blockmove_Fault := FALSE; 
+   General.Setting.Prefull_Num_Of_Records := 16; 
+   General.Setting.Record_Data_Length := 164; 
+   General.Num_Of_Records_stored := 0; 
+   General.Max_Numb_Of_Records := 0; 
+   General.Next_Record_store := 0; 
+   General.Next_Record_Retrieve := 0; 
+END_DATA_BLOCK
+

@@ -1,0 +1,32 @@
+TYPE "UDT_TRS_2PEC_Mspd_Int_Pr"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, August 03, 2017 1:04:45 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23790: Make UDT int prog for mulispeed 2 PEC       nlHdL    03-08-17   0.01
+//Initial revision based on 2PEC version 0.03           nlHdL    03-08-17   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Motor_Run : BOOL ;	//CMD: Run motor
+   Local_Start_Request : BOOL ;	//Local Start Request
+   Local_Reset_Request : BOOL ;	//Local Reset Request
+   OS_Direction_Change : BOOL ;	//One Shot Direction change
+   HW_Request_Halt : BOOL ;	//Request Halt by Hardware Layer
+   PPI_Displacement : INT ;	//Displacement of PPI
+   PEC_Offset : INT ;	//Offset of PEC
+   LPOS : INT ;	//Leading and Trailing Position from EQP PEC	
+   PEC_Offset_2 : INT ;	//Offset of PEC 2	
+   LPOS_2 : INT ;	//Leading and Trailing Position from EQP PEC 2	
+   Conveyor_Speed : INT ;	//[mm/s] Actual conveyor speed
+   Run_Out_Select_Speed : INT ;	//[cm] Run out distance selected speed
+   Start_Up_Select_Speed : INT ;	//[cm] Start up distance selected speed
+  END_STRUCT ;	
+END_TYPE
+

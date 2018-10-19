@@ -1,0 +1,20 @@
+TYPE "UDT_SOZ_Int_Prog"
+TITLE =%version: 1.01 % CN: 10 
+//History:
+//This version  %created_by:   nldy %
+//              %date_created:   Thursday, July 21, 2016 6:08:53 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                       nldy   21-07-16   1.01
+//
+FAMILY : RAW
+
+  STRUCT 	
+   TRS2_Num_DB_PLT : INT ; //DB number from PLT DB TRS2	
+   TRS3_Num_DB_PLT : INT ; //DB number from PLT DB TRS3	
+   Num_DB_Event : INT ; //DB number from Event DB 	
+  END_STRUCT ;	
+END_TYPE
+

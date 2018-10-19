@@ -1,0 +1,40 @@
+FUNCTION "FC_Force_Inputs_S" : VOID
+TITLE =%version: 0.01 % CN: 30
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Friday, June 30, 2017 2:30:42 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on obselete FB_Test_IN v0.05    nleg     27-06-17   0.01
+//
+//Example networks:
+//Couple "xxx_xx_xx_Force" signal (TRUE) to every Safety Event input
+//signal "xxx_xx_xx_Input" in DB_SE_SIF):
+//
+//1. Force Safety Events FRZ xxxx_01_00
+//      A     "DB_SE_FRC".ESO_ZZ_01_Force; 
+//      S     "DB_SE_SIF".ESO_ZZ_01_Input; 
+//
+//2. Force Safety Events FRZ xxxx_02_00
+//      A     "DB_SE_FRC".ESS_ZZ_02_Force; 
+//      =     "DB_SE_SIF".ESS_ZZ_02_Input
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+END_FUNCTION
+

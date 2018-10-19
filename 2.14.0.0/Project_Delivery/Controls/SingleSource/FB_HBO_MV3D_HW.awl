@@ -1,0 +1,374 @@
+FUNCTION_BLOCK "FB_HBO_MV3D_HW"
+TITLE =%version: 0.03 % CN: 40
+//Function:
+//Handles the hardware signals of the HBO
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, May 31, 2017 2:27:42 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21878: Update avail. report + rem. statisticals    nldy     31-05-17  0.03
+//ra#21158: Shift statisticals                          nldy     23-03-17  0.02
+//Initial version based on v0.04 in SIN_T1_CONV         nldy     06-03-17  0.01
+//
+//Description:
+//Check communication with screening machine and map IO.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Event_DB : BLOCK_DB ;	//Event DB
+  i_CFG_Avail_Rep_Time : INT ;	//CFG:[s] Interval time to send availability report to HLC
+  i_IO_HBO_Heartbeat : INT ;	//Data[1].L ISD Comms data: 'Seconds' used for heartbeat monitor
+  i_IO_Mode : INT ;	//Data[4].L ISD Comms data: Operational mode/state 
+  i_CMD_Reset : BOOL ;	//CMD: Reset 
+  i_Safety_OK : BOOL ;	//Safety is OK signal
+  i_Available_IO : BOOL ;	//Available IO
+  i_BHS_Error : BOOL ;	//Report error to ISD
+  i_IO_Emergency_Stop : BOOL ;	//Data[5].12 ISD Comms data: Emergency stop out bit to BHS
+  i_IO_HBO_E_Stop_Fault : BOOL ;	//Data[4].H ISD Comms data: Bit 1 for E-stop
+  i_IO_HBO_Interlock : BOOL ;	//Data[4].H ISD Comms data: Bit 2 for Interlock
+  i_IO_HBO_BagJam : BOOL ;	//Data[4].H ISD Comms data: Bit 3 for Bag Jam
+  i_IO_HBO_Conveyor_Fault : BOOL ;	//Data[4].H ISD Comms data: Bit 4 for Conveyor Fault
+  i_IO_HBO_System_Fault : BOOL ;	//Data[4].H ISD Comms data: Bit 5 for System Fault
+END_VAR
+VAR_OUTPUT
+  o_IO_Fault_Status_BHS : INT ;	//Data[4].H BHS system fault to ISD
+  o_IO_Remote_Estop_Reset : BOOL ;	//Trigger a machine Estop reset
+  o_Eqp_Operational_On : BOOL ;	//Machine is operational
+  o_ST_HBO_Scan : BOOL ;	//HBO Operating mode
+  o_ST_HBO_IQ_Test : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Conv_Mode : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Standby : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Initialize : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Fault : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Disconnected : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Dieback : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Flush_Required : BOOL ;	//HBO Operating mode
+  o_ST_HBO_Comm_Error : BOOL ;	//HBO Fault state communication error
+  o_ST_HBO_E_Stop_Fault : BOOL ;	//Machine reports: E-stop
+  o_ST_HBO_Interlock : BOOL ;	//Machine reports: Interlock
+  o_ST_HBO_System_Fault : BOOL ;	//Machine reports: System fault
+  o_ST_HBS_ST_PEC_Blk : BOOL ;	//Machine reports: PEC blockage
+  o_ST_HBS_Conveyor_Fault : BOOL ;	//Machine reports: Conveyor fault
+END_VAR
+VAR
+  s_Tmr : STRUCT 	//Timer
+   Heartbeat_TO_CurVal_ON : INT ;	//Timer current value
+   Heartbeat_TO_CurVal_OFF : INT ;	//Timer current value
+  END_STRUCT ;	
+  s_Prev_Val_Heartbeat : INT ;	//Previous value of heartbeat counter (Seconds from ISD)
+  s_Prev_Val_Mode : INT ;	//Previous value of the mode being sent by EDS
+  s_HBO_Available : INT ;	//Available state to be sent as AvailabilityReport
+  s_HBO_Avail_PrevScan : INT ;	//Available state to be sent as AvailabilityReport in previous scan
+  s_Availability_Timer : INT ;	//Send AvailabilityReport timer
+  s_Reset_Estop_TO_Cntr : INT ;	//Reset EDS Estop timeout counter
+  s_Avail_Timer_Elapsed : BOOL ;	//Availability timer timed out
+  s_HBO_Fault : BOOL ;	//HBO Operating mode
+  s_FN_Reset_EDS_Estop : BOOL ;	//Negative Flank EDS Estop Reset
+  s_OS_Estop_Rst_Success : BOOL ;	//One Shot: Estop reset command successfully sent to screening machine
+  s_OS_Availability_Change : BOOL ;	//One shot: Availability changed
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//DB event number
+  t_Not_Used : INT ;	//not used 
+  t_RET_VAL_Int : INT ;	//Int not used
+  t_TMR_Start : BOOL ;	//Timer start
+  t_Heartbeat_Timeout : BOOL ;	//Heartbeat timed out
+  t_Reset_EDS_Estop : BOOL ;	//Send Estop reset to EDS
+  t_Reset_EDS_Estop_TO : BOOL ;	//Timeout reset EDS Estop
+  t_Comm_Error : BOOL ;	//Comm Error
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB Event Nr
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+NETWORK
+TITLE =BA: Communication error
+//Monitor the 'seconds' sent by the screening machine. When the seconds are not 
+//changing, communication is down.
+      L     #s_Prev_Val_Heartbeat; 
+      L     #i_IO_HBO_Heartbeat; 
+      T     #s_Prev_Val_Heartbeat; 
+      ==I   ; 
+      =     #t_TMR_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_TMR_Start,
+           i_Enable_Dly             := #i_Available_IO,
+           i_Time_Value             := 50,
+           i_Current_Value          := #s_Tmr.Heartbeat_TO_CurVal_ON,
+           o_Status                 := #t_Heartbeat_Timeout,
+           o_Current_Value          := #s_Tmr.Heartbeat_TO_CurVal_ON);
+
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #t_Heartbeat_Timeout,
+           i_Enable_Dly             := #i_Available_IO,
+           i_Time_Value             := 100,
+           i_Current_Value          := #s_Tmr.Heartbeat_TO_CurVal_OFF,
+           o_Status                 := #t_Comm_Error,
+           o_Current_Value          := #s_Tmr.Heartbeat_TO_CurVal_OFF);
+
+      A     #t_Comm_Error; 
+      A     #i_Available_IO; 
+      =     #o_ST_HBO_Comm_Error; 
+NETWORK
+TITLE =CA: BHS fault status
+
+      L     0; 
+      A     #i_BHS_Error; 
+      JCN   CA99; 
+      L     1; 
+CA99: T     #o_IO_Fault_Status_BHS; 
+NETWORK
+TITLE =DA: Map current operating mode
+
+      L     #s_Prev_Val_Mode; 
+      L     #i_IO_Mode; 
+      T     #s_Prev_Val_Mode; 
+      <>I   ; 
+      JCN   DA22; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3903,// EDS mode change
+           i_Event_value            := #i_IO_Mode,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL_Int);
+
+DA22: AN    #t_Heartbeat_Timeout; 
+      ON    #i_Available_IO; 
+      JCN   DA20; 
+
+      L     #i_IO_Mode; // Filter SUB states
+      JL    DA20; 
+      JU    DA20; // 0 Start-up
+      JU    DA20; // 1 Initializing
+      JU    DA20; // 2 Standby
+      JU    DA20; // 3 Warm-up
+      JU    DA20; // 4 Scan
+      JU    DA20; // 5 X-Ray
+      JU    DA20; // 6 Fault
+      JU    DA21; // 7 Auto-calibration
+      JU    DA20; // 8 IQT
+      JU    DA20; // 9 Resync
+      JU    DA20; // 10 Pass-through
+      JU    DA21; // 11 Radiation Survey
+      JU    DA20; // 12 Hibernate   
+      JU    DA21; // 13 Tube Seasoning
+      JU    DA21; // 14 Dieback
+      JU    DA21; // 15 Flush Required 
+
+DA20: SET   ; 
+      R     #o_ST_HBO_Scan; 
+      R     #o_ST_HBO_IQ_Test; 
+      R     #o_ST_HBO_Conv_Mode; 
+      R     #o_ST_HBO_Standby; 
+      R     #o_ST_HBO_Initialize; 
+
+DA21: SET   ; 
+      R     #s_HBO_Fault; 
+      R     #o_ST_HBO_Dieback; 
+      R     #o_ST_HBO_Flush_Required; 
+      R     #o_ST_HBO_Disconnected; 
+
+      A     #i_Available_IO; 
+      JCN   DA99; 
+
+      L     #i_IO_Mode; // Evaluate i_IO_Mode
+      JL    DA01; 
+      JU    DA99; // 0 Start-up MAP TO nothing, also 0 if PLC off
+      JU    DA02; // 1 Initializing MAP TO Initialize
+      JU    DA03; // 2 Standby MAP TO Standby
+      JU    DA02; // 3 Warm-up MAP TO Initialize
+      JU    DA04; // 4 Scan MAP TO Scan
+      JU    DA10; // 5 X-Ray Off MAP TO Out of operation
+      JU    DA05; // 6 Fault MAP TO Fault
+      JU    DA10; // 7 Auto-calibration MAP TO Out of operation
+      JU    DA06; // 8 IQT MAP TO IQT
+      JU    DA10; // 9 Resync MAP TO Out of operation
+      JU    DA07; // 10 Pass-through MAP TO Conveyor mode
+      JU    DA10; // 11 Radiation Survey MAP TO Out of operation
+      JU    DA03; // 12 Hibernate MAP TO Standby   
+      JU    DA02; // 13 Tube Seasoning MAP TO Initialize
+      JU    DA08; // 14 Dieback MAP TO Dieback
+      JU    DA09; // 15 Flush Required MAP TO Flush Required
+
+DA01: L     #i_IO_Mode; 
+      L     99; 
+      ==I   ; 
+      S     #o_ST_HBO_Disconnected; 
+      JC    DA99; 
+      JCN   DA10; 
+
+DA02: S     #o_ST_HBO_Initialize; 
+      JU    DA99; 
+DA03: S     #o_ST_HBO_Standby; 
+      JU    DA99; 
+DA04: S     #o_ST_HBO_Scan; 
+      JU    DA99; 
+DA05: S     #s_HBO_Fault; 
+      JU    DA99; 
+DA06: S     #o_ST_HBO_IQ_Test; 
+      JU    DA99; 
+DA07: S     #o_ST_HBO_Conv_Mode; 
+      JU    DA99; 
+DA08: S     #o_ST_HBO_Dieback; 
+      JU    DA99; 
+DA09: S     #o_ST_HBO_Flush_Required; 
+
+      AN    #o_ST_HBO_Scan; 
+      AN    #o_ST_HBO_IQ_Test; 
+      AN    #o_ST_HBO_Conv_Mode; 
+      AN    #o_ST_HBO_Standby; 
+      AN    #o_ST_HBO_Initialize; 
+      S     #o_ST_HBO_Initialize; // Fix communication loss missing state
+
+      JU    DA99; 
+DA10: NOP   0; 
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Machine errors
+
+      A     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      O     #o_ST_HBO_Comm_Error; 
+      R     #o_ST_HBO_E_Stop_Fault; 
+      R     #o_ST_HBO_Interlock; 
+      R     #o_ST_HBS_ST_PEC_Blk; 
+      R     #o_ST_HBS_Conveyor_Fault; 
+      R     #o_ST_HBO_System_Fault; 
+      R     #o_ST_HBO_Fault; 
+
+      A     #s_OS_Estop_Rst_Success; 
+      R     #o_ST_HBO_E_Stop_Fault; 
+      R     #o_ST_HBO_Fault; 
+
+      A     #s_HBO_Fault; 
+      A     #i_Available_IO; 
+      AN    #o_IO_Remote_Estop_Reset; // Don't trigger error upon reset request
+      S     #o_ST_HBO_Fault; 
+
+      A     #i_IO_HBO_E_Stop_Fault; 
+      A     #i_Available_IO; 
+      AN    #o_IO_Remote_Estop_Reset; // Don't trigger error upon reset request
+      S     #o_ST_HBO_E_Stop_Fault; 
+
+      A     #i_IO_HBO_Interlock; 
+      S     #o_ST_HBO_Interlock; 
+
+      A     #i_IO_HBO_BagJam; 
+      S     #o_ST_HBS_ST_PEC_Blk; 
+
+      A     #i_IO_HBO_Conveyor_Fault; 
+      S     #o_ST_HBS_Conveyor_Fault; 
+
+      A     #i_IO_HBO_System_Fault; 
+      S     #o_ST_HBO_System_Fault; 
+NETWORK
+TITLE =FA: Handle system fault status
+
+      A     #o_ST_HBO_Scan; 
+      O     #o_ST_HBO_IQ_Test; 
+      O     #o_ST_HBO_Conv_Mode; 
+      O     #o_ST_HBO_Standby; 
+      O     #o_ST_HBO_Initialize; 
+      AN    #i_IO_Emergency_Stop; 
+      AN    #o_ST_HBO_E_Stop_Fault; 
+      AN    #o_ST_HBO_Interlock; 
+      AN    #o_ST_HBS_ST_PEC_Blk; 
+      AN    #o_ST_HBO_System_Fault; 
+      AN    #o_ST_HBS_Conveyor_Fault; 
+      AN    #o_ST_HBO_Fault; 
+      AN    #o_ST_HBO_Comm_Error; 
+      A     #i_Available_IO; 
+      =     #o_Eqp_Operational_On; // HBO machine technical Error (status)         
+NETWORK
+TITLE =GA: Send availability report
+
+      L     #s_HBO_Available; // Store availability of previous scan
+      T     #s_HBO_Avail_PrevScan; 
+
+      L     0; // Determine availability
+      T     #s_HBO_Available; 
+
+      A     #o_ST_HBO_Scan; 
+      AN    #o_ST_HBO_Comm_Error; 
+      A     #o_Eqp_Operational_On; 
+      A     #i_Available_IO; 
+      JCN   GA01; 
+
+      L     1; 
+      T     #s_HBO_Available; 
+
+GA01: L     #s_HBO_Available; // Detect availabilty changed
+      L     #s_HBO_Avail_PrevScan; 
+      <>I   ; 
+      =     #s_OS_Availability_Change; 
+
+      A     "M_OS_/1.0_sec."; // Repetition timer
+      JCN   GA03; 
+
+      L     #s_Availability_Timer; 
+      L     1; 
+      -I    ; 
+      JPZ   GA02; 
+      L     0; 
+GA02: T     #s_Availability_Timer; 
+GA03: L     #i_CFG_Avail_Rep_Time; 
+      L     0; 
+      <>I   ; 
+      A(    ; 
+      L     #s_Availability_Timer; 
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_Avail_Timer_Elapsed; 
+
+      A     #s_OS_Availability_Change; // Availability changed
+      O     #s_Avail_Timer_Elapsed; // Or 'send availability' interval elapsed
+      JCN   GA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1221,
+           i_Event_value            := #s_HBO_Available,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL_Int);
+
+      L     #i_CFG_Avail_Rep_Time; // After the availability report has been sent, pre-set the interval timer
+      T     #s_Availability_Timer; 
+
+GA99: NOP   0; 
+
+NETWORK
+TITLE =HA: Remote Estop reset
+
+      A     #i_Safety_OK; 
+      A     #i_IO_HBO_E_Stop_Fault; 
+      =     #t_Reset_EDS_Estop; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Reset_EDS_Estop,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 30,
+           i_Current_Value          := #s_Reset_Estop_TO_Cntr,
+           o_Status                 := #t_Reset_EDS_Estop_TO,
+           o_Current_Value          := #s_Reset_Estop_TO_Cntr);
+
+      A     #t_Reset_EDS_Estop; 
+      AN    #t_Reset_EDS_Estop_TO; 
+      =     #o_IO_Remote_Estop_Reset; 
+
+      A     #o_IO_Remote_Estop_Reset; 
+      FN    #s_FN_Reset_EDS_Estop; 
+      AN    #t_Reset_EDS_Estop; 
+      =     #s_OS_Estop_Rst_Success; 
+END_FUNCTION_BLOCK
+

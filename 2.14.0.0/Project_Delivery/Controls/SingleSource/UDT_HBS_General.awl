@@ -1,0 +1,30 @@
+TYPE "UDT_HBS_General"
+TITLE =%version: 0.02 % CN: 10 
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, October 25, 2017 7:21:05 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Screening pending updates                   nldy     25-10-17   0.02
+//Initial Version                                       nldy     22-05-17   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   ID_HandOver : DWORD ;	//ID of Section ID Record HEX AAAA - ZZSS.
+   PID : DINT ;	//Logistic Manager Baggage ID
+   LIC : INT ;	//LIC used in current area
+   DBNum_FIFO_HandOver : INT ;	//Number of send FIFO DB to downstream area.
+   DBNum_FIFO_Receive_Upstr : INT ;	//Number of receive FIFO DB from the upstream area.
+   DBNum_PLT_Buffer : INT ;	//Number of PLT buffer
+   X_RayIdscreening : ARRAY  [1 .. 10 ] OF //ID to screening machine
+   CHAR ;	
+   Item_Lost : BOOL ;	//Baggage lost (Used for Force Reject function)
+  END_STRUCT ;	
+END_TYPE
+

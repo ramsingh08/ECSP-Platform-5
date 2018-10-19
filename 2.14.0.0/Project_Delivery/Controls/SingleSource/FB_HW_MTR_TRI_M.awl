@@ -1,0 +1,381 @@
+FUNCTION_BLOCK "FB_HW_MTR_TRI_M"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Hardware driver for the motordrive of a TT / TF.
+// Type uses local MoviTrax.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, August 20, 2018 3:54:08 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version, based on version 0.10 HW TRI         nlHdL    20-08-18   0.01
+//
+//Description:                                  
+//
+//Generating the ASI errors and movitrax errors, motor connected
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IO_MS_ON : BOOL  := TRUE;	//HW: Maintenance Switch of motor in 'ON' position (ON=TRUE)
+  i_IO_KS_MAN : BOOL ;	//HW: Key switch - Manual
+  i_IO_DRV_Hlty : BOOL  := TRUE;	//HW: Frequency controller drive healthy
+  i_ASI_NotPrsnt_1 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_1 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_2 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_2 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_3 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_3 : BOOL ;	//ASI has an Error
+  i_MTR1_IO_CON_OK : BOOL  := TRUE;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor switched on)
+  i_MTR1_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_MTR2_IO_CON_OK : BOOL  := TRUE;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor switched on)
+  i_MTR2_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_MTR3_IO_CON_OK : BOOL  := TRUE;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor switched on)
+  i_MTR3_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_MTR4_IO_CON_OK : BOOL  := TRUE;	//HW: Fail safe signal Maintenance Switch on (TRUE=Motor switched on)
+  i_MTR4_IO_NOT_THO : BOOL  := TRUE;	//HW: Thermal overload signal (No Thermal overload=TRUE)  
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Forward : BOOL ;	//CMD: Run motor forward
+  i_CFG_Redundant_Setup : BOOL ;	//CFG: Can run when a motor is disconnected
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR_Reset : BOOL ;	//HW: Reset signal to LMS (Drive)
+  o_IO_MTR_FWD : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_ST_MS_Not_Automatic : BOOL ;	//ST: Maintenance Switch of motor in 'OFF' position
+  o_ST_ASI1_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_1 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI2_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_2 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI3_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_3 : BOOL ;	//ST: ASI slave has an error
+  o_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_MTR1_ST_Not_CON : BOOL ;	//ST: Motor not connected
+  o_MTR1_ST_THO : BOOL ;	//ST: Thermal overload
+  o_MTR2_ST_Not_CON : BOOL ;	//ST: Motor not connected
+  o_MTR2_ST_THO : BOOL ;	//ST: Thermal overload
+  o_MTR3_ST_Not_CON : BOOL ;	//ST: Motor not connected
+  o_MTR3_ST_THO : BOOL ;	//ST: Thermal overload
+  o_MTR4_ST_Not_CON : BOOL ;	//ST: Motor not connected
+  o_MTR4_ST_THO : BOOL ;	//ST: Thermal overload
+  o_MTR_ST_Multi_Not_CON : BOOL ;	//ST: Error Multiple motors not connected 
+END_VAR
+VAR
+  s_MTR_Error : BOOL ;	//LMS has error
+  s_MTR_Disconnected : BOOL ;	//One or more motors are disconnected
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	//Number of times the drive was started counter
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+  s_Reset_Timer : INT ;	//Reset Timer to extended signal
+END_VAR
+VAR_TEMP
+  t_Return_Value_Int : INT ;	//Return value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_Available_IO_1 : BOOL ;	
+  t_Available_IO_2 : BOOL ;	
+  t_Available_IO_3 : BOOL ;	
+  t_Start_Timer : BOOL ;	//Start reset timer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB event number to temp
+
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Handle electrical input statuses
+//Some errors and statuses are coming directly from electrical inputs. If the IO 
+//becomes not available, those inputs must be ignored, to avoid (as consequence 
+//of) all kind of meaningless status changes, which are indicated to HMI.
+//
+//The IO available signal needs to be suppressed when a reset pulse is given 
+//because during the reset pulse the LMS is still not healthy and thus the IO is 
+//still not available.
+      NOP   0; 
+
+      SET   ; 
+      R     #s_MTR_Disconnected; 
+
+// Detect available IO
+      A     #i_Available_IO; 
+      AN    #i_ASI_NotPrsnt_1; 
+      AN    #i_ASI_Error_1; 
+      =     #t_Available_IO_1; 
+
+      A     #i_Available_IO; 
+      AN    #i_ASI_NotPrsnt_2; 
+      AN    #i_ASI_Error_2; 
+      =     #t_Available_IO_2; 
+
+      A     #i_Available_IO; 
+      AN    #i_ASI_NotPrsnt_3; 
+      AN    #i_ASI_Error_3; 
+      =     #t_Available_IO_3; 
+
+// Reset states on ASI error
+      A     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #o_ST_ASI1_NotPrsnt; 
+      R     #o_ST_ASI_Error_1; 
+      R     #o_ST_ASI2_NotPrsnt; 
+      R     #o_ST_ASI_Error_2; 
+      R     #o_ST_ASI3_NotPrsnt; 
+      R     #o_ST_ASI_Error_3; 
+
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO_1; 
+      R     #o_ST_LMS_Not_Hthy; 
+
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO_2; 
+      R     #o_MTR1_ST_Not_CON; 
+      R     #o_MTR2_ST_Not_CON; 
+      R     #o_MTR_ST_Multi_Not_CON; 
+      R     #o_MTR1_ST_THO; 
+      R     #o_MTR2_ST_THO; 
+
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO_3; 
+      R     #o_MTR3_ST_Not_CON; 
+      R     #o_MTR4_ST_Not_CON; 
+      R     #o_MTR_ST_Multi_Not_CON; 
+      R     #o_MTR3_ST_THO; 
+      R     #o_MTR4_ST_THO; 
+
+// Reset MTR disconnected error
+// MTR not connected is a warning in a redundant setup
+      A     #i_CFG_Redundant_Setup; 
+      R     #o_MTR1_ST_Not_CON; 
+      R     #o_MTR2_ST_Not_CON; 
+      R     #o_MTR3_ST_Not_CON; 
+      R     #o_MTR4_ST_Not_CON; 
+
+// Set ASI errors
+      A     #i_ASI_NotPrsnt_1; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI1_NotPrsnt; 
+
+      A     #i_ASI_Error_1; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_1; 
+
+      A     #i_ASI_NotPrsnt_2; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI2_NotPrsnt; 
+
+      A     #i_ASI_Error_2; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_2; 
+
+      A     #i_ASI_NotPrsnt_3; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI3_NotPrsnt; 
+
+      A     #i_ASI_Error_3; 
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Error_3; 
+
+// MTR 1 Motor not connected
+      AN    #i_MTR1_IO_CON_OK; 
+      A     #t_Available_IO_2; 
+      S     #o_MTR1_ST_Not_CON; 
+
+      A     #o_MTR1_ST_Not_CON; 
+      S     #s_MTR_Disconnected; 
+
+// MTR 1 Motor thermal overload
+      AN    #i_MTR1_IO_NOT_THO; 
+      A     #t_Available_IO_2; 
+      S     #o_MTR1_ST_THO; 
+
+// MTR 2 Motor not connected
+      AN    #i_MTR2_IO_CON_OK; 
+      A     #t_Available_IO_2; 
+      S     #o_MTR2_ST_Not_CON; 
+
+      A     #o_MTR2_ST_Not_CON; 
+      A     #s_MTR_Disconnected; 
+      A     #i_CFG_Redundant_Setup; 
+      S     #o_MTR_ST_Multi_Not_CON; 
+
+      A     #o_MTR2_ST_Not_CON; 
+      S     #s_MTR_Disconnected; 
+
+// MTR 2 Motor thermal overload
+      AN    #i_MTR2_IO_NOT_THO; 
+      A     #t_Available_IO_2; 
+      S     #o_MTR2_ST_THO; 
+
+// MTR 3 Motor not connected
+      AN    #i_MTR3_IO_CON_OK; 
+      A     #t_Available_IO_3; 
+      S     #o_MTR3_ST_Not_CON; 
+
+      A     #o_MTR3_ST_Not_CON; 
+      A     #s_MTR_Disconnected; 
+      A     #i_CFG_Redundant_Setup; 
+      S     #o_MTR_ST_Multi_Not_CON; 
+
+      A     #o_MTR3_ST_Not_CON; 
+      S     #s_MTR_Disconnected; 
+
+// MTR 3 Motor thermal overload
+      AN    #i_MTR3_IO_NOT_THO; 
+      A     #t_Available_IO_3; 
+      S     #o_MTR3_ST_THO; 
+
+// MTR 4 Motor not connected
+      AN    #i_MTR4_IO_CON_OK; 
+      A     #t_Available_IO_3; 
+      S     #o_MTR4_ST_Not_CON; 
+
+      A     #o_MTR4_ST_Not_CON; 
+      A     #s_MTR_Disconnected; 
+      A     #i_CFG_Redundant_Setup; 
+      S     #o_MTR_ST_Multi_Not_CON; 
+
+      A     #o_MTR4_ST_Not_CON; 
+      S     #s_MTR_Disconnected; 
+
+// MTR 4 Motor thermal overload
+      AN    #i_MTR4_IO_NOT_THO; 
+      A     #t_Available_IO_3; 
+      S     #o_MTR4_ST_THO; 
+
+// Maintenance Switch of motor in 'OFF' position 
+      AN    #i_IO_MS_ON; // HW: Maintenance Switch of motor in 'ON' position (ON=TRUE)
+      A     #t_Available_IO_1; // AND IO available
+      =     #o_ST_MS_Not_Automatic; // THEN Maintenance Switch of motor in 'OFF' position 
+
+// LMS not automatic
+      A     #i_IO_KS_MAN; 
+      A     #t_Available_IO_1; 
+      =     #o_ST_LMS_Not_Auto; 
+
+//Reset LMS Extended Timer
+      AN    #o_IO_MTR_Reset; 
+      JCN   BA01; 
+
+      L     100; 
+      JU    BA02; 
+
+BA01: L     #s_Reset_Timer; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   BA02; 
+
+      R     #o_IO_MTR_Reset; 
+
+      L     0; 
+BA02: T     #s_Reset_Timer; 
+
+      A     #i_CMD_Reset; 
+      A     #s_MTR_Error; 
+      S     #o_IO_MTR_Reset; 
+
+// LMS (Drive) not Healthy 
+      AN    #i_IO_DRV_Hlty; 
+      A     #t_Available_IO_1; 
+      AN    #o_IO_MTR_Reset; 
+      S     #o_ST_LMS_Not_Hthy; 
+
+// Motor error
+      A     #o_ST_ASI1_NotPrsnt; 
+      O     #o_ST_ASI2_NotPrsnt; 
+      O     #o_ST_ASI3_NotPrsnt; 
+      O     #o_ST_ASI_Error_1; 
+      O     #o_ST_ASI_Error_2; 
+      O     #o_ST_ASI_Error_3; 
+      O     #o_MTR1_ST_THO; 
+      O     #o_MTR2_ST_THO; 
+      O     #o_MTR3_ST_THO; 
+      O     #o_MTR4_ST_THO; 
+      O     #o_ST_LMS_Not_Hthy; 
+      O     #o_MTR_ST_Multi_Not_CON; 
+      O(    ; 
+      AN    #i_CFG_Redundant_Setup; 
+      A     #s_MTR_Disconnected; 
+      )     ; 
+      =     #s_MTR_Error; 
+
+NETWORK
+TITLE =CA: Motor run signal
+
+      NOP   0; 
+
+// Determine when the motor forward output should be true
+// When a reset pulse is active make motor forward output true to reset the LMS
+      A     #i_CMD_Req_Motor_Forward; 
+      A     #i_Available_IO; 
+      AN    #o_ST_MS_Not_Automatic; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #s_MTR_Error; 
+      =     #o_IO_MTR_FWD; 
+NETWORK
+TITLE =DA: Determine statistical values
+
+      NOP   0; 
+
+// Determine the number of seconds that the motor is running 
+      A     #o_IO_MTR_FWD; 
+      A     "M_OS_New_Second"; 
+      JCN   DA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+// Determine the number of times the motor starts/stops
+DA01: A     #o_IO_MTR_FWD; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   DA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report Hardware: Motor Stopped (3902)
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+DA02: A     #i_CMD_Send_Stat; 
+      JCN   DA99; 
+
+      CALL "FC_Write_Event" (// Report statistical start/stop information
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of times the motor starts/stops after message has been send
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report statistical started time information
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of seconds that the motor is running after message has been send
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

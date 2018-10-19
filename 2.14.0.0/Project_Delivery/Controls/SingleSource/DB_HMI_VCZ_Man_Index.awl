@@ -1,0 +1,102 @@
+DATA_BLOCK "DB_HMI_VCZ_Man_Index"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Thursday, November 23, 2017 6:52:15 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                      inajos   23-11-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   VCZ_00_01 : "UDT_IF_HMI_Man";	
+   VCZ_00_02 : "UDT_IF_HMI_Man";	
+   TRS_02 : "UDT_IF_HMI_Man";	
+  END_STRUCT ;	
+BEGIN
+   VCZ_00_01.Mark_Code := 'VCZ'; 
+   VCZ_00_01.ID := DW#16#0; 
+   VCZ_00_01.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VCZ_00_01.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VCZ_00_01.Display_Bits.ID_Text_bit := TRUE; 
+   VCZ_00_01.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VCZ_00_01.Display_Bits.Button1_bit := TRUE; 
+   VCZ_00_01.Display_Bits.Button2_bit := FALSE; 
+   VCZ_00_01.Display_Bits.Button3_bit := FALSE; 
+   VCZ_00_01.Display_Bits.Button4_bit := FALSE; 
+   VCZ_00_01.Fixed.Function_No := 5; 
+   VCZ_00_01.Fixed.Par_ID_Name := 1; 
+   VCZ_00_01.Fixed.Par_Mode_Name := 1; 
+   VCZ_00_01.Fixed.Status := 0; 
+   VCZ_00_01.Fixed.Button1 := 10; 
+   VCZ_00_01.Fixed.Button2 := 0; 
+   VCZ_00_01.Fixed.Button3 := 0; 
+   VCZ_00_01.Fixed.Button4 := 0; 
+   VCZ_00_01.Display_Menu_Bits.Button1 := FALSE; 
+   VCZ_00_01.Display_Menu_Bits.Button2 := TRUE; 
+   VCZ_00_01.Display_Menu_Bits.Button3 := TRUE; 
+   VCZ_00_01.Display_Menu_Bits.Button4 := FALSE; 
+   VCZ_00_01.Display_Menu_Bits.Button5 := TRUE; 
+   VCZ_00_01.Display_Menu_Bits.Button6 := FALSE; 
+   VCZ_00_01.Display_Menu_Bits.Button7 := FALSE; 
+   VCZ_00_01.Display_Menu_Bits.Button8 := FALSE; 
+   VCZ_00_02.Mark_Code := 'VCZ'; 
+   VCZ_00_02.ID := DW#16#0; 
+   VCZ_00_02.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VCZ_00_02.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VCZ_00_02.Display_Bits.ID_Text_bit := TRUE; 
+   VCZ_00_02.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VCZ_00_02.Display_Bits.Button1_bit := FALSE; 
+   VCZ_00_02.Display_Bits.Button2_bit := TRUE; 
+   VCZ_00_02.Display_Bits.Button3_bit := FALSE; 
+   VCZ_00_02.Display_Bits.Button4_bit := FALSE; 
+   VCZ_00_02.Fixed.Function_No := 5; 
+   VCZ_00_02.Fixed.Par_ID_Name := 1; 
+   VCZ_00_02.Fixed.Par_Mode_Name := 1; 
+   VCZ_00_02.Fixed.Status := 0; 
+   VCZ_00_02.Fixed.Button1 := 0; 
+   VCZ_00_02.Fixed.Button2 := 1; 
+   VCZ_00_02.Fixed.Button3 := 0; 
+   VCZ_00_02.Fixed.Button4 := 0; 
+   VCZ_00_02.Display_Menu_Bits.Button1 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button2 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button3 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button4 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button5 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button6 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button7 := FALSE; 
+   VCZ_00_02.Display_Menu_Bits.Button8 := FALSE; 
+   TRS_02.Mark_Code := 'TRS'; 
+   TRS_02.ID := DW#16#2; 
+   TRS_02.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   TRS_02.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   TRS_02.Display_Bits.ID_Text_bit := TRUE; 
+   TRS_02.Display_Bits.ID_Status_Text_bit := TRUE; 
+   TRS_02.Display_Bits.Button1_bit := FALSE; 
+   TRS_02.Display_Bits.Button2_bit := TRUE; 
+   TRS_02.Display_Bits.Button3_bit := TRUE; 
+   TRS_02.Display_Bits.Button4_bit := FALSE; 
+   TRS_02.Fixed.Function_No := 5; 
+   TRS_02.Fixed.Par_ID_Name := 1; 
+   TRS_02.Fixed.Par_Mode_Name := 2; 
+   TRS_02.Fixed.Status := 0; 
+   TRS_02.Fixed.Button1 := 0; 
+   TRS_02.Fixed.Button2 := 4; 
+   TRS_02.Fixed.Button3 := 5; 
+   TRS_02.Fixed.Button4 := 0; 
+   TRS_02.Display_Menu_Bits.Button1 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button2 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button3 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button4 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button5 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button6 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button7 := FALSE; 
+   TRS_02.Display_Menu_Bits.Button8 := FALSE; 
+END_DATA_BLOCK
+

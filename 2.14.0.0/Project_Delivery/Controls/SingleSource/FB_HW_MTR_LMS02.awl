@@ -1,0 +1,217 @@
+FUNCTION_BLOCK "FB_HW_MTR_LMS02"
+TITLE =%version: 0.04 % CN: 40
+//Function:
+//
+//Hardware driver for the Siemens LMS.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:11:52 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//PR13607: Add Started_Time statistical to HW           nlHdL    19-04-13   0.03
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    01-11-12   0.02
+//Initial version                                       nlMRe    05-03-10   0.01
+//
+//Description:                                  
+//
+//Generating the ASI errors, and thermal overloads. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_LMS_NotPrsnt : BOOL ;	//ASI LMS is not Present
+  i_LMS_Error : BOOL ;	//ASI LMS has an error
+  i_IO_LMS_Auto : BOOL  := TRUE;	//HW: switch of the motor equipment is in 'Automatic' position 
+  i_IO_LMS_Error : BOOL  := TRUE;	//HW: LMS reports error 
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Forward : BOOL ;	//CMD: Run motor forward
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_IO_MTR_Quick_Stop : BOOL ;	//HW: Quick stop function disabled
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+END_VAR
+VAR
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+  s_Reset_Puls : BOOL ;	//Puls for reset to LMS
+  s_Reset_Active : BOOL ;	//Reset active while reset command is active
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+  s_CNT_Reset_Puls : INT ;	//Counter Reset puls
+END_VAR
+VAR_TEMP
+  t_Return_Value_Int : INT ;	//Return Value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB Event Nr
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Handle Electrical Input statuses
+//Some errors and statuses are coming directly from electrical inputs.
+//If the IO becomes not available, those inputs must be ignored, to avoid 
+//(as consequence of) all kind of meaningless status changes, 
+//which are indicated to HMI.
+//
+//REMARK: The status bit must be used in the application instead of 
+//        the input itself.
+      O     #i_CMD_Reset; // Reset Errors
+      ON    #i_Available_IO; 
+      R     #o_ST_ASI_NotPrsnt; 
+      R     #o_ST_ASI_Err; 
+
+      O     #i_CMD_Reset; // Reset Errors
+      ON    #i_Available_IO; 
+      O     #o_ST_ASI_NotPrsnt; // When an ASI slave is disconnected not healthy is reported before not present, not present shall have proirity
+      O     #o_ST_ASI_Err; 
+      O     #s_Reset_Puls; 
+      R     #o_ST_LMS_Not_Hthy; 
+
+// LMS ASI Not Present / Error
+
+      A     #i_LMS_NotPrsnt; // Set ASI LMS not present
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_NotPrsnt; 
+
+      A     #i_LMS_Error; // Set ASI LMS Error
+      A     #i_Available_IO; 
+      S     #o_ST_ASI_Err; 
+
+// LMS Not Automatic
+      AN    #i_IO_LMS_Auto; // If Motor not in 'Automatic' mode
+      AN    #i_IO_LMS_Error; // AND No error is reported
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI_NotPrsnt; // AND ASI LMS present
+      AN    #o_ST_ASI_Err; // AND ASI LMS not in error
+      =     #o_ST_LMS_Not_Auto; // THEN Motor Not in 'Automatic' position
+
+// LMS Not Healty
+      A     #i_IO_LMS_Error; // IF NOT healthy signal from motor
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_ASI_NotPrsnt; // AND ASI LMS present
+      AN    #o_ST_ASI_Err; // AND ASI LMS not in error
+      S     #o_ST_LMS_Not_Hthy; // Set Motor NOT Healthy
+NETWORK
+TITLE =CA: Reset command to LMS when error
+
+      AN    #s_Reset_Active; 
+      AN    #s_Reset_Puls; 
+      JCN   CA01; 
+
+      A     #o_ST_LMS_Not_Hthy; 
+      A     #i_Available_IO; 
+      A     #i_CMD_Reset; 
+      JCN   CA99; 
+      SET   ; 
+      S     #s_Reset_Puls; 
+      S     #s_Reset_Active; 
+
+      L     100; 
+      T     #s_CNT_Reset_Puls; 
+
+      JU    CA99; 
+
+CA01: L     #s_CNT_Reset_Puls; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   CA02; 
+
+      SET   ; 
+      R     #s_Reset_Puls; 
+
+      AN    #i_CMD_Reset; 
+      R     #s_Reset_Active; 
+      L     0; 
+CA02: T     #s_CNT_Reset_Puls; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Motor run signal
+
+      A     #i_CMD_Req_Motor_Forward; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #o_ST_LMS_Not_Hthy; 
+      O(    ; 
+      A     #s_Reset_Puls; 
+      A     #i_Available_IO; 
+      )     ; 
+      =     #o_IO_MTR_Fwd; 
+
+      A     #s_Reset_Puls; 
+      A     #i_Available_IO; 
+      =     #o_IO_MTR_Rev; 
+
+      A     #i_Available_IO; 
+      =     #o_IO_MTR_Quick_Stop; 
+NETWORK
+TITLE =EA: BPI counter
+
+      A     #o_IO_MTR_Fwd; 
+      A     "M_OS_New_Second"; 
+      JCN   EA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+EA01: A     #o_IO_MTR_Fwd; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   EA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+EA02: NOP   0; 
+
+      A     #i_CMD_Send_Stat; 
+      JCN   EA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+EA99: NOP   0; 
+END_FUNCTION_BLOCK
+

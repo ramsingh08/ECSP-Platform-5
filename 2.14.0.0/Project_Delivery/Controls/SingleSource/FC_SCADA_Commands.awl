@@ -1,0 +1,153 @@
+FUNCTION "FC_SCADA_Commands" : VOID
+TITLE =%version: 0.03 % CN: 30
+//Function:
+//Handle reset of SCADA interface DB bits.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:14 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.02
+//Initial revision based on version 1.3 of BHS          nlHdL    21-10-10   0.01
+//
+//Description:
+//Handle reset of SCADA interface DB bits.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  t_DB_Source_Num : INT ;	//Number of the source DB
+  t_DB_Source_Len : INT ;	//Length of the source DB
+  t_DB_Destination_Num : INT ;	//Number of the destination DB
+  t_DB_Destination_Len : INT ;	//Length of the destination DB
+  t_AR1_Backup : DWORD ;	//Backup of AR1 content
+  t_AR2_Backup : DWORD ;	//Backup of AR2 content
+  t_Num_Bytes_To_Copy : INT ;	//Number of bytes copied so far during copy procedure
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get DB info
+//Get information from DBs
+      OPN   "DB_SCADA_IF_Cmd"; 
+      L     DBNO; 
+      T     #t_DB_Source_Num; 
+      L     DBLG; 
+      T     #t_DB_Source_Len; 
+
+      OPN   "DB_Command"; 
+      L     DBNO; 
+      T     #t_DB_Destination_Num; 
+      L     DBLG; 
+      T     #t_DB_Destination_Len; 
+NETWORK
+TITLE =BA: Check DB length
+//The length of the Command DB must be at least the same as that of the SBADA 
+//Interface DB. If not, stop the PLC.
+      L     #t_DB_Destination_Len; 
+      L     #t_DB_Source_Len; 
+      ==I   ; 
+      JC    BA99; 
+
+      CALL "STP" ;
+
+////////////////////////////////////////////////////////////////
+// The PLC will go into Stop here if DB_Command is too small. //
+// DB_Command should be at least the same size as DB_SBADA_IF //
+////////////////////////////////////////////////////////////////
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Copy and clear
+//Copy the SCACA Interface DB (source DB) to the Command DB (destination DB).
+//Clear the SCACA Interface DB after it has been copied.
+//
+//Copying is done 4 bytes at a time. The remaining 2 bytes are copied at the end 
+//of 'the loop' if necessary.
+      NOP   0; 
+//Open source and destination DB
+      OPN   DB [#t_DB_Source_Num]; 
+      OPN   DI [#t_DB_Destination_Num]; 
+
+//Backup AR content
+      TAR1  ; 
+      T     #t_AR1_Backup; 
+      TAR2  ; 
+      T     #t_AR2_Backup; 
+
+//Preset AR1 (used for source of copy procedure)
+      L     DW#16#84000000; 
+      LAR1  ; 
+
+//Preset AR2 (used for destination of copy procedure)
+      L     DW#16#85000000; 
+      LAR2  ; 
+
+//Preset 'number of bytes to copy' counter
+      L     #t_DB_Source_Len; 
+      T     #t_Num_Bytes_To_Copy; 
+
+//Check if more than two bytes need to be copied
+      L     2; 
+      <=I   ; 
+      JC    CA02; 
+
+//Copy source to destination
+CA01: L     D [AR1,P#0.0]; 
+      T     D [AR2,P#0.0]; 
+
+//Clear source
+      L     0; 
+      T     D [AR1,P#0.0]; 
+
+//Increase source pointer
+      TAR1  ; 
+      L     P#4.0; 
+      +D    ; 
+      LAR1  ; 
+
+//Increase destination pointer
+      TAR2  ; 
+      L     P#4.0; 
+      +D    ; 
+      LAR2  ; 
+
+//Decrease 'number of bytes to copy' counter
+      L     #t_Num_Bytes_To_Copy; 
+      +     -4; 
+      T     #t_Num_Bytes_To_Copy; 
+
+//Check if complete source DB has been copied  
+      L     2; 
+      >I    ; 
+      JC    CA01; 
+
+//Check if there is a remainder of two bytes that was not copied
+      L     #t_Num_Bytes_To_Copy; 
+      L     0; 
+      >I    ; 
+      JCN   CA03; 
+
+//Copy remaining two bytes from source to destination
+CA02: L     W [AR1,P#0.0]; 
+      T     W [AR2,P#0.0]; 
+
+//Clear remaining two bytes in source 
+      L     0; 
+      T     W [AR1,P#0.0]; 
+
+//Restore AR content
+CA03: L     #t_AR1_Backup; 
+      LAR1  ; 
+      L     #t_AR2_Backup; 
+      LAR2  ; 
+END_FUNCTION
+

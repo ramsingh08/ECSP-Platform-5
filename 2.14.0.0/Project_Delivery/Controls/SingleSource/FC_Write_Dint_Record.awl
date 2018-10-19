@@ -1,0 +1,152 @@
+FUNCTION "FC_Write_Dint_Record" : VOID
+TITLE =%version: 0.06 % CN: 31
+//Function: 
+//Writes a DINT into a specified position in a specified Record within a DB.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:05:47 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//19518: Change input name from i_DB_Number to i_DB     nltny    07-08-14   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.04
+//CR8255 Update internal event logging value            nlcsu    11-11-11   0.03
+//CN number changed                                     nlHdL    31-01-11   0.02
+//Initial Revision                                      nlHdL    28-01-11   0.01
+//
+//Description:
+//Writes a DINT into a specified position in a specified Record within a DB.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Record_Number : INT ;	//Record number
+  i_P_DINT_Record : POINTER ;	//Pointer to DINT in Record
+  i_DB : BLOCK_DB ;	//DataBlock of the record where to read from
+  i_DINT : DINT ;	//DINT to be stored in the record
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_DB_Number : INT ;	//DB number of Record DB lay-out
+  t_Record_Length : INT ;	//Length of one record
+  t_Offset : INT ;	//Offset from the start of the record to information to write
+  t_Event_Data : INT ;	//Temp event data
+  t_Ret_Event : INT ;	//Return value for Write Event
+  t_INT_Return_Value : INT ;	//Return value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check DB number
+//If the DB number is not a valid DB number then the FB is ended.
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+      L     0; // IF DB_number is not correct
+      <=I   ; // Then end this module
+      JCN   AA99; 
+
+      L     0; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "DB Number does not excist" (3122)
+           i_Message_ID             := 3122,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Check Record Number
+//If the record number is not a valid Record number then the FB is ended.
+      L     #i_Record_Number; 
+      L     0; 
+      <I    ; // IF Record Num <= 0 THEN..
+      JCN   BA99; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "Invalid Record Number" (3123)
+           i_Message_ID             := 3123,
+           i_Event_value            := #i_Record_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Calculate 
+//Fetch information out of the pointer
+      L     P##i_P_DINT_Record; //Load pointer to Input parameter 
+      LAR1  ; //of the type Pointer
+
+      L     W [AR1,P#0.0]; //Load DB number out of the Pointer
+      T     #t_DB_Number; //This DB contains only one UDT of a specific record
+
+      OPN   DB [#t_DB_Number]; //Open this DB
+      L     DBLG; //and determine the length, which is also the length of the record
+      T     #t_Record_Length; 
+
+      L     D [AR1,P#2.0]; //Load the pointer to the DINT
+      T     #t_Offset; //This is the offset from the start of the record    
+
+NETWORK
+TITLE =DA: Check if DB is too small or record number too big
+
+      OPN   #i_DB; // Open DB
+      L     DBLG; // AND get its length..
+      L     DBW    0; // Length of Header
+      -D    ; 
+      L     #t_Record_Length; 
+      /D    ; // Maximum record number
+      L     #i_Record_Number; // Actual record number
+      <I    ; 
+      JCN   DA99; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+      CALL "FC_Write_Event" (// Report event "DB is too small" (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Read destination
+
+      L     #i_Record_Number; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Added offset of Header
+      +D    ; // Included the header
+      SLD   3; //Convert byte address to Pointer format
+      L     #t_Offset; //offset to DINT in record
+      +D    ; 
+      LAR1  ; //Pointer is ready
+
+      OPN   #i_DB; 
+      L     #i_DINT; //get DINT
+      T     DBD [AR1,P#0.0]; //and write into the record
+END_FUNCTION
+

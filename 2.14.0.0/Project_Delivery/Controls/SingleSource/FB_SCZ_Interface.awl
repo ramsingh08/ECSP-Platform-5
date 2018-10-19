@@ -1,0 +1,456 @@
+FUNCTION_BLOCK "FB_SCZ_Interface"
+TITLE =%version: 0.01 % CN: 30
+//Function:
+//To handle the commands from OP and the SCADA.
+//
+//History:
+//Original version  %created_by: inrjoi %
+//                  %date_created: Tuesday, June 20, 2017 8:03:58 AM %
+//                  %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version for PF5                               inrjoi   20-06-17   0.01
+//
+//Description:
+//This function combines (OR function) the commands coming from the SCADA and the 
+//operator panel for the Verticross SCZ01 variant. SCADA commands are not 
+//provided for Semi-Auto-Fixed and Manual modes. The statuses given to operator 
+//panel are also made in this function
+//
+//         OP_Commands -------->\
+//                               \_____(OR)_____ =  DB_Command   
+//                               /
+//      SCADA_Commands -------->/
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_SCZ_Command_OP : "UDT_SCZ_CMD";	
+  i_CMD_SCADA_Auto : BOOL ;	//Auto from SCADA
+  i_CMD_SCADA_Auto_Red_Up : BOOL ;	//Auto redundant up from SCADA
+  i_CMD_SCADA_Auto_Red_Dn : BOOL ;	//Auto redundant down from SCADA
+END_VAR
+VAR_OUTPUT
+  o_Command : "UDT_SCZ_CMD";	//Outputs to SCZ
+  o_Int_Prog_SCZ : "UDT_SCZ_Int_Prog";	//Int Programming of SCZ interface
+END_VAR
+VAR
+  s_Mode_Auto : BOOL ;	//Auto mode
+  s_Mode_SemiAuto : BOOL ;	//Semi-auto mode
+  s_Mode_Manual : BOOL ;	//Manual mode
+  s_Mode_SemiAuto_Fix_Up : BOOL ;	//Semi-auto fixed up mode
+  s_Mode_SemiAuto_Fix_St : BOOL ;	//Semi-auto fixed straight mode	
+  s_Mode_SemiAuto_Fix_Dn : BOOL ;	//Semi-auto fixed down mode
+  s_TRS1_Man_Run : BOOL ;	//Run TRS1 manually
+  s_TRS2_Man_Run : BOOL ;	//Run TRS2 manually
+  s_TRS3_Man_Run : BOOL ;	//Run TRS3 manually
+  s_TRS4_Man_Run : BOOL ;	//Run TRS4 manually
+  s_TRS5_Man_Run : BOOL ;	//Run TRS5 manually
+  s_TRS6_Man_Run : BOOL ;	//Run TRS6 manually
+  s_TRS7_Man_Run : BOOL ;	//Run TRS7 manually
+  s_TRS8_Man_Run : BOOL ;	//Run TRS8 manually
+  s_Mode_Man_Jog_Up : BOOL ;	//Jog the switch section up manually	
+  s_Mode_Man_Jog_Down : BOOL ;	//Jog the switch section down manually	
+  s_Mode_Man_Fix_Up : BOOL ;	//Fix the switch section up manually
+  s_Mode_Man_Fix_St : BOOL ;	//Fix the switch section straight manually	
+  s_Mode_Man_Fix_Dn : BOOL ;	//Fix the switch section down manually	
+  s_Mode_Auto_Redun_Up : BOOL ;	//Auto redundant up mode	
+  s_Mode_Auto_Redun_Dn : BOOL ;	//Auto redundant down mode	
+  s_Mode_Auto_St : BOOL ;	//Auto redundant straight mode	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Commands for auto mode
+//In the first scan: auto mode is selected
+//
+//
+// Auto mode
+      A     "M_First_Scan"; 
+      O     #i_SCZ_Command_OP.Auto; 
+      O     #i_SCZ_Command_OP.Auto_Redun_Up; 
+      O     #i_SCZ_Command_OP.Auto_Redun_Dn; 
+      O     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_SCADA_Auto_Red_Up; 
+      O     #i_CMD_SCADA_Auto_Red_Dn; 
+      R     #s_Mode_Manual; 
+      R     #s_Mode_SemiAuto; 
+      S     #s_Mode_Auto; 
+
+// Auto-mode redundant up
+      A     #i_SCZ_Command_OP.Auto; 
+      O     #i_SCZ_Command_OP.Auto_Redun_Dn; 
+      O     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_SCADA_Auto_Red_Dn; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_Mode_Auto_Redun_Up; 
+
+      A     #i_SCZ_Command_OP.Auto_Redun_Up; 
+      O     #i_CMD_SCADA_Auto_Red_Up; 
+      A     #s_Mode_Auto; 
+      AN    #s_Mode_Auto_St; 
+      S     #s_Mode_Auto_Redun_Up; 
+
+// Auto-mode redundant straight
+      A     #i_SCZ_Command_OP.Auto_Redun_Dn; 
+      O     #i_SCZ_Command_OP.Auto_Redun_Up; 
+      O     #i_CMD_SCADA_Auto_Red_Dn; 
+      O     #i_CMD_SCADA_Auto_Red_Up; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_Mode_Auto_St; 
+
+      A     #i_CMD_SCADA_Auto; 
+      O     #i_SCZ_Command_OP.Auto; 
+      A     #s_Mode_Auto; 
+      S     #s_Mode_Auto_St; 
+
+//Auto-mode redundant down
+      A     #i_SCZ_Command_OP.Auto; 
+      O     #i_SCZ_Command_OP.Auto_Redun_Up; 
+      O     #i_CMD_SCADA_Auto; 
+      O     #i_CMD_SCADA_Auto_Red_Up; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_Mode_Auto_Redun_Dn; 
+
+      A     #i_SCZ_Command_OP.Auto_Redun_Dn; 
+      O     #i_CMD_SCADA_Auto_Red_Dn; 
+      A     #s_Mode_Auto; 
+      AN    #s_Mode_Auto_St; 
+      S     #s_Mode_Auto_Redun_Dn; 
+
+NETWORK
+TITLE =BA: Commands for semi-auto mode
+// Semi-auto mode
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_Up; 
+      O     #i_SCZ_Command_OP.SemiAuto_Fix_St; 
+      O     #i_SCZ_Command_OP.SemiAuto_Fix_Dn; 
+      R     #s_Mode_Auto; 
+      R     #s_Mode_Manual; 
+      S     #s_Mode_SemiAuto; 
+
+// Semi-auto mode up
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_St; 
+      O     #i_SCZ_Command_OP.SemiAuto_Fix_Dn; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_Auto; 
+      R     #s_Mode_SemiAuto_Fix_Up; 
+
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_Up; 
+      A     #s_Mode_SemiAuto; 
+      S     #s_Mode_SemiAuto_Fix_Up; 
+
+// Semi-Automatic mode straight
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_Dn; 
+      O     #i_SCZ_Command_OP.SemiAuto_Fix_Up; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_Auto; 
+      R     #s_Mode_SemiAuto_Fix_St; 
+
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_St; 
+      A     #s_Mode_SemiAuto; 
+      S     #s_Mode_SemiAuto_Fix_St; 
+
+// Semi_Automatic mode down
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_St; 
+      O     #i_SCZ_Command_OP.SemiAuto_Fix_Up; 
+      O     #s_Mode_Manual; 
+      O     #s_Mode_Auto; 
+      R     #s_Mode_SemiAuto_Fix_Dn; 
+
+      A     #i_SCZ_Command_OP.SemiAuto_Fix_Dn; 
+      A     #s_Mode_SemiAuto; 
+      S     #s_Mode_SemiAuto_Fix_Dn; 
+
+NETWORK
+TITLE =CA: Commands For Manual mode
+// Manual mode
+      A     #i_SCZ_Command_OP.Man_TRS1_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS1_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS2_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS2_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS3_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS3_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS4_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS4_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS5_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS5_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS6_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS6_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS7_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS7_Stop; 
+      O     #i_SCZ_Command_OP.Man_TRS8_Start; 
+      O     #i_SCZ_Command_OP.Man_TRS8_Stop; 
+      O     #i_SCZ_Command_OP.Man_Jog_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Dn; 
+      O     #i_SCZ_Command_OP.Man_Fix_Up; 
+      O     #i_SCZ_Command_OP.Man_Fix_St; 
+      O     #i_SCZ_Command_OP.Man_Fix_Dn; 
+      R     #s_Mode_SemiAuto; 
+      R     #s_Mode_Auto; 
+      S     #s_Mode_Manual; 
+
+
+// Manual commands for sections
+      A     #i_SCZ_Command_OP.Man_TRS1_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS1_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS1_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS1_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS2_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS2_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS2_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS2_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS3_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS3_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS3_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS3_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS4_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS4_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS4_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS4_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS5_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS5_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS5_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS5_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS6_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS6_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS6_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS6_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS7_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS7_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS7_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS7_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS8_Stop; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_TRS8_Man_Run; 
+
+      A     #i_SCZ_Command_OP.Man_TRS8_Start; 
+      A     #s_Mode_Manual; 
+      S     #s_TRS8_Man_Run; 
+
+// Manual jog up
+      A     #i_SCZ_Command_OP.Man_Jog_Up; 
+      A     #s_Mode_Manual; 
+      =     #s_Mode_Man_Jog_Up; 
+
+// Manual jog down  
+      A     #i_SCZ_Command_OP.Man_Jog_Dn; 
+      A     #s_Mode_Manual; 
+      =     #s_Mode_Man_Jog_Down; 
+
+// Manual mode fixed up
+      A     #i_SCZ_Command_OP.Man_Fix_St; 
+      O     #i_SCZ_Command_OP.Man_Fix_Dn; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      O     #i_SCZ_Command_OP.Man_Jog_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Dn; 
+      R     #s_Mode_Man_Fix_Up; 
+
+      A     #i_SCZ_Command_OP.Man_Fix_Up; 
+      A     #s_Mode_Manual; 
+      S     #s_Mode_Man_Fix_Up; 
+
+// Manual mode fixed straight
+      A     #i_SCZ_Command_OP.Man_Fix_Dn; 
+      O     #i_SCZ_Command_OP.Man_Fix_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Dn; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_Mode_Man_Fix_St; 
+
+      A     #i_SCZ_Command_OP.Man_Fix_St; 
+      O     #i_SCZ_Command_OP.Man_Fix_St; 
+      A     #s_Mode_Manual; 
+      S     #s_Mode_Man_Fix_St; 
+
+// Manual mode fixed down
+      A     #i_SCZ_Command_OP.Man_Fix_St; 
+      O     #i_SCZ_Command_OP.Man_Fix_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Up; 
+      O     #i_SCZ_Command_OP.Man_Jog_Dn; 
+      O     #s_Mode_Auto; 
+      O     #s_Mode_SemiAuto; 
+      R     #s_Mode_Man_Fix_Dn; 
+
+      A     #i_SCZ_Command_OP.Man_Fix_Dn; 
+      A     #s_Mode_Manual; 
+      S     #s_Mode_Man_Fix_Dn; 
+
+
+NETWORK
+TITLE =DA: Create Mode For HMI
+
+      L     0; // when no mode selected
+      A     #s_Mode_Auto; // when Automatic
+      JCN   DA01; 
+      L     1; 
+      JU    DA05; 
+
+DA01: A     #s_Mode_SemiAuto_Fix_Up; // when Semi-Automatic Up selected
+      JCN   DA02; 
+      L     2; 
+      JU    DA99; 
+
+DA02: A     #s_Mode_SemiAuto_Fix_St; // when Semi-Automatic straight selected
+      JCN   DA03; 
+      L     3; 
+      JU    DA99; 
+
+DA03: A     #s_Mode_SemiAuto_Fix_Dn; // when Semi-Automatic Down selected
+      JCN   DA04; 
+      L     4; 
+      JU    DA99; 
+
+DA04: A     #s_Mode_Manual; // when Manual is selected
+      JCN   DA05; 
+      L     5; 
+      JU    DA99; 
+
+DA05: A     #s_Mode_Auto_Redun_Up; //When Automatic Redundant Up is selected
+      JCN   DA06; 
+      L     6; 
+      JU    DA99; 
+
+DA06: A     #s_Mode_Auto_Redun_Dn; //When Automatic Redundant Dn is selected
+      JCN   DA99; 
+      L     7; 
+
+DA99: T     #o_Int_Prog_SCZ.Operation_Mode_HMI; 
+      T     #o_Command.Operation_Mode_HMI; 
+NETWORK
+TITLE =EA: Assign outputs
+//Auto mode
+      A     #s_Mode_Auto; 
+      =     #o_Command.Auto; 
+      =     #o_Int_Prog_SCZ.Auto; 
+
+      A     #s_Mode_Auto_St; 
+      =     #o_Command.Auto_Redun_St; 
+      =     #o_Int_Prog_SCZ.Auto_Redun_St; 
+
+      A     #s_Mode_Auto_Redun_Up; 
+      =     #o_Command.Auto_Redun_Up; 
+      =     #o_Int_Prog_SCZ.Auto_Redun_Up; 
+
+      A     #s_Mode_Auto_Redun_Dn; 
+      =     #o_Command.Auto_Redun_Dn; 
+      =     #o_Int_Prog_SCZ.Auto_Redun_Dn; 
+
+// Semi-auto mode
+      A     #s_Mode_SemiAuto; 
+      =     #o_Command.Semi_Auto; 
+      =     #o_Int_Prog_SCZ.Semi_Auto; 
+
+      A     #s_Mode_SemiAuto_Fix_Up; 
+      =     #o_Command.SemiAuto_Fix_Up; 
+      =     #o_Int_Prog_SCZ.SemiAuto_Fix_Up; 
+
+      A     #s_Mode_SemiAuto_Fix_St; 
+      =     #o_Command.SemiAuto_Fix_St; 
+      =     #o_Int_Prog_SCZ.SemiAuto_Fix_St; 
+
+      A     #s_Mode_SemiAuto_Fix_Dn; 
+      =     #o_Command.SemiAuto_Fix_Dn; 
+      =     #o_Int_Prog_SCZ.SemiAuto_Fix_Dn; 
+
+// Manual mode
+      A     #s_Mode_Manual; 
+      =     #o_Command.Manual; 
+      =     #o_Int_Prog_SCZ.Manual; 
+
+      A     #s_TRS1_Man_Run; 
+      =     #o_Command.Man_TRS1_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS1_Run; 
+
+      A     #s_TRS2_Man_Run; 
+      =     #o_Command.Man_TRS2_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS2_Run; 
+
+      A     #s_TRS3_Man_Run; 
+      =     #o_Command.Man_TRS3_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS3_Run; 
+
+      A     #s_TRS4_Man_Run; 
+      =     #o_Command.Man_TRS4_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS4_Run; 
+
+      A     #s_TRS5_Man_Run; 
+      =     #o_Command.Man_TRS5_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS5_Run; 
+
+      A     #s_TRS6_Man_Run; 
+      =     #o_Command.Man_TRS6_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS6_Run; 
+
+      A     #s_TRS7_Man_Run; 
+      =     #o_Command.Man_TRS7_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS7_Run; 
+
+      A     #s_TRS8_Man_Run; 
+      =     #o_Command.Man_TRS8_Start; 
+      =     #o_Int_Prog_SCZ.Man_TRS8_Run; 
+
+      A     #s_Mode_Man_Jog_Up; 
+      =     #o_Command.Man_Jog_Up; 
+      =     #o_Int_Prog_SCZ.Man_Jog_Up; 
+
+      A     #s_Mode_Man_Jog_Down; 
+      =     #o_Command.Man_Jog_Dn; 
+      =     #o_Int_Prog_SCZ.Man_Jog_Dn; 
+
+      A     #s_Mode_Man_Fix_Up; 
+      =     #o_Command.Man_Fix_Up; 
+      =     #o_Int_Prog_SCZ.Man_Fix_Up; 
+
+      A     #s_Mode_Man_Fix_St; 
+      =     #o_Command.Man_Fix_St; 
+      =     #o_Int_Prog_SCZ.Man_Fix_St; 
+
+      A     #s_Mode_Man_Fix_Dn; 
+      =     #o_Command.Man_Fix_Dn; 
+      =     #o_Int_Prog_SCZ.Man_Fix_Dn; 
+
+END_FUNCTION_BLOCK
+

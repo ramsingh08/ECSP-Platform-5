@@ -1,0 +1,36 @@
+TYPE "UDT_SSM_Command_S"
+TITLE =%version: 0.03 % CN: 10 
+//History:
+//This version  %created_by: nleg %
+//              %date_created: Friday, February 10, 2017 3:26:53 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Moved command to reset from bit 0_1 to 0_2            nleg     10-02-17   0.03
+//Added author : VI_SAFE                                nleg     16-11-16   0.02
+//Initial revision                                      nleg     19-09-16   0.01
+//
+AUTHOR : VI_SAFE
+FAMILY : General
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Reset : BOOL ;	//Command to reset
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

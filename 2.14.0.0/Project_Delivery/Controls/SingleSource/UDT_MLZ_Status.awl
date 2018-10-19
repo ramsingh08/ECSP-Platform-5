@@ -1,0 +1,56 @@
+TYPE "UDT_MLZ_Status"
+TITLE =%version: 0.05 % CN: 10
+//History:
+//This version  %created_by:  nljclo %
+//              %date_created:  Thursday, November 17, 2016 8:41:26 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18630: Extend PBB statussen to 8 PBB's             nlJClo   17-11-16   0.05
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   0.04
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//21848: Added ASI Slave Errors                         nltny    17-02-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//Initial revision                                      nlcsu    21-12-11   0.01
+FAMILY : RAW
+
+
+  STRUCT 	
+   Full : BOOL ;	
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Spare_0_2 : BOOL ;	//Spare_0_2
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   SLC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   SLC_ASI_Error : BOOL ;	//ASI slave error
+   PBB_1_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_1_ASI_Error : BOOL ;	//ASI slave error
+   PBB_2_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_2_ASI_Error : BOOL ;	//ASI slave error
+   PBB_3_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_3_ASI_Error : BOOL ;	//ASI slave error
+   PBB_4_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_4_ASI_Error : BOOL ;	//ASI slave error
+   PBB_5_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_5_ASI_Error : BOOL ;	//ASI slave error
+   PBB_6_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_6_ASI_Error : BOOL ;	//ASI slave error
+   PBB_7_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_7_ASI_Error : BOOL ;	//ASI slave error
+   PBB_8_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_8_ASI_Error : BOOL ;	//ASI slave error
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,93 @@
+DATA_BLOCK "DB_VBZ_Type"
+TITLE =%version: 0.15 % CN: 20 
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, June 01, 2018 6:37:54 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27598: Switch gap error text number corrected      inajos   01-06-18   0.15
+//bhs_plf#4311: fixed mode is not shown on HMI          nlHdL    18-12-17   0.14
+//ra#26909: general state Redundancy to warning         nlHdL    08-12-17   0.13
+//ra#24976: Item not allowed on section VBZ             nlHdL    16-10-17   0.12
+//ra#19886: Modify unclear bag to Item not allowed      nlHdL    01-08-17   0.11
+//ra#21259: Add status No route available               nlHdL    30-03-17   0.10
+//ra#18174: DI NON_RETAIN PLC Memory                    nlHdL    14-12-16   0.09
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.08
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.08
+//15797: Keyword release added                          nlwwij   26-09-13   0.08
+//14493: ASI Slave errors on 62 and 63                  nlHdL    02-07-13   0.07
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.06
+//CR12401 ASI slave added for PEC 2                     nlple    17-01-13   0.05
+//PR8788 Update after site testing project Kiev         nlple    19-01-12   0.04
+//CR8321 Entered alarm number 134 for status 6          nlHHop   12-12-11   0.03
+//Added missing alarms                                  nlJBax   01-04-11   0.02
+//Initial Revision for Kiev                             nlMRe    15-11-10   0.01
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   Type_Component : BYTE ;	//Type of the component (1 = Section, 0 = Other)
+   Record_Length : BYTE ;	//Number of the Detailed Status in the UDT
+   Status : ARRAY  [1 .. 16 ] OF "UDT_Comp_Status";	
+  END_STRUCT ;	
+BEGIN
+   Type_Component := B#16#0; 
+   Record_Length := B#16#16; 
+   Status[1].HMI_Text_Number := -1; 
+   Status[1].Overall_Status_Relation := B#16#1; 
+   Status[1].General_Status_Relation := B#16#4; 
+   Status[2].HMI_Text_Number := -1; 
+   Status[2].Overall_Status_Relation := B#16#1; 
+   Status[2].General_Status_Relation := B#16#4; 
+   Status[3].HMI_Text_Number := -1; 
+   Status[3].Overall_Status_Relation := B#16#0; 
+   Status[3].General_Status_Relation := B#16#0; 
+   Status[4].HMI_Text_Number := -1; 
+   Status[4].Overall_Status_Relation := B#16#0; 
+   Status[4].General_Status_Relation := B#16#0; 
+   Status[5].HMI_Text_Number := 130; 
+   Status[5].Overall_Status_Relation := B#16#4; 
+   Status[5].General_Status_Relation := B#16#3; 
+   Status[6].HMI_Text_Number := -1; 
+   Status[6].Overall_Status_Relation := B#16#0; 
+   Status[6].General_Status_Relation := B#16#0; 
+   Status[7].HMI_Text_Number := 62; 
+   Status[7].Overall_Status_Relation := B#16#4; 
+   Status[7].General_Status_Relation := B#16#3; 
+   Status[8].HMI_Text_Number := 63; 
+   Status[8].Overall_Status_Relation := B#16#4; 
+   Status[8].General_Status_Relation := B#16#3; 
+   Status[9].HMI_Text_Number := -1; 
+   Status[9].Overall_Status_Relation := B#16#0; 
+   Status[9].General_Status_Relation := B#16#0; 
+   Status[10].HMI_Text_Number := 352; 
+   Status[10].Overall_Status_Relation := B#16#4; 
+   Status[10].General_Status_Relation := B#16#3; 
+   Status[11].HMI_Text_Number := 353; 
+   Status[11].Overall_Status_Relation := B#16#5; 
+   Status[11].General_Status_Relation := B#16#4; 
+   Status[12].HMI_Text_Number := -1; 
+   Status[12].Overall_Status_Relation := B#16#0; 
+   Status[12].General_Status_Relation := B#16#0; 
+   Status[13].HMI_Text_Number := -1; 
+   Status[13].Overall_Status_Relation := B#16#0; 
+   Status[13].General_Status_Relation := B#16#0; 
+   Status[14].HMI_Text_Number := -1; 
+   Status[14].Overall_Status_Relation := B#16#0; 
+   Status[14].General_Status_Relation := B#16#0; 
+   Status[15].HMI_Text_Number := -1; 
+   Status[15].Overall_Status_Relation := B#16#0; 
+   Status[15].General_Status_Relation := B#16#0; 
+   Status[16].HMI_Text_Number := -1; 
+   Status[16].Overall_Status_Relation := B#16#0; 
+   Status[16].General_Status_Relation := B#16#0; 
+END_DATA_BLOCK
+

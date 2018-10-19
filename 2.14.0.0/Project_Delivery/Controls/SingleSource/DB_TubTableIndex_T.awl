@@ -1,0 +1,28 @@
+DATA_BLOCK "DB_TubTableIndex_T"
+TITLE =%version: 0.04 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 18, 2018 9:08:46 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27276: Insert point DB_TubTblIndex & BagTblIndex   nlHdL    18-01-18   0.04
+//ra#25149: Update msgs layout as example               nlHdL    20-10-17   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.02
+//20645: Tubs Bags report blocks updated                nlHdL    09-09-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision                                      nlHdL    26-02-14   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;	//Example MMM_ZZ_SS : "UDT_TubTableIndex"	
+BEGIN
+END_DATA_BLOCK
+

@@ -1,0 +1,29 @@
+DATA_BLOCK "DB_Overall_SE"
+TITLE =%version: 0.03 % CN: 30
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Tuesday, July 04, 2017 3:26:40 PM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Change CN: 40 to CN: 30                               nleg     04-07-17   0.03
+//Rename block to "DB_Overall_SE"                       nleg     20-12-16   0.02
+//Initial version                                       nleg     25-11-16   0.01
+//
+FAMILY : SAFE
+VERSION : 0.0
+
+  STRUCT 	
+   Insert : BOOL ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;
+  
+BEGIN
+END_DATA_BLOCK
+

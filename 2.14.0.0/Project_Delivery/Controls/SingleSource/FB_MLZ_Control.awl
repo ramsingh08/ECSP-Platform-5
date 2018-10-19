@@ -1,0 +1,319 @@
+FUNCTION_BLOCK "FB_MLZ_Control"
+TITLE =%version: 1.07 % CN: 41
+//Function: 
+//This will control MLZ to accumulate the bags on the configured Gap, run the MLZ 
+//section by means of a push button and determining the MLZ status.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created: Wednesday, September 27, 2017 2:42:37 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24155: Startup not working                         nlHdL    27-09-17   1.07
+//ra#16880:Changed "i_CFG_Run_Out_Distance"             nlJClo   04-10-16   1.06
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   1.05
+//ra#16917: Update the MLZ according MCFV decomposition nlHdL    06-09-16   1.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.05
+//22684: FB_MLZ_Control PEC signal update with delay    nlHdL    27-05-15   1.05
+//18216: Add SOS PEC for more accurate Lane full        nlmlaut  27-03-14   1.04
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//14156: Set Version number in header Convention2       nlHdL    11-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.02 of PLT version 0
+//
+//Description:
+//- When the bag is at MLZ in-feed section Run out distance, then it will give 
+// 'request run' to the MLZ conveyor until configured gap is fulfilled. This will 
+//  be repeatedly continuing until MLZ conveyor is full.
+//- When the Gap is not fulfilled it will give request disable send for 
+//  the upstream section of the MLZ.
+//- When the operator pressed the forward pushbutton then the MLZ conveyor will
+//  be forced to run forward.
+//- When the MLZ is full, then the signal light will be lit. After configurable
+//  time when the MLZ is not cleared, a beeper will be activated. Infeed conveyor
+//  will not be able to insert new item and the pushbutton will not accept
+//  forward command. 
+//
+//
+//Description:
+//This will control MLZ to accumulate the bags on the configured Gap, run the MLZ 
+//section by means of a push button and determining the MLZ status.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock Upstream section
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Gap : INT ;	//CFG: [cm] Gap between the Baggage
+  i_CFG_Run_Out_Dis_Upstr : INT ;	//CFG: [cm] Run out distance from the upstream section
+  i_CFG_BP_Full : INT ;	//CFG: [sec] Delay before beeper is activated when MLZ is full
+  i_CFG_PEC_Dly_On_Filter : INT ;	//CFG: [sec] Delay PEC filter
+  i_PB_IO_Forward : BOOL ;	//HW: Push Button Run forward
+  i_IO_NOT_PEC_EOS : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (EOS) (TRUE=No product detected)
+  i_IO_NOT_PEC_SOS : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (SOS) (TRUE=No product detected)
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+END_VAR
+VAR_OUTPUT
+  o_CMD_Run_Section : BOOL ;	//CMD: Run MLZ conveyor
+  o_Req_Dis_Send_Infeed : BOOL ;	//Request disable send to infeed
+  o_IO_SL_Full : BOOL ;	//HW: Signal light indicating MLZ is full
+  o_IO_BP_Full : BOOL ;	//HW: Beeper indicating the MLZ is full
+  o_ST_MLZ_Full : BOOL ;	//ST: MLZ is full to the OP
+END_VAR
+VAR
+  s_PLT_DB_Upstream_Info : STRUCT 	//Upstream PLT DB Info
+   Section_Length : INT ;	//Length of section
+   DB_Number : INT ;	//Section PLT DB Number
+   Upstream_PLT_Nr : INT ;	//Upstream PLT DB Number
+   Downstream_PLT_Nr : INT ;	//Downstream PLT DB Number
+   Section_Run : BOOL ;	//Section is running
+   Item_At_HO : BOOL ;	//Item is in handover area
+  END_STRUCT ;	
+  s_PLT_DB_MLZ_Info : STRUCT 	//MLZ Section PLT DB info
+   Section_Length : INT ;	//Length of section
+   DB_Number : INT ;	//Section PLT DB Number
+   Upstream_PLT_Nr : INT ;	//Upstream PLT DB Number
+   Downstream_PLT_Nr : INT ;	//Downstream PLT DB Number
+   Section_Run : BOOL ;	//Section is running
+   Item_At_HO : BOOL ;	//Item is in handover area
+  END_STRUCT ;	
+  s_Info_Reset_Req_Run : INT ;	//Variable of trailing edge detection
+  s_Info_Set_Req_Run : INT ;	//Variable of leading edge detection
+  s_Timer_Current_Value : INT ;	//Current Value of the timer
+  s_Timer_Time_Value : INT ;	//Preset value of the timer
+  s_PEC_FlapFilter : INT ;	//GR PEC Flap filter timer
+  s_Copy_FN_Stop_Motor : BOOL ;	//Flank negative copy stop motor
+  s_FN_Stop_Motor : BOOL ;	//Flank negative stop motor
+  s_Start_Run_Motor : BOOL ;	//Request to start motor
+  s_Request_Run_Motor : BOOL ;	//Request to run motor to external
+  s_Start_Timer : BOOL ;	//Request to start the timer
+  s_Beeper_Active : BOOL ;	//Request to activate beeper
+  s_IO_NOT_PEC : BOOL ;	//Photocell full detection
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address' mask
+  t_DB_PLT_Upstream_Nr : INT ;	//PLT DB Number upstream
+  t_DB_PLT_Nr_MLZ : INT ;	//PLT DB Number MLZ section
+  t_Not_Used_Int : INT ;	//Temporary Integer
+  t_CFG_PEC_Dly_On_Filter : INT ;	//CFG: [sec] Delay PEC filter
+  t_Position_found : INT ;	//Position found
+  t_DB_Num_Event : INT ;	//Number of the Event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Obtain relative address from AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register' 
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Determine Initial Variables
+
+      NOP   0; // Hold comments
+
+// Load Upstream PLT DB and read DB Number
+      OPN   #i_DB_PLT_UpStr; 
+      L     DBNO; 
+      T     #t_DB_PLT_Upstream_Nr; 
+      T     #s_PLT_DB_Upstream_Info.DB_Number; 
+
+// Get data from PLT DB upstream
+      L     DBW    6; 
+      T     #s_PLT_DB_Upstream_Info.Upstream_PLT_Nr; 
+
+      L     DBW    8; 
+      T     #s_PLT_DB_Upstream_Info.Downstream_PLT_Nr; 
+
+      L     DBW   12; 
+      T     #s_PLT_DB_Upstream_Info.Section_Length; 
+
+      A     DBX   10.1; 
+      =     #s_PLT_DB_Upstream_Info.Section_Run; 
+
+      A     DBX   10.6; 
+      =     #s_PLT_DB_Upstream_Info.Item_At_HO; 
+
+// Get data from PLT DB of MLZ Section
+      L     #s_PLT_DB_Upstream_Info.Downstream_PLT_Nr; 
+      T     #t_DB_PLT_Nr_MLZ; 
+      OPN   DB [#t_DB_PLT_Nr_MLZ]; 
+      L     DBNO; 
+      T     #s_PLT_DB_MLZ_Info.DB_Number; 
+
+      L     DBW    6; 
+      T     #s_PLT_DB_MLZ_Info.Upstream_PLT_Nr; 
+
+      L     DBW    8; 
+      T     #s_PLT_DB_MLZ_Info.Downstream_PLT_Nr; 
+
+      L     DBW   12; 
+      T     #s_PLT_DB_MLZ_Info.Section_Length; 
+
+      A     DBX   10.1; 
+      =     #s_PLT_DB_MLZ_Info.Section_Run; 
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Num_Event; 
+NETWORK
+TITLE =CA: Handle run request
+
+      A     #s_PLT_DB_MLZ_Info.Section_Run; 
+      JCN   CA01; //Clear E-save MLZ is inching
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_MLZ_Info.DB_Number,
+           i_Position               := #s_PLT_DB_MLZ_Info.Section_Length,
+           i_Window                 := #s_PLT_DB_MLZ_Info.Section_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Position_found,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Position_found; 
+      L     0; 
+      >I    ; 
+      JCN   CA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_MLZ_Info.DB_Number,
+           i_Position               := #t_Position_found,
+           i_Info_Physical          := -3,
+           i_DB_Event_Num           := #t_DB_Num_Event);
+
+// Check if configured gap is not 0. If configured gap is 0 THEN
+// Gravity Roller is used instead of BF section, so accumulation
+// can be ignored.
+
+CA01: L     #i_CFG_Gap; 
+      L     0; 
+      >I    ; 
+      JCN   CA99; 
+
+// Search on MLZ section PLT DB on Gap area, for any trailing edge
+// If trailing edge is not found anymore then stop run request
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_MLZ_Info.DB_Number,
+           i_Position               := #s_PLT_DB_MLZ_Info.Section_Length,
+           i_Window                 := #i_CFG_Gap,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #s_Info_Reset_Req_Run,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      A(    ; 
+      L     #s_Info_Reset_Req_Run; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      FN    #s_Copy_FN_Stop_Motor; 
+      =     #s_FN_Stop_Motor; 
+
+// Search on upstream section on the handover area, for any leading edge
+// If there is any leading edge then start MLZ section motor
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Upstream_Info.DB_Number,
+           i_Position               := #i_CFG_Run_Out_Dis_Upstr,
+           i_Window                 := #i_CFG_Run_Out_Dis_Upstr,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #s_Info_Set_Req_Run,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      A(    ; 
+      L     #s_Info_Set_Req_Run; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      =     #s_Start_Run_Motor; 
+
+// Handle request disable send
+      A(    ; 
+      L     #s_Info_Reset_Req_Run; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      O     #o_ST_MLZ_Full; 
+      =     #o_Req_Dis_Send_Infeed; 
+
+// Handle run motor request
+      A     #s_Start_Run_Motor; 
+      S     #s_Request_Run_Motor; 
+
+// Handle stop motor request
+      A     #s_FN_Stop_Motor; 
+      R     #s_Request_Run_Motor; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Full Detection
+
+      NOP   0; // Hold comments
+
+//Delay ON PEC filter 
+      L     #i_CFG_PEC_Dly_On_Filter; 
+      L     10; 
+      *I    ; 
+      T     #t_CFG_PEC_Dly_On_Filter; 
+
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #i_IO_NOT_PEC_EOS,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #t_CFG_PEC_Dly_On_Filter,
+           i_Current_Value          := #s_PEC_FlapFilter,
+           o_Status                 := #s_IO_NOT_PEC,
+           o_Current_Value          := #s_PEC_FlapFilter);
+
+// Photocell is covered, activate signal light immediately
+      A     #i_Available_IO; 
+      AN    #s_IO_NOT_PEC; 
+      AN    #i_IO_NOT_PEC_SOS; 
+      =     #o_IO_SL_Full; 
+      =     #o_ST_MLZ_Full; 
+      =     #s_Start_Timer; 
+
+// Convert configuration from seconds to 0.1 sec unit
+      L     #i_CFG_BP_Full; 
+      L     10; 
+      *I    ; 
+      T     #s_Timer_Time_Value; 
+
+// Start timer to handle beeper signal
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_Start_Timer,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #s_Timer_Time_Value,
+           i_Current_Value          := #s_Timer_Current_Value,
+           o_Status                 := #s_Beeper_Active,
+           o_Current_Value          := #s_Timer_Current_Value);
+
+// IF Timer is elapsed then activate beeper
+      A     #s_Beeper_Active; 
+      A     "M_System_Clock_2.0_sec."; 
+      =     #o_IO_BP_Full; 
+NETWORK
+TITLE =EA: Handle motor run request
+
+      AN    #o_ST_MLZ_Full; // IF MLZ is not reporting full
+      A(    ; // AND
+      O     #s_Request_Run_Motor; // Inching request
+      O     #i_PB_IO_Forward; // OR Forced run from pushbutton
+      )     ; 
+      =     #o_CMD_Run_Section; // THEN Request run motor
+END_FUNCTION_BLOCK
+

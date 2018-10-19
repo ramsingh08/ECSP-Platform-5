@@ -1,0 +1,2557 @@
+FUNCTION_BLOCK "FB_SCZ01"
+TITLE =%version: 0.05 % CN: 60
+//Function:
+//Module to control the verticross variant SCZ01 in all the modes.
+//
+//History:
+//Original version  %created_by: nlhdl %
+//                  %date_created: Wednesday, January 17, 2018 4:00:30 PM %
+//                  %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//veg#1814: Trackingreport wrong decision level         nlHdL    17-01-18   0.05
+//ra#24877: Don't clear tracking when fence opened      nlHdL    09-10-17   0.04
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   0.03
+//ra#24387: Update after testing                        inrjoi   17-08-17   0.02
+//Initial version for PF5                               inrjoi   20-06-17   0.01
+//
+//Description:
+//Controls the Verticross Infeeds, outfeeds and the switch section. 
+//
+//   TRS.AA.01.01  |             --------> Flow               |   TRS.AA.03.01
+//  _______________|__________________________________________|_________________
+//  Upper Upstream I TRS.AA.02.02  SWS.AA.02.01  TRS.AA.02.03 I Upper Downstream
+//   --->          I Upper Infeed     Up/Down   Upper Outfeed I --->
+//  ---------------I--------------              --------------I-----------------
+//  Lower Upstream I TRS.AA.02.04                TRS.AA.02.05 I Lower Downstream
+//   --->          I Lower Infeed               Lower Outfeed I --->
+//  ---------------I--------------              --------------I-----------------
+//  _______________I__________________________________________I_________________
+//                 |                                          |              
+//   TRS.AA.04.01  |                                          |   TRS.AA.05.01 
+//  <---Infeeds--->|<-----------Switching sections----------->|<---Outfeeds---->
+//
+//The verticross zone SCZ01 variant is used for redundancy in two modes. 
+//1 - Auto Redundant Straight, Up and Down
+//2 - Semi Auto Fixed Straight, Up and Down
+//
+//**Auto Redundant Modes**
+//--------------------------------------------------------------------|
+//*Auto (Redundant Straight): The bags can flow straight through from,|
+//                            Upper Infeed --------> Upper Outfeed    |
+//                            Lower Infeed --------> Lower Outfeed    |
+//                                                                    |
+//*Auto Redundant Up        : The bags can flow Up from,              | 
+//                            Upper Infeed --------> Upper Outfeed    |
+//                            Lower Infeed --------> Upper Outfeed    | 
+//                                                                    |
+//*Auto Redundant Down      : The bags can flow Down from,            |
+//                            Upper Infeed --------> Lower Outfeed    |
+//                            Lower Infeed --------> Lower Outfeed    |
+//--------------------------------------------------------------------|
+//
+//**Semi-Auto Fixed Modes**
+//-------------------------------------------------------------------|
+//*Semi-Auto Fixed Straight: The bags can flow straight through from,|
+//                         Upper Infeed --------> Upper Outfeed      |
+//                         Lower Infeed --------> Lower Outfeed      |
+//                                                                   |
+//*Semi-Auto Fixed Up      : The bags can flow Up from,              | 
+//                         Upper Infeed Bags will stop.              |
+//                         Lower Infeed --------> Upper Outfeed      | 
+//                                                                   |
+//*Semi-Auto Fixed Down    : The bags can flow Down from,            |
+//                         Upper Infeed --------> Lower Outfeed      |
+//                         Lower Infeed Bags will stop.              |
+//-------------------------------------------------------------------|
+//
+//Manual Modes are for maintainence purpose.
+//
+//The SWS contains SEW movidrive which allows a complete switch 
+//action in 1.2 seconds.  
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAAZZSS/OO
+  i_Setting : "UDT_SCZ_Settings";	//Data Structure: Setting Record
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Command : "UDT_SCZ_CMD";	//Data Structure: Command
+  i_IO_Available : BOOL ;	//IO is OK signal (no fieldbus or IO error)
+  i_Safety_OK : BOOL ;	//Safety is OK signal
+  i_Send_Statistics : BOOL ;	//Trigger send and clear statistics
+  i_CFG_PLC_No_Msg_To_Rout : BOOL ;	//CFG: Send No messages to Routing (If TRUE = No Messages are send to High Level)
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_CFG_Start_Up_Distance : INT ;	//CFG: [cm] Distance from standstill to nominal speed
+  i_CFG_Blockage_Length : INT  := 200;	//CFG: [cm] Delay for detecting a PEC blockage
+  i_CFG_DieBack_Pos_Infeed : INT  := 50;	//CFG: [cm] Die Back position before the end of the infeed conveyors    
+  i_DB_PLT_Dwnstr_Up : BLOCK_DB ;	//Data Structure: DB PLT downstream section (up)
+  i_DB_PLT_Dwnstr_Dn : BLOCK_DB ;	//Data Structure: DB PLT downstream section (down)
+  i_IO_NOT_PEC_JAM1 : BOOL ;	//HW: JAM1 PEC during switch at down infeed(TRUE = No product detected)
+  i_IO_NOT_PEC_JAM2 : BOOL ;	//HW: JAM2 PEC during switch at down outfeed (TRUE = No product detected)
+  i_IO_NOT_PEC_JAM3 : BOOL ;	//HW: JAM3 PEC during switch at up infeed (TRUE = No product detected)
+  i_IO_NOT_PEC_JAM4 : BOOL ;	//HW: JAM4 PEC during switch at up outfeed (TRUE = No product detected)  
+  i_IO_NOT_PEC_HAC1 : BOOL ;	//HW: HAC1 PEC (gap clear) during switch at up infeed (TRUE = No product detected
+  i_IO_NOT_PEC_HAC2 : BOOL ;	//HW: HAC1 PEC (gap clear) during switch at down infeed (TRUE = No product detect
+  i_IO_GS_Gate1 : BOOL ;	//HW: Proximity switch of the gate (TRUE = Fence closed)
+  i_IO_GS_Gate2 : BOOL ;	//HW: Proximity switch of the gate (TRUE = Fence closed)  
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Ext_Req_Dis_Send : BOOL ;	//Request signal from external to not send next item to downstream
+  i_Ext_Req_Rst_ESave : BOOL ;	//Request signal form external to reset energy save
+  i_SWS1_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO
+  i_SWS1_PN_Not_Prsnt : BOOL ;	//Profinet slave not present
+  i_SWS1_PN_Error : BOOL ;	//Profinet slave error
+  i_SWS1_CFG_Homing_Speed : INT ;	//CFG: [mm/sec] Homing speed 
+  i_SWS1_CFG_Default_Speed : INT ;	//CFG: [mm/sec] Default speed 
+  i_SWS1_CFG_IO_StrtAddr : INT ;	//CFG: Start address of profinet slave for movidrive
+  i_SWS1_CFG_Pos_Up : INT ;	//CFG: [mm] Position up
+  i_SWS1_CFG_Pos_St : INT ;	//CFG: [mm] Position straight
+  i_SWS1_CFG_Pos_Dn : INT ;	//CFG: [mm] Position Down
+  i_SWS1_CFG_TO_Pos_Up : INT ;	//CFG: [ms] Time-out time for position up 
+  i_SWS1_CFG_TO_Pos_St : INT ;	//CFG: [ms] Time-out for position straight
+  i_SWS1_CFG_TO_Pos_Dn : INT ;	//CFG: [ms] Time-out time for position down  
+  i_TRS2_ID : DWORD ;	//ID Record HEX AAAAZZSS/OO
+  i_TRS2_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting
+  i_TRS2_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_TRS2_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS2_IO_NOT_EOS_PEC : BOOL ;	//HW: End Of Section PEC (TRUE = No product detected)
+  i_TRS2_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (TRUE = No Thermal overload)
+  i_TRS2_IO_PPI : BOOL ;	//HW: The PPI signal  
+  i_TRS3_ID : DWORD ;	//ID Record HEX AAAAZZSS/OO
+  i_TRS3_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting
+  i_TRS3_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_TRS3_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS3_IO_NOT_EOS_PEC : BOOL ;	//HW: End Of Section PEC (TRUE = No product detected)
+  i_TRS3_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (TRUE = No Thermal overload)  
+  i_TRS3_IO_PPI : BOOL ;	//HW: The PPI signal  
+  i_TRS4_ID : DWORD ;	//ID Record HEX AAAAZZSS/OO
+  i_TRS4_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting
+  i_TRS4_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_TRS4_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link
+  i_TRS4_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS4_IO_NOT_EOS_PEC : BOOL ;	//HW: End Of Section PEC (TRUE = No product detected)
+  i_TRS4_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (TRUE = No Thermal overload)  
+  i_TRS4_IO_PPI : BOOL ;	//HW: The PPI signal  
+  i_TRS5_ID : DWORD ;	//ID Record HEX AAAAZZSS/OO
+  i_TRS5_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting
+  i_TRS5_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor speed
+  i_TRS5_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link
+  i_TRS5_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS5_IO_NOT_EOS_PEC : BOOL ;	//HW: End Of Section PEC (TRUE = No product detected)
+  i_TRS5_IO_NOT_THO : BOOL ;	//HW: Thermal overload signal (TRUE = No Thermal overload)  
+  i_TRS5_IO_PPI : BOOL ;	//HW: The PPI signal
+END_VAR
+VAR_OUTPUT
+  o_ST_Manual : BOOL ;	//ST: Verticross in local mode
+  o_ST_Jam_Up_Infeed : BOOL ;	//ST: Collision jam at upper collision PEC infeed conveyor
+  o_ST_Jam_Down_Infeed : BOOL ;	//ST: Collision jam at lower collision PEC infeed conveyor
+  o_ST_Jam_Up_Outfeed : BOOL ;	//ST: Collision jam at upper collision PEC outfeed conveyor
+  o_ST_Jam_Down_Outfeed : BOOL ;	//ST: Collision jam at lower collision PEC outfeed conveyor
+  o_ST_Gap_Blockage_Up : BOOL ;	//ST: Blockage on gap detection PEC up direction
+  o_ST_Gap_Blockage_Down : BOOL ;	//ST: Blockage on gap detection PEC down direction
+  o_ST_Gap_Switch_Up : BOOL ;	//ST: Gap detection PEC was triggered during a switch action up
+  o_ST_Gap_Switch_Down : BOOL ;	//ST: Gap detection PEC was triggered during a switch action down
+  o_ST_Fixed_Up : BOOL ;	//ST: Fixed mode up activated
+  o_ST_Fixed_Straight : BOOL ;	//ST: Fixed mode straight activated
+  o_ST_Fixed_Down : BOOL ;	//ST: Fixed mode down activated
+  o_ST_Fence_Opened : BOOL ;	//ST: Security fence opened
+  o_ST_Up : BOOL ;	//ST: Verticross in Up (High) position
+  o_ST_Straight : BOOL ;	//ST: Verticross in Straight (Middle) position
+  o_ST_Down : BOOL ;	//ST: Verticross in Down (Low) position  
+  o_ST_Redundant_Up : BOOL ;	//ST: Mode Redundant Up (Auto)
+  o_ST_Redundant_Down : BOOL ;	//ST: Mode Redundant Down (Auto)
+  o_Action_Active : BOOL ;	//Action active to system control  
+  o_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  o_SWS1_ST_Running : BOOL ;	//ST: Running
+  o_SWS1_ST_Started : BOOL ;	//ST: Started
+  o_SWS1_ST_Homing_NotDone : BOOL ;	//ST: Homing not done
+  o_SWS1_ST_Move_Time_Out : BOOL ;	//ST: Movement Time out
+  o_SWS1_ST_LS_Limit_Up : BOOL ;	//ST: Limit switch up reached
+  o_SWS1_ST_LS_Limit_Down : BOOL ;	//ST: Limit switch down reached
+  o_SWS1_ST_PN_Not_Prsnt : BOOL ;	//ST: Profinet slave not present
+  o_SWS1_ST_PN_Error : BOOL ;	//ST: Profinet slave error
+  o_ST_Mvdr_Comm_Error : BOOL ;	//ST: Movidrive communication error
+  o_ST_Mvdr_Error : BOOL ;	//ST: Movidrive error
+  o_ST_Mvdr_Warning : BOOL ;	//ST: Movidrive warning
+  o_TRS2_IO_MTR : BOOL ;	//HW: Run signal to motor
+  o_TRS2_ST_Items : BOOL ;	//ST: Items present
+  o_TRS2_ST_Running : BOOL ;	//ST: Running
+  o_TRS2_ST_Started : BOOL ;	//ST: Started
+  o_TRS2_ST_Req_Halt : BOOL ;	//ST: Request halt
+  o_TRS2_ST_Req_Stop : BOOL ;	//ST: Request stop
+  o_TRS2_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS2_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  o_TRS2_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  o_TRS2_ST_EOS_PEC_BadTr : BOOL ;	//ST: End Of Section PEC bad tracking
+  o_TRS2_ST_THO : BOOL ;	//ST: Thermal overload 
+  o_TRS2_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS2_Upstr_Req_Dis_Snd : BOOL ;	//Disable send to the upstream section
+  o_TRS2_EXT_Outputs : "UDT_External_Outputs";	//Data Structure: External outputs 
+  o_TRS3_IO_MTR : BOOL ;	//HW: Run signal to motor
+  o_TRS3_ST_Items : BOOL ;	//ST: Items present
+  o_TRS3_ST_Running : BOOL ;	//ST: Running
+  o_TRS3_ST_Started : BOOL ;	//ST: Started
+  o_TRS3_ST_Req_Halt : BOOL ;	//ST: Request halt
+  o_TRS3_ST_Req_Stop : BOOL ;	//ST: Request stop
+  o_TRS3_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS3_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  o_TRS3_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  o_TRS3_ST_EOS_PEC_BadTr : BOOL ;	//ST: End Of Section PEC bad tracking
+  o_TRS3_ST_THO : BOOL ;	//ST: Thermal overload 
+  o_TRS3_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS3_EXT_Outputs : "UDT_External_Outputs";	//Data Structure: External outputs
+  o_TRS4_IO_MTR : BOOL ;	//HW: Run signal to motor
+  o_TRS4_ST_Items : BOOL ;	//ST: Items present
+  o_TRS4_ST_Running : BOOL ;	//ST: Running
+  o_TRS4_ST_Started : BOOL ;	//ST: Started
+  o_TRS4_ST_Req_Halt : BOOL ;	//ST: Request halt
+  o_TRS4_ST_Req_Stop : BOOL ;	//ST: Request stop
+  o_TRS4_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS4_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  o_TRS4_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  o_TRS4_ST_EOS_PEC_BadTr : BOOL ;	//ST: End Of Section PEC bad tracking
+  o_TRS4_ST_THO : BOOL ;	//ST: Thermal overload 
+  o_TRS4_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS4_Upstr_Req_Dis_Snd : BOOL ;	//Disable send to the upstream section
+  o_TRS4_EXT_Outputs : "UDT_External_Outputs";	//Data Structure: External outputs
+  o_TRS5_IO_MTR : BOOL ;	//HW: Run signal to motor
+  o_TRS5_ST_Items : BOOL ;	//ST: Items present
+  o_TRS5_ST_Running : BOOL ;	//ST: Running
+  o_TRS5_ST_Started : BOOL ;	//ST: Started
+  o_TRS5_ST_Req_Halt : BOOL ;	//ST: Request halt
+  o_TRS5_ST_Req_Stop : BOOL ;	//ST: Request stop
+  o_TRS5_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_TRS5_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  o_TRS5_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  o_TRS5_ST_EOS_PEC_BadTr : BOOL ;	//ST: End Of Section PEC bad tracking
+  o_TRS5_ST_THO : BOOL ;	//ST: Thermal overload 
+  o_TRS5_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_TRS5_EXT_Outputs : "UDT_External_Outputs";	//Data Structure: External outputs
+END_VAR
+VAR
+  s_SWS1_FB_EQP_SWS_Mvdr : "FB_EQP_SWS_Mvdr_SCZ";	//Block call static FB_EQP_Switch_Mvdr_SCZ
+  s_SWS1_FB_EQP_HAC1_PEC : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC_Trigger
+  s_SWS1_FB_EQP_HAC2_PEC : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC_Trigger
+  s_SWS1_FB_DAT : "FB_DAT";	//Block call static FB_DAT    
+  s_TRS2_FB_EQP_PEC_EOS : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS2_FB_EQP_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS2_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS2_FB_TRK_Track_EOS : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS2_FB_HW_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS2_FB_DAT : "FB_DAT";	//Block call static FB_DAT
+  s_TRS3_FB_EQP_PEC_EOS : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS3_FB_EQP_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS3_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS3_FB_TRK_Track_EOS : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS3_FB_HW_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS3_FB_DAT : "FB_DAT";	//Block call static FB_DAT
+  s_TRS4_FB_EQP_PEC_EOS : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS4_FB_EQP_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS4_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS4_FB_TRK_Track_EOS : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS4_FB_HW_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS4_FB_DAT : "FB_DAT";	//Block call static FB_DAT
+  s_TRS5_FB_EQP_PEC_EOS : "FB_EQP_PEC";	//Block call static FB_EQP_PEC
+  s_TRS5_FB_EQP_PPI : "FB_EQP_PPI";	//Block call static FB_EQP_PPI
+  s_TRS5_FB_EQP_Basic : "FB_EQP_Basic";	//Block call static FB_EQP_Basic
+  s_TRS5_FB_TRK_Track_EOS : "FB_TRK_Track";	//Block call static FB_TRK_Track
+  s_TRS5_FB_HW_MTR_MS : "FB_HW_MTR_MS";	//Block call static FB_HW_MTR_MS
+  s_TRS5_FB_DAT : "FB_DAT";	//Block call static FB_DAT
+  s_FB_SCZ01_Control : "FB_SCZ01_Control";	//Block call static FB_SCZ_Control
+  s_FB_SCZ01_DAT : "FB_DAT";	//Block call static FB_DAT  
+  s_Start_Up : STRUCT 	//Startup structure
+   Time_Cnt : INT ;	//Current time counter
+   Start_Cnt : BOOL ;	//Start counter
+   Status : BOOL ;	//Status counter
+   Disable_Infeed : BOOL ;	//Disable infeed
+   Start_Signal : BOOL ;	//Start signal 
+  END_STRUCT ;	
+  s_TRS2_DB_PLT_Num : INT ;	//DB PLT number
+  s_TRS2_EOS_PEC_LPOS : INT ;	//Leading edge position of the item for tracking layer
+  s_TRS2_PEC_Offset : INT ;	//[cm] End Of Section PEC PLT position
+  s_TRS2_PPI_Displacement : INT ;	//[cm] Displacement by the PPI last cycle
+  s_TRS3_DB_PLT_Num : INT ;	//DB PLT number
+  s_TRS3_EOS_PEC_LPOS : INT ;	//Leading edge position of the item for tracking layer
+  s_TRS3_PEC_Offset : INT ;	//[cm] End Of Section PEC PLT position
+  s_TRS3_PPI_Displacement : INT ;	//[cm] Displacement by the PPI last cycle
+  s_TRS3_Fnd_LNK : INT ;	//LNK data found with in the search window on the section
+  s_TRS3_Rep_Route_Record : INT ;	//Report route record
+  s_TRS4_DB_PLT_Num : INT ;	//DB PLT number
+  s_TRS4_EOS_PEC_LPOS : INT ;	//Leading edge position of the item for tracking layer
+  s_TRS4_PEC_Offset : INT ;	//[cm] End Of Section PEC PLT position
+  s_TRS4_PPI_Displacement : INT ;	//[cm] Displacement by the PPI last cycle
+  s_TRS5_DB_PLT_Num : INT ;	//DB PLT number
+  s_TRS5_EOS_PEC_LPOS : INT ;	//Leading edge position of the item for tracking layer
+  s_TRS5_PEC_Offset : INT ;	//[cm] End Of Section PEC PLT position
+  s_TRS5_PPI_Displacement : INT ;	//[cm] Displacement by the PPI last cycle
+  s_TRS5_Fnd_LNK : INT ;	//LNK data found with in the search window on the section
+  s_TRS5_Rep_Route_Record : INT ;	//Report route record  
+  s_Semi_Auto_Fixed_Up : BOOL ;	//Semi Auto Fixed Up mode is selected (TRUE = selected)
+  s_Semi_Auto_Fixed_St : BOOL ;	//Semi Auto Fixed Straight mode is selected (TRUE = selected)
+  s_Semi_Auto_Fixed_Dn : BOOL ;	//Semi Auto Fixed Down mode is selected (TRUE = selected)
+  s_ST_Gap_Blockage_Up : BOOL ;	//ST: Blockage on gap detection PEC up direction
+  s_ST_Gap_Blockage_Down : BOOL ;	//ST: Blockage on gap detection PEC down direction
+  s_ST_Gap_Switch_Up : BOOL ;	//ST: Gap detection PEC was triggered during a switch action up
+  s_ST_Gap_Switch_Down : BOOL ;	//ST: Gap detection PEC was triggered during a switch action down
+  s_ST_Fence_Opened : BOOL ;	//ST: Security fence opened
+  s_SWS1_ST_Up : BOOL ;	//ST: SWS in up position
+  s_SWS1_ST_Straight : BOOL ;	//ST: SWS in in straight position
+  s_SWS1_ST_Down : BOOL ;	//ST: SWS in down position  
+  s_SWS1_LS_Up_Latch : BOOL ;	//PEC latch signal of limit switch up
+  s_SWS1_LS_Down_Latch : BOOL ;	//PEC latch signal of limit switch down
+  s_SWS1_Mvdr_LS_Down : BOOL ;	//Limit switch signal from frequency controller (TRUE = Not triggered)
+  s_SWS1_Mvdr_LS_Up : BOOL ;	//Limit switch signal from frequency controller (TRUE = Not triggered)
+  s_SWS1_FP_Req_Switch_Up : BOOL ;	//Positive edge for request switch verticross up
+  s_SWS1_FP_Req_Switch_St : BOOL ;	//Detect positive edge request switch verticross straight
+  s_SWS1_FP_Req_Switch_Dn : BOOL ;	//Detect positive edge request switch verticross down  
+  s_SWS1_Homing_Done : BOOL ;	//Homing of the SWS is done
+  s_SWS1_Req_Switch_Up : BOOL ;	//Request to switch up
+  s_SWS1_Req_Switch_St : BOOL ;	//Request to switch straight
+  s_SWS1_Req_Switch_Dn : BOOL ;	//Request to switch down
+  s_SWS1_CMD_Switch_Up : BOOL ;	//CMD: Switch to Up position
+  s_SWS1_CMD_Switch_St : BOOL ;	//CMD: Switch to straight position
+  s_SWS1_CMD_Switch_Dn : BOOL ;	//CMD: Switch to down position
+  s_SWS1_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  s_SWS1_Items_In_TRS3 : BOOL ;	//Switch area has items  
+  s_SWS1_Items_In_TRS5 : BOOL ;	//Switch area has items
+  s_SWS1_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  s_SWS1_Ready_To_Restart : BOOL ;	//Ready to restart to system control  
+  s_SWS1_ST_Time_Out_Down : BOOL ;	//ST: Time out positon down
+  s_SWS1_ST_Time_Out_Strgt : BOOL ;	//ST: Time out positon straight
+  s_SWS1_ST_Time_Out_Up : BOOL ;	//ST: Time out positon up
+  s_TRS2_Req_Stop : BOOL ;	//Request stop
+  s_TRS2_Req_MTR_Run : BOOL ;	//Request motor run
+  s_TRS2_ST_Items : BOOL ;	//ST: Items present
+  s_TRS2_ST_Running : BOOL ;	//ST: Running
+  s_TRS2_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  s_TRS2_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  s_TRS2_ST_THO : BOOL ;	//ST: Thermal overload 
+  s_TRS2_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  s_TRS2_Switch_Gap_Clear : BOOL ;	//Switch gap clear on the section
+  s_TRS2_Req_Halt_Die_Back : BOOL ;	//Request halt due to die back
+  s_TRS2_Req_Dis_Snd_Upstr : BOOL ;	//Request disable send to upstream section in up direction
+  s_TRS2_Ready_To_Restart : BOOL ;	//Ready to restart to system control  
+  s_TRS3_Req_Stop : BOOL ;	//Request stop
+  s_TRS3_Req_MTR_Run : BOOL ;	//Request motor run
+  s_TRS3_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  s_TRS3_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  s_TRS3_ST_THO : BOOL ;	//ST: Thermal overload 
+  s_TRS3_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  s_TRS3_FP_Item : BOOL ;	//Positive edge detection for an item on the section
+  s_TRS3_Send_Track_Report : BOOL ;	//Trigger to send second tracking report  
+  s_TRS3_Ready_To_Restart : BOOL ;	//Ready to restart to system control  
+  s_TRS4_Req_Stop : BOOL ;	//Request stop
+  s_TRS4_Req_MTR_Run : BOOL ;	//Request motor run
+  s_TRS4_ST_Items : BOOL ;	//ST: Items present
+  s_TRS4_ST_Running : BOOL ;	//ST: Running
+  s_TRS4_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  s_TRS4_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  s_TRS4_ST_THO : BOOL ;	//ST: Thermal overload 
+  s_TRS4_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  s_TRS4_Switch_Gap_Clear : BOOL ;	//Switch gap clear on the section
+  s_TRS4_Req_Halt_Die_Back : BOOL ;	//Request halt due to die back
+  s_TRS4_Req_Dis_Snd_Upstr : BOOL ;	//Request disable send to upstream section in down direction  
+  s_TRS4_Ready_To_Restart : BOOL ;	//Ready to restart to system control  
+  s_TRS5_Req_Stop : BOOL ;	//Request stop
+  s_TRS5_Req_MTR_Run : BOOL ;	//Request motor run
+  s_TRS5_ST_EOS_PEC_Blk : BOOL ;	//ST: End Of Section PEC blockage
+  s_TRS5_ST_EOS_PEC_Miss : BOOL ;	//ST: End Of Section PEC successive missings
+  s_TRS5_ST_THO : BOOL ;	//ST: Thermal overload 
+  s_TRS5_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  s_TRS5_FP_Item : BOOL ;	//Positive edge detection for an item on the section
+  s_TRS5_Send_Track_Report : BOOL ;	//Trigger to send second tracking report
+  s_TRS5_FN_Send_Track_Rep : BOOL ;	//Negative edge for send tracking report
+  s_TRS5_Ready_To_Restart : BOOL ;	//Ready to restart to system control
+  s_FN_Manual_Mode : BOOL ;	//Detection negative flank manual mode
+END_VAR
+VAR_TEMP
+  t_TRS2_Upd_Perform : INT ;	//STAT: [%] Ratio between succesfull updates and missings
+  t_TRS2_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_TRS2_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_TRS2_Deviation_Last_Up : INT ;	//Deviation of last update (for commissioning purposes)
+  t_TRS2_Displacement : INT ;	//[cm] Section displacement
+  t_TRS2_Upstr_DB_PLT : INT ;	//DB PLT number section upstream
+  t_TRS2_upstr_Length : INT ;	//[cm] Upstream section length
+  t_TRS2_upstr_Entr_Pres : INT ;	//Entry present section upstream
+  t_TRS2_Length_Section : INT ;	//length of section
+  t_TRS3_Upd_Perform : INT ;	//STAT: [%] Ratio between succesful updates and missings
+  t_TRS3_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_TRS3_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_TRS3_Data_Last_Update : INT ;	//Data of last update (for commissioning purposes)
+  t_TRS3_Position_Last_Upd : INT ;	//Found position of last update (for commissioning purposes)
+  t_TRS3_Deviation_Last_Up : INT ;	//Deviation of last update (for commissioning purposes)
+  t_TRS3_Length_Section : INT ;	//length of section
+  t_TRS4_Upd_Perform : INT ;	//STAT: [%] Ratio between succesful updates and missings
+  t_TRS4_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_TRS4_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_TRS4_Displacement : INT ;	//[cm] Section displacement
+  t_TRS4_Upstr_DB_PLT : INT ;	//DB PLT number section upstream
+  t_TRS4_Upstr_Length : INT ;	//[cm] Upstream section length
+  t_TRS4_Upstr_Entr_Pres : INT ;	//Entry present section upstream
+  t_TRS4_Deviation_Last_Up : INT ;	//Deviation of last update (for commissioning purposes)
+  t_TRS4_Length_Section : INT ;	//length of section
+  t_TRS5_Upd_Perform : INT ;	//STAT: [%] Ratio between succesful updates and missings
+  t_TRS5_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_TRS5_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_TRS5_Data_Last_Update : INT ;	//Data of last update (for commissioning purposes)
+  t_TRS5_Position_Last_Upd : INT ;	//Found position of last update (for commissioning purposes)
+  t_TRS5_Deviation_Last_Up : INT ;	//Deviation of last update (for commissioning purposes)
+  t_TRS5_Length_Section : INT ;	//length of section
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_DB_Event_Zone_Num : INT ;	//Number of DB event zone
+  t_DB_Event_Section_Num : INT ;	//Number of DB event section
+  t_Info : INT ;	//Info from DB PLT
+  t_RET_VAL_int : INT ;	//Return value integer of function
+  t_LIC : INT ;	//LIC number readed
+  t_DB_Nr_Route_List : INT ;	//DB number DB Route List
+  t_Num_Items_TRS3 : INT ;	//Number of items on TRS3
+  t_Num_Items_TRS5 : INT ;	//Number of items on TRS5
+  t_Position_2_Switch : INT ;	//Position for search trailing edge during switch gap
+  t_ST_SWS_Rdy_To_Move : BOOL ;	//Status: switch is ready to move
+  t_Req_Halt_Dis : BOOL ;	//Request Halt of DP
+  t_TRS2_Upstr_HandOver : BOOL ;	//Upstraem of TRS2 handover
+  t_TRS3_OS_Data_Updated : BOOL ;	//Data at the outputs has been updated
+  t_TRS3_Die_Back : BOOL ;	//TRS3 in die back situation
+  t_TRS4_Upstr_HandOver : BOOL ;	//Upstraem of TRS4 handover
+  t_TRS5_OS_Data_Updated : BOOL ;	//Data at the outputs has been updated
+  t_TRS5_Die_Back : BOOL ;	//TRS5 in die back situation 
+  t_Req_Stop_Collision_PEC : BOOL ;	//Collected errors of the Collision PEC`s
+  t_Req_Stop_SW_Mvmnt_TO : BOOL ;	//collect errors from Time out from the switch Movements
+  t_Enable_Rapid_Stop : BOOL ;	//Enable the rapid stop for SEW Movidrive
+  t_Not_In_Semi_Auto : BOOL ;	//Not in semi auto mode
+  t_Prst_PEC_Latch_TRS : BOOL ;	//Preset PEC latch TRS in case of clear PLT
+  t_TRS3_Req_Rst_ESave : BOOL ;	//Reset energy save TRS3
+  t_TRS5_Req_Rst_ESave : BOOL ;	//Reset energy save TRS5
+  t_Fence_Closed : BOOL ;	//Fence closed
+  t_TRS2_Req_Halt : BOOL ;	//Request halt
+  t_TRS3_Req_Halt : BOOL ;	//Request halt
+  t_TRS4_Req_halt : BOOL ;	//Request halt
+  t_TRS5_Req_Halt : BOOL ;	//Request halt
+  t_OS_FN_Manual_Mode : BOOL ;	//One shot negative flank manual mode
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Handle zone signals
+
+      NOP   0; 
+
+// Fence opened
+      A     #i_CMD_Reset; 
+      ON    #i_IO_Available; 
+      R     #s_ST_Fence_Opened; 
+
+      AN    #i_IO_GS_Gate1; 
+      ON    #i_IO_GS_Gate2; 
+      A     #i_IO_Available; 
+      S     #s_ST_Fence_Opened; 
+
+      A     #i_IO_GS_Gate1; 
+      A     #i_IO_GS_Gate2; 
+      =     #t_Fence_Closed; 
+
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #t_DB_Event_Zone_Num; 
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Section_Num; 
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_Nr_Route_List; 
+
+// First scan jump to the converyor sections
+      AN    "M_First_Scan"; 
+      JCN   HA99; 
+
+//////////////////////
+// Data from PLT Db // 
+//////////////////////
+
+// Retrieve information about TRS 2 from the PLT
+      OPN   #i_TRS2_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS2_DB_PLT_Num; 
+
+      L     DBW    2; 
+      T     #t_TRS2_Displacement; 
+
+      L     DBW    6; 
+      T     #t_TRS2_Upstr_DB_PLT; 
+
+      L     DBW   12; 
+      T     #t_TRS2_Length_Section; 
+
+// Retrieve information about TRS 3 from the PLT
+      OPN   #i_TRS3_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS3_DB_PLT_Num; 
+
+// Retrieve information about TRS 4 from the PLT
+      L     DBW   12; 
+      T     #t_TRS3_Length_Section; 
+
+      OPN   #i_TRS4_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS4_DB_PLT_Num; 
+
+      L     DBW    2; 
+      T     #t_TRS4_Displacement; 
+
+      L     DBW    6; 
+      T     #t_TRS4_Upstr_DB_PLT; 
+
+      L     DBW   12; 
+      T     #t_TRS4_Length_Section; 
+
+// Retrieve information about TRS 5 from the PLT
+      OPN   #i_TRS5_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS5_DB_PLT_Num; 
+
+      L     DBW   12; 
+      T     #t_TRS5_Length_Section; 
+
+//Upstream sections of high infeed
+      L     #t_TRS2_Upstr_DB_PLT; 
+      L     0; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_TRS2_Upstr_DB_PLT]; 
+
+      L     DBW    0; 
+      T     #t_TRS2_upstr_Entr_Pres; 
+
+      A     DBX   10.6; 
+      =     #t_TRS2_Upstr_HandOver; 
+
+      L     DBW   12; 
+      T     #t_TRS2_upstr_Length; 
+
+// Upstream sections of low infeed
+AA01: L     #t_TRS4_Upstr_DB_PLT; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; 
+
+      OPN   DB [#t_TRS4_Upstr_DB_PLT]; 
+
+      L     DBW    0; 
+      T     #t_TRS4_Upstr_Entr_Pres; 
+
+      A     DBX   10.6; 
+      =     #t_TRS4_Upstr_HandOver; 
+
+      L     DBW   12; 
+      T     #t_TRS4_Upstr_Length; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Manual mode Flank Negative detection
+
+      A     #i_Command.Manual; 
+      FN    #s_FN_Manual_Mode; 
+      =     #t_OS_FN_Manual_Mode; 
+NETWORK
+TITLE =CA: Check if SCZ is clear in start-up
+//when starting up the machine,
+//- disable infeed
+// if counter is down then reset signals
+      A     #s_Start_Up.Status; 
+      AN    #o_SWS1_ST_Homing_NotDone; 
+      R     #s_Start_Up.Start_Cnt; 
+      R     #s_Start_Up.Disable_Infeed; 
+      R     #s_Start_Up.Start_Signal; 
+
+// Set if start signal
+      A     #i_CMD_Start; 
+      S     #s_Start_Up.Start_Signal; 
+      S     #s_Start_Up.Disable_Infeed; 
+
+// Start counter if start signal and homing down
+      A     #s_Start_Up.Start_Signal; 
+      AN    #o_SWS1_ST_Homing_NotDone; 
+      S     #s_Start_Up.Start_Cnt; 
+
+// Start-up time
+      CALL "FC_Off_Dly_T_0.1s" (
+           i_Start                  := #s_Start_Up.Start_Cnt,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 50,
+           i_Current_Value          := #s_Start_Up.Time_Cnt,
+           o_Status                 := #s_Start_Up.Status,
+           o_Current_Value          := #s_Start_Up.Time_Cnt);
+
+NETWORK
+TITLE =DA: Switch gap clear
+//PEC 11 and PEC 12 are the switch area PEC's.
+//______________________________________
+//I                                    I
+//I    TRS 1      x 11       TRS 2     I
+//I-----------------  -----------------I
+//I                                    I
+//I    TRS 3      x 12       TRS 4     I
+//I-----------------  -----------------I
+//I____________________________________I
+//
+//When one of the PEC's are covered, the SCZ is not ready to switch.
+//If the PEC's are covered when the SCZ is not in a defined position, the error 
+//is generated.
+      CALL #s_SWS1_FB_EQP_HAC1_PEC (
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_IO_NOT_PEC_HAC1,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_TRS2_Displacement,
+           o_ST_PEC_Blk             := #s_ST_Gap_Blockage_Up,
+           o_PEC_Flap_Filter        := #s_SWS1_LS_Up_Latch);
+
+      AN    #s_SWS1_LS_Up_Latch; 
+      =     #s_TRS2_Switch_Gap_Clear; 
+
+      CALL #s_SWS1_FB_EQP_HAC2_PEC (
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_IO_NOT_PEC_HAC2,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_TRS4_Displacement,
+           o_ST_PEC_Blk             := #s_ST_Gap_Blockage_Down,
+           o_PEC_Flap_Filter        := #s_SWS1_LS_Down_Latch);
+
+      AN    #s_SWS1_LS_Down_Latch; 
+      =     #s_TRS4_Switch_Gap_Clear; 
+
+      A     #s_TRS2_Switch_Gap_Clear; 
+      A     #s_TRS4_Switch_Gap_Clear; 
+      =     #t_ST_SWS_Rdy_To_Move; 
+
+// Reset PEC Gap Switch error
+      A     #i_CMD_Reset; 
+      A     #i_IO_NOT_PEC_HAC1; 
+      ON    #i_IO_Available; 
+      R     #s_ST_Gap_Switch_Up; 
+
+      A     #i_CMD_Reset; 
+      A     #i_IO_NOT_PEC_HAC2; 
+      ON    #i_IO_Available; 
+      R     #s_ST_Gap_Switch_Down; 
+
+// Generate error if switch is made while switch area is not clear
+      AN    #s_SWS1_ST_Up; 
+      A     #s_SWS1_LS_Up_Latch; 
+      AN    #s_TRS2_ST_Running; 
+      O(    ; 
+      AN    #i_IO_NOT_PEC_HAC1; 
+      A     #i_IO_Available; 
+      )     ; 
+      A     #i_IO_Available; 
+      AN    #s_SWS1_ST_Straight; 
+      AN    #s_SWS1_ST_Down; 
+      AN    #s_SWS1_Mvdr_LS_Up; 
+      AN    #s_SWS1_Mvdr_LS_Down; 
+      AN    #i_Command.Manual; 
+      A     #o_SWS1_ST_Running; 
+      S     #s_ST_Gap_Switch_Up; 
+
+// Generate error if switch is made while switch area is not clear
+      AN    #s_SWS1_ST_Down; 
+      A     #s_SWS1_LS_Down_Latch; 
+      AN    #s_TRS4_ST_Running; 
+      O(    ; 
+      AN    #i_IO_NOT_PEC_HAC2; 
+      A     #i_IO_Available; 
+      )     ; 
+      A     #i_IO_Available; 
+      AN    #s_SWS1_ST_Up; 
+      AN    #s_SWS1_ST_Straight; 
+      AN    #i_Command.Manual; 
+      AN    #s_SWS1_Mvdr_LS_Up; 
+      AN    #s_SWS1_Mvdr_LS_Down; 
+      A     #o_SWS1_ST_Running; 
+      S     #s_ST_Gap_Switch_Down; 
+NETWORK
+TITLE =EA: Switch area check 
+//If switch area is not cleared the switch motor is halted. (No switch possible)
+//Check if Switch Area is clear
+      AN    "M_First_Scan"; 
+      JCN   EA02; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Num,
+           i_Position               := #t_TRS3_Length_Section,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_TRS3);
+
+      L     #t_Num_Items_TRS3; 
+      L     0; 
+      >I    ; 
+      S     #s_SWS1_Items_In_TRS3; 
+
+      A     #s_SWS1_Items_In_TRS3; 
+      JCN   EA01; 
+
+//Check for trailing edge when Switch area is active
+      L     #t_TRS3_Length_Section; 
+      L     #i_Setting.Dist_Switch_Area; 
+      -I    ; 
+      T     #t_Position_2_Switch; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Num,
+           i_Position               := #t_Position_2_Switch,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_TRS3);
+
+      L     #t_Num_Items_TRS3; 
+      L     0; 
+      >I    ; 
+      R     #s_SWS1_Items_In_TRS3; 
+
+EA01: CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS5_DB_PLT_Num,
+           i_Position               := #t_TRS5_Length_Section,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_TRS5);
+
+      L     #t_Num_Items_TRS5; 
+      L     0; 
+      >I    ; 
+      S     #s_SWS1_Items_In_TRS3; 
+
+      A     #s_SWS1_Items_In_TRS3; 
+      JCN   EA02; 
+
+//Check for trailing edge when Switch area is active
+      L     #t_TRS5_Length_Section; 
+      L     #i_Setting.Dist_Switch_Area; 
+      -I    ; 
+      T     #t_Position_2_Switch; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS5_DB_PLT_Num,
+           i_Position               := #t_Position_2_Switch,
+           i_Window                 := #i_Setting.Dist_Switch_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_TRS5);
+
+      L     #t_Num_Items_TRS5; 
+      L     0; 
+      >I    ; 
+      R     #s_SWS1_Items_In_TRS3; 
+
+//Exception handling check if both PLT DB's are empty
+//Only check if switch gap is active
+EA02: A     #s_SWS1_Items_In_TRS3; 
+      JCN   EA03; 
+
+      AN    #o_TRS3_ST_Items; 
+      AN    #o_TRS5_ST_Items; 
+      R     #s_SWS1_Items_In_TRS3; 
+
+EA03: NOP   0; 
+
+// Request halt switch switch area not free
+      AN    #s_TRS2_Switch_Gap_Clear; 
+      ON    #s_TRS4_Switch_Gap_Clear; 
+      O     #s_SWS1_Items_In_TRS3; 
+      =     #s_SWS1_Ext_Req_Halt; 
+
+// Switch ready if gap free of item
+      AN    #s_SWS1_Ext_Req_Halt; 
+      =     #t_ST_SWS_Rdy_To_Move; 
+
+NETWORK
+TITLE =FA: Collision detection
+//When during switching one of the four PEC's below is triggered, the switch 
+//action is driectly stopped. An error is created. 
+//The four PEC's are given in the drawing below.
+//
+//______________________________________
+//I                x  x                I
+//I          1.0.15    1.0.16          I
+//I-----------------  -----------------I
+//I                x  x                I
+//I          1.0.13    1.0.14          I
+//I-----------------  -----------------I
+//I____________________________________I
+//
+//
+      A     #i_CMD_Reset; 
+      ON    #i_IO_Available; 
+      R     #o_ST_Jam_Down_Infeed; 
+      R     #o_ST_Jam_Down_Outfeed; 
+      R     #o_ST_Jam_Up_Infeed; 
+      R     #o_ST_Jam_Up_Outfeed; 
+
+      AN    #i_IO_NOT_PEC_JAM1; 
+      AN    #o_ST_Manual; 
+      A     #i_IO_Available; 
+      S     #o_ST_Jam_Down_Infeed; 
+
+      AN    #i_IO_NOT_PEC_JAM2; 
+      AN    #o_ST_Manual; 
+      A     #i_IO_Available; 
+      S     #o_ST_Jam_Down_Outfeed; 
+
+      AN    #i_IO_NOT_PEC_JAM3; 
+      AN    #o_ST_Manual; 
+      A     #i_IO_Available; 
+      S     #o_ST_Jam_Up_Infeed; 
+
+      AN    #i_IO_NOT_PEC_JAM4; 
+      AN    #o_ST_Manual; 
+      A     #i_IO_Available; 
+      S     #o_ST_Jam_Up_Outfeed; 
+
+// Collect collision PEC error
+      A     #o_ST_Jam_Down_Infeed; 
+      O     #o_ST_Jam_Down_Outfeed; 
+      O     #o_ST_Jam_Up_Infeed; 
+      O     #o_ST_Jam_Up_Outfeed; 
+      =     #t_Req_Stop_Collision_PEC; 
+NETWORK
+TITLE =GA: SCZ Control 
+//To control the Sort Cross Zone for the following
+//- To determine and control the switching of SCZ01.
+//- To control the two infeeds (Upper and lower).
+//- To Merge the bags from Upper and lower infeeds.
+      CALL #s_FB_SCZ01_Control (
+           i_SCZ_Setting            := #i_Setting,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Auto               := #i_Command.Auto_Redun_St,
+           i_CMD_Auto_Redun_Up      := #i_Command.Auto_Redun_Up,
+           i_CMD_Auto_Redun_Dn      := #i_Command.Auto_Redun_Dn,
+           i_CMD_SemiAuto_Fix_St    := #i_Command.SemiAuto_Fix_St,
+           i_CMD_SemiAuto_Fix_Up    := #i_Command.SemiAuto_Fix_Up,
+           i_CMD_SemiAuto_Fix_Dn    := #i_Command.SemiAuto_Fix_Dn,
+           i_CMD_Local              := #i_Command.Manual,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_DieBack_Pos_Infeed := #i_CFG_DieBack_Pos_Infeed,
+           i_TRS2_DB_PLT            := #i_TRS2_DB_PLT,
+           i_TRS3_DB_PLT            := #i_TRS3_DB_PLT,
+           i_TRS4_DB_PLT            := #i_TRS4_DB_PLT,
+           i_TRS5_DB_PLT            := #i_TRS5_DB_PLT,
+           i_SWS1_ST_Ready          := #t_ST_SWS_Rdy_To_Move,
+           i_SWS1_ST_Up             := #s_SWS1_ST_Up,
+           i_SWS1_ST_Straight       := #s_SWS1_ST_Straight,
+           i_SWS1_ST_Down           := #s_SWS1_ST_Down,
+           i_TRS2_ST_Items          := #s_TRS2_ST_Items,
+           i_TRS4_ST_Items          := #s_TRS4_ST_Items,
+           o_SWS1_Req_Up            := #s_SWS1_Req_Switch_Up,
+           o_SWS1_Req_Straight      := #s_SWS1_Req_Switch_St,
+           o_SWS1_Req_Down          := #s_SWS1_Req_Switch_Dn,
+           o_SWS1_Enable_Rapid_Stop := #t_Enable_Rapid_Stop,
+           o_TRS2_Upstr_Req_Dis_Snd := #s_TRS2_Req_Dis_Snd_Upstr,
+           o_TRS4_Upstr_Req_Dis_Snd := #s_TRS4_Req_Dis_Snd_Upstr,
+           o_TRS2_Ext_Req_Halt      := #s_TRS2_Req_Halt_Die_Back,
+           o_TRS4_Ext_Req_Halt      := #s_TRS4_Req_Halt_Die_Back,
+           o_Req_Halt_Infeed        := #t_Req_Halt_Dis);
+
+// Collect disable send signals
+      A     #s_TRS2_Req_Dis_Snd_Upstr; 
+      O     #s_Start_Up.Disable_Infeed; 
+      =     #o_TRS2_Upstr_Req_Dis_Snd; 
+
+      A     #s_Start_Up.Disable_Infeed; 
+      O     #s_TRS4_Req_Dis_Snd_Upstr; 
+      =     #o_TRS4_Upstr_Req_Dis_Snd; 
+NETWORK
+TITLE =HA: Switch Motor section
+//Equipment layer for the switch motor section and the hardware layer. The 
+//hardware layer is for the SEW controller.
+      A     #i_Command.SemiAuto_Fix_Up; 
+      O     #i_Command.SemiAuto_Fix_St; 
+      O     #i_Command.SemiAuto_Fix_Dn; 
+      O     #i_Command.Manual; 
+      R     #s_SWS1_CMD_Switch_St; 
+
+      A     #s_SWS1_Req_Switch_Up; 
+      AN    #s_SWS1_Req_Switch_St; 
+      AN    #s_SWS1_Req_Switch_Dn; 
+      AN    #o_SWS1_ST_Running; 
+      FP    #s_SWS1_FP_Req_Switch_Up; 
+      R     #s_SWS1_CMD_Switch_St; 
+      R     #s_SWS1_CMD_Switch_Dn; 
+      S     #s_SWS1_CMD_Switch_Up; 
+
+      AN    #s_SWS1_Req_Switch_Up; 
+      A     #s_SWS1_Req_Switch_St; 
+      AN    #s_SWS1_Req_Switch_Dn; 
+      AN    #o_SWS1_ST_Running; 
+      FP    #s_SWS1_FP_Req_Switch_St; 
+      R     #s_SWS1_CMD_Switch_Up; 
+      R     #s_SWS1_CMD_Switch_Dn; 
+      S     #s_SWS1_CMD_Switch_St; 
+
+      AN    #s_SWS1_Req_Switch_Up; 
+      AN    #s_SWS1_Req_Switch_St; 
+      A     #s_SWS1_Req_Switch_Dn; 
+      AN    #o_SWS1_ST_Running; 
+      FP    #s_SWS1_FP_Req_Switch_Dn; 
+      R     #s_SWS1_CMD_Switch_Up; 
+      R     #s_SWS1_CMD_Switch_St; 
+      S     #s_SWS1_CMD_Switch_Dn; 
+
+// To determine the system is not in semi-Auto fixed mode
+      AN    #i_Command.SemiAuto_Fix_Up; 
+      AN    #i_Command.SemiAuto_Fix_St; 
+      AN    #i_Command.SemiAuto_Fix_Dn; 
+      =     #t_Not_In_Semi_Auto; 
+
+//Link PLT TRS4 - TRS3 
+      A     #s_SWS1_ST_Up; 
+      JCN   HA01; 
+
+      OPN   #i_TRS3_DB_PLT; 
+      L     #s_TRS4_DB_PLT_Num; 
+      T     DBW    6; 
+
+      OPN   #i_TRS4_DB_PLT; 
+      L     #s_TRS3_DB_PLT_Num; 
+      T     DBW    8; 
+
+      JU    HA04; 
+
+//Link PLT TRS2 - TRS5
+HA01: A     #s_SWS1_ST_Down; 
+      JCN   HA02; 
+
+      OPN   #i_TRS5_DB_PLT; 
+      L     #s_TRS2_DB_PLT_Num; 
+      T     DBW    6; 
+
+      OPN   #i_TRS2_DB_PLT; 
+      L     #s_TRS5_DB_PLT_Num; 
+      T     DBW    8; 
+
+      JU    HA04; 
+
+//Link PLT TRS2 - TRS3
+//Link PLT TRS4 - TRS5
+HA02: A     #s_SWS1_ST_Straight; 
+      JCN   HA03; 
+
+      OPN   #i_TRS3_DB_PLT; 
+      L     #s_TRS2_DB_PLT_Num; 
+      T     DBW    6; 
+
+      OPN   #i_TRS2_DB_PLT; 
+      L     #s_TRS3_DB_PLT_Num; 
+      T     DBW    8; 
+
+      OPN   #i_TRS5_DB_PLT; 
+      L     #s_TRS4_DB_PLT_Num; 
+      T     DBW    6; 
+
+      OPN   #i_TRS4_DB_PLT; 
+      L     #s_TRS5_DB_PLT_Num; 
+      T     DBW    8; 
+
+      JU    HA04; 
+
+// Not in a position then no PLT down/up stream
+HA03: AN    #s_SWS1_ST_Up; 
+      AN    #s_SWS1_ST_Straight; 
+      AN    #s_SWS1_ST_Down; 
+      JCN   HA04; 
+
+      OPN   #i_TRS2_DB_PLT; 
+      L     0; 
+      T     DBW    8; 
+
+      OPN   #i_TRS3_DB_PLT; 
+      L     0; 
+      T     DBW    6; 
+
+      OPN   #i_TRS4_DB_PLT; 
+      L     0; 
+      T     DBW    8; 
+
+      OPN   #i_TRS5_DB_PLT; 
+      L     0; 
+      T     DBW    6; 
+
+HA04: NOP   0; 
+
+// Collect ext request stop
+      A     #t_Req_Stop_Collision_PEC; 
+      O     #s_ST_Gap_Switch_Up; 
+      O     #s_ST_Gap_Blockage_Up; 
+      O     #s_ST_Gap_Switch_Down; 
+      O     #s_ST_Gap_Blockage_Down; 
+      O     #s_ST_Fence_Opened; 
+      O     #i_Ext_Req_Stop; 
+      O     #i_Command.Manual; 
+      =     #s_SWS1_Ext_Req_Stop; 
+
+      A     #i_Command.SemiAuto_Fix_Up; 
+      =     #s_Semi_Auto_Fixed_Up; 
+
+      A     #i_Command.SemiAuto_Fix_St; 
+      =     #s_Semi_Auto_Fixed_St; 
+
+      A     #i_Command.SemiAuto_Fix_Dn; 
+      =     #s_Semi_Auto_Fixed_Dn; 
+
+      CALL #s_SWS1_FB_EQP_SWS_Mvdr (
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Manual_Mode        := #i_Command.Manual,
+           i_CMD_Manual_Jog_Up      := #i_Command.Man_Jog_Up,
+           i_CMD_Manual_Jog_Down    := #i_Command.Man_Jog_Dn,
+           i_CMD_Manual_Fix_Up      := #i_Command.Man_Fix_Up,
+           i_CMD_Manual_Fix_Strght  := #i_Command.Man_Fix_St,
+           i_CMD_Manual_Fix_Down    := #i_Command.Man_Fix_Dn,
+           i_CMD_Semi_Auto_Fixed_Up := #s_Semi_Auto_Fixed_Up,
+           i_CMD_Semi_Auto_Fixed_St := #s_Semi_Auto_Fixed_St,
+           i_CMD_Semi_Auto_Fixed_Dn := #s_Semi_Auto_Fixed_Dn,
+           i_CMD_Switch_Up          := #s_SWS1_CMD_Switch_Up,
+           i_CMD_Switch_Straight    := #s_SWS1_CMD_Switch_St,
+           i_CMD_Switch_Down        := #s_SWS1_CMD_Switch_Dn,
+           i_IO_Available           := #i_IO_Available,
+           i_Fence_Opened           := #s_ST_Fence_Opened,
+           i_Safety_OK              := #i_Safety_OK,
+           i_Send_Statistics        := #i_Send_Statistics,
+           i_CFG_IO_Mvdr_StrtAddr   := #i_SWS1_CFG_IO_StrtAddr,
+           i_CFG_Position_Up        := #i_SWS1_CFG_Pos_Up,
+           i_CFG_Position_Straight  := #i_SWS1_CFG_Pos_St,
+           i_CFG_Position_Down      := #i_SWS1_CFG_Pos_Dn,
+           i_CFG_Default_Speed      := #i_SWS1_CFG_Default_Speed,
+           i_CFG_Homing_Speed       := #i_SWS1_CFG_Homing_Speed,
+           i_CFG_Timeout_Pos_Up     := #i_SWS1_CFG_TO_Pos_Up,
+           i_CFG_Timeout_Pos_Strght := #i_SWS1_CFG_TO_Pos_St,
+           i_CFG_Timeout_Pos_Down   := #i_SWS1_CFG_TO_Pos_Dn,
+           i_Mvdr_PN_Not_Prsnt      := #i_SWS1_PN_Not_Prsnt,
+           i_Mvdr_PN_Error          := #i_SWS1_PN_Error,
+           i_Ext_Req_Stop           := #s_SWS1_Ext_Req_Stop,
+           i_Ext_Req_Halt           := #s_SWS1_Ext_Req_Halt,
+           i_Enable_Rapid_Stop      := #t_Enable_Rapid_Stop,
+           o_Mvdr_Ready_To_Restart  := #s_SWS1_Ready_To_Restart,
+           o_ST_Mvdr_Running        := #o_SWS1_ST_Running,
+           o_ST_Mvdr_Started        := #o_SWS1_ST_Started,
+           o_ST_Mvdr_Homing_Done    := #s_SWS1_Homing_Done,
+           o_ST_Mvdr_PN_Not_Prsnt   := #o_SWS1_ST_PN_Not_Prsnt,
+           o_ST_Mvdr_PN_Error       := #o_SWS1_ST_PN_Error,
+           o_ST_Mvdr_Timeout_Dn     := #s_SWS1_ST_Time_Out_Down,
+           o_ST_Mvdr_Timeout_St     := #s_SWS1_ST_Time_Out_Strgt,
+           o_ST_Mvdr_Timeout_Up     := #s_SWS1_ST_Time_Out_Up,
+           o_ST_Mvdr_Pos_Up         := #s_SWS1_ST_Up,
+           o_ST_Mvdr_Pos_Straight   := #s_SWS1_ST_Straight,
+           o_ST_Mvdr_Pos_Down       := #s_SWS1_ST_Down,
+           o_ST_Mvdr_LS_Up          := #s_SWS1_Mvdr_LS_Up,
+           o_ST_Mvdr_LS_Dn          := #s_SWS1_Mvdr_LS_Down,
+           o_ST_Mvdr_Comm_Error     := #o_ST_Mvdr_Comm_Error,
+           o_ST_Mvdr_Error          := #o_ST_Mvdr_Error,
+           o_ST_Mvdr_Warning        := #o_ST_Mvdr_Warning);
+
+// Collect time out error from lift movement
+      A     #s_SWS1_ST_Time_Out_Down; 
+      O     #s_SWS1_ST_Time_Out_Strgt; 
+      O     #s_SWS1_ST_Time_Out_Up; 
+      =     #t_Req_Stop_SW_Mvmnt_TO; 
+
+// Homing not done 
+      AN    #s_SWS1_Homing_Done; 
+      =     #o_SWS1_ST_Homing_NotDone; 
+
+      CALL #s_SWS1_FB_DAT (
+           i_ID_Section             := #i_SWS1_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+HA99: NOP   0; 
+
+NETWORK
+TITLE =HB: Define die-back situations
+// Calculation die back situation TRS3
+      A     #o_TRS3_EXT_Outputs.Operational_On; 
+      AN    #o_TRS3_EXT_Outputs.Motor_Run; 
+      AN    #o_TRS3_EXT_Outputs.Energy_Saving; 
+      =     #t_TRS3_Die_Back; 
+
+// Calculation die back situation TRS5
+      A     #o_TRS5_EXT_Outputs.Operational_On; 
+      AN    #o_TRS5_EXT_Outputs.Motor_Run; 
+      AN    #o_TRS5_EXT_Outputs.Energy_Saving; 
+      =     #t_TRS5_Die_Back; 
+
+NETWORK
+TITLE =IA: Transport Section TRS02
+
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS2_IO_NOT_EOS_PEC; 
+      =     #t_Prst_PEC_Latch_TRS; 
+
+      CALL #s_TRS2_FB_EQP_PEC_EOS (
+           i_Setting                := #i_TRS2_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_Prst_PEC_Latch_TRS,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_EOS_PEC,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS2_EOS_PEC_LPOS,
+           o_PEC_Position           := #s_TRS2_PEC_Offset,
+           o_ST_PEC_Blk             := #s_TRS2_ST_EOS_PEC_Blk);
+
+      CALL #s_TRS2_FB_EQP_PPI (
+           i_CFG_PPI_Resolution     := 82,
+           i_CFG_Time_Out_Error     := 492,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_IO_PPI                 := #i_TRS2_IO_PPI,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS2_PPI_Displacement,
+           o_ST_PPI_Err             := #s_TRS2_ST_PPI_Err);
+
+// Request stop
+      A     #i_Command.Manual; 
+      O     #s_TRS2_ST_EOS_PEC_Blk; 
+      O     #s_TRS2_ST_PPI_Err; 
+      O     #s_TRS2_ST_EOS_PEC_Miss; 
+      O     #s_TRS2_ST_THO; 
+      O     #s_ST_Gap_Switch_Up; 
+      O     #s_ST_Gap_Blockage_Up; 
+      O     #t_Req_Stop_Collision_PEC; 
+      O     #s_ST_Fence_Opened; 
+      O     #i_Ext_Req_Stop; 
+      O     #t_Req_Stop_SW_Mvmnt_TO; 
+      O(    ; 
+      A(    ; 
+      O     #o_ST_Mvdr_Error; 
+      O     #s_SWS1_Mvdr_LS_Down; 
+      O     #s_SWS1_Mvdr_LS_Up; 
+      O     #o_SWS1_ST_PN_Not_Prsnt; 
+      O     #o_SWS1_ST_PN_Error; 
+      )     ; 
+      AN    #s_Semi_Auto_Fixed_Up; 
+      AN    #s_Semi_Auto_Fixed_St; 
+      AN    #s_Semi_Auto_Fixed_Dn; 
+      )     ; 
+      =     #s_TRS2_Req_Stop; 
+
+// Request halt
+      O(    ; 
+      A     #i_Command.Auto_Redun_Up; 
+      A     #t_TRS3_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #i_Command.Auto_Redun_Dn; 
+      A     #t_TRS5_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_ST_Homing_NotDone; 
+      AN    #i_Command.SemiAuto_Fix_Up; 
+      AN    #i_Command.SemiAuto_Fix_St; 
+      AN    #i_Command.SemiAuto_Fix_Dn; 
+      )     ; 
+      O     #s_TRS2_Req_Halt_Die_Back; 
+      O     #i_Ext_Req_Halt; 
+      O     #t_Req_Halt_Dis; 
+      =     #t_TRS2_Req_Halt; 
+
+      CALL #s_TRS2_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS2_ID,
+           i_Basic_Offset           := #i_TRS2_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS2_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS2_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS2_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS2_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := #s_TRS2_PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS2_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_IO_Available,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS2_Req_Stop,
+           i_Ext_Req_Halt           := #t_TRS2_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #i_Ext_Req_Rst_ESave,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_Prst_PEC_Latch_TRS,
+           o_External               := #o_TRS2_EXT_Outputs,
+           o_Motor_Run              := #s_TRS2_Req_MTR_Run,
+           o_ST_Items               := #s_TRS2_ST_Items,
+           o_ST_Running             := #s_TRS2_ST_Running,
+           o_ST_Started             := #o_TRS2_ST_Started,
+           o_ST_Request_Halt        := #o_TRS2_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS2_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS2_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS2_Ready_To_Restart);
+
+      CALL #s_TRS2_FB_TRK_Track_EOS (
+           i_Setting                := #i_TRS2_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS2_PEC_Offset,
+           i_LPOS                   := #s_TRS2_EOS_PEC_LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS2_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_Send_Statistics,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #i_Command.Manual,
+           o_ST_PEC_Miss            := #s_TRS2_ST_EOS_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS2_ST_EOS_PEC_BadTr,
+           o_Update_Performance     := #t_TRS2_Upd_Perform,
+           o_Average_Slip           := #t_TRS2_Average_Slip,
+           o_Number_Of_Items        := #t_TRS2_Number_Of_Items,
+           o_Data_Last_Update       := #t_Not_Used_Int,
+           o_Position_Last_Update   := #t_Not_Used_Int,
+           o_Deviation_Last_Update  := #t_TRS2_Deviation_Last_Up);
+
+      CALL #s_TRS2_FB_HW_MTR_MS (
+           i_CMD_Send_Stat          := #i_Send_Statistics,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_IO_Available,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS2_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS2_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #i_Command.Manual,
+           i_CMD_Manual_Run         := #i_Command.Man_TRS2_Start,
+           o_IO_MTR                 := #o_TRS2_IO_MTR,
+           o_ST_THO                 := #s_TRS2_ST_THO);
+
+NETWORK
+TITLE =JA: Tracking report TRS2
+//In position down we are sure that all the items entering the downstream section 
+//(TRS5) are coming from the TRS2. 
+//When the item entering the downstream section a message "Direction Taken" with 
+//value "2" is sent to HLC with The ID of the TRS2.
+      A     #s_TRS5_Send_Track_Report; 
+      R     #s_TRS5_Send_Track_Report; 
+
+// First scan jump
+      AN    "M_First_Scan"; 
+      JCN   JA06; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS5_DB_PLT_Num,
+           i_Position               := #t_TRS5_Length_Section,
+           i_Window                 := 30,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #s_TRS5_Fnd_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Item entering section
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      FP    #s_TRS5_FP_Item; 
+      JCN   JA06; 
+
+      SET   ; 
+      S     #s_TRS5_Send_Track_Report; 
+
+// Tracking report Direction From: 2 (Item goes from up to down)
+      A     #s_SWS1_ST_Down; 
+      JCN   JA06; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      L     #s_TRS5_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   JA03; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS5_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Update tracking report message
+JA03: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS5_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+
+JA06: CALL #s_TRS2_FB_DAT (
+           i_ID_Section             := #i_TRS2_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := TRUE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =KA: Transport Section TRS03
+
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS3_IO_NOT_EOS_PEC; 
+      =     #t_Prst_PEC_Latch_TRS; 
+
+      CALL #s_TRS3_FB_EQP_PEC_EOS (
+           i_Setting                := #i_TRS3_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_Prst_PEC_Latch_TRS,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS3_IO_NOT_EOS_PEC,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS3_EOS_PEC_LPOS,
+           o_PEC_Position           := #s_TRS3_PEC_Offset,
+           o_ST_PEC_Blk             := #s_TRS3_ST_EOS_PEC_Blk);
+
+      CALL #s_TRS3_FB_EQP_PPI (
+           i_CFG_PPI_Resolution     := 82,
+           i_CFG_Time_Out_Error     := 492,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_IO_PPI                 := #i_TRS3_IO_PPI,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS3_PPI_Displacement,
+           o_ST_PPI_Err             := #s_TRS3_ST_PPI_Err);
+
+// Request stop
+      A     #s_TRS3_ST_EOS_PEC_Blk; 
+      O     #i_Command.Manual; 
+      O     #s_TRS3_ST_PPI_Err; 
+      O     #s_TRS3_ST_EOS_PEC_Miss; 
+      O     #s_TRS3_ST_THO; 
+      O     #t_Req_Stop_Collision_PEC; 
+      O     #s_ST_Fence_Opened; 
+      O     #i_Ext_Req_Stop; 
+      O     #t_Req_Stop_SW_Mvmnt_TO; 
+      O(    ; 
+      A(    ; 
+      O     #o_ST_Mvdr_Error; 
+      O     #s_SWS1_Mvdr_LS_Down; 
+      O     #s_SWS1_Mvdr_LS_Up; 
+      )     ; 
+      AN    #s_Semi_Auto_Fixed_Up; 
+      AN    #s_Semi_Auto_Fixed_St; 
+      AN    #s_Semi_Auto_Fixed_Dn; 
+      )     ; 
+      =     #s_TRS3_Req_Stop; 
+
+// Request halt
+      A     #o_SWS1_ST_Homing_NotDone; 
+      AN    #i_Command.SemiAuto_Fix_Up; 
+      AN    #i_Command.SemiAuto_Fix_St; 
+      AN    #i_Command.SemiAuto_Fix_Dn; 
+      O     #i_Ext_Req_Halt; 
+      =     #t_TRS3_Req_Halt; 
+
+// Reset Esave in case of die back
+      A     #i_Ext_Req_Rst_ESave; 
+      O(    ; 
+      A     #s_TRS2_Req_Halt_Die_Back; 
+      A     #o_ST_Straight; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      A     #o_ST_Up; 
+      )     ; 
+      =     #t_TRS3_Req_Rst_ESave; 
+
+      CALL #s_TRS3_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS3_ID,
+           i_Basic_Offset           := #i_TRS3_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_Dwnstr_Up,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS3_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS3_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS3_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS3_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS3_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := #s_TRS3_PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS3_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_IO_Available,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS3_Req_Stop,
+           i_Ext_Req_Halt           := #t_TRS3_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #t_TRS3_Req_Rst_ESave,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_Prst_PEC_Latch_TRS,
+           o_External               := #o_TRS3_EXT_Outputs,
+           o_Motor_Run              := #s_TRS3_Req_MTR_Run,
+           o_ST_Items               := #o_TRS3_ST_Items,
+           o_ST_Running             := #o_TRS3_ST_Running,
+           o_ST_Started             := #o_TRS3_ST_Started,
+           o_ST_Request_Halt        := #o_TRS3_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS3_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS3_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS3_Ready_To_Restart);
+
+      CALL #s_TRS3_FB_TRK_Track_EOS (
+           i_Setting                := #i_TRS3_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS3_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS3_PEC_Offset,
+           i_LPOS                   := #s_TRS3_EOS_PEC_LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS3_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_Send_Statistics,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #i_Command.Manual,
+           o_ST_PEC_Miss            := #s_TRS3_ST_EOS_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS3_ST_EOS_PEC_BadTr,
+           o_Update_Performance     := #t_TRS3_Upd_Perform,
+           o_Average_Slip           := #t_TRS3_Average_Slip,
+           o_Number_Of_Items        := #t_TRS3_Number_Of_Items,
+           o_OS_Data_Updated        := #t_TRS3_OS_Data_Updated,
+           o_Data_Last_Update       := #t_TRS3_Data_Last_Update,
+           o_Position_Last_Update   := #t_TRS3_Position_Last_Upd,
+           o_Deviation_Last_Update  := #t_TRS3_Deviation_Last_Up);
+
+      CALL #s_TRS3_FB_HW_MTR_MS (
+           i_CMD_Send_Stat          := #i_Send_Statistics,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_IO_Available,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS3_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS3_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #i_Command.Manual,
+           i_CMD_Manual_Run         := #i_Command.Man_TRS3_Start,
+           o_IO_MTR                 := #o_TRS3_IO_MTR,
+           o_ST_THO                 := #s_TRS3_ST_THO);
+
+NETWORK
+TITLE =LA: Tracking report TRS3
+//Case 1: SCZ01 in position Straight
+//- Direction To 1, Decision Level 5 with ID of TRS3
+//
+//Case 2: SCZ01 in position Up
+//- Direction From 2, Decision Level 3 with ID of TRS4
+//- Direction To 2, Decision Level 5 with ID of TRS3
+//
+//Remark:
+//In position up. 
+//When the item entering the downstream section a message "Direction From" with 
+//value "2" is sent to HLC with The ID of the TRS3.
+      NOP   0; 
+// Tracking report Direction to: 2 (Item goes from down to up) second message
+      A     #s_TRS3_Send_Track_Report; 
+      JCN   LA06; 
+
+// Reset trigger second message 
+      SET   ; 
+      R     #s_TRS3_Send_Track_Report; 
+
+      A     #s_SWS1_ST_Up; 
+      JCN   LA04; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      L     #s_TRS3_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   LA01; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS3_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Update tracking report message
+LA01: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS3_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+      JU    LA06; 
+
+// Tracking report Direction to: 1 (Item goes Straight)
+LA04: A     #s_SWS1_ST_Straight; 
+      JCN   LA06; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      L     #s_TRS3_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   LA05; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS3_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+
+// Update tracking report message
+LA05: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS3_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+
+LA06: CALL #s_TRS3_FB_DAT (
+           i_ID_Section             := #i_TRS3_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := TRUE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =MA: Transport Section TRS04
+
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS4_IO_NOT_EOS_PEC; 
+      =     #t_Prst_PEC_Latch_TRS; 
+
+      CALL #s_TRS4_FB_EQP_PEC_EOS (
+           i_Setting                := #i_TRS4_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS4_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_Prst_PEC_Latch_TRS,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS4_IO_NOT_EOS_PEC,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS4_EOS_PEC_LPOS,
+           o_PEC_Position           := #s_TRS4_PEC_Offset,
+           o_ST_PEC_Blk             := #s_TRS4_ST_EOS_PEC_Blk);
+
+      CALL #s_TRS4_FB_EQP_PPI (
+           i_CFG_PPI_Resolution     := 82,
+           i_CFG_Time_Out_Error     := 492,
+           i_DB_PLT                 := #i_TRS4_DB_PLT,
+           i_IO_PPI                 := #i_TRS4_IO_PPI,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS4_PPI_Displacement,
+           o_ST_PPI_Err             := #s_TRS4_ST_PPI_Err);
+
+// Request stop
+      A     #s_TRS4_ST_EOS_PEC_Blk; 
+      O     #i_Command.Manual; 
+      O     #s_TRS4_ST_PPI_Err; 
+      O     #s_TRS4_ST_EOS_PEC_Miss; 
+      O     #s_TRS4_ST_THO; 
+      O     #s_ST_Gap_Switch_Down; 
+      O     #s_ST_Gap_Blockage_Down; 
+      O     #t_Req_Stop_Collision_PEC; 
+      O     #s_ST_Fence_Opened; 
+      O     #i_Ext_Req_Stop; 
+      O     #t_Req_Stop_SW_Mvmnt_TO; 
+      O(    ; 
+      A(    ; 
+      O     #o_ST_Mvdr_Error; 
+      O     #s_SWS1_Mvdr_LS_Down; 
+      O     #s_SWS1_Mvdr_LS_Up; 
+      O     #o_SWS1_ST_PN_Not_Prsnt; 
+      O     #o_SWS1_ST_PN_Error; 
+      )     ; 
+      AN    #s_Semi_Auto_Fixed_Up; 
+      AN    #s_Semi_Auto_Fixed_St; 
+      AN    #s_Semi_Auto_Fixed_Dn; 
+      )     ; 
+      =     #s_TRS4_Req_Stop; 
+
+// Request halt
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      O(    ; 
+      A     #i_Command.Auto_Redun_Up; 
+      A     #t_TRS3_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #i_Command.Auto_Redun_Dn; 
+      A     #t_TRS5_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_ST_Homing_NotDone; 
+      AN    #i_Command.SemiAuto_Fix_Up; 
+      AN    #i_Command.SemiAuto_Fix_St; 
+      AN    #i_Command.SemiAuto_Fix_Dn; 
+      )     ; 
+      O     #i_Ext_Req_Halt; 
+      O     #t_Req_Halt_Dis; 
+      =     #t_TRS4_Req_halt; 
+
+      CALL #s_TRS4_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS4_ID,
+           i_Basic_Offset           := #i_TRS4_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS4_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS4_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS4_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS4_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS4_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS4_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := #s_TRS4_PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS4_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_IO_Available,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS4_Req_Stop,
+           i_Ext_Req_Halt           := #t_TRS4_Req_halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #i_Ext_Req_Rst_ESave,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_Prst_PEC_Latch_TRS,
+           o_External               := #o_TRS4_EXT_Outputs,
+           o_Motor_Run              := #s_TRS4_Req_MTR_Run,
+           o_ST_Items               := #s_TRS4_ST_Items,
+           o_ST_Running             := #s_TRS4_ST_Running,
+           o_ST_Started             := #o_TRS4_ST_Started,
+           o_ST_Request_Halt        := #o_TRS4_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS4_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS4_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS4_Ready_To_Restart);
+
+      CALL #s_TRS4_FB_TRK_Track_EOS (
+           i_Setting                := #i_TRS4_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS4_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS4_PEC_Offset,
+           i_LPOS                   := #s_TRS4_EOS_PEC_LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS4_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_Send_Statistics,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #i_Command.Manual,
+           o_ST_PEC_Miss            := #s_TRS4_ST_EOS_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS4_ST_EOS_PEC_BadTr,
+           o_Update_Performance     := #t_TRS4_Upd_Perform,
+           o_Average_Slip           := #t_TRS4_Average_Slip,
+           o_Number_Of_Items        := #t_TRS4_Number_Of_Items,
+           o_Data_Last_Update       := #t_Not_Used_Int,
+           o_Position_Last_Update   := #t_Not_Used_Int,
+           o_Deviation_Last_Update  := #t_TRS4_Deviation_Last_Up);
+
+      CALL #s_TRS4_FB_HW_MTR_MS (
+           i_CMD_Send_Stat          := #i_Send_Statistics,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_IO_Available,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS4_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS4_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #i_Command.Manual,
+           i_CMD_Manual_Run         := #i_Command.Man_TRS4_Start,
+           o_IO_MTR                 := #o_TRS4_IO_MTR,
+           o_ST_THO                 := #s_TRS4_ST_THO);
+
+NETWORK
+TITLE =NA: Tracking report TRS4
+//In position up we are sure that all the items entering the downstream section 
+//(TRS3) are coming from the TRS4. 
+//When the item entering the downstream section a message "Direction Taken" with 
+//value "1" is sent to HLC with The ID of the TRS4.
+      NOP   0; 
+// First scan jump
+      AN    "M_First_Scan"; 
+      JCN   NA06; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS3_DB_PLT_Num,
+           i_Position               := #t_TRS3_Length_Section,
+           i_Window                 := 30,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #s_TRS3_Fnd_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Item entering section
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      FP    #s_TRS3_FP_Item; 
+      JCN   NA06; 
+
+// Set trigger second message
+      SET   ; 
+      S     #s_TRS3_Send_Track_Report; 
+
+// Tracking report Direction from: 2 (Item goes from down to up)
+      A     #s_SWS1_ST_Up; 
+      JCN   NA06; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      L     #s_TRS3_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   NA03; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS3_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS3_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS3_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Update tracking report message
+NA03: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS3_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS3_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+
+NA06: CALL #s_TRS4_FB_DAT (
+           i_ID_Section             := #i_TRS4_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := TRUE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =OA: Transport Section TRS05
+
+      A     #t_OS_FN_Manual_Mode; 
+      A     #i_TRS5_IO_NOT_EOS_PEC; 
+      =     #t_Prst_PEC_Latch_TRS; 
+
+      CALL #s_TRS5_FB_EQP_PEC_EOS (
+           i_Setting                := #i_TRS5_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS5_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_Blockage_Length,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 5,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #t_Prst_PEC_Latch_TRS,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS5_IO_NOT_EOS_PEC,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS5_EOS_PEC_LPOS,
+           o_PEC_Position           := #s_TRS5_PEC_Offset,
+           o_ST_PEC_Blk             := #s_TRS5_ST_EOS_PEC_Blk);
+
+      CALL #s_TRS5_FB_EQP_PPI (
+           i_CFG_PPI_Resolution     := 82,
+           i_CFG_Time_Out_Error     := 492,
+           i_DB_PLT                 := #i_TRS5_DB_PLT,
+           i_IO_PPI                 := #i_TRS5_IO_PPI,
+           i_Eqp_Available_IO       := #i_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS5_PPI_Displacement,
+           o_ST_PPI_Err             := #s_TRS5_ST_PPI_Err);
+
+// Request stop
+
+      A     #s_TRS5_ST_EOS_PEC_Blk; 
+      O     #i_Command.Manual; 
+      O     #s_TRS5_ST_PPI_Err; 
+      O     #s_TRS5_ST_EOS_PEC_Miss; 
+      O     #s_TRS5_ST_THO; 
+      O     #t_Req_Stop_Collision_PEC; 
+      O     #s_ST_Fence_Opened; 
+      O     #i_Ext_Req_Stop; 
+      O     #t_Req_Stop_SW_Mvmnt_TO; 
+      O(    ; 
+      A(    ; 
+      O     #o_ST_Mvdr_Error; 
+      O     #s_SWS1_Mvdr_LS_Down; 
+      O     #s_SWS1_Mvdr_LS_Up; 
+      )     ; 
+      AN    #s_Semi_Auto_Fixed_Up; 
+      AN    #s_Semi_Auto_Fixed_St; 
+      AN    #s_Semi_Auto_Fixed_Dn; 
+      )     ; 
+      =     #s_TRS5_Req_Stop; 
+
+// Request halt
+      A     #o_SWS1_ST_Homing_NotDone; 
+      AN    #i_Command.SemiAuto_Fix_Up; 
+      AN    #i_Command.SemiAuto_Fix_St; 
+      AN    #i_Command.SemiAuto_Fix_Dn; 
+      O     #i_Ext_Req_Halt; 
+      =     #t_TRS5_Req_Halt; 
+
+// Reset energy save in case of die back
+      A     #i_Ext_Req_Rst_ESave; 
+      O(    ; 
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      A     #o_ST_Straight; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS2_Req_Halt_Die_Back; 
+      A     #o_ST_Down; 
+      )     ; 
+      =     #t_TRS5_Req_Rst_ESave; 
+
+      CALL #s_TRS5_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS5_ID,
+           i_Basic_Offset           := #i_TRS5_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS5_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_Dwnstr_Dn,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS5_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_TRS5_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS5_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS5_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS5_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Stop_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := #s_TRS5_PPI_Displacement,
+           i_Dwnstr_PLT_Pos         := #s_TRS5_PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_IO_Available,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS5_Req_Stop,
+           i_Ext_Req_Halt           := #t_TRS5_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #t_TRS5_Req_Rst_ESave,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #t_Prst_PEC_Latch_TRS,
+           o_External               := #o_TRS5_EXT_Outputs,
+           o_Motor_Run              := #s_TRS5_Req_MTR_Run,
+           o_ST_Items               := #o_TRS5_ST_Items,
+           o_ST_Running             := #o_TRS5_ST_Running,
+           o_ST_Started             := #o_TRS5_ST_Started,
+           o_ST_Request_Halt        := #o_TRS5_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS5_ST_Req_Stop,
+           o_ST_External_Stop       := #o_TRS5_ST_Ext_Stop,
+           o_Ready_To_Restart       := #s_TRS5_Ready_To_Restart);
+
+      CALL #s_TRS5_FB_TRK_Track_EOS (
+           i_Setting                := #i_TRS5_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS5_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS5_PEC_Offset,
+           i_LPOS                   := #s_TRS5_EOS_PEC_LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS5_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_Send_Statistics,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #i_Command.Manual,
+           o_ST_PEC_Miss            := #s_TRS5_ST_EOS_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS5_ST_EOS_PEC_BadTr,
+           o_Update_Performance     := #t_TRS5_Upd_Perform,
+           o_Average_Slip           := #t_TRS5_Average_Slip,
+           o_Number_Of_Items        := #t_TRS5_Number_Of_Items,
+           o_OS_Data_Updated        := #t_TRS5_OS_Data_Updated,
+           o_Data_Last_Update       := #t_TRS5_Data_Last_Update,
+           o_Position_Last_Update   := #t_TRS5_Position_Last_Upd,
+           o_Deviation_Last_Update  := #t_TRS5_Deviation_Last_Up);
+
+      CALL #s_TRS5_FB_HW_MTR_MS (
+           i_CMD_Send_Stat          := #i_Send_Statistics,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_IO_Available,
+           i_IO_MS_Automatic_Mode   := TRUE,
+           i_IO_NOT_THO             := #i_TRS5_IO_NOT_THO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS5_Req_MTR_Run,
+           i_CMD_Manual_Mode        := #i_Command.Manual,
+           i_CMD_Manual_Run         := #i_Command.Man_TRS5_Start,
+           o_IO_MTR                 := #o_TRS5_IO_MTR,
+           o_ST_THO                 := #s_TRS5_ST_THO);
+
+NETWORK
+TITLE =PA: Tracking report TRS5
+//Case 1: SCZ01 in position Straight
+//- Direction Taken 2, Decision Level 8 with ID of TRS5
+//
+//Case 2: SCZ01 in position Down
+//- Direction Taken 2, Decision Level 3 with ID of TRS2
+//- Direction From 1, Decision Level 3 with ID of TRS5
+//
+//In position down. 
+//When the item entering the downstream section a message "Direction From" with 
+//value "1" is sent to HLC with The ID of the TRS5.
+      NOP   0; 
+// Tracking report Direction to: 2 (Item goes from up to down) second message
+      A     #s_TRS5_Send_Track_Report; 
+      FN    #s_TRS5_FN_Send_Track_Rep; 
+      JCN   PA06; 
+
+      A     #s_SWS1_ST_Down; 
+      JCN   PA04; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      L     #s_TRS5_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   PA01; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS5_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Update tracking report message
+PA01: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS5_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+      JU    PA06; 
+
+
+// Tracking report Direction to: 2 (Item goes straight)
+PA04: A     #s_SWS1_ST_Straight; 
+      JCN   PA06; 
+
+// Create reply route record if not existing
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      L     #s_TRS5_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   PA05; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_TRS5_Fnd_LNK,
+           i_DB_List                := #t_DB_Nr_Route_List,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #s_TRS5_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_TRS5_Fnd_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Update tracking report message
+PA05: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_TRS5_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write sort report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//Tracking Report = 1201
+           i_Event_value            := #s_TRS5_Fnd_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_RET_VAL_int);
+
+PA06: CALL #s_TRS5_FB_DAT (
+           i_ID_Section             := #i_TRS5_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := TRUE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =QA: Data layer of SCZ01
+
+      CALL #s_FB_SCZ01_DAT (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := TRUE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =RA: Copy statistics, ready to restart and action active
+
+      A     #s_SWS1_ST_Up; 
+      =     #o_ST_Up; 
+      A     #s_SWS1_ST_Straight; 
+      =     #o_ST_Straight; 
+      A     #s_SWS1_ST_Down; 
+      =     #o_ST_Down; 
+      A     #s_ST_Fence_Opened; 
+      =     #o_ST_Fence_Opened; 
+      A     #s_ST_Gap_Blockage_Up; 
+      =     #o_ST_Gap_Blockage_Up; 
+      A     #s_ST_Gap_Blockage_Down; 
+      =     #o_ST_Gap_Blockage_Down; 
+      A     #s_ST_Gap_Switch_Up; 
+      =     #o_ST_Gap_Switch_Up; 
+      A     #s_ST_Gap_Switch_Down; 
+      =     #o_ST_Gap_Switch_Down; 
+      A     #s_SWS1_Mvdr_LS_Down; 
+      =     #o_SWS1_ST_LS_Limit_Down; 
+      A     #s_SWS1_Mvdr_LS_Up; 
+      =     #o_SWS1_ST_LS_Limit_Up; 
+      A     #s_SWS1_ST_Time_Out_Down; 
+      O     #s_SWS1_ST_Time_Out_Strgt; 
+      O     #s_SWS1_ST_Time_Out_Up; 
+      =     #o_SWS1_ST_Move_Time_Out; 
+
+// Mode
+      A     #i_Command.Manual; 
+      =     #o_ST_Manual; 
+      A     #i_Command.Auto_Redun_Up; 
+      =     #o_ST_Redundant_Up; 
+      A     #i_Command.Auto_Redun_Dn; 
+      =     #o_ST_Redundant_Down; 
+      A     #i_Command.SemiAuto_Fix_Up; 
+      =     #o_ST_Fixed_Up; 
+      A     #i_Command.SemiAuto_Fix_Dn; 
+      =     #o_ST_Fixed_Down; 
+      A     #i_Command.SemiAuto_Fix_St; 
+      =     #o_ST_Fixed_Straight; 
+
+// TRS 2
+      A     #s_TRS2_ST_EOS_PEC_Blk; 
+      =     #o_TRS2_ST_EOS_PEC_Blk; 
+      A     #s_TRS2_ST_EOS_PEC_Miss; 
+      =     #o_TRS2_ST_EOS_PEC_Miss; 
+      A     #s_TRS2_ST_THO; 
+      =     #o_TRS2_ST_THO; 
+      A     #s_TRS2_ST_PPI_Err; 
+      =     #o_TRS2_ST_PPI_Err; 
+      A     #s_TRS2_ST_Items; 
+      =     #o_TRS2_ST_Items; 
+      A     #s_TRS2_ST_Running; 
+      =     #o_TRS2_ST_Running; 
+
+// TRS 3
+      A     #s_TRS3_ST_EOS_PEC_Blk; 
+      =     #o_TRS3_ST_EOS_PEC_Blk; 
+      A     #s_TRS3_ST_EOS_PEC_Miss; 
+      =     #o_TRS3_ST_EOS_PEC_Miss; 
+      A     #s_TRS3_ST_THO; 
+      =     #o_TRS3_ST_THO; 
+      A     #s_TRS3_ST_PPI_Err; 
+      =     #o_TRS3_ST_PPI_Err; 
+
+// TRS 4
+      A     #s_TRS4_ST_EOS_PEC_Blk; 
+      =     #o_TRS4_ST_EOS_PEC_Blk; 
+      A     #s_TRS4_ST_EOS_PEC_Miss; 
+      =     #o_TRS4_ST_EOS_PEC_Miss; 
+      A     #s_TRS4_ST_THO; 
+      =     #o_TRS4_ST_THO; 
+      A     #s_TRS4_ST_PPI_Err; 
+      =     #o_TRS4_ST_PPI_Err; 
+      A     #s_TRS4_ST_Items; 
+      =     #o_TRS4_ST_Items; 
+      A     #s_TRS4_ST_Running; 
+      =     #o_TRS4_ST_Running; 
+
+// TRS 5
+      A     #s_TRS5_ST_EOS_PEC_Blk; 
+      =     #o_TRS5_ST_EOS_PEC_Blk; 
+      A     #s_TRS5_ST_EOS_PEC_Miss; 
+      =     #o_TRS5_ST_EOS_PEC_Miss; 
+      A     #s_TRS5_ST_THO; 
+      =     #o_TRS5_ST_THO; 
+      A     #s_TRS5_ST_PPI_Err; 
+      =     #o_TRS5_ST_PPI_Err; 
+
+// Action active
+      A     #o_SWS1_ST_Running; 
+      AN    #s_SWS1_Ext_Req_Stop; 
+      AN    #s_TRS2_Req_Stop; 
+      AN    #s_TRS3_Req_Stop; 
+      AN    #s_TRS4_Req_Stop; 
+      AN    #s_TRS5_Req_Stop; 
+      =     #o_Action_Active; 
+
+// Ready to start
+      A     #s_SWS1_Ready_To_Restart; 
+      O     #s_TRS2_Ready_To_Restart; 
+      O     #s_TRS3_Ready_To_Restart; 
+      O     #s_TRS4_Ready_To_Restart; 
+      O     #s_TRS5_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+
+END_FUNCTION_BLOCK
+

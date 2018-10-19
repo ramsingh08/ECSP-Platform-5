@@ -1,0 +1,59 @@
+FUNCTION_BLOCK "FB_PGs_Safe"
+TITLE =%version: 0.03 % CN: 40
+//History:
+//This version  %created_by:  nleg %
+//              %date_created:  Monday, November 14, 2016 9:12:09 AM %
+//              %release: VI_SAFE/RA_Dev %
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!                                                      !!
+// !! TEMPORARY SOURCE: For generation safety program ONLY !!
+// !!                                                      !!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Changed name block to "FB_PGs_Safe"                   nleg     14-11-16   0.03
+//ra#17355 - Update CN to comply to ECS coding standard nlwlu    23-09-16   0.02
+//Initial version based on Tmp_FB_PGs_Safe v0.01        nlbvers  08-04-15   0.01
+//
+//
+//Example network (Call F_PG_SAFE, depending on CEM):
+//
+//Safe evaluation PG_AAAA_01
+//
+//      A     "DB_SE_SIF".ES_ZZ_01_OK; 
+//      A     "DB_SE_SIF".ES_ZZ_02_OK; 
+//      =     L      0.0; 
+//      BLD   103; 
+//      A     "F_GLOBDB".VKE1; 
+//      =     L      0.1; 
+//      BLD   103; 
+//      A     "DB_PG_SIF".PG_AAAA_01_Off; 
+//      =     L      0.2; 
+//      BLD   103; 
+//      A     "F_DI_AAAA_RCV1".SUBS_ON; 
+//      =     L      0.3; 
+//      BLD   103; 
+//      CALL #s_PG_AAAA_01_Safe (
+//           i_No_Stop_Cat0           := L      0.0,
+//           i_No_Stop_Cat1           := L      0.1,
+//           i_PG_Off                 := L      0.2,
+//           i_Comm_error             := L      0.3,
+//           i_Time_Delay             := T#3S,
+//           o_PG_ON                  := "DB_PG_SIF".PG_AAAA_01_ON,
+//           o_PG_Safe                := "DB_PG_SIF".PG_AAAA_01_Safe);
+//      NOP   0; 
+//
+AUTHOR : VI_SAFE
+FAMILY : SAFE
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.   
+
+
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,51 @@
+TYPE "UDT_SWS_SCZ_Status"
+TITLE =%version: 0.02 % CN: 10
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, August 17, 2017 1:27:36 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24387: Update after testing                        inrjoi   17-08-17   0.02 
+//Initial version for PF5                               inrjoi   20-06-17   0.01                                       
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   PN_Not_Prsnt : BOOL ;	//Profinet slave not Present
+   PN_Error : BOOL ;	//Profinet slave error
+   Upper_Limit_Switch : BOOL ;	//Upper limit switch is activated
+   Lower_Limit_Switch : BOOL ;	//Lower limit switch is activated
+   Homing_Not_Done : BOOL ;	//Homing of SEW movidrive is not done
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Move_Time_Out : BOOL ;	//Movement Time out
+   Spare_1_7 : BOOL ;	//Spare_1_7
+   Spare_2_0 : BOOL ;	//Spare_2_0
+   Mvdr_Comm_Error : BOOL ;	//Movidrive communication error
+   Mvdr_Error : BOOL ;	//Movidrive has an error
+   Mvdr_Warning : BOOL ;	//Movidrive has a warning
+   Position_Up : BOOL ;	//SWS is in up position
+   Position_Straight : BOOL ;	//SWS is in straight position
+   Position_Down : BOOL ;	//SWS is in down position
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,169 @@
+FUNCTION_BLOCK "FB_External_Run_SVC"
+TITLE =%version: 0.05 % CN: 40
+//Function:
+//Module for switching the PLT header (upstream and/or downstream) of a section 
+//dynamically based upon configuration inputs. This is used for the external run 
+//function adjacent areas of verticross when SVC area controller has failed.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created:  Monday, November 13, 2017 8:59:51 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//veg#1704: SVC output Basic Offset not set             nlHdL    13-11-17   0.05
+//ra#25899: Rename CFG_DB_PLT_Dwnstr to CFG_Upstr_SVC   nlHdL    06-11-17   0.04
+//ra#24387: Report status when external run is active   inrjoi   17-08-17   0.03
+//ra#23667: Update the description                      inrjoi   09-08-17   0.02
+//Initial version                                       inrjoi   15-06-17   0.01
+//
+//Description:
+//This blocks connects different upstream and downstream PLT DB's for the section.
+//
+//For an upstream section (adjacent area) of SVC,
+// i_CMD_Ext_Run = TRUE AND i_CFG_DB_PLT_Dwnstr = TRUE
+// i_DB_PLT_Upstr will be loaded as the downstream PLT DB (DBW8) of i_DB_PLT.
+//
+//For a downstream section (adjacent area) of SVC,
+// i_CMD_Ext_Run = TRUE AND i_CFG_DB_PLT_Dwnstr = FALSE
+// i_DB_PLT_Upstr will be loaded as the upstream PLT DB (DBW6) of i_DB_PLT.
+// Basic offset of section is recalculated adding,
+// i_CFG_Basic_Offset + i_CFG_Upstr_Sec_Length
+//  
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: DB PLT
+  i_DB_PLT_Upstr : BLOCK_DB ;	//Data Structure: DB PLT upstream section
+  i_DB_PLT_Dwnstr : BLOCK_DB ;	//Data Structure: DB PLT downstream section
+  i_CFG_Basic_Offset : INT  := 70;	//CFG: [cm] Basic offset of the section
+  i_CFG_Upstr_Sec_Length : INT  := 390;	//CFG: [cm] Total length of the 4 upstream sections of SVC 
+  i_CFG_Upstr_SVC : BOOL ;	//CFG: Function Upstream of SVC (True change Downstream, False change Upstream)
+  i_CMD_Ext_Run : BOOL ;	//CMD: External run command from SVC cabinet
+END_VAR
+VAR_OUTPUT
+  o_Basic_Offset : INT ;	//[cm] Basic offset of the section
+  o_ST_External_Run_ON : BOOL ;	//ST: Transport mode
+END_VAR
+VAR
+  s_DB_PLT_Num_Upstr : INT ;	//Number of the upstream PLT DB
+  s_DB_PLT_Num_Dwnstr : INT ;	//Number of the downstream PLT DB
+  s_DB_PLT_Num : INT ;	//Number of the PLT DB
+  s_FP_Cmd_Ext_Run : BOOL ;	//Positive flank of external run command
+  s_FN_Cmd_Ext_Run : BOOL ;	//Positive flank of external run command
+END_VAR
+VAR_TEMP
+  t_OS_FP_Ext_Run : BOOL ;	//One shot positive flank external run
+  t_OS_FN_Ext_Run : BOOL ;	//One shot negative flank external run
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB numbers
+
+      OPN   #i_DB_PLT_Upstr; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_Num_Upstr; // Determine PLT A DB block number
+      L     1; 
+      <=I   ; 
+      JCN   AA01; 
+      L     0; // IF PLT not connected THEN write 0
+      T     #s_DB_PLT_Num_Upstr; 
+
+AA01: NOP   0; 
+
+      OPN   #i_DB_PLT_Dwnstr; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_Num_Dwnstr; // Determine PLT B DB block number
+      L     1; 
+      <=I   ; 
+      JCN   AA02; 
+      L     0; // IF PLT not connected THEN write 0
+      T     #s_DB_PLT_Num_Dwnstr; 
+
+AA02: NOP   0; 
+
+      OPN   #i_DB_PLT; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_PLT_Num; // Determine PLT DB block number
+NETWORK
+TITLE =BA: Create one shots of external run command
+
+      A     #i_CMD_Ext_Run; //Create one shot of the positive flank
+      FP    #s_FP_Cmd_Ext_Run; 
+      =     #t_OS_FP_Ext_Run; 
+
+      A     #i_CMD_Ext_Run; //Create one shot of the negative flank
+      FN    #s_FN_Cmd_Ext_Run; 
+      =     #t_OS_FN_Ext_Run; 
+
+      L     #o_Basic_Offset; 
+      L     0; 
+      ==I   ; 
+      JCN   BA01; 
+
+// Load the basic offset as preset value
+      L     #i_CFG_Basic_Offset; 
+      T     #o_Basic_Offset; 
+
+BA01: A     #i_CMD_Ext_Run; 
+      =     #o_ST_External_Run_ON; 
+NETWORK
+TITLE =CA: Switch DB numbers in PLT DB
+//If i_CFG_Upstr_SVC is TRUE (function Upstream of SVC) then the
+//DB_PLT_nr_Downstream is changed
+//If i_CFG_Upstr_SVC is FALSE (function Downstream of SVC) then the 
+//DB_PLT_nr_Upstream is changed
+      NOP   0; 
+// Switch number PLT downstream
+      A     #i_CFG_Upstr_SVC; 
+      JCN   CA02; 
+
+      A     #t_OS_FP_Ext_Run; 
+      JCN   CA01; 
+
+// Then switch the PLT DB numbers in the PLT DB
+      L     #s_DB_PLT_Num_Upstr; 
+      T     DBW    8; 
+      JU    CA99; 
+
+CA01: A     #t_OS_FN_Ext_Run; 
+      JCN   CA99; 
+
+// Then switch the PLT DB numbers in the PLT DB
+      L     #s_DB_PLT_Num_Dwnstr; 
+      T     DBW    8; 
+      JU    CA99; 
+
+// Switch number PLT upstream
+CA02: A     #t_OS_FP_Ext_Run; 
+      JCN   CA03; 
+
+// Then switch the PLT DB numbers in the PLT DB
+      L     #s_DB_PLT_Num_Upstr; 
+      T     DBW    6; 
+
+// Re-calculate the basic offset of section when external run is active
+// Basic offset = Own section basic offset + Length of 4 upstream sections of SVC
+      L     #i_CFG_Basic_Offset; 
+      L     #i_CFG_Upstr_Sec_Length; 
+      +I    ; 
+      T     #o_Basic_Offset; 
+      JU    CA99; 
+
+CA03: A     #t_OS_FN_Ext_Run; 
+      JCN   CA99; 
+
+// Then switch the PLT DB numbers in the PLT DB
+      L     #s_DB_PLT_Num_Dwnstr; 
+      T     DBW    6; 
+
+// Load the basic offset of own section only when external run is not active
+      L     #i_CFG_Basic_Offset; 
+      T     #o_Basic_Offset; 
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

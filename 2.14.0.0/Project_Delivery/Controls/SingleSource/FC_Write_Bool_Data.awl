@@ -1,0 +1,144 @@
+FUNCTION "FC_Write_Bool_Data" : INT
+TITLE =%version: 0.05 %  CN: 30
+//Function:
+//Write an integer that belongs to a certain Area_Zone_Section_ID
+//in an index table.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:21 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//21463: Area ID conversion changed to DINT             nlHdL    28-10-14   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//PR14161 Update violation coding convention 9          nlple    26-06-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.02
+//Initial Revision                                      nlMRe    03-09-10   0.01
+//
+//Description:
+//Write an integer that belongs to a certain Area_Zone_Section_ID
+//in an index table.
+//
+//IF the Area_Zone_Section_ID could not be found
+//AND i_Allow_Entry_Creation id TRUE
+//AND and there is room left in the DB 
+//THEN a new entry will be created.
+//
+//If successive RET_VAL = 0, else RET_VAL = -1 (65535) 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_TableDB : BLOCK_DB ;	//Table in which data can be found
+  i_AreaID : INT ;	//AreaID of data to retrieve
+  i_ZoneID : INT ;	//ZoneID of data to retrieve
+  i_SectionID : INT ;	//SectionID of data to retrieve
+  i_Data : BOOL ;	//Data to be written
+  i_Allow_Entry_Creation : BOOL ;	//TRUE: Create entry when it is not founc in the DB
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DWORD ;	//Backup of AR1 content
+  t_Area_Zone_Section_ID : DINT ;	//Calculating Area_Zone_Section_ID
+  t_Loop_Counter : INT ;	//Number of entries in TableDB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Save the contents of the address register AR1
+
+      TAR1  #t_AR1_Backup; 
+
+NETWORK
+TITLE =BA: Open Table
+
+      NOP   0; 
+// Calculate Area_Zone_Section_ID                                     
+      L     #i_AreaID; 
+      L     L#10000; 
+      *D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+      L     #i_ZoneID; 
+      L     100; 
+      *D    ; 
+      L     #t_Area_Zone_Section_ID; 
+      +D    ; 
+      L     #i_SectionID; 
+      +D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+// OpenTable DB and calculate the number of entries
+      OPN   #i_TableDB; 
+
+      L     DBLG; 
+      L     6; //one entry is 4 bytes long
+      /D    ; 
+      T     #t_Loop_Counter; 
+
+// Set a pointer to the first entry
+      L     P#DBX 0.0; 
+      LAR1  ; 
+      JU    BA01; 
+
+// Set the pointer to the next entry
+BA05: L     P#6.0; 
+      +AR1  ; 
+
+// Decrease the loop counter
+BA01: L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+
+// Load and compare Area_Zone_Section_ID
+      L     D [AR1,P#0.0]; 
+      L     #t_Area_Zone_Section_ID; 
+      <>D   ; 
+      JCN   BA03; 
+
+// If entry is 0 and createion of a new entry is allowed,
+// then create a new entry
+      L     D [AR1,P#0.0]; 
+      L     0; 
+      <>D   ; 
+      O     #i_Allow_Entry_Creation; 
+      JCN   BA02; 
+
+// Check loop counter
+      L     #t_Loop_Counter; 
+      L     0; 
+      <=I   ; 
+      JCN   BA05; 
+
+      JU    BA04; 
+
+// Write Area_Zone_Section_ID if entry did not exist
+BA02: L     #t_Area_Zone_Section_ID; 
+      T     D [AR1,P#0.0]; 
+
+// Succes write data (RETVAL = 0)
+BA03: A     #i_Data; 
+      =      [AR1,P#4.0]; 
+
+      L     0; 
+      T     #RET_VAL; 
+      JU    BA99; 
+
+// Failure (RETVAL = -1)
+BA04: L     -1; 
+      T     #RET_VAL; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Restore the contents of the address register AR1
+
+      LAR1  #t_AR1_Backup; 
+
+END_FUNCTION
+

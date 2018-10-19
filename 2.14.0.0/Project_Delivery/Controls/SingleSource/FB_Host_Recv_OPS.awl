@@ -1,0 +1,271 @@
+FUNCTION_BLOCK "FB_Host_Recv_OPS"
+TITLE =%version: 0.02 %  CN: 40
+//Function:
+//Receive messages via TCP/IP Communication from OPS.
+//
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, July 07, 2017 8:30:28 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21508: i_ID_Connection format as WORD              nlHdL    07-07-17   0.02
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//Description:
+//This FB receives data using the Siemens TCON TRCV module. The FB can only 
+//be used with a S7 319 PLC.
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Connection : WORD ;	//ID Connection number
+  i_DB_Recv_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive FIFO
+END_VAR
+VAR_OUTPUT
+  o_Connection_Error : BOOL ;	
+END_VAR
+VAR
+  s_Received_Message : STRUCT 	//Message to be send
+   Header : "UDT_Msg_Header";	
+   Body : "UDT_OPS_Msg_Body";	
+   Footer : "UDT_Msg_Footer";	
+  END_STRUCT ;	
+  s_Received_Message_End : BOOL ;	//DO NOT REMOVE/REPLACE: Received message end (to calculate length) 
+  s_FB_TRCV : "TRCV";	//Siemens TCON Receive block
+  s_FF_Counted : INT ;	//Counter for received byte is "FF"
+  s_Len : INT ;	//Number of number of bytes received
+  s_Specified_Msg_Length : INT ;	//Specified message length
+  s_RCV_Status : WORD ;	//Status code of receive block
+  s_Status : WORD ;	//The status of the receive module
+  s_Ret_Val_Word : WORD ;	//Return value
+  s_Received_Byte : BYTE ;	//Received byte used for resynchronisation of the receive buffer
+  s_Message_Length_Fault : BOOL ;	//Wrong message length received
+  s_Header_Fault : BOOL ;	//Wrong header received (STX)
+  s_Footer_Fault : BOOL ;	//Wrong footer received (ETX)
+  s_Message_Received : BOOL ;	//When TRUE a message has been received this scan
+  s_RCV_Error : BOOL ;	//An error occured while trying to receive a message
+  s_DONE : BOOL ;	//Indicates if receive module has finished receiveing
+  s_ERROR : BOOL ;	//Indicates an error with the receive module
+  s_Message_OK : BOOL ;	//Message layout is checked OK
+  s_OS_Message_Received : BOOL ;	//One-shot new message received
+END_VAR
+VAR_TEMP
+  t_DB_Num_Recv_FIFO : INT ;	//DB number of receive FIFO
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Resynchronisation of receive buffer
+//During a footer fault (e.g. last four bytes did not contain FF) the receive 
+//buffer is emptied byte for byte until four subsequent bytes, filled with FF, 
+//are 
+//found.
+      A     #s_Footer_Fault; // IF Footer fault active
+      JCN   AA99; 
+
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection,
+           LEN                      := 0,
+           NDR                      := #s_DONE,
+           ERROR                    := #s_ERROR,
+           STATUS                   := #s_Status,
+           RCVD_LEN                 := #s_Len,
+           DATA                     := #s_Received_Byte);
+
+// If recieve action not finished then end block
+      AN    #s_DONE; 
+      BEC   ; 
+
+// If last byte contains FF then increase s_FF_Counted.
+// Else reset s_FF_Counted.
+      L     #s_Received_Byte; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   AA01; 
+
+      L     #s_FF_Counted; 
+      L     1; 
+      +I    ; 
+      T     #s_FF_Counted; 
+      JU    AA02; 
+AA01: L     0; 
+      T     #s_FF_Counted; 
+
+// If last four bytes contained FF then reset footer fault.
+AA02: L     4; 
+      L     #s_FF_Counted; 
+      <=I   ; 
+      R     #s_Footer_Fault; // THEN Footer fault still active
+      BEU   ; // End block
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Receive message
+//IF the CP has received a message AND the last message was read by the 
+//application THEN the message is put in s_Received_Message. 
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection,
+           LEN                      := #s_Specified_Msg_Length,
+           NDR                      := #s_DONE,
+           ERROR                    := #s_ERROR,
+           STATUS                   := #s_Status,
+           RCVD_LEN                 := #s_Len,
+           DATA                     := #s_Received_Message);
+
+NETWORK
+TITLE =CA: Error detection/handling, receiving
+//Check for an error of the TRCV module and handle the error.
+      AN    #s_ERROR; // IF No error anymore
+      A     #s_DONE; 
+      JCN   CA01; 
+
+      R     #s_RCV_Error; // THEN reset receive error
+      L     0; 
+      T     #s_RCV_Status; // AND reset the status word
+
+CA01: NOP   0; 
+
+      AN    #s_DONE; // IF an error has occured while trying to receive a message..
+      A     #s_ERROR; 
+      S     #s_RCV_Error; // THEN set the error output bit..
+      JCN   CA99; 
+      L     #s_Status; 
+      T     #s_RCV_Status; // AND output the status word
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA:Calculate message length
+
+      L     P##s_Received_Message_End; // Pointer to end of 'Received message'
+      L     P##s_Received_Message; // Pointer to begin of 'Received message'
+      -D    ; // Length in bits
+      SRD   3; // Record length of 'Received message' in bytes
+      T     #s_Specified_Msg_Length; // Copy Length to t_Specified_Msg_Length
+NETWORK
+TITLE =EA: New message received
+
+      A     #s_DONE; // IF receive action is done
+      AN    #s_ERROR; // AND no communication error occurred
+      =     #s_OS_Message_Received; 
+      JCN   EA99; // THEN...
+//Check message length
+      L     #s_Specified_Msg_Length; 
+      L     #s_Len; 
+      <>I   ; 
+      =     #s_Message_Length_Fault; 
+
+//Check message header
+      L     #s_Received_Message.Header.Byte_1; 
+      L     B#16#2; 
+      ==I   ; 
+      JCN   EA01; 
+
+      L     #s_Received_Message.Header.Byte_2; 
+      L     B#16#0; 
+      <>I   ; 
+      JCN   EA02; 
+
+EA01: SET   ; 
+      =     #s_Header_Fault; 
+      JU    EA03; 
+
+EA02: CLR   ; 
+      =     #s_Header_Fault; 
+
+EA03: NOP   0; 
+
+//Check message footer; Should be four times "FF"
+      L     #s_Received_Message.Footer.Byte_1; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   EA04; 
+
+      L     #s_Received_Message.Footer.Byte_2; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   EA04; 
+
+      L     #s_Received_Message.Footer.Byte_3; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   EA04; 
+
+      L     #s_Received_Message.Footer.Byte_4; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   EA04; 
+
+      CLR   ; 
+      =     #s_Footer_Fault; 
+
+      JU    EA06; 
+
+EA04: SET   ; 
+      =     #s_Footer_Fault; 
+
+//Is message OK?
+EA06: AN    #s_Message_Length_Fault; 
+      AN    #s_Header_Fault; 
+      AN    #s_Footer_Fault; 
+      =     #s_Message_OK; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Copy message to receive buffer
+
+      A     #s_OS_Message_Received; // IF new message received
+      A     #s_Message_OK; // AND message layout checked OK
+      JCN   FA99; 
+
+      OPN   #i_DB_Recv_FIFO; // Determine receive FIFO's DB nr
+      L     DBNO; 
+      T     #t_DB_Num_Recv_FIFO; // And store on a temp of the type INT
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_DB_Num_Recv_FIFO,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Received_Message.Body,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #s_Ret_Val_Word);
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Call TRCV
+//Make channel ready to receive the a new message.
+      A     #s_Message_Received; 
+      JCN   GA99; 
+
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection,
+           LEN                      := #s_Specified_Msg_Length,
+           NDR                      := #s_DONE,
+           ERROR                    := #s_ERROR,
+           STATUS                   := #s_Status,
+           RCVD_LEN                 := #s_Len,
+           DATA                     := #s_Received_Message);
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Create error indication to Send block
+
+      L     #s_Status; 
+      L     W#16#80A1; // Communications Error
+      ==I   ; 
+      O(    ; 
+      L     #s_Status; 
+      L     W#16#80C4; // Temporary Communications Error
+      ==I   ; 
+      )     ; 
+      =     #o_Connection_Error; 
+END_FUNCTION_BLOCK
+
