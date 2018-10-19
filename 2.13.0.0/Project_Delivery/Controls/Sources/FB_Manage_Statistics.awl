@@ -1,0 +1,156 @@
+FUNCTION_BLOCK "FB_Manage_Statistics"
+TITLE =%version: 0.09 % CN: 31
+//Function:
+//Wait until statisticals must be send, then trigger each cycle one scan to send 
+//the statisticals.
+//
+//History:
+//This version  %created_by:   nljclo %
+//              %date_created:   Friday, April 08, 2016 2:25:15 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#12651: common setting time interval statisticals   nlJClo   08-04-16   0.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.08
+//20065: Spread stats over timebased CN number update   nlHdL    17-11-14   0.08
+//20065: Spread statistics over a configurable time     nlHdL    13-11-14   0.07
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//PR14161 Update violation coding convention 9          nlple    26-06-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.04
+//CR5850 Update with expection new trigger within shift nlHdL    01-07-11   0.03
+//PR6080 Send trigger modified                          nlHdL    08-12-10   0.02
+//Initial version                                       nlMRe    19-07-10   0.01
+//
+//Description:
+//After a configurable time (in seconds) the statisticals need to be send.
+//A burst of messages is not wanted, so the components must be split up over a 
+//number of triggers. Each cycle a trigger is set to "TRUE", the next cycle the 
+//trigger is set back to "FALSE".
+//
+//The input DB contains the trigger bits and must always consist out of full 
+//words. The bits of the DB must be used to connected to the DB_System_Controls 
+//send statisticals bit.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Total_Time : INT  := 3600;	//CFG: [sec] Total time in which all statisticals have to be send.
+  i_DB_System_Control : BLOCK_DB ;	//Data Structure: DB with the sending triggers
+END_VAR
+VAR
+  s_Trigger_Bit : DINT ;	//Bit to be manipulated
+  s_Next_Trigger_To_Send : INT ;	//Which trigger is the next one to activate
+  s_Interval : INT ;	//Timer interval 
+  s_Setpoint : INT ;	//Pointer for the timer
+  s_Number_Of_Controls : INT ;	//Amount of controls int the control database
+  s_done : BOOL ;	//Indicating the the initialisation has been done
+  s_Timer_Done : BOOL ;	//The time interval has been reached
+  s_Start_Timer : BOOL ;	//Timer run
+END_VAR
+VAR_TEMP
+  t_length_of_DB_Control : INT ;	//Total length of the control Database
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: First scan initialisation
+
+      O     "M_First_Scan"; 
+      ON    #s_done; 
+      JCN   AA01; 
+
+// Take the length of the DB with the send triggers
+      OPN   #i_DB_System_Control; 
+      L     DBLG; 
+      T     #t_length_of_DB_Control; 
+
+// convert the number of bytes to number of bits
+      L     #t_length_of_DB_Control; 
+      L     2; 
+      /I    ; 
+      T     #s_Number_Of_Controls; 
+
+// Initialise set to bit 0
+      L     1; 
+      T     #s_Next_Trigger_To_Send; 
+
+// Indicate that the initialisation has finished
+      SET   ; 
+      =     #s_done; 
+
+AA01: NOP   0; 
+//calculate interval between sends     
+      L     #i_CFG_Total_Time; 
+      L     #s_Number_Of_Controls; 
+      /I    ; 
+      T     #s_Interval; 
+
+NETWORK
+TITLE =BA: Clear trigger bit
+
+      OPN   #i_DB_System_Control; 
+
+      L     #s_Trigger_Bit; 
+      LAR1  ; 
+      CLR   ; 
+      =     DBX [AR1,P#1.0]; 
+
+      L     #s_Interval; 
+      L     0; 
+      ==I   ; 
+      BEC   ; // If set to 0 no Trigger is send
+NETWORK
+TITLE =CA: Time interval between triggers
+
+      AN    #s_Timer_Done; 
+      A     #s_done; 
+      =     #s_Start_Timer; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #s_Start_Timer,
+           i_CFG_Timer_Value        := #s_Interval,
+           i_Setpoint               := #s_Setpoint,
+           o_Setpoint               := #s_Setpoint,
+           o_Timer_Elapsed          := #s_Timer_Done);
+
+      AN    #s_Timer_Done; // Start sending statisticals
+      BEC   ; 
+NETWORK
+TITLE =DA: Calculate and set trigger bit
+//calculate bit adress
+      L     #s_Next_Trigger_To_Send; 
+      L     1; 
+      -I    ; 
+      L     P#2.0; 
+      *D    ; 
+      T     #s_Trigger_Bit; 
+
+//Function to set bit
+      L     #s_Trigger_Bit; 
+      LAR1  ; 
+      SET   ; 
+      =     DBX [AR1,P#1.0]; 
+
+// increase the counter                   
+      L     #s_Next_Trigger_To_Send; // Go to the next trigger bit
+      L     1; 
+      +I    ; 
+      T     #s_Next_Trigger_To_Send; 
+
+//if its not the last status jump to the end
+      L     #s_Next_Trigger_To_Send; 
+      L     #s_Number_Of_Controls; 
+      <=I   ; 
+      JC    DA99; 
+
+// Set the next trigger to be the first status
+      L     1; 
+      T     #s_Next_Trigger_To_Send; 
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

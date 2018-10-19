@@ -1,0 +1,250 @@
+FUNCTION "FC_PLT_Clr_Position" : VOID
+TITLE =%version: 1.01 % CN: 32
+//Function:
+//The entry which is present within on the position input minus the 
+//displacement will be cleared.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:07:19 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.08 of PLT version 0
+//
+//Description:
+//This functionblock is able to clear one entry in the PLT DB on the position 
+//with 
+//the current displacement.
+//
+//
+//                Position     displacement
+//                    |<---displ---->|
+//         ____________________________________                                   
+//              
+//                 ===flow-direction===>                                          
+//          
+//         ____________________________________                                   
+//                    ^             ^
+//                    |             |                     
+//               i_Position         |
+//                            t_End_Position (i_Position - displacement)
+//                                               
+//                                                                          
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Position : INT ;	//SETT: [cm] Position where to clear
+  i_Info_Physical : INT ;	//Info physical of the position to clear
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Search_Start_Position : INT ;	//t_Search_Start_Position = i_Position
+  t_Search_End_Position : INT ;	//t_Search_End_Position = i_Position - Displacement
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+  t_Info : INT ;	//Read Info
+  t_Data : INT ;	//Read data 
+  t_Ret_Event : INT ;	//Return value for Write Event
+  t_Pointer_Last : DWORD ;	//Copy pointer to last entry
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Open PLT DB
+// 
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+NETWORK
+TITLE =BA: Check if entries are filled in PLT DB
+// 
+      L     DBW    0; 
+      L     0; // Number of entries used in PLT DB
+      <=I   ; 
+      BEC   ; // end function
+
+NETWORK
+TITLE =CA: Calculate pointer to data in first record PLT DB  
+// 
+      L     1; 
+      T     #t_Cnt_Entry; 
+
+      L     14; // First entry starts at P#14.0
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+NETWORK
+TITLE =DA: Calculate start- and end-position of search-window
+// 
+      L     DBW    2; 
+      L     0; 
+      ==I   ; // Check if displacement > 0
+      JCN   DA01; 
+
+      L     #i_Position; // End search position = position
+      JU    DA02; 
+
+DA01: L     #i_Position; // End search position = position - correct displacement
+      L     DBW    2; // Correct the displacement with -1
+      -I    ; 
+      L     1; 
+      +I    ; 
+
+DA02: T     #t_Search_End_Position; // Search_Start_Position = Position - (Displacement-1) IF dis<>0
+
+      L     #i_Position; 
+      T     #t_Search_Start_Position; // Search_End_Position = Position
+
+NETWORK
+TITLE =EA: Search for data in search-window
+// 
+EA01: L     DBW [AR1,P#0.0]; // Actual entry position 
+      L     #t_Search_Start_Position; // START OF SEARCH-LOOP
+      >I    ; // IF Search-Start-position > read position THEN jump to decrease pointer  
+      JC    EA03; // THEN jump to decrement pointer 
+      L     #t_Search_End_Position; 
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      <=I   ; // ELSE Actual-position <= Search-End-Position jump to make outputs  
+      JC    EA02; // THEN data found  
+
+      JU    EA04; // ELSE jump to no data found end of search-loop
+
+EA02: L     DBW [AR1,P#4.0]; //Load info
+      L     #i_Info_Physical; 
+      ==I   ; 
+      JC    EA99; // Delete and Sort List
+
+// Check and decrease the loop counter
+EA03: L     #t_Cnt_Entry; 
+      L     1; 
+      +I    ; 
+      T     #t_Cnt_Entry; 
+
+// Check loop counter
+      L     #t_Cnt_Entry; 
+      L     DBW    0; 
+      >I    ; 
+      JC    EA04; // IF Entry pointer > 0
+
+      TAR1  ; // Read Entry pointer of address-register
+
+      L     P#8.0; // 6 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#6.0
+
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    EA01; // GOTO START OF SEARCH-LOOP
+
+EA04: BEU   ; // End Block if not found
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Delete Data from PLT 
+//IF Data must be overwriten the entries below in the PLT DB are shifted 
+//back to avoid that there are empty entries in between used entries.
+//The sorted list must stay sorted.  
+      L     DBW [AR1,P#4.0]; // Store info
+      T     #t_Info; 
+      L     DBW [AR1,P#6.0]; // Store data
+      T     #t_Data; 
+
+      L     DBW    4; // Number of entries present in PLT DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #t_Pointer_Last; // Copy to pointer last entry used in PLT DB
+
+FA01: L     #t_Pointer_Last; 
+      TAR1  ; 
+      -D    ; 
+      JMZ   FA02; // IF next entry is the last available in the PLT DB then jump to clear last entry 
+
+      L     DBD [AR1,P#8.0]; 
+      T     DBD [AR1,P#0.0]; // ELSE copy complete next entry to actual entry in PLT DB
+      L     DBD [AR1,P#12.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      TAR1  ; 
+      L     P#8.0; 
+      +D    ; 
+      LAR1  ; // AND set pointer to next entry to handle 
+
+      JU    FA01; // AND loop
+
+FA02: L     0; 
+      T     DBD [AR1,P#0.0]; // Clear last entry because there is data present from the shift function  
+      T     DBD [AR1,P#4.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; // decrease entry counter
+
+      NOP   0; 
+NETWORK
+TITLE =GA: Report Event LNK cleared or Reservation/Empty window cleared
+
+      L     #t_Data; // IF data = (UFO)LNK
+      L     0; 
+      >I    ; 
+      JCN   GA10; 
+
+      L     #i_Position; 
+      L     0; 
+      >I    ; 
+      JCN   GA10; 
+
+      L     #i_DB_Event_Num; 
+      L     0; 
+      >I    ; 
+      JCN   GA10; 
+
+      CALL "FC_Write_Event" (// THEN report event "LNK lost due to clear PLT" (3801)
+           i_Message_ID             := 3801,
+           i_Event_value            := #t_Data,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      CALL "FC_Write_Event" (// Report PLT DB number (3803)
+           i_Message_ID             := 3803,
+           i_Event_value            := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; // End Block
+
+GA10: L     #t_Info; 
+      L     -99; 
+      <=I   ; 
+      JCN   GA99; // IF Info > -99 THEN Block End
+
+      L     #i_DB_Event_Num; 
+      L     0; 
+      >I    ; 
+      JCN   GA99; 
+
+      CALL "FC_Write_Event" (// ELSE report event "Res/E lost due to clear PLT" (3802)
+           i_Message_ID             := 3802,
+           i_Event_value            := #t_Info,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      CALL "FC_Write_Event" (// Report PLT DB number (3803)
+           i_Message_ID             := 3803,
+           i_Event_value            := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+GA99: NOP   0; 
+END_FUNCTION
+

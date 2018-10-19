@@ -1,0 +1,153 @@
+FUNCTION_BLOCK "FB_OPO_HBZ_Rem_Ctrl"
+TITLE =%version: 0.03 % CN: 50
+//Function:
+//This block facilitates a position where a 'service' bag will be stopped, to 
+//allow the operator to remove it.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, May 09, 2018 2:51:36 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#28650: Bag stop in PEC at calibration mode X-ray   nlHdL    09-05-18   0.03
+//ra#8499: Development                                   nldy    23-02-17  0.02
+//Initial version based on version 0.05 in BHS_ESO_GEN   nldy    15-11-16  0.01
+//
+//Description:
+//When a 'service' bag was introduced to the system, it has to be removed from 
+//the system. The outfeed conveyor of the HBZ will therefore halt when it 
+//receives the service bag. The removal of the bag has to be acknowledged with a 
+//push on the 'bag removed' button.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_TRS : BLOCK_DB ;	//CFG: Data Structure: Position DataBlock of TRS
+  i_DB_Event : BLOCK_DB ;	//CFG: Data Structure: Event DB
+  i_CFG_Unattended_TO : INT ;	//CFG: [0.1 sec] Bag waiting warning time
+  i_CMD_Reset : BOOL ;	//CMD: Command from equipment control "Reset"
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_IQT_Active : BOOL ;	//Service mode: Immage Quality Test activated
+  i_Req_Confirm_Removal : BOOL ;	//A bag was dispatched and lost in tracking. Removal not confirmed yet
+  i_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_IO_PB_Confirm_Removal : BOOL ;	//HW: Pushbutton Bag removed from OPS
+  i_PBB_ASI_Not_Present : BOOL ;	//ASI is Not Present
+  i_PBB_ASI_Error : BOOL ;	//ASI has an Error
+END_VAR
+VAR_OUTPUT
+  o_PBB_ST_ASI_NotPrsnt : BOOL ;	//ASI is Not Present
+  o_PBB_ST_ASI_Error : BOOL ;	//ASI has an Error
+  o_ST_Unattended : BOOL ;	//Status Unattended Bag or Position
+  o_IO_SL_Bag_Present : BOOL ;	//HW: Signallight Bag present
+  o_Req_Halt : BOOL ;	//Request Halt section
+  o_Req_Disable_Send : BOOL ;	//Request Disable send section
+  o_Clear_PLT : BOOL ;	//A clear PLT is required to continue operation
+END_VAR
+VAR
+  s_Current_Tmr_Val : INT ;	//Current timer value
+  s_Item_Present : BOOL ;	//Item present in PLT of OPZ
+  s_FP_PB_Confirm_Removal : BOOL ;	//Positive edge: Pushbutton Bag removed from OPZ
+  s_Item_Removed : BOOL ;	//Positive edge: Bag removed from OPZ
+  s_FP_Confirm_Removal : BOOL ;	//Positive edge: Confirm bag removal button
+END_VAR
+VAR_TEMP
+  t_INT_Not_Used : INT ;	//Temp INT value not used
+  t_Event_DB_Num : INT ;	//DB event number
+  t_DB_Num : INT ;	//DB number
+  t_Info : INT ;	//Found item info
+  t_LNK : INT ;	//Found item link
+  t_Rep_Route_Record : INT ;	//Report route	
+  t_PLT_DB_Nr : INT ;	//PLT DB number of the conveyor
+  t_Number_Items_Found : INT ;	//Number of items found in PLT
+  t_PEC_Latch : BOOL ;	//PEC Latch of signal
+  t_Waiting_Bag_Present : BOOL ;	//Bag waiting for inspection
+  t_Start_Unattended_Timer : BOOL ;	//Start unattended baggage timer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retrieve data from PLT
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      OPN   #i_DB_PLT_TRS; 
+      L     DBNO; 
+      T     #t_PLT_DB_Nr; 
+
+      A     DBX   10.7; 
+      =     #t_PEC_Latch; 
+
+NETWORK
+TITLE =BA: PBB ASI failures
+
+      A     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #o_PBB_ST_ASI_NotPrsnt; 
+      R     #o_PBB_ST_ASI_Error; 
+
+      A     #i_Available_IO; 
+      A     #i_PBB_ASI_Not_Present; 
+      S     #o_PBB_ST_ASI_NotPrsnt; 
+
+      A     #i_Available_IO; 
+      A     #i_PBB_ASI_Error; 
+      S     #o_PBB_ST_ASI_Error; 
+NETWORK
+TITLE =CA: Check for PEC for Item present
+
+      A     #t_PEC_Latch; 
+      =     #s_Item_Present; 
+NETWORK
+TITLE =DA: Remove bag push button actions
+
+      A     #i_IO_PB_Confirm_Removal; //Push button confirm bag removed
+      FP    #s_FP_Confirm_Removal; 
+      =     #s_FP_PB_Confirm_Removal; 
+
+      A     #s_Item_Present; 
+      A     #i_IO_NOT_PEC; //No item detected by PEC
+      A     #s_FP_PB_Confirm_Removal; 
+      =     #s_Item_Removed; 
+
+NETWORK
+TITLE =EA: Unattended Bag warning
+//When item present, start unattended bag warning counter
+      A     #s_Item_Present; 
+      O     #i_Req_Confirm_Removal; 
+      A     #i_IQT_Active; 
+      =     #t_Start_Unattended_Timer; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Start_Unattended_Timer,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #i_CFG_Unattended_TO,
+           i_Current_Value          := #s_Current_Tmr_Val,
+           o_Status                 := #o_ST_Unattended,
+           o_Current_Value          := #s_Current_Tmr_Val);
+
+NETWORK
+TITLE =FA: Write output signals
+
+      A     #s_Item_Present; 
+      O     #i_Req_Confirm_Removal; 
+      A     #i_IQT_Active; 
+      =     #o_IO_SL_Bag_Present; 
+
+      A     #i_IQT_Active; // IF service IQT mode is activated                  
+      A     #s_Item_Present; // AND item is present at side guarding cut-out
+      =     #o_Req_Halt; // THEN halt item                                      
+
+      A     #i_IQT_Active; // IF service IQT mode is activated       
+      =     #o_Req_Disable_Send; // Hold item on this section because it has to be removed
+
+      A     #i_IQT_Active; 
+      A     #i_IO_NOT_PEC; 
+      A     #s_Item_Removed; 
+      =     #o_Clear_PLT; 
+END_FUNCTION_BLOCK
+

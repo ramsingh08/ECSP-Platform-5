@@ -1,0 +1,431 @@
+FUNCTION "FC_Logging" : VOID
+TITLE =%version: 0.01 % CN: 30
+//Function:
+// Logs all data, which is added to this tool,
+// when this data is changed with regard to the previous logged data. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, April 10, 2018 11:13:04 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    10-04-18   0.01
+//
+//Description:
+// Function: This tool logs data with a time stamp. when the data is changed  
+//with 
+// regard to the previous stored data. Eg when an input is changed the whole data 
+// field is saved with the actual PLC time. 
+// When the trigger input is HIGH the data is always logged (independend if the 
+// data is changed)
+//
+// NB before using this tool check if the PLC time is equal to your PG/PC time.
+//
+// Parameters:
+// i_ANY_Logging_Data: Data wich must be logged. If this data is changed all this 
+//      data will be logged with a time stamp.
+//      Format: Use herefore an UDT which is declared in the logging_DB. (Log[0]) 
+//      It is also possible to declare the UDT as a static variable, Merker 
+//      range, input OR output. It is also possible to use temporary data BUT 
+//      then you MUST declare all used temporary data first (Even the not 
+//      declared temporary data within the UDT!) 
+//      Example: logging only 5 temporary boolean 
+//      variables is not possible it must be a  multiple of 16 bits!
+// i_Logging_DB : DB where the logging data is written in.
+// i_Mode: 'L' (line buffer) OR 'R' (Ringbuffer). when linebuffer is              
+// 
+//      selected then the data is stored till the last record is reached. (data is
+//      NOT overwritten). When ringbuffer is used the data will overwrite the 
+//      first records when the last is reached. (Data will be overwritten)
+// i_Trigger: When this input is high the data is logged continiously. 
+//      (use this with an oneshot only)
+// i_Enable: Enable logging on data change.
+// i_Clear: When this input is TRUE The whole logging DB is cleared EVERY SCAN 
+//this
+//       input is high. Logging will be start at 1
+// o_Ret_Value: Error code
+//             0 = Operational
+//             1 = Buffer type not correct this must be L for line buffer OR R 
+//                 for Ringbuffer
+//             2 = Buffer full (Linear buffer)
+//             3 = Data format NOT OK Be sure that the data length given to this 
+//                 block is as long as the data declared in the logging DB.
+//             4 = Input data not type byte -> Check the data that you will log
+//             5 = Logging DB number = 0 OR greater than the max. permissible DB 
+//                 number for the CPU. (S7 400 CPU only)
+//             6 = The logging DB does not exist on the CPU. (S7 400 CPU only)
+//                                                                           
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Logging_Data : ANY ;	//Preferred data types are: Statics, Merkers OR IO. For TEMP data open block
+  i_Logging_DB : BLOCK_DB ;	//Logging DB: In this DB is your logging saved
+  i_Mode : CHAR ;	//Ring (R) OR Linear (L) buffer
+  i_Trigger : BOOL ;	//When this input is TRUE the data is ALWAYS logged
+  i_Enable : BOOL ;	//Enable logging (True if logging must be on)
+  i_Clear : BOOL ;	//Clear logging DB (DB is clearde on a flank positive)
+END_VAR
+VAR_OUTPUT
+  o_Ret_Value : INT ;	//Open block for detailes when RET_Val not 0
+END_VAR
+VAR_TEMP
+  t_DATE_AND_TIME : DATE_AND_TIME ;	//Temporary used for storing the Date and the time
+  t_TIME_OF_DAY : TIME_OF_DAY ;	//Temporary used for storing the time
+  t_DB_Num_Logging : WORD ;	//Temorary data for storing the DB number of the logging DB
+  t_DB_Length : WORD ;	//Temorary data for storing the DB length of the logging DB
+  t_Ret_Val : INT ;	//Return value of the Test DB block
+  t_Backup_DB_Num : INT ;	//Temporary DB number to save the already opened DB from the calling FB, FC OR OB
+  t_Backup_DI_Num : INT ;	//Temporary DB number to save the already opened DI from the calling FB, FC OR OB
+  t_Log_Data_Length : INT ;	//Length of the log data (Excluding time)
+  t_Log_Record_Length : INT ;	//Length of the log data (Including time)
+  t_Loop_Cntr : INT ;	//Loop counter for making loops in the program
+  t_Byte_Num : INT ;	//Start adress last logged data
+  t_Index_Pointer : DINT ;	//Used as an temporary pointer
+  t_DB_Register : INT ;	//Temporary used to store the second DB register
+  t_Not_Used : BOOL ;	//Used in the block for a parameter which must be connected to a boolean variable
+  t_Linear_Buffer : BOOL ;	//Temporay used as linear buffer
+  t_Ring_Buffer : BOOL ;	//Temporay used as ring buffer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: IF logging NOT enabled then end block
+
+      AN    #i_Enable; 
+      AN    #i_Clear; 
+      AN    #i_Trigger; 
+      BEC   ; 
+
+NETWORK
+TITLE =AB: Test if logging DB exists
+//!! REMOVE THIS NETWORK WHEN USING AN S7 300 CPU!!
+//
+//The standard function "Test_DB" (SFC 24) is only possible in an S7 400 CPU. So 
+//when using an S7 300 CPU this network must be removed.
+//Remember that you download your logging DB first before you call the 
+//"FC_Logging".
+      L     P##i_Logging_DB; // Filter logging DB number
+      SRD   16; 
+      T     #t_DB_Num_Logging; 
+
+      CALL "TEST_DB" (// When Using an S7 300 CPU Remove this Network!!!! Because This SFC is NOT possible in an S7 300 CPU
+           DB_NUMBER                := #t_DB_Num_Logging,
+           RET_VAL                  := #t_Ret_Val,
+           DB_LENGTH                := #t_DB_Length,
+           WRITE_PROT               := #t_Not_Used);
+
+      L     #t_Ret_Val; // IF Return value is 0 then DB is OK
+      L     0; 
+      ==I   ; 
+      JC    AB99; 
+      L     #t_Ret_Val; 
+      L     W#16#80A1; // Logging DB number = 0 OR greater than the max. permissible DB number for the CPU.
+      ==I   ; 
+      L     5; 
+      JC    AB01; 
+      L     #t_Ret_Val; 
+      L     W#16#80B1; // The DB with the specified number does not exist on the CPU.
+      ==I   ; 
+      L     6; 
+      JC    AB01; 
+      L     #t_Ret_Val; 
+AB01: T     #o_Ret_Value; 
+      BEU   ; 
+AB99: NOP   0; 
+NETWORK
+TITLE =AD: Save old and open new DB 
+
+      L     DBNO; 
+      T     #t_Backup_DB_Num; 
+
+      L     DINO; 
+      T     #t_Backup_DI_Num; 
+
+      OPN   #i_Logging_DB; 
+NETWORK
+TITLE =AC: Check if data to log is OK
+
+      L     P##i_ANY_Logging_Data; // Load the ANY pointer from the source block
+      LAR1  ; // in adres reg. 1
+      L     B [AR1,P#1.0]; // Load the Data type 
+      L     2; 
+      <>I   ; // IF Data type source is not of the type Byte
+      L     4; 
+      JC    AC01; // THEN do not copy the contents
+
+// Check if the data to log is as long as the data declared in the logging DB
+      L     DBLG; // Load DB length in bytes (calculated by instruction)
+      +     -2; // DBW 0 (last data stored)
+      L     W [AR1,P#2.0]; // Load the number of bytes in the ANY var.
+      MOD   ; // Quotient is maximum count of LIC numbers (+1) AND IF the quotient is an equal number
+      L     0; // then data is OK
+      <>I   ; 
+      L     3; 
+      JC    AC01; // Data is wrong
+// Data format OK
+      L     0; 
+
+AC01: T     #o_Ret_Value; // IF data is wrong then end block
+      L     0; 
+      <>I   ; 
+      JC    XT01; 
+NETWORK
+TITLE =CA: Clear all saved log data
+
+      A     #i_Clear; 
+      JCN   CA99; 
+      L     DBLG; 
+      T     #t_Loop_Cntr; 
+
+CA01: +     -1; 
+      T     #t_Loop_Cntr; 
+      SLD   3; 
+      T     #t_Index_Pointer; 
+
+      L     B#16#0; 
+      T     DBB [#t_Index_Pointer]; 
+
+      L     1; 
+      L     #t_Loop_Cntr; 
+      <=D   ; 
+      JC    CA01; // IF DB cleared then end block
+      BEU   ; 
+CA99: NOP   0; 
+NETWORK
+TITLE =CB: Select logging Mode
+
+      NOP   0; 
+// Linear buffer
+      L     #i_Mode; 
+      L     'L'; 
+      ==I   ; 
+      =     #t_Linear_Buffer; 
+
+// Ring buffer
+      L     #i_Mode; 
+      L     'R'; 
+      ==I   ; 
+      =     #t_Ring_Buffer; 
+
+// If no correct buffer type selected then error and end the block
+      AN    #t_Linear_Buffer; 
+      AN    #t_Ring_Buffer; 
+      JCN   CB99; 
+      L     1; 
+      T     #o_Ret_Value; 
+      JU    XT01; 
+CB99: NOP   0; 
+NETWORK
+TITLE =CK: Calculate record length and start adress from the data
+//Calculates the place and the length of the data that should be logged.
+      NOP   0; 
+
+// Data to log
+      L     P##i_ANY_Logging_Data; // Load ANY Pointer
+      LAR1  ; 
+
+      L     W [AR1,P#2.0]; // Load record length
+      T     #t_Log_Record_Length; 
+      +     -4; // Minus time length (4 bytes)
+      T     #t_Log_Data_Length; // That is the data length (to log)
+
+      L     W [AR1,P#4.0]; // Load the pointer to the DB Nr. 
+      T     #t_DB_Register; // Transfer to DB Reg Output variable
+      OPN   DI [#t_DB_Register]; // Open the destination block DB in DB 2 register (DI register)
+
+      L     B [AR1,P#6.0]; // IF input data is from type DB 
+      L     B#16#84; 
+      ==I   ; 
+      JCN   CK01; 
+      L     B#16#85; // Change destination DB register from DB register to DI register (Second DB register)
+      T     B [AR1,P#6.0]; 
+
+CK01: L     D [AR1,P#6.0]; // Load the pointer to the first Data field destination
+      LAR1  ; 
+
+//* Destination adress
+      L     0; 
+      L     DBW    0; // last record stored
+      ==I   ; 
+      JCN   CK02; 
+      L     1; 
+CK02: L     #t_Log_Record_Length; 
+      *D    ; 
+      +     2; // DBW 0 (last record to store)
+      +     4; // Do not compare time
+      T     #t_Byte_Num; 
+
+NETWORK
+TITLE =DA: When trigger input HIGH the data is always logged
+
+      A     #i_Trigger; 
+      JC    PA03; 
+NETWORK
+TITLE =FG: Compare data with previous stored data
+//Check if the data is changed in addition to the previous logged data. If so a 
+//new log will be created.
+      +AR1  P#4.0; // Don't compare the time stamp
+
+      L     #t_Log_Data_Length; // Number of to compare
+      T     #t_Loop_Cntr; // Loop Counter
+
+FG01: L     #t_Loop_Cntr; // Loop Counter
+      L     1; 
+      >=I   ; 
+      JCN   FG99; // ELSE ready with comparing
+
+      L     #t_Byte_Num; 
+      SLD   3; 
+      T     #t_Index_Pointer; 
+
+      L     B [AR1,P#0.0]; // Load the Data of the Data field in Source Block
+      L     DBB [#t_Index_Pointer]; // write the Data in the Data field in destination block
+      <>I   ; 
+      JC    PA03; 
+
+      +AR1  P#1.0; // Increase Adress register 1 with 1 for next data field
+
+      L     #t_Byte_Num; 
+      +     1; 
+      T     #t_Byte_Num; 
+
+      L     #t_Loop_Cntr; // Loop Counter
+      +     -1; 
+      T     #t_Loop_Cntr; // Loop Counter
+
+      JU    FG01; 
+// No difference detected so end block
+FG99: JU    XT01; 
+
+
+NETWORK
+TITLE =PA: Log data: increase "last data stored"
+
+PA03: L     DBLG; // Load DB length in bytes (calculated by instruction)
+      +     -2; // DBW 0 (last data stored)
+      L     #t_Log_Record_Length; // Divide Load message length
+      /D    ; // Quotient is maximum count of LIC numbers (+1)
+      +     -1; // Range from [0..n] istead of [1..n] means substract with one number
+      L     DBW    0; // log number
+      <=I   ; // IF Max parcel
+      JCN   PA01; 
+
+// Buffer full AND ring buffer selected THEN Clear last record stored
+      A     #t_Ring_Buffer; 
+      JCN   PA02; 
+      L     0; 
+      T     DBW    0; 
+
+// Buffer full AND linear buffer selected THEN Clear NOT last record stored
+PA02: A     #t_Linear_Buffer; 
+      JCN   PA01; 
+      L     2; 
+      T     #o_Ret_Value; 
+      JU    XT01; 
+
+//* Increment last record to store
+PA01: L     DBW    0; 
+      +     1; 
+      T     DBW    0; 
+
+NETWORK
+TITLE =RA: Calculate record length and start adress
+//Calculate record length and start adress of the record where the data is logged 
+//in the logging DB.
+      NOP   0; 
+      L     P##i_ANY_Logging_Data; // Load ANY Pointer
+      LAR1  ; 
+
+      L     W [AR1,P#2.0]; 
+      T     #t_Log_Record_Length; 
+      +     -4; 
+      T     #t_Log_Data_Length; 
+
+      L     W [AR1,P#4.0]; // Load the pointer to the DB Nr. 
+      T     #t_DB_Register; // Transfer to DB Reg Output variable
+      OPN   DI [#t_DB_Register]; // Open the destination block DB in DB 2 register (DI register)
+
+      L     B [AR1,P#6.0]; 
+      L     B#16#84; 
+      ==I   ; 
+      JCN   RA01; 
+      L     B#16#85; // Change destination DB register from DB register to DI register
+      T     B [AR1,P#6.0]; 
+
+RA01: L     D [AR1,P#6.0]; // Load the pointer to the first Data field destination
+      LAR1  ; 
+
+//* Destination adress
+      L     DBW    0; // last record stored
+      L     #t_Log_Record_Length; 
+      *D    ; 
+      +     2; // DBW 0 (last record to store)
+      T     #t_Byte_Num; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+NETWORK
+TITLE =SA: Log Date & Time
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val,
+           CDT                      := #t_DATE_AND_TIME);
+
+
+      CALL "DT to TOD" (
+           IN                       := #t_DATE_AND_TIME,
+           RET_VAL                  := #t_TIME_OF_DAY);
+
+      L     #t_Byte_Num; 
+      SLD   3; 
+      T     #t_Index_Pointer; 
+
+
+      L     #t_TIME_OF_DAY; 
+      T     DBD [#t_Index_Pointer]; 
+
+      +AR1  P#4.0; // Don't copy the time
+
+      L     #t_Byte_Num; 
+      +     4; 
+      T     #t_Byte_Num; 
+NETWORK
+TITLE =XS: Copy new data 
+//Copying the data.
+      L     #t_Log_Data_Length; // Number of to copy
+      T     #t_Loop_Cntr; // Loop Counter
+
+XS01: L     #t_Loop_Cntr; // Loop Counter
+      L     1; 
+      >=I   ; 
+      JCN   XS99; // ELSE ready with comparing
+
+      L     #t_Byte_Num; 
+      SLD   3; 
+      T     #t_Index_Pointer; 
+
+      L     B [AR1,P#0.0]; // Load the Data of the Data field in Source Block
+      T     DBB [#t_Index_Pointer]; // write the Data in the Data field in destination block
+
+      +AR1  P#1.0; // Increase Adress register 1 with 1 for next data field
+
+      L     #t_Byte_Num; 
+      +     1; 
+      T     #t_Byte_Num; 
+
+      L     #t_Loop_Cntr; // Loop Counter
+      +     -1; 
+      T     #t_Loop_Cntr; // Loop Counter
+      JU    XS01; 
+
+XS99: NOP   0; 
+
+NETWORK
+TITLE =XT: Open backup DB
+//restore ond values
+XT01: OPN   DB [#t_Backup_DB_Num]; 
+      OPN   DI [#t_Backup_DI_Num]; 
+END_FUNCTION
+

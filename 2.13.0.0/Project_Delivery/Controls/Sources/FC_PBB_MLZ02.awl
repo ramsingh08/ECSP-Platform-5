@@ -1,0 +1,67 @@
+FUNCTION "FC_PBB_MLZ02" : VOID
+TITLE =%version: 1.02 % CN: 30
+//Function:
+//Control part of Push button box used in MLZ02
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, November 01, 2017 9:02:55 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24938: Wrong family for multiple RAW blocks        nlHdL    01-11-17   1.02
+//Initial revision                                      nlJClo   02-09-16   1.01
+//
+//Description:
+//This block controls the function of the push button box and collects the 
+//information of an ASI slave and makes detailed status.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_PB_IO_Forward : BOOL ;	//HW: Push Button Run forward
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_ASI_NotPrsnt : BOOL ;	//ASI module is not present
+  i_Slave_Error : BOOL ;	//ASI module has an error
+END_VAR
+VAR_OUTPUT
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_PB_IO_Forward : BOOL ;	// Push Button Run forward
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:ASI Slave not present
+
+      A     #i_CMD_Reset; // OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_NotPrsnt; // RESET Slave not Present
+
+      A     #i_ASI_NotPrsnt; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt; // SET the Slave not present
+NETWORK
+TITLE =BA : ASI Slave Error
+
+      A     #i_CMD_Reset; //OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      R     #o_ST_ASI_Error; // RESET ASI Slave error
+
+      A     #i_Slave_Error; // ASI Slave not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Error; // SET ASI Slave Error
+
+NETWORK
+TITLE =CA: Run section
+
+      A     #i_PB_IO_Forward; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Error; 
+      =     #o_PB_IO_Forward; // THEN Request run motor; 
+
+END_FUNCTION
+

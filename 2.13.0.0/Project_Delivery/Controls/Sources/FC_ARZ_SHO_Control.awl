@@ -1,0 +1,131 @@
+FUNCTION "FC_ARZ_SHO_Control" : VOID
+TITLE =%version: 0.03 % CN: 32
+//Function:
+//Checks bag under shutters & ensure co-ordination while closing during fire as 
+//well as controlled stop 
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, June 12, 2018 7:38:04 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29553: Remove Fire Signals code and some updates   inajos   12-06-18   0.03
+//ra#28982: FC_ARZ_SHO_Control has wrong CN number      nlHdL    14-05-18   0.02
+//Init version                                          inpgh    11-04-18   0.01
+//
+//Description:
+//If items are found under both or either shutter no controlled stop will be issued to them.
+//If either shutter has item underneath even after controlled stop time has 
+//elapsed, system will be stopped but both shutters remain open. When both shutters are 
+//cleared control stop will immediately initiate closing for both.
+//
+//In case of fire signal to either,  one with bag underneath will initiate 
+//closing.If the same is closed or has timeout, the other will close.Incase of 
+//both have fire alarm each will try to close indepent of other. Once one 
+//shutter is closed, other's force run will not take effect. When both shutters 
+//are cleared during fire alarm, they will close just like the situation described earlier.
+//
+//Function to be used for ARZ01.
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//TRS DB PLT number
+  i_CFG_Position_SHO1 : INT ;	//CFG: [cm] Position where start the gap to be clear under SHO 1
+  i_CFG_Position_SHO2 : INT ;	//CFG: [cm] Position where start the gap to be clear under SHO 2
+  i_CFG_Open_Win_Offset : INT ;	//CFG: [cm] Offset before shutter to open search window 
+  i_CFG_Close_Win_Offset : INT ;	//CFG: [cm] Offset after shutter to close search window 
+  i_CMD_SHO1_Contrl_Stop : BOOL ;	//CMD: Controlled stop SHO 1 from the StartStop Manager
+  i_CMD_SHO2_Contrl_Stop : BOOL ;	//CMD: Controlled stop SHO 2 from the StartStop Manager
+  i_ST_SHO1_Close : BOOL ;	//ST: SHO 1 is in close position 
+  i_ST_SHO2_Close : BOOL ;	//ST: SHO 2 is in close position 
+END_VAR
+VAR_OUTPUT
+  o_Controlled_Stop_SHO1 : BOOL ;	//CMD: Controlled stop to SHO 1
+  o_Controlled_Stop_SHO2 : BOOL ;	//CMD: Controlled stop to SHO 2
+END_VAR
+VAR_TEMP
+  t_window : INT ;	//search window length
+  t_INT_not_used : INT ;	//integer not used
+  t_item_count_under_SHO : INT ;	//no. of item under SHO
+  t_Srch_position_SHO_1 : INT ;	//search position for SHO_1
+  t_Srch_position_SHO_2 : INT ;	//search position for SHO_2
+  t_DB_Num_PLT : INT ;	//TRS PLT DB Number
+  t_item_under_SHO_1 : BOOL ;	//item present under SHO_1
+  t_item_under_SHO_2 : BOOL ;	//item present under SHO_2
+  
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check bags under shutters
+//determine window length & check whether bags within sreach window under 
+//shutters calculate window length
+//PLT DB Number
+      OPN   #i_DB_PLT; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT; 
+
+//calculate search window
+      L     #i_CFG_Open_Win_Offset; 
+      L     #i_CFG_Close_Win_Offset; 
+      +I    ; 
+      T     #t_window; 
+
+//search position SHO1
+      L     #i_CFG_Position_SHO1; 
+      L     #i_CFG_Close_Win_Offset; 
+      -I    ; 
+      T     #t_Srch_position_SHO_1; 
+
+//search position SHO2
+      L     #i_CFG_Position_SHO2; 
+      L     #i_CFG_Close_Win_Offset; 
+      -I    ; 
+      T     #t_Srch_position_SHO_2; 
+
+//search for bags under SHO 1
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Srch_position_SHO_1,
+           i_Window                 := #t_window,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_item_count_under_SHO);
+
+//item under SHO 1
+      L     #t_item_count_under_SHO; 
+      L     0; 
+      >I    ; 
+      =     #t_item_under_SHO_1; 
+
+//search for bags under SHO 2
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #t_Srch_position_SHO_2,
+           i_Window                 := #t_window,
+           o_Position               := #t_INT_not_used,
+           o_Info                   := #t_INT_not_used,
+           o_LNK                    := #t_INT_not_used,
+           o_DB_PLT_Num             := #t_INT_not_used,
+           o_Number_Items_Found     := #t_item_count_under_SHO);
+
+//item under SHO 2
+      L     #t_item_count_under_SHO; 
+      L     0; 
+      >I    ; 
+      =     #t_item_under_SHO_2; 
+NETWORK
+TITLE =BA: Controlled stop
+//co-ordination during controlled stop
+      A     #i_CMD_SHO1_Contrl_Stop; 
+      A     #i_CMD_SHO2_Contrl_Stop; 
+      AN    #t_item_under_SHO_1; 
+      AN    #t_item_under_SHO_2; 
+      =     #o_Controlled_Stop_SHO1; 
+      =     #o_Controlled_Stop_SHO2; 
+END_FUNCTION
+

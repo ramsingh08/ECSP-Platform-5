@@ -1,0 +1,73 @@
+FUNCTION "FC_HMI_Check_AlmStat" : VOID
+TITLE =%version: 0.03 % CN: 30
+//Function:
+//Check the bit status of the Component
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:01:42 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//Solve "stop" error                                    nlMRe    22-09-10   0.02
+//Initial version                                       inSMahi  10-06-10   0.01
+//
+//Description:
+//Check the bit status of the Component via "DB_HMI_INDEX" 
+//Check if record/bit status is active
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Rec_Byte_Adress : DINT ;	//Pointer to first dataword of record in "DB_Record_Handling"
+  i_Pntr_To_Actual_Bit : INT ;	//Pointer to bitnumber of record
+END_VAR
+VAR_OUTPUT
+  o_Alrm_Active : BOOL ;	//Status of bit in record pointered by input parameters of this function
+END_VAR
+VAR_TEMP
+  t_Off_ANY_Status_Index : DWORD ;	//Offset from Rec_Index start to position of ANY
+  t_DB_Num : INT ;	//Temp to open instance DB for preparing ANY pointer 
+  t_Status_Rec_Pointer : STRUCT 	
+   Length : INT ;	//Record length in bytes
+   DB_Num : INT ;	//DB number
+   Pntr : DWORD ;	//Pointer
+  END_STRUCT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA : Set offset
+
+      L     P#14.0; //Offset to ANY_Instance_Status in DB HMI INDEX
+      T     #t_Off_ANY_Status_Index; 
+NETWORK
+TITLE =BA : Get Alarm status
+
+      OPN   "DB_Status_Index"; 
+
+      L     #i_Rec_Byte_Adress; // Points to first DW of record in DB_HMI_INDEX
+      SLD   3; 
+      L     #t_Off_ANY_Status_Index; // Add offset to status any 
+      +D    ; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; // Load Pointer
+      SLD   3; // Convert byte to bit adress
+      T     #t_Status_Rec_Pointer.Pntr; 
+
+      OPN   "DB_Status"; // DB Status
+      L     #t_Status_Rec_Pointer.Pntr; // Load the pointer to the first glabal Data field as source
+      L     #i_Pntr_To_Actual_Bit; 
+      +D    ; 
+      LAR1  ; 
+      A     DBX [AR1,P#0.0]; // Read status of bit in record in DB_STATUS of the component which is pointerd by the record in "DB_HMI_INDEX"
+      =     #o_Alrm_Active; 
+END_FUNCTION
+

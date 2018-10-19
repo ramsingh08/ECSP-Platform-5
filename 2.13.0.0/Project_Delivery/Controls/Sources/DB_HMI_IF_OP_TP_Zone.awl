@@ -1,0 +1,80 @@
+DATA_BLOCK "DB_HMI_IF_OP_TP_Zone"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, November 15, 2016 4:01:32 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189 Symbols Names Correction                     inajos  15-11-16   0.02
+//ra#45674 Initial revision                             inajos  14-11-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   HMI_Interface_Area : STRUCT 	
+    HMI_Screen : STRUCT 	//Area pointer 'screen number'
+     Current_Type : WORD ;	//Current screen type
+     Current_Number : WORD ;	//Current screen number
+     reserved_1 : WORD ;	//Reserved
+     Current_Field : WORD ;	//Current field number
+     reserved_2 : WORD ;	//Reserved
+    END_STRUCT ;	
+    Coordination_Area : WORD ;	//Area pointer 'Coordination' 
+    Job_Mailbox_Area : ARRAY  [0 .. 3 ] OF //Area pointer 'Job mailbox'
+    WORD ;	
+    Function_Keys : STRUCT 	
+     Function1 : BOOL ;	
+     Function2 : BOOL ;	
+     Function3 : BOOL ;	
+     Function4 : BOOL ;	
+     Function5 : BOOL ;	
+     Function6 : BOOL ;	
+     Function7 : BOOL ;	
+     Function8 : BOOL ;	
+     Command1 : BOOL ;	
+     Command2 : BOOL ;	
+     Command3 : BOOL ;	
+     Command4 : BOOL ;	
+     Command5 : BOOL ;	
+     Command6 : BOOL ;	
+     Command7 : BOOL ;	
+     Command8 : BOOL ;	
+    END_STRUCT ;	
+    System_Keys : STRUCT 	
+     ACK : BOOL ;	
+     ESC : BOOL ;	
+     ENTER : BOOL ;	
+    END_STRUCT ;	
+    LEDs : WORD ;	//K1=b0/1 K2=b2/3 K3=B4/5 K4=b6/7 (11=ON 01=Slow 10=Fast flash)
+   END_STRUCT ;	
+   HMI_Navigation : STRUCT 	//HMI menu navigation
+    Left : BOOL ;	//Arrow to Left
+    Right : BOOL ;	//Arrow to Right
+   END_STRUCT ;	
+   Password : STRUCT 	//Password input
+    Status : INT ;	//Text list number
+    Value : INT ;	//Entered password on HMI
+    Prompt_Elapse_Bar : INT ;	//Elapse bar on password promt screen
+   END_STRUCT ;	
+   Communication_Alive_Sign : INT ;	//Value for Communication Alive Sign bar
+   Alarm_Language : INT ;	
+   Alarm_active : WORD ;	
+   Menu_Display_Bits : STRUCT 	//Enable Disable Menu Bits
+    Menu_Screen1 : BOOL ;	
+    Menu_Screen2 : BOOL ;	
+    Menu_Screen3 : BOOL ;	
+    Menu_Screen4 : BOOL ;	
+    Menu_Screen5 : BOOL ;	
+    Menu_Screen6 : BOOL ;	
+   END_STRUCT ;	
+   Zone_HMI_IF_Mode : "UDT_ZONE_HMI_IF_MODE";	//Zone Screens Status
+   Zone_HMI_IF_Manual : "UDT_Zone_HMI_IF_Man";	//Manual Screen Status
+   Zone_HMI_IF_Operator : "UDT_Zone_HMI_IF_Oper";	//Operator Screen Status
+  END_STRUCT ;	
+BEGIN
+   END_DATA_BLOCK
+

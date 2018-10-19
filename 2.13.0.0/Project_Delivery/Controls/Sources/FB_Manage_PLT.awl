@@ -1,0 +1,760 @@
+FUNCTION_BLOCK "FB_Manage_PLT"
+TITLE =%version: 1.11 % CN: 40 
+//Function:
+//Update the present entries with the displacement as well as adding 
+//Hand Over entries to the PLT DB and removing entries from the PLT DB 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, July 03, 2017 09:31:21 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23402: 50% rule reset pull fase trailing edge      nlHdL    03-07-17   1.11
+//ra#12671: delete empty window codes from Handover     nlJClo   08-04-16   1.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.09
+//23445: wrongfully remove last entry during pull fase  nlHdL    07-04-15   1.09
+//23247: Trailing edge in Runout section no IHO bit     nlHdL    13-03-15   1.08
+//21455: Wrong Length check 50 % rule Pull fase         nlHdL    29-10-14   1.07
+//19835: Request PEC state on restart                   nlHdL    14-08-14   1.06
+//19935: HandOver not correct item > section length     nlHdL    12-08-14   1.05
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   1.04
+//15970: Write last Location in ECS record              nlHdL    20-11-13   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//13805: Tracking update from upstream section          nlHdL    28-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.36 of PLT version 0
+//
+//Description:
+//- Clear Complete PLT DB when going to Offline (and common setting Enable 
+//  Clear PLT) 
+//- Clear Handover area (End Position --> End Position - Handover Offset) when 
+//  requested
+//- Update the positions with the displacement
+//- Write the data in the PLT DB at insert position "Conveyor Length".
+//- Hand-over and clear the data in the tracking DB when the actual 
+//  position is <= 0. 
+//- Enter own DB number in PLT DB
+//- Enter own DB number in downstream PLT DB
+//                                                                   
+//Insert Position                                                    End Position 
+//                                                                       (0)
+//    | Track                                                             |
+//    +-------------------------------------------------------------------+
+//    | | | | | | | | | | | | | | | | L | | | | | | | | | | | | | | | | | |
+//    | | | | | | | | | | | | | | | | N | | | | | | | | | | | | | | | | | |
+//    | | | | | | | | | | | | | | | | K | | | | | | | | | | | | | | | | | | 
+//    +-------------------------------------------------------------------+
+//    
+//     __________________________________________________________________
+//    | Conveyor              +-------+                                  |
+//    |                       |Product|                                  |
+//    |                       +-------+                                  |
+//    |__________________________________________________________________|
+//                                                                  ^
+//                                                                 PEC
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_PLT_Num_DwnStr : INT ;	//Number of DB Position Leading Trailing Edge DownStream
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Basic_Offset : INT ;	//SETT: [cm] Basic offset of the section (Used for section length calc)
+  i_Dwnstr_PLT_Pos : INT ;	//CFG: Total offset from downstream datahandling point in [cm] (previous pos)
+  i_Displacement : INT ;	//[cm] Displacement of the section
+  i_CFG_Del_Window_Codes : BOOL ;	//CFG: Empty window and window reservation codes are deleted at the end
+  i_Section_Run : BOOL ;	//Section Run Signal
+END_VAR
+VAR_OUTPUT
+  o_Pull_Dwn_Stopped : BOOL ;	//Downstream is stopped during Pull fase
+END_VAR
+VAR
+  s_Length_Section_Downstr : INT ;	//Total length of the downstream section
+  s_Item_Length : INT ;	//Length of item in handover
+  s_Push_item : BOOL ;	//Item pushed to downstream
+  s_Pull_item : BOOL ;	//Downstream is pulling item
+  s_PLT_Done : BOOL ;	//Done bit of the own PLT DB
+  s_PLT_Dwn_Done : BOOL ;	//Done bit of the downstream PLT
+  s_PLT_Done_Remember : BOOL ;	//Set the done bit in the next cycle.
+  s_FN_PEC_Latch : BOOL ;	//Negative flank of PEC Latch used to check item length
+  s_FP_Operational : BOOL ;	//Positive flank of section operational
+END_VAR
+VAR_TEMP
+  t_DB_PLT : INT ;	//Number of own PLT DB
+  t_DB_PLT_Downstream : INT ;	//Number of downstream PLT DB
+  t_Position : INT ;	//Position found in search
+  t_Info_State : WORD ;	//State of info from PLT db
+  t_Info_Physical : INT ;	//Info Physical from PLT DB	
+  t_Link : INT ;	//Link from PLT DB
+  t_NOT_Used : INT ;	//Not used integer
+  t_Pos_Item_Leading : INT ;	//Position of the leading edge
+  t_Conveyor_Length : INT ;	//Length of the own conveyor
+  t_BackUp_AR1 : DWORD ;	//Backup of AR1
+  t_Section_Run_Down : BOOL ;	//Section run of downstream
+  t_Item_in_Handover : BOOL ;	//Item in handover to downstream
+  t_Clear_Postion : INT ;	//Position of item to send to downstream
+  t_Position_Downstream : INT ;	//Position of entry in the downstream PLT DB
+  t_Section_Run_Downstream : BOOL ;	//Section downstream is running
+  t_Empty_Resevation_Info : BOOL ;	//Info find is empty window or reservation
+  t_PEC_Latch : BOOL ;	//PEC Latch of signal
+  t_OS_FN_PEC_Latch : BOOL ;	//One shot if PEC Ltach
+  t_Found_DB : INT ;	//DB of search item
+  t_Data_ECS : INT ;	//Current LIC number
+  t_Check_Postion : INT ;	//Check position for PEC position
+  t_Invert_Pos : INT ;	//Converterd position to positive
+  t_Check_Info_State : WORD ;	//Check info state
+  t_ID : DINT ;	//ID as DINT
+  t_OS_Operational : BOOL ;	//One Shot section operational
+  t_Num_Found : INT ;	//Number of items found within search area
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT
+//Read from the PLT DB: the displacement, conveyor run signal.
+//Write in own and downstream PLT DB, the own PLT DB number.
+      L     #i_DB_PLT_Num; // Transfer input PLT DB number
+      T     #t_DB_PLT; // because OPN command cannont handle inputs
+
+      L     #i_DB_PLT_Num_DwnStr; // Transfer input downstream PLT DB number
+      T     #t_DB_PLT_Downstream; // because OPN command cannot handle inputs
+
+      SET   ; 
+      =     #s_PLT_Dwn_Done; 
+
+      L     1; // check if downstream PLT DB is used
+      L     #t_DB_PLT_Downstream; 
+      <I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_DB_PLT_Downstream]; // Open downstream PLT DB
+
+      A     DBX   10.0; 
+      =     #s_PLT_Dwn_Done; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_Downstream; 
+
+AA01: OPN   DB [#t_DB_PLT]; // Open own PLT DB
+
+      A     DBX   10.0; 
+      =     #s_PLT_Done; 
+
+      A     "M_First_Scan"; // Only in the first scan write the PLT DB numbers.
+      ON    #s_PLT_Done; 
+      ON    #s_PLT_Dwn_Done; 
+      JCN   AA02; 
+
+      L     #t_DB_PLT_Downstream; // Write downstream PLT db number in own PLT db
+      T     DBW    8; 
+
+      A     #s_PLT_Done_Remember; // Set the done bit
+      S     DBX   10.0; 
+
+      L     #i_Basic_Offset; // Take setting offset
+      L     #i_Dwnstr_PLT_Pos; // And previous offset
+      +I    ; 
+      T     DBW   12; // Write total lenth in conveyor length record of the PLT DB
+
+      SET   ; 
+      =     #s_PLT_Done_Remember; 
+
+AA02: A     "M_First_Scan"; // Only in the first scan write the PLT DB numbers.
+      ON    #s_PLT_Dwn_Done; 
+      JCN   AA03; 
+
+
+      L     1; // check if downstream PLT DB is used
+      L     #t_DB_PLT_Downstream; 
+      <I    ; 
+      JCN   AA03; 
+
+      OPN   DB [#t_DB_PLT_Downstream]; // Open downstream PLT DB
+
+      L     #t_DB_PLT; // Write in downstream PLT db upstream PLT db number.
+      T     DBW    6; 
+
+      SET   ; 
+      =     #s_PLT_Done_Remember; 
+
+AA03: A     "M_First_Scan"; //Check if this is done in the first scan, or that the done
+      ON    #s_PLT_Done; //bit of the downstream is not yet set.
+      BEC   ; //Than end block.
+
+      L     #i_DB_PLT_Num; // Transfer input PLT DB number
+      T     #t_DB_PLT; // because OPN command cannont handle inputs
+
+      OPN   DB [#t_DB_PLT]; // Open own PLT DB
+
+      L     DBW    8; // Transfer downstream PLT DB number
+      T     #t_DB_PLT_Downstream; // for opening
+
+      L     #i_Basic_Offset; // Take setting offset
+      L     #i_Dwnstr_PLT_Pos; // And previous offset
+      +I    ; 
+      T     DBW   12; // Write total lenth in conveyor length record of the PLT DB
+      T     #t_Conveyor_Length; 
+
+      A     DBX   10.6; 
+      =     #t_Item_in_Handover; 
+
+      A     DBX   10.7; 
+      =     #t_PEC_Latch; 
+
+      A     DBX   10.5; 
+      FP    #s_FP_Operational; 
+      =     #t_OS_Operational; 
+
+      L     1; // Check if downstream PLT DB is used
+      L     #t_DB_PLT_Downstream; 
+      <I    ; 
+      JCN   AA99; 
+
+      OPN   DB [#t_DB_PLT_Downstream]; // Open downstream PLT DB
+
+      L     DBW   12; // Take downstream conveyor length
+      T     #s_Length_Section_Downstr; // Store in temporary
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_Down; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Update PLT DB with displacement 
+//The positions of the entries in PLT are increased with the displacement 
+//value. The function FC_Shift_PLT is used.
+      CALL "FC_PLT_Shft_DB" (
+           i_OS_Operational         := #t_OS_Operational,
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Displacement           := #i_Displacement,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =CA: Send data to PLT Downstream & remove entry
+//- If there is data present on the end position the data is copied to 
+//the downstream PLT DB and the entry is deleted
+//- When an item is transferred onto the downstream conveyor, the item is push by 
+//the upstream conveyor.
+//Until more then 50 % is handed over, then the item is pulled by the downstream 
+//conveyor.
+//
+      L     0; 
+      T     #t_Position; 
+      T     #t_Info_Physical; 
+      T     #t_Link; 
+
+      SET   ; 
+      R     #t_Empty_Resevation_Info; 
+      R     #o_Pull_Dwn_Stopped; 
+
+      OPN   DB [#t_DB_PLT]; 
+
+// Check if entries are used in the PLT DB
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   CA07; // THEN Goto Preset staticals (
+
+      L     DBW    0; // Number of entries used in tracking DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+      TAR1  #t_BackUp_AR1; 
+
+      LAR1  #t_BackUp_AR1; 
+
+      L     DBW [AR1,P#0.0]; 
+      L     0; 
+      <=I   ; 
+      JCN   CA01; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Position; 
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Info_State; 
+      L     DBW [AR1,P#4.0]; 
+      T     #t_Info_Physical; 
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Link; 
+
+// Detect data at end position
+CA01: L     #t_Info_Physical; 
+      L     1; 
+      ==I   ; 
+      JCN   CA03; 
+
+//----------------------------------------------------------------------------------
+//1. Determine the length if leading edge is on position 0
+// Determine pointer to last used entry
+
+
+// Copy position to determine the item length
+      L     #t_Position; 
+      T     #t_Pos_Item_Leading; 
+
+//Check length item
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := #t_Pos_Item_Leading,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_NOT_Used,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used,
+           o_Length_Diff            := #s_Item_Length);
+
+      L     #t_DB_PLT_Downstream; 
+      L     1; 
+      >I    ; // Check IF DB is used else skip 50 % rule
+      JCN   CA09; 
+
+      SET   ; 
+      S     #s_Push_item; 
+      R     #s_Pull_item; 
+
+      JU    CA09; 
+
+//----------------------------------------------------------------------------------
+//2. Push item, correct displacement on the downstream conveyor with the upstream displacement.
+//Correction of the Pushed item (Downstream)
+CA03: A     #s_Push_item; // IF Push_item  
+      JCN   CA04; 
+
+      A     #t_PEC_Latch; 
+      FN    #s_FN_PEC_Latch; 
+      =     #t_OS_FN_PEC_Latch; 
+
+      L     #t_DB_PLT_Downstream; 
+      L     1; 
+      >I    ; // Check IF DB is used else skip
+      JCN   CA08; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := 5,
+           i_Window                 := #s_Item_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_Found_DB,
+           o_Number_Items_Found     := #t_NOT_Used);
+
+      L     #t_Found_DB; 
+      L     #t_DB_PLT_Downstream; 
+      ==I   ; 
+      JCN   CA04; 
+
+      CALL "FC_PLT_State_Info" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#20A0,//Owner Request up
+           i_Info_Physical          := 1);
+
+      A     #t_OS_FN_PEC_Latch; 
+      JCN   CA04; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #s_Length_Section_Downstr,
+           i_Window                 := #s_Length_Section_Downstr,
+           i_Info                   := 1,
+           o_Position               := #t_Pos_Item_Leading,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used);
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #t_Pos_Item_Leading,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_NOT_Used,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used,
+           o_Length_Diff            := #s_Item_Length);
+
+//----------------------------------------------------------------------------------
+//3. 50% is handed over
+//Switch from Push item to Pull item, If 50 % is handed over (1/2 s_Item_Length)
+CA04: A     #s_Push_item; // IF Push_item     
+      JCN   CA05; 
+
+//Check if length is correct, if not skip 50% rule
+      L     0; 
+      L     #s_Item_Length; 
+      ==I   ; 
+      JC    CA08; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (// Then check 1/2 Item_Length
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := 0,
+           i_Window                 := #s_Item_Length,
+           i_Info                   := 2,
+           o_Position               := #t_NOT_Used,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used,
+           o_Length_Diff            := #t_Position);
+
+      L     #t_Position; 
+      L     2; 
+      *I    ; 
+      L     #s_Item_Length; // 50 % handed over
+      <I    ; 
+      JCN   CA09; 
+
+      SET   ; 
+      S     #s_Pull_item; 
+      R     #s_Push_item; 
+
+//----------------------------------------------------------------------------------
+//4. Pull item, correct displacement on conveyor with downstream displacement.
+//Correction of the Pull item (own PLT Downstream displacement)
+CA05: A     #s_Pull_item; 
+      JCN   CA09; // IF Pull_item
+
+      L     1; // Check if downstream PLT DB is used
+      L     #t_DB_PLT_Downstream; 
+      <I    ; 
+      JCN   CA07; 
+
+      OPN   DB [#t_DB_PLT_Downstream]; 
+
+      L     DBW    4; 
+      L     1; 
+      >I    ; // Number of present entries > 1, No reset of IHO bit for HOO or induct
+      A     DBX   11.1; 
+      =     #o_Pull_Dwn_Stopped; 
+// Check if entries are used in the downstream PLT DB
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      JCN   CA07; // THEN Goto Preset staticals (
+
+      OPN   DB [#t_DB_PLT]; 
+
+//If trailing edge is pulled and position is negative,
+//Hand Over the trailing edge
+      LAR1  #t_BackUp_AR1; 
+//Check if INFO is trailing edge or leading edge
+      L     DBW [AR1,P#4.0]; 
+      L     0; 
+      >I    ; 
+      JCN   CA36; 
+
+      L     DBW [AR1,P#0.0]; // IF position of last entry <= 0 
+      T     #t_Clear_Postion; 
+      L     0; 
+      <I    ; 
+      JCN   CA06; 
+
+      SET   ; 
+      R     #s_Push_item; 
+      R     #s_Pull_item; 
+      L     0; 
+      T     #s_Item_Length; 
+
+      JC    CA10; 
+
+CA36: NOP   0; 
+//Last entry is NOT the trailing edge search for the trailing edge
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := -5,
+           i_Window                 := #s_Item_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Position,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_Num_Found);
+
+      L     #t_Num_Found; 
+      L     0; 
+      <=I   ; 
+      O(    ; 
+      L     #t_Position; 
+      T     #t_Clear_Postion; 
+      L     0; 
+      <I    ; 
+      )     ; 
+      JCN   CA06; 
+
+      SET   ; 
+      R     #s_Push_item; 
+      R     #s_Pull_item; 
+      L     0; 
+      T     #s_Item_Length; 
+
+      LAR1  #t_BackUp_AR1; 
+      L     #t_Num_Found; 
+      L     0; 
+      >I    ; 
+      JC    CA10; 
+      JU    CA09; 
+
+CA06: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := 0,
+           i_Window                 := #s_Item_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Position,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used);
+
+      L     #t_Position; 
+      L     2; 
+      *I    ; 
+      L     #s_Item_Length; // 50 % handed over
+      <I    ; 
+      JCN   CA09; 
+
+      CALL "FC_PLT_State_Info" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#20C0,//Owner Request Dwn
+           i_Info_Physical          := 2);
+
+      JU    CA09; 
+
+//----------------------------------------------------------------------------------
+//5. Present Statistics
+CA07: SET   ; 
+      R     #s_Pull_item; 
+      R     #s_Push_item; 
+      L     0; 
+      T     #s_Item_Length; 
+      JU    CA99; 
+
+//----------------------------------------------------------------------------------
+//6. Clear Statistics
+CA08: SET   ; 
+      R     #s_Pull_item; 
+      R     #s_Push_item; 
+      L     0; 
+      T     #s_Item_Length; 
+
+//----------------------------------------------------------------------------------
+CA09: OPN   DB [#t_DB_PLT]; 
+      LAR1  #t_BackUp_AR1; 
+      L     DBW [AR1,P#0.0]; // Read Position
+      T     #t_Clear_Postion; 
+
+      L     DBW [AR1,P#2.0]; // Read Info state
+      T     #t_Info_State; 
+
+      L     DBW [AR1,P#4.0]; // Read Info physical
+      T     #t_Info_Physical; 
+
+      L     DBW [AR1,P#6.0]; // AND copy data last entry to PLT Downstream
+      T     #t_Link; 
+
+//Delete empty windows on configuration parameters
+      A(    ; 
+      L     #t_Info_Physical; 
+      L     -90; 
+      <=I   ; 
+      )     ; 
+      O(    ; //OR If claimed window code
+      L     #t_Info_State; 
+      L     W#16#400; 
+      AW    ; 
+      L     W#16#400; 
+      ==I   ; 
+      )     ; 
+      =     #t_Empty_Resevation_Info; 
+
+      L     #t_Clear_Postion; 
+      L     0; 
+      <=I   ; 
+      JCN   CA99; // Skip if position > 0
+
+      L     #t_Info_State; 
+      L     W#16#2010; 
+      ==I   ; 
+      JC    CA99; 
+
+      A     #t_Empty_Resevation_Info; 
+      A     #i_CFG_Del_Window_Codes; 
+      JC    CA13; 
+
+      L     #t_Info_Physical; // Read Info
+      L     -3; 
+      <>I   ; 
+      JCN   CA13; // Only remove if Info = -3
+
+      A     #i_Section_Run; // Only write to downstream if conveyor is running
+      JCN   CA99; 
+
+CA10: L     #t_DB_PLT_Downstream; 
+      L     1; 
+      >I    ; // Check IF DB is used else skip
+      JCN   CA13; 
+
+      L     #s_Length_Section_Downstr; 
+      L     #t_Clear_Postion; 
+      +I    ; 
+      T     #t_Position_Downstream; 
+
+      L     #t_Info_Physical; 
+      L     0; 
+      <>I   ; 
+      JCN   CA13; // Check if Info not 0
+
+      L     #t_Clear_Postion; 
+      L     -1; 
+      *I    ; 
+      T     #t_Invert_Pos; 
+
+//Check if item is being insered after a PEC
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #s_Length_Section_Downstr,
+           i_Window                 := #t_Invert_Pos,
+           i_Info                   := 0,
+           o_Position               := #t_Check_Postion,
+           o_Info                   := #t_NOT_Used,
+           o_LNK                    := #t_NOT_Used,
+           o_DB_PLT_Num             := #t_NOT_Used,
+           o_Number_Items_Found     := #t_NOT_Used);
+
+//Retreive the info state of the PEC
+      CALL "FC_PLT_Read_State" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #t_Check_Postion,
+           i_Info_Physical          := 0,
+           o_Info_State             := #t_Check_Info_State);
+
+      L     #t_Position_Downstream; 
+      L     #t_Check_Postion; 
+      <I    ; 
+      JCN   CA11; 
+
+//Check if PEC is Latched then write after PEC 
+      L     #t_Check_Info_State; 
+      L     W#16#1003; 
+      <>I   ; 
+      JCN   CA11; 
+
+//If position is smaller then the PEC correct de write before the PEC
+      L     #t_Check_Postion; 
+      T     #t_Position_Downstream; 
+
+CA11: CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #t_Position_Downstream,
+           i_Info_Physical          := #t_Info_Physical,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (// Write Info & Data to downstream
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #t_Position_Downstream,
+           i_Info_State             := #t_Info_State,
+           i_Info_Physical          := #t_Info_Physical,
+           i_LNK                    := #t_Link,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Reset 50% when trailing edge is handed over
+      L     #t_Info_Physical; 
+      L     2; 
+      ==I   ; 
+      JCN   CA12; 
+
+      SET   ; 
+      R     #s_Pull_item; 
+      R     #s_Push_item; 
+      L     0; 
+      T     #s_Item_Length; 
+
+CA12: L     #t_Link; 
+      L     0; 
+      >I    ; 
+      JCN   CA13; 
+
+      CALL "FC_Write_Int_Record" (// Write PLT DB number into LIC record
+           i_Record_Number          := #t_Link,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Downstream,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+//Write section ID as last location in the current LIC
+CA13: L     #t_Link; 
+      L     0; 
+      >I    ; 
+      JCN   CA14; 
+
+//Determine the ECS number from the LNK number
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Link,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Data_ECS);
+
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   CA14; 
+
+      L     #i_ID; 
+      T     #t_ID; 
+
+      CALL "FC_Write_Dint_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_DINT_Record          := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_DB                     := "DB_ECS_List",
+           i_DINT                   := #t_ID,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Clear last entry
+CA14: OPN   DB [#t_DB_PLT]; 
+      L     DBW    0; // Number of entries used in tracking DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+      L     0; 
+      T     DBD [AR1,P#0.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; 
+
+      A     #t_Empty_Resevation_Info; 
+      A     #i_CFG_Del_Window_Codes; 
+      JCN   CA99; 
+
+      SET   ; 
+      R     #s_Pull_item; 
+      R     #s_Push_item; 
+      L     0; 
+      T     #s_Item_Length; 
+
+CA99: NOP   0; 
+END_FUNCTION_BLOCK
+

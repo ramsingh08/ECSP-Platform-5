@@ -1,0 +1,54 @@
+TYPE "UDT_TRS_2Dir_Int_Pr"
+TITLE =%version: 0.09 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, January 17, 2018 4:23:49 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20342: Int Prg PEC Offset_FWD & Offset_REV         nlHdL    17-01-18   0.09
+//ra#20335: Int Prog 2 direction add flow parameters    nlHdL    31-01-17   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.07
+//PR11030: Change inputs on 2Dir PEC for Bi-directional nlHdL    18-04-13   0.06
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.05
+//CR7918 Changed initiate cascade startup into cascade  nlHHop   26-03-12   0.04
+//delay time
+//Change name run and reverse inline with EQP basic     nlHdL    14-12-10   0.03
+//Made name block equal to symbol list                  nlMRe    25-10-10   0.02
+//Initial version                                       nlMRe    25-10-10   0.01                                       
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Motor_Run : BOOL ;	//CMD: Run motor
+   Motor_Reverse : BOOL ;	//CMD: Motor Reverse Direction
+   Local_Start_Request : BOOL ;	//Local Start Request
+   Local_Reset_Request : BOOL ;	//Local Reset Request
+   OS_Direction_Change : BOOL ;	//One Shot Direction change
+   CMD_MTR_Reverse : BOOL ;	//Request Motor reverse
+   CMD_NOT_MTR_Reverse : BOOL ;	//Request Motor NOT reverse
+   HW_Request_Halt : BOOL ;	//Request Halt by Hardware Layer
+   Cascade_Delay_Time : INT  := 300;	//Delay time used for start up, if 0 this is the first conveyor to start
+   PPI_Displacement : INT ;	//Displacement of PPI
+   PEC_Offset_FWD : INT ;	//Offset of PEC Forward
+   PEC_Offset_REV : INT ;	//Offset of PEC Reverse
+   LPOS_FWD : INT ;	//Leading and Trailing Position from EQP PEC
+   LPOS_REV : INT ;	//Leading and Trailing Position from EQP PEC
+   Basic_Offset_FWD : INT ;	//[cm] Distance between begin of conveyor and next handling point (mostly a PEC) 
+   Minimum_Gap_FWD : INT ;	//[cm] Minimum gap length between products (0 = no gap control)
+   Add_Gap_Stop_FWD : INT ;	//[cm] Additional gap after stop of upstream conveyor
+   Minimum_H2H_FWD : INT ;	//[cm] Minimum head to head length (0 = no head to head control)
+   Add_H2H_Stop_FWD : INT ;	//[cm] Additional head to head length after stop of upstream conveyor
+   Basic_Offset_REV : INT ;	//[cm] Distance between begin of conveyor and next handling point (mostly a PEC) 
+   Minimum_Gap_REV : INT ;	//[cm] Minimum gap length between products (0 = no gap control)
+   Add_Gap_Stop_REV : INT ;	//[cm] Additional gap after stop of upstream conveyor
+   Minimum_H2H_REV : INT ;	//[cm] Minimum head to head length (0 = no head to head control)
+   Add_H2H_Stop_REV : INT ;	//[cm] Additional head to head length after stop of upstream conveyor
+  END_STRUCT ;	
+END_TYPE
+

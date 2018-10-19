@@ -1,0 +1,20 @@
+DATA_BLOCK "DI_StartStop_Manager"
+TITLE =%version: 0.02 %  CN: 39
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, December 13, 2016 1:54:06 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16735: DI NON_RETAIN PLC Memory                    nlHdL    13-12-16   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+"FB_StartStop_Manager"
+BEGIN
+END_DATA_BLOCK

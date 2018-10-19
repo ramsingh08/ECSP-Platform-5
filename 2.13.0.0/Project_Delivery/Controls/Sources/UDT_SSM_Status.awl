@@ -1,0 +1,41 @@
+TYPE "UDT_SSM_Status"
+TITLE =%version: 0.05 % CN: 10 
+//History:
+//This version  %created_by: nljsla %
+//              %date_created: Monday, February 06, 2017 4:27:20 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20472: Due to SSM master/slave added link error    nljsla   06-02-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//17046: Ready to Restart not visible on HMI or SCADA   nlHdL    30-04-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//Initial version                                       nlMRe    22-09-10   0.01                                       
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Started : BOOL ;	//Started
+   Starting : BOOL ;	//Starting
+   Stopped : BOOL ;	//Stopped
+   Stopping : BOOL ;	//Stopping
+   Ready_To_Restart : BOOL ;	//Ready to Restart
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Link_Error : BOOL ;	//Link error
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

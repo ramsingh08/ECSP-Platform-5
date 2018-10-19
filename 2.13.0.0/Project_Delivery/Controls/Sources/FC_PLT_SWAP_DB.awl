@@ -1,0 +1,326 @@
+FUNCTION "FC_PLT_SWAP_DB" : VOID
+TITLE =%version: 1.02 % CN: 30
+//Function:
+//Swap all entries present in the PLT DB.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:06 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//15182: PLC stop multiple PECs in PLT when swap        nlHdL    20-08-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    30-05-13   1.00
+// Init version based on version 0.06 of PLT version 0
+//
+//Description:
+//                                                                          
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Length_Conveyor : INT ;	//Temp length of conveyor from PLT header
+  t_Position : INT ;	//Temp position after swap
+  t_Info_State : WORD ;	//Temp info state from swap
+  t_Info_physical : INT ;	//Temp Info from swap
+  t_Link : INT ;	//Temp Data from swap
+  t_Entry : INT ;	//Temp entry which is current active
+  t_Pointer_Swap : DWORD ;	//Copy pointer to swap entry with
+  t_Position_swap : INT ;	
+  t_Info_State_swap : WORD ;	//copy info state to swap
+  t_Info_Physical_swap : INT ;	
+  t_Link_swap : INT ;	
+  t_Pointer : DWORD ;	//Copy pointer to entry
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init: displacement, max nr of entries and entries used
+//- Calculate the number of possible entries in the tracking DB and write this 
+//value in the tracking DB on DBW4.
+//- Write the displacement value in the tracking DB on DBW2 and report if there 
+//is displacement.
+//- Report if there are entries used in the tracking DB
+      L     #i_DB_PLT_Num; // Open PLT DB
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+      L     DBW    0; // IF entries used in tracking DB 
+      L     0; 
+      ==I   ; 
+      BEC   ; // IF no entries then end the block
+
+//Read length of conveyor from PLT Header
+      L     DBW   12; 
+      T     #t_Length_Conveyor; 
+
+// Initialise Data
+      L     0; 
+      T     #t_Link; 
+NETWORK
+TITLE =BA: Swap leading and Trailing edge's with data
+//Convert Leading and Trailing edge, also copy the data to the swapped Leading 
+//edge.
+      L     DBW    0; // Number of entries used in tracking DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; // Header offset
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+      TAR1  #t_Pointer; 
+
+
+BA10: L     DBW [AR1,P#4.0]; 
+      T     #t_Info_physical; 
+
+      L     #t_Info_physical; 
+      L     1; 
+      ==I   ; 
+      JCN   BA21; 
+
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Link; 
+
+      L     2; // Convert Leading edge [1] to Trailing edge [2]
+      T     DBW [AR1,P#4.0]; 
+      L     0; 
+      T     DBW [AR1,P#6.0]; 
+
+BA21: L     #t_Info_physical; 
+      L     2; 
+      ==I   ; 
+      JCN   BA22; 
+
+      L     1; 
+      T     DBW [AR1,P#4.0]; // Convert Trailing edge [2] to Leading edge [1]
+      L     #t_Link; 
+      T     DBW [AR1,P#6.0]; 
+      L     0; 
+      T     #t_Link; // Clear temp data
+
+
+BA22: TAR1  ; // IF pointer to actual entry - 6 bytes (header tracking DB) > 0
+      L     P#14.0; // (still entries present in tracking DB)
+      -D    ; 
+      JMZ   BA99; 
+
+      L     P#6.0; // THEN set pointer to next entry 
+      +D    ; // ( -14 bytes + 8 bytes = -6 bytes = next entry)
+      LAR1  ; 
+
+      JU    BA10; // AND loop
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Convert the position of all entries and swap the entries 
+// Position = Conveyor_Length - Position (old)
+// After the position is converted the list needs to be sorted. 
+// This means that the first entries becomes the last, and the last becomes the 
+//first.
+// By copying the first with the last and the next entry with the last but one, 
+//ect. 
+      LAR1  P#14.0; // Pointer to first entry (DBW14)
+      TAR1  #t_Pointer_Swap; 
+
+// Determine pointer to last entry
+      L     DBW    0; // Number of entries used in tracking DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; // Header offset
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; 
+      TAR1  #t_Pointer; 
+
+      L     DBW    0; 
+      L     1; 
+      ==I   ; 
+      JC    CA30; // Only convert one entry
+
+// LOOP
+
+// 1) Update position with length conveyor - current position
+CA10: L     #t_Length_Conveyor; 
+      L     DBW [AR1,P#0.0]; // New position = length - current position
+      -I    ; 
+      T     #t_Position; 
+
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Info_State; 
+
+      L     DBW [AR1,P#4.0]; 
+      T     #t_Info_physical; 
+
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Link; 
+
+//Goto first entry
+      LAR1  #t_Pointer_Swap; 
+
+      L     #t_Length_Conveyor; 
+      L     DBW [AR1,P#0.0]; 
+      -I    ; 
+      T     #t_Position_swap; 
+
+      L     #t_Position; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     DBW [AR1,P#2.0]; 
+      T     #t_Info_State_swap; 
+
+      L     #t_Info_State; 
+      T     DBW [AR1,P#2.0]; 
+
+      L     DBW [AR1,P#4.0]; 
+      T     #t_Info_Physical_swap; 
+
+      L     #t_Info_physical; 
+      T     DBW [AR1,P#4.0]; 
+
+      L     DBW [AR1,P#6.0]; 
+      T     #t_Link_swap; 
+
+      L     #t_Link; 
+      T     DBW [AR1,P#6.0]; 
+
+      LAR1  #t_Pointer; 
+      L     #t_Position_swap; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Info_State_swap; 
+      T     DBW [AR1,P#2.0]; 
+
+      L     #t_Info_Physical_swap; 
+      T     DBW [AR1,P#4.0]; 
+
+      L     #t_Link_swap; 
+      T     DBW [AR1,P#6.0]; 
+
+
+// 2) Set pointer to next entry
+      L     #t_Pointer_Swap; 
+      LAR1  ; 
+      L     P#8.0; // Goto next entry
+      +D    ; 
+      LAR1  ; 
+      T     #t_Pointer_Swap; 
+
+      L     #t_Pointer; 
+      LAR1  ; 
+      L     P#8.0; // Goto previous entry
+      -D    ; 
+      LAR1  ; 
+      T     #t_Pointer; 
+
+      L     #t_Pointer; 
+      L     #t_Pointer_Swap; 
+      ==D   ; 
+      JC    CA30; // If pointers are equal only swap the position
+
+      L     #t_Pointer; 
+      L     #t_Pointer_Swap; 
+      >D    ; 
+      JCN   CA99; // Stop IF Pointer_swap > Pointer
+
+      JU    CA10; // AND loop
+
+CA30: L     #t_Length_Conveyor; // Swap position only
+      L     DBW [AR1,P#0.0]; 
+      -I    ; 
+      T     DBW [AR1,P#0.0]; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Delete entries for PEC signals
+
+DA01: L     DBW    4; // Number of entries present in PLT DB
+      L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #t_Pointer_Swap; // Copy to pointer last entry used in PLT DB
+// Determine pointer to last entry
+
+      L     DBW    0; 
+      T     #t_Cnt_Entry; 
+
+      L     14; // First entry starts at P#14.0
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+      TAR1  #t_Pointer; 
+
+// LOOP
+
+// 1) Update position with length conveyor - current position
+DA10: L     DBW [AR1,P#2.0]; 
+      L     W#16#1000; 
+      AW    ; 
+      L     1; 
+      >I    ; 
+      JCN   DA21; 
+
+//Remove the PEC signals when PLT is swapped
+
+DA11: L     #t_Pointer_Swap; 
+      TAR1  ; 
+      -D    ; 
+      JMZ   DA12; // IF next entry is the last available in the PLT DB then jump to clear last entry 
+
+      L     DBD [AR1,P#8.0]; 
+      T     DBD [AR1,P#0.0]; // ELSE copy complete next entry to actual entry in PLT DB
+      L     DBD [AR1,P#12.0]; 
+      T     DBD [AR1,P#4.0]; 
+
+      TAR1  ; 
+      L     P#8.0; 
+      +D    ; 
+      LAR1  ; // AND set pointer to next entry to handle 
+
+      JU    DA11; // AND loop
+
+DA12: L     0; 
+      T     DBD [AR1,P#0.0]; // Clear last entry because there is data present from the shift function  
+      T     DBD [AR1,P#4.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; 
+      T     DBW    0; // decrease entry counter
+
+//Goto begin of network for recheck on PEC signal
+      JU    DA01; 
+
+DA21: L     #t_Cnt_Entry; 
+      L     1; 
+      -I    ; 
+      T     #t_Cnt_Entry; 
+
+// Check loop counter
+      L     #t_Cnt_Entry; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+      TAR1  ; 
+      L     P#8.0; // THEN set pointer to next entry 
+      +D    ; // (goto next entry = 8 bytes)
+      LAR1  ; 
+
+      JU    DA10; // AND loop
+
+DA99: NOP   0; 
+END_FUNCTION
+

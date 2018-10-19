@@ -1,0 +1,143 @@
+FUNCTION_BLOCK "FB_ARZ02_F"
+TITLE =%version: 1.05 % CN: 55
+//Function:
+//- Fixed/control part of Arrival Zone type 01 (ARZ01)
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Wednesday, August 02, 2017 9:51:02 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21256: Startup signal light constant output        nlHdL    02-08-17   1.05
+//ra#18176: Halt signal too late on section start       nlDY     26-10-16   1.04
+//ra#12087: ARZ Remove error indication PPB10           nlHdL    13-10-16   1.03
+//ra#13806: Update accoording coding standard           nlHdL    15-06-16   1.02
+//ra#13806: Initial version                             nlJClo   10-05-16   1.01
+//
+//
+//Description: 
+//
+//Fixed part of ARZ02 containing the SLC ,Active statussen and start up.
+//
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_TRS1_CFG_StartUp_Time : INT  := 5000;	//CFG: [ms] start up time
+  i_TRS1_Operation_On : BOOL ;	// Operational on
+  i_TRS1_Ext_Req_Rst_ESve : BOOL ;	// Extern request to reset energysave
+  i_TRS1_Ext_Req_Stop : BOOL ;	// Extern request to stop
+  i_TRS1_ST_Started : BOOL ;	//ST: Started
+  i_SLC_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_SLC_ASI_Err : BOOL ;	//ASI: Slave has an error
+  i_ARZ_ST_Error : BOOL ;	//ARZ status error
+END_VAR
+VAR_OUTPUT
+  o_SLC_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SLC_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_StrtUp_Signal_Req_Halt : BOOL ;	//Request halt
+  o_IO_FL_Signal_Lamp : BOOL ;	//HW: Flashlight 
+  o_IO_Horn_Start_Up : BOOL ;	//HW: Horn when starting up this level
+  o_IO_SL_Available : BOOL ;	//HW: Signal Light Available
+END_VAR
+VAR
+  s_ARZ_Inactive : BOOL ;	//ARZ is inactive
+  s_SLC_FB_HW_ASI : "FB_HW_ASi";	//Signal light Coloumn ASI Slave hardware layer
+  s_TRS1_FB_StrtUp_Signal : "FB_Start_Up_Signal";	
+  s_FL_Start_Up : BOOL ;	// Request flashlight start up
+  s_Horn_Start_Up : BOOL ;	// Request Horn start up	
+  s_TRS1_FL_Start_Up : BOOL ;	// Stat up signal	
+  s_TRS1_Horn_Start_Up : BOOL ;	//Request horn start up
+  s_SL_Available : BOOL ;	//HW: Signal Light Available
+  s_StrtUp_Signal_Req_Halt : BOOL ;	//Request halt
+END_VAR
+VAR_TEMP
+  t_BOOL_Not_Used : BOOL ;	//Temp bool is not used (only connection)
+  t_DB_Num_Event : INT ;	//Number of the Event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: ARZ Active/Inactive
+// ARZ Active
+      A     #i_Safety_OK; 
+      A     #i_TRS1_ST_Started; 
+      AN    #i_ARZ_ST_Error; 
+      R     #s_ARZ_Inactive; 
+
+// ARZ Inactive
+      AN    #i_Safety_OK; 
+      ON    #i_TRS1_ST_Started; 
+      S     #s_ARZ_Inactive; 
+
+NETWORK
+TITLE =BA: Triplanner Start-up signal
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Num_Event; 
+
+      CALL #s_TRS1_FB_StrtUp_Signal (
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_Event_Num           := #t_DB_Num_Event,
+           i_CFG_StartUp_Time       := #i_TRS1_CFG_StartUp_Time,
+           i_CFG_No_Startup_E_Save  := FALSE,
+           i_Operational_On         := #i_TRS1_Operation_On,
+           i_Reset_E_Save           := #i_TRS1_Ext_Req_Rst_ESve,
+           o_FL_Start_Up            := #s_TRS1_FL_Start_Up,
+           o_Horn_Start_Up          := #s_TRS1_Horn_Start_Up,
+           o_Req_Halt               := #s_StrtUp_Signal_Req_Halt);
+
+      A     #s_StrtUp_Signal_Req_Halt; 
+      ON    #i_TRS1_Operation_On; 
+      =     #o_StrtUp_Signal_Req_Halt; 
+NETWORK
+TITLE =CA: Available signal light if ARZ is Available or in Error
+////LAD!
+      AN    #s_ARZ_Inactive; 
+      AN    #i_TRS1_Ext_Req_Stop; 
+      O     ; 
+      A     #i_ARZ_ST_Error; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #s_SL_Available; 
+NETWORK
+TITLE =DA: Flash light
+//LAD!
+      A     #s_TRS1_FL_Start_Up; 
+      =     #s_FL_Start_Up; 
+NETWORK
+TITLE =EA:  horn signalling
+//LAD!
+      A     #s_TRS1_Horn_Start_Up; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #s_Horn_Start_Up; 
+NETWORK
+TITLE =FA: Hardware layer for Signal Light Coloumn
+
+      CALL #s_SLC_FB_HW_ASI (
+           i_Req_Output_1           := #s_FL_Start_Up,
+           i_Req_Output_2           := #s_Horn_Start_Up,
+           i_Req_Output_3           := #s_SL_Available,
+           i_Req_Output_4           := FALSE,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Available_IO           := #i_Available_IO,
+           i_ASI_NotPrsnt           := #i_SLC_ASI_NotPrsnt,
+           i_Slave_Error            := #i_SLC_ASI_Err,
+           i_CFG_Delay_Time         := 0,
+           o_ST_ASI_NotPrsnt        := #o_SLC_ST_ASI_NotPrsnt,
+           o_ST_ASI_Error           := #o_SLC_ST_ASI_Error,
+           o_IO_Output_1            := #o_IO_FL_Signal_Lamp,
+           o_IO_Output_2            := #o_IO_Horn_Start_Up,
+           o_IO_Output_3            := #o_IO_SL_Available,
+           o_IO_Output_4            := #t_BOOL_Not_Used);
+
+END_FUNCTION_BLOCK
+

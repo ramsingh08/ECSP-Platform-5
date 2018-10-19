@@ -1,0 +1,25 @@
+DATA_BLOCK "DB_Logging"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, April 10, 2018 11:13:03 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    10-04-18   0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT    
+   LastRecord : INT ;   
+   Log : ARRAY  [0 .. 100 ] OF STRUCT  
+    Data : "UDT_Log_Data";  
+   END_STRUCT ; 
+  END_STRUCT ;  
+BEGIN
+END_DATA_BLOCK
+

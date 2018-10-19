@@ -1,0 +1,158 @@
+FUNCTION "FC_Crt_EncodeRequest" : VOID
+TITLE =%version: 0.04 %  CN: 33
+//Function:
+//Prepare and send message 'Encode Request'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, April 12, 2018 08:31:24 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9954: Encode cancel request without bag error rpt nlHdL    12-04-18   0.04
+//ina#4475: OPZ01 sends wrong source ID for High Level  nlDY     13-03-17   0.03
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//23801: add OPZ01 to library LPN change                nlHdL    01-05-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_FIFO_TCTC_DB_num : INT ;	//Number of DB TCTC FIFO
+  i_LIC_Nr : INT ;	//LIC number
+  i_DB_Event_Num : INT ;	//Number of the Event DB
+  i_EncodeReqType : INT ;	//Cancel = 1 and Encode = 2
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: message header
+//In this network the message header is created and copied into 
+//DB_OPS_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+// -> Sending area ID [DINT]
+      NOP   0; 
+// Copy date and time into message header
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_OPS_Outgoing_Msgs".Encode_Message.Header.EventTime);
+
+// Copy message type into message header 
+      L     51; 
+      T     "DB_OPS_Outgoing_Msgs".Encode_Message.Header.Message_Type_ID; 
+
+// Copy source ID into message header
+      L     #i_ID; 
+      SRD   16; // Shift area number AAAAxxxx -> AAAA
+      BTD   ; 
+      L     10000; 
+      *D    ; 
+      T     "DB_OPS_Outgoing_Msgs".Encode_Message.Header.Source_ID; // Area ID in DINT format AAAA0000
+
+      L     #i_ID; 
+      L     DW#16#FFFF; 
+      AD    ; 
+      BTD   ; 
+      L     "DB_OPS_Outgoing_Msgs".Encode_Message.Header.Source_ID; 
+      +D    ; 
+      T     "DB_OPS_Outgoing_Msgs".Encode_Message.Header.Source_ID; // AAAA0000 + ZZSS => AAAAZZSS
+NETWORK
+TITLE =BA: Create message Body
+
+      L     #i_LIC_Nr; 
+      L     0; 
+      >I    ; 
+      JCN   BA01; 
+
+// Encode request type for valid LIC
+      L     #i_EncodeReqType; 
+      T     "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.EncodeRequestType; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.LPN,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.LPN_Extension,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.LPN_Extension);
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.BID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_DINT                   := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.BID);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.BID_Extension,
+           i_ANY_Data               := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.BID_Extension,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_DINT                   := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.PID);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #i_LIC_Nr,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.Flight.Airline_Number,
+           i_ANY_Data               := "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.Flight_Number,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    BA99; 
+
+// Clear all data in the message because LIC is invalid
+BA01: CALL "BLKMOV" (
+           SRCBLK                   := "DB_OPS_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_OPS_Outgoing_Msgs".Encode_Message);
+
+      L     #i_EncodeReqType; 
+      T     "DB_OPS_Outgoing_Msgs".Encode_Message.Msg_Body_EncodeRequest.EncodeRequestType; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Put message in buffer
+//Copy complete message into FIFO DB.
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_OPS_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_OPS_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_OPS_Outgoing_Msgs".Encode_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_OPS_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_TCTC_DB_num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := "DB_OPS_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+END_FUNCTION
+

@@ -1,0 +1,152 @@
+FUNCTION "FC_Fill_With_BYTE" : INT
+TITLE =%version: 0.06 % CN: 31
+//Function:
+//Filling an area via an ANY with a BYTE
+//The BYTE is an input of this FC.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:04:53 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.05
+//CR8255 Update internal logging event value            nlcsu    11-11-11   0.04
+//Change compile number CN30 -> CN31                    nlMRe    07-09-10   0.03
+//Update FC_Event to FC_Write_Event                     nlMRe    06-09-10   0.02
+//Initial Revision                                      nlMRe    01-09-10   0.01
+//
+//Description:                               
+//The ANY must always be of the type BYTE.
+//Otherwise the function will not be fulfilled; Return Value -1.
+//When fulfilled successfully the Return Value will contain the number of 
+//filled bytes in the area.
+//                       
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Fill_BYTE : BYTE ;	//Input variable byte to fill the any pointer
+  i_ANY_To_Be_Filled : ANY ;	//ANY pointer to fill with byte
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_FILL_DWORD : DWORD ;	//Temporary fill word
+  t_Num_Of_DWORDs : INT ;	//Temporary number of Dwords
+  t_DB_Num : INT ;	//Temporary DB number
+  t_Integer : INT ;	//Temporary integer used for storage
+  t_Ret_Event : INT ;	//Return value for Write Event
+  t_1_WORD : BOOL ;	//Temporary word
+  t_1_BYTE : BOOL ;	//Temporary byte
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Prepare FILL DWORD with 4 times the BYTE
+
+      L     #i_Fill_BYTE; // Fill DWORD with four times the FILL BYTE
+      L     #i_Fill_BYTE; 
+      SLD   8; 
+      OD    ; 
+      SLD   8; // do that again
+      OD    ; 
+      SLD   8; // and again
+      OD    ; 
+      T     #t_FILL_DWORD; // (BYTE,BYTE,BYTE,BYTE)
+
+      CLR   ; 
+      =     #t_1_WORD; 
+      =     #t_1_BYTE; 
+NETWORK
+TITLE =BA: Analyse area to be filled
+
+      L     P##i_ANY_To_Be_Filled; 
+      LAR1  ; 
+      A(    ; 
+      L     2; // 2: type: Byte
+      L     B [AR1,P#1.0]; // Load data type of ANY
+      <>I   ; 
+      )     ; 
+      A(    ; 
+      L     3; // 3: type CHAR
+      <>I   ; 
+      )     ; 
+      JCN   BA01; 
+      L     -1; // Return value -1: ANY is not of 'byte'type
+      T     #RET_VAL; 
+
+      L     B [AR1,P#1.0]; 
+      T     #t_Integer; 
+
+      CALL "FC_Write_Event" (// Report event "Incorrect data type" (3116)
+           i_Message_ID             := 3116,
+           i_Event_value            := #t_Integer,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+BA01: L     W [AR1,P#2.0]; // Load 'number' of bytes out of ANY  
+      T     #RET_VAL; 
+      SRD   1; // Shift bit 0 out
+      JZ    BA02; 
+
+      S     #t_1_BYTE; 
+
+BA02: SRD   1; // Shift bit 1 out       
+      JZ    BA03; 
+
+      S     #t_1_WORD; 
+
+BA03: T     #t_Num_Of_DWORDs; // Reset: bit 3 to 15        
+
+      L     W [AR1,P#4.0]; // Load DB number out of ANY
+      T     #t_DB_Num; 
+
+      OPN   DB [#t_DB_Num]; 
+
+      L     D [AR1,P#6.0]; // Load Pointer out of ANY
+      LAR1  ; 
+NETWORK
+TITLE =CA: Do the filling
+
+      L     0; 
+      L     #t_Num_Of_DWORDs; 
+      <>I   ; 
+      JCN   CA02; // First all DWORDS
+CA01: T     #t_Num_Of_DWORDs; 
+
+      L     #t_FILL_DWORD; 
+      T     D [AR1,P#0.0]; 
+      TAR1  ; // Increase pointer to next DWORD
+
+      L     P#4.0; 
+      +D    ; 
+      LAR1  ; 
+      L     #t_Num_Of_DWORDs; 
+      LOOP  CA01; 
+
+CA02: A     #t_1_WORD; // When applicable one WORD
+      JCN   CA03; 
+
+      L     #t_FILL_DWORD; 
+      T     W [AR1,P#0.0]; 
+      TAR1  ; // Increase pointer to next WORD
+      L     P#2.0; 
+      +D    ; 
+      LAR1  ; 
+
+CA03: A     #t_1_BYTE; // Finally when applicable the last odd BYTE
+      JCN   CA99; 
+
+      L     #t_FILL_DWORD; 
+      T     B [AR1,P#0.0]; 
+
+CA99: NOP   0; 
+END_FUNCTION
+

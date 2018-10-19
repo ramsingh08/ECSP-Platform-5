@@ -1,0 +1,208 @@
+FUNCTION "FC_Dereg_LNK_In_PLT" : VOID
+TITLE =%version: 1.09 % CN: 33
+//Function:
+//This FC removes a LNK and LIC from the PLT DB and sends a Deregister.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, July 13, 2017 9:51:54 AM %
+//              %release:  VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23692: comment update description                  nlHdL    13-07-17   1.09
+//ra#22358: Implement ECS_NO_REPORT                     nldy     21-04-17   1.08
+//ra#20534: Reg and Dereg from non tracking PLT         nlHdL    15-03-17   1.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.06
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   1.06
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.02
+//Initial Version based on version 1.04 ECS-P GEN       nlHHop   01-04-14   0.01
+//
+//Description:
+//When an Leading edge is found in first entry with data, this data (LNK and LIC) 
+//is deassigned and a Deregister is send.
+//
+//                      PLT DB
+//                       |
+// Check First entry     v
+//        ____________________________________                                   
+//                   |
+//       ===flow===> |                                          
+//                   |
+//        ___________|__________________                                   
+//
+//                    ^    
+//                    |    
+//             Read pos = 0 + max dis
+//                                              
+//                                                             
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Arrived_Position : INT ;	//Location number of where bag is end of tracking
+END_VAR
+VAR_TEMP
+  t_DB_PLT : INT ;	//Number of PLT DB
+  t_position : INT ;	//Position entry in PLT DB
+  t_Info : INT ;	//Info entry in PLT DB
+  t_Link : INT ;	//Data entry in PLT DB
+  t_DB_Event_Nr : INT ;	//Number of DB Event
+  t_Return_Value_Int : INT ;	//Dummy return value
+  t_ECS : INT ;	//ECS number of generated LNK
+  t_Entry2 : BOOL ;	//Entry 2 in PLT
+  t_ECS_No_Report : BOOL ;	//No routing messages to HL
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT Header (Record 1)
+
+      L     #i_DB_PLT_Num; 
+      T     #t_DB_PLT; // Determine PLT block DB number
+
+      OPN   DB [#t_DB_PLT]; 
+
+      AN    DBX   10.5; //If not operational end block
+      BEC   ; 
+
+      L     DBW   14; 
+      T     #t_position; 
+
+      L     DBW   18; 
+      T     #t_Info; 
+
+      L     DBW   20; 
+      T     #t_Link; 
+
+      L     #i_DB_Event_Num; 
+      T     #t_DB_Event_Nr; 
+
+      SET   ; 
+      R     #t_Entry2; 
+NETWORK
+TITLE =BA: Read PLT Header (Record 2)
+
+      L     #t_Info; 
+      L     1; 
+      <>I   ; 
+      JCN   BA99; 
+
+//If No Leading edge then check 2e entry
+      OPN   DB [#t_DB_PLT]; 
+
+      L     DBW   22; 
+      T     #t_position; 
+
+      L     DBW   26; 
+      T     #t_Info; 
+
+      L     DBW   28; 
+      T     #t_Link; 
+
+      SET   ; 
+      S     #t_Entry2; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Remove LNK in PLT and Deregister the LNK
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      JCN   CA99; 
+
+      L     #t_Link; 
+      L     0; 
+      <>I   ; 
+      JCN   CA99; 
+
+// Read ECS number in LNK DB
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Link,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_INT                    := #t_ECS);
+
+      L     #t_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   CA99; 
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.No_Report,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_BOOL                   := #t_ECS_No_Report);
+
+      A     #t_ECS_No_Report; 
+      JCN   CA01; 
+
+      CALL "FC_Deassign_LNK" (
+           i_LNK                    := #t_Link);
+
+      JU    CA02; 
+
+CA01: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".Routing_Result.Arrived_Location,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #i_Arrived_Position,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_Event" (// Package report "Arrived"
+           i_Message_ID             := 1211,
+           i_Event_value            := #t_Link,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Write correct deregister reason in CIR
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+      CALL "FC_Write_Event" (// Report Deregisterpackage (1206)
+           i_Message_ID             := 1206,
+           i_Event_value            := #t_Link,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Return_Value_Int);
+
+CA02: OPN   DB [#t_DB_PLT]; 
+
+      AN    #t_Entry2; 
+      JCN   CA98; 
+
+      L     0; 
+      T     DBW   20; //Write link to 0 if entry 1 is used
+
+      JU    CA99; 
+
+CA98: L     0; 
+      T     DBW   28; //Write link to 0 if entry 2 is used
+
+CA99: NOP   0; 
+END_FUNCTION
+

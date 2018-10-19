@@ -1,0 +1,104 @@
+FUNCTION_BLOCK "FB_Pending_Maint"
+TITLE =%version: 0.03 % CN: 41 
+//Function:
+//This function takes care of pending functionality in the screening zone.
+//
+//
+//History:                                                                        
+//This version   %created_by: nldy %
+//              %date_created: Wednesday, October 25, 2017 5:57:42 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Screening pending updates                   nldy     25-10-17  0.03
+//ra#23317: Screening pending Update                    inajos   15-09-17  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16  0.01
+//
+//
+//Description:
+//This function uses the screening maintenance function to check and handle the 
+//screening results. 
+//This function updates the Buffer PLT thus to limit the use of the LNK items, 
+//when out of tracking. The time for this buffer is set longer then the maximum 
+//life time for the screening items. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZS
+  i_DB_PLT_Buffer : BLOCK_DB ;	//Data structure: Position Datablock
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_CFG_Limit_Buffer_Time : INT ;	//CFG: [sec] Limit time item in buffer
+END_VAR
+VAR
+  s_FB_Displacement : "FB_Displacement";	//Block call static FB_Displacement
+  s_FB_Manage_PLT : "FB_Manage_PLT";	//Block call static FB_Manage_PLT
+  s_Displacement : INT ;	//Displacement of the section in [cm]
+  s_Buffer_Time : INT ;	//Buffer Time
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Event DB Number
+  t_DB_PLT_Buffer : INT ;	//DB number PLT pending buffer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Init
+
+      OPN   #i_DB_Event; // DB number Event
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT_Buffer; // DB number PLT pending buffer
+      L     DBNO; 
+      T     #t_DB_PLT_Buffer; 
+
+NETWORK
+TITLE =BA: Update item positions in buffer PLT
+//Tracking in the Buffer PLT is based on time base.
+//
+//Items are placed in the Buffer PLT when lost in tracking (FB_DAT) or when 
+//handed 
+//over to the downstream area when the item is pending for a final screening 
+//result.
+      NOP   0; 
+// If buffer is time based then call blocks for displacement and PLT management
+      L     #i_CFG_Limit_Buffer_Time; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+// Calculate buffer PLT length with configured time for a speed of 100 mm/sec
+// Set length 10% longer to enable FB_HBS_ScreeningMaint to handle timed out items
+      L     #i_CFG_Limit_Buffer_Time; 
+      L     11; 
+      *I    ; 
+      T     #s_Buffer_Time; 
+
+// Generate displacement on time base 
+//----------------------------------------------
+      CALL #s_FB_Displacement (
+           i_CFG_Conveyor_Speed     := 100,
+           i_CFG_Run_Out_Distance   := 0,
+           i_PPI_Displacement       := 0,
+           i_Section_Run            := TRUE,
+           o_Displacement           := #s_Displacement);
+
+// Shift buffer PLT DB info with displacement
+//----------------------------------------------
+      CALL #s_FB_Manage_PLT (
+           i_ID                     := #i_ID,
+           i_DB_PLT_Num             := #t_DB_PLT_Buffer,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           i_Basic_Offset           := 0,
+           i_Dwnstr_PLT_Pos         := #s_Buffer_Time,
+           i_Displacement           := #s_Displacement,
+           i_CFG_Del_Window_Codes   := TRUE,
+           i_Section_Run            := TRUE);
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

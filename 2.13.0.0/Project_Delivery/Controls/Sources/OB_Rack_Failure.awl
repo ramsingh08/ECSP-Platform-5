@@ -1,0 +1,83 @@
+ORGANIZATION_BLOCK "OB_Rack_Failure"
+TITLE =%version: 0.03 % CN: 90  
+//Function: 
+//Module called by CPU when Rack failre occurs
+//The operating system calls OB86
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:16:48 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//CR5968 Changed block call from FB to FC with added    nlHHop   17-04-13   0.02
+//Profinet functionality
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description: 
+//The operating system of the CPU calls OB86 in the following situations:
+//- Failure of a central expansion unit (not with S7-300) is detected (both
+//  event entering and exiting state).
+//- The failure of a DP master system is detected (both event entering
+//  and exiting state).
+//- The failure of a station when using distributed I/O (PROFIBUS DP or
+//  PROFINET IO) is detected (both event entering and exiting state).
+//- You have disabled a station when using distributed I/O (PROFIBUS DP or
+//  PROFINET IO) with SFC 12 "D_ACT_DP" and the setting MODE=4.
+//- You have enabled a station when using distributed I/O (PROFIBUS DP or
+//  PROFINET IO) with SFC 12 "D_ACT_DP" and the setting MODE=3.
+//
+//If OB86 has not been programmed, the CPU changes to the STOP mode when 
+//this type of error is detected.
+//
+//You can disable or delay and re-enable OB86 using SFCs 39 to 42.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  OB86_EV_CLASS : BYTE ;	//16#38/39 Event class 3
+  OB86_FLT_ID : BYTE ;	//16#C1/C4/C5, Fault identification code
+  OB86_PRIORITY : BYTE ;	//26/28 (Priority of 1 is lowest)
+  OB86_OB_NUMBR : BYTE ;	//86 (Organization block 86, OB86)
+  OB86_RESERVED_1 : BYTE ;	//Reserved for system
+  OB86_RESERVED_2 : BYTE ;	//Reserved for system
+  OB86_MDL_ADDR : WORD ;	//Depending on fault identification code
+  OB86_RACKS_FLTD : ARRAY  [0 .. 31 ] OF BOOL ;	//Racks in fault
+  OB86_DATE_TIME : DATE_AND_TIME ;	//Date and time OB86 started
+  t_slave_station_number : INT ;	
+  t_slave_master_system_ID : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Call OB86 handling
+//Each "FC_OB86_Rack_Failure" can handle one DP Master and 
+//PN IO System. In a case more then one DP or PN network is used,
+//it has to be called multiple time. It is possible to specify
+//the inputs only for one network type as well
+//
+//Input: DP Master System Identification
+//Input: ANY Pointer to DP Not Present Bitmap (length 16 bytes)
+//Input: ANY Pointer to DP Error Bitmap (length 16 bytes)
+//(# calls = # DP master systems)
+//
+//Input: PN IO System Identification
+//Input: ANY Pointer to PN Not Present Bitmap (length 32 bytes)
+//Input: ANY Pointer to PN Error Bitmap (length 32 bytes)
+//(# calls = # DP master systems)
+      CALL "FC_OB86_Rack_Failure" (
+           i_DP_Master_System_ID    := 1,
+           i_DP_Not_Present_Bitmap  := "DB_Diagnose_DP".Master_System_1.Slave_Not_Present,
+           i_DP_Error_Bitmap        := "DB_Diagnose_DP".Master_System_1.Slave_Error,
+           i_PN_IO_System_ID        := 100,
+           i_PN_Not_Present_Bitmap  := "DB_Diagnose_PN".PNIO_System_100.Device_Not_Present,
+           i_PN_Error_Bitmap        := "DB_Diagnose_PN".PNIO_System_100.Device_Error);
+
+END_ORGANIZATION_BLOCK
+

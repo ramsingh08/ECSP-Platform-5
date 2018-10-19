@@ -1,0 +1,47 @@
+DATA_BLOCK "DB_Status_Changed"
+TITLE =%version: 0.02 % CN: 20 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:59:24 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      nlMRe    18-10-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   New_Record : BOOL ;	//Indicating that this is the start of a new record
+   Type_Component : BOOL ;	//Type of the component (1 = Section, 0 = Other)
+   First_Part : BOOL ;	//This is the first part of the section
+   spare_byte : BYTE ;	//Spare
+   Current_Record_Num : INT ;	//Record which is now handled in DB_Status
+   Status_Bit_0_0 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_1 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_2 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_3 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_4 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_5 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_6 : BOOL ;	//Bit from the changed status record
+   Status_Bit_0_7 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_0 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_1 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_2 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_3 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_4 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_5 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_6 : BOOL ;	//Bit from the changed status record
+   Status_Bit_1_7 : BOOL ;	//Bit from the changed status record
+   Comp_Type_Status : ARRAY  [1 .. 16 ] OF //The associated piece out of DB_Status is placed here
+   "UDT_Comp_Status";	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

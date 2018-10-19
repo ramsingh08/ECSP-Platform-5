@@ -1,0 +1,411 @@
+FUNCTION_BLOCK "FB_DAT_Routing"
+TITLE =%version: 0.05 %  CN: 40
+//Function:
+//This block reads the Event DB and handles the messages for Routing application.
+//
+//History:
+//This version  %created_by: nljmol %
+//              %date_created: Thursday, May 04, 2017 10:32:17 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22601: Updates required ICS maintenance req/rep    nlJMol   04-05-17   0.05
+//ra#18111: Implement ICS trace to the GEN Libray       nlHdL    20-02-17   0.04
+//ra#18431: Deregister of item without ID (AZS)         nlHdL    04-11-16   0.03
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.02
+//Initial Revision based on 0.12 of FB_DAT_SAC          nlHdL    28-04-16   0.01
+//
+//Description:
+//This FB reads the DB_Event. All events which are messages to SAC are read and 
+//the messages are prepared and placed in the Send_FIFO.
+//When a message is handled, it is indicated in the DB by setting the "Handled by 
+//Routing" bit.
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Local_Buffer : BLOCK_DB ;	//Data Structure: Local Buffer DB
+  i_Degraded_Mode : BOOL ;	//CMD: The system is running in degraded mode
+  i_PLC_FIFO_DB : BLOCK_DB ;	//Data structure: PLC FIFO DB
+END_VAR
+VAR
+  s_Message_Value : INT ;	//Value in the current event
+END_VAR
+VAR_TEMP
+  t_Event_DB_Num : INT ;	//Number of the Local Event DB
+  t_PLC_FIFO_DB_Num : INT ;	//Number of the PLC FIFO DB for messages
+  t_ECS_Num : INT ;	//Number ECS record
+  t_ID : DINT ;	//ID from ECS record
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Zone_Nr : INT ;	//Zone number taken out from ID
+  t_Entries_Used : INT ;	//Number ot the entries used in the Local Event DB
+  t_Adres_Next_Message : INT ;	//Calculated addres of next record
+  t_Next_Message_to_Read : INT ;	//Next Event wich is going to be read
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read local PLC DB number and HLC DB
+
+      OPN   #i_PLC_FIFO_DB; // Load DB PLC FIFO to get DB number
+      L     DBNO; 
+      T     #t_PLC_FIFO_DB_Num; 
+
+
+      OPN   #i_Local_Buffer; // Opn local HLC buffer DB
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      L     DBW    0; // Load number of entries used in Local HLC DB
+      T     #t_Entries_Used; // Transfer to temporery
+NETWORK
+TITLE =BA: Write message to output DB
+
+      L     1; // Start with the first record
+      T     #t_Next_Message_to_Read; 
+
+      L     #t_Entries_Used; // Check if there are messages to send
+      L     0; 
+      <>I   ; 
+      JCN   BA99; 
+
+BA01: L     #t_Next_Message_to_Read; // Load next record number
+      L     1; // Take begin of record
+      -I    ; 
+      L     6; // Multiply by record length
+      *I    ; 
+      L     4; // Add header length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #t_Adres_Next_Message; 
+      LAR1  ; // Load to static and AR1
+
+      L     DBW [AR1,P#0.0]; // Load Value of the message 
+      T     #s_Message_Value; 
+
+
+      L     DBW [AR1,P#2.0]; 
+      L     1201; 
+      ==I   ; 
+      JCN   BA02; 
+
+      CALL "FC_Crt_TrackingRep" (// Message type TrackingReport
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA02: L     DBW [AR1,P#2.0]; 
+      L     1202; 
+      ==I   ; 
+      JCN   BA03; 
+
+      CALL "FC_Crt_TransportDir" (
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Nr            := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA03: L     DBW [AR1,P#2.0]; 
+      L     1203; 
+      ==I   ; 
+      JCN   BA04; 
+
+      CALL "FC_Crt_IdChangeRep" (// Message type IdChangeReport
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA04: L     DBW [AR1,P#2.0]; 
+      L     1204; 
+      ==I   ; 
+      JCN   BA05; 
+
+      CALL "FC_Crt_CapacityRep" (
+           i_ID                     := #i_ID,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Nr            := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA05: L     DBW [AR1,P#2.0]; 
+      L     1205; 
+      ==I   ; 
+      JCN   BA06; 
+
+      CALL "FC_Crt_Register" (// Message type RegisterPackage
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA06: L     DBW [AR1,P#2.0]; 
+      L     1206; 
+      ==I   ; 
+      JCN   BA09; 
+
+      CALL "FC_Crt_Deregister" (// Message type DeregisterPackage
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA09: L     DBW [AR1,P#2.0]; 
+      L     1209; 
+      ==I   ; 
+      JCN   BA10; 
+
+      CALL "FC_Crt_PackScanned" (// Message type PackageReport - BSO Result 
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA10: L     DBW [AR1,P#2.0]; 
+      L     1210; 
+      ==I   ; 
+      JCN   BA11; 
+
+      CALL "FC_Crt_PackScreened" (// Message type PackageReport - Screening result
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA11: L     DBW [AR1,P#2.0]; 
+      L     1211; 
+      ==I   ; 
+      JCN   BA12; 
+
+      CALL "FC_Crt_PackArrived" (// Message type PackageReport - Arrived
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA12: L     DBW [AR1,P#2.0]; 
+      L     1212; 
+      ==I   ; 
+      JCN   BA13; 
+
+      CALL "FC_Crt_PackVolume" (// Message type PackageReport - Volume
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA13: L     DBW [AR1,P#2.0]; 
+      L     1213; 
+      ==I   ; 
+      JCN   BA16; 
+
+      CALL "FC_Crt_PackReScan" (// Message type PackageReport - ReclaimScan
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA16: L     DBW [AR1,P#2.0]; 
+      L     1216; 
+      ==I   ; 
+      JCN   BA21; 
+
+      TAR1  ; 
+      T     #t_AR1_Backup; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Message_Value,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_ECS_Num);
+
+      L     #t_ECS_Num; 
+      L     0; 
+      >I    ; 
+      JCN   BA17; 
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #t_ECS_Num,
+           i_P_DINT_Record          := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_DINT                   := #t_ID);
+
+      L     0; 
+      L     #t_ID; 
+      <D    ; 
+      JCN   BA17; 
+      T     #i_ID; 
+
+BA17: L     #t_AR1_Backup; 
+      LAR1  ; 
+
+      CALL "FC_Crt_Deregister" (// Message type DeregisterPackage Clean UP (Missing)
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA21: L     DBW [AR1,P#2.0]; 
+      L     1221; 
+      ==I   ; 
+      JCN   BA41; 
+
+      CALL "FC_Crt_Availability" (// Message type AvailabilityReport
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA41: L     DBW [AR1,P#2.0]; 
+      L     1401; 
+      ==I   ; 
+      JCN   BA42; 
+
+      CALL "FC_Crt_SegmentStatus" (// Message type SegmentStatusReport
+           i_ID                     := #i_ID,
+           i_SegmentID              := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA42: L     DBW [AR1,P#2.0]; 
+      L     1404; 
+      ==I   ; 
+      JCN   BA50; 
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     #t_Zone_Nr; // Transfer to outgoing messages
+
+      CALL "FC_Crt_EBSLaneStatus" (
+           i_ID                     := #i_ID,
+           i_SegmentID              := #t_Zone_Nr,
+           i_Status                 := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA50: L     DBW [AR1,P#2.0]; 
+      L     1500; 
+      ==I   ; 
+      JCN   BA51; 
+
+      CALL "FC_Crt_DeregisterTub" (// Message type DeregisterPackage Missing
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           i_Reason                 := 2);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+      JU    BA98; 
+
+BA51: L     DBW [AR1,P#2.0]; 
+      L     1501; 
+      ==I   ; 
+      JCN   BA98; 
+
+      CALL "FC_Crt_RegisterTub" (// Message type RegisterPackage
+           i_ID                     := #i_ID,
+           i_Data                   := #s_Message_Value,
+           i_FIFO_PLC_DB_num        := #t_PLC_FIFO_DB_Num,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      =     DBX [AR1,P#4.0]; // Set "Handled by Routing" bit
+
+BA98: NOP   0; 
+
+      L     #t_Adres_Next_Message; // Load adress current message
+      LAR1  ; // Transfer to AR 1
+
+      L     #t_Next_Message_to_Read; // Increase next message with 1
+      L     1; 
+      +I    ; 
+      T     #t_Next_Message_to_Read; // If next record to read is equal or smaller
+      L     #t_Entries_Used; // then number of messages in DB, than do next message
+      >I    ; 
+      JCN   BA01; 
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

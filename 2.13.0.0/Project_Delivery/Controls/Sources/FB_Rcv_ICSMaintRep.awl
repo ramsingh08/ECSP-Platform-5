@@ -1,0 +1,91 @@
+FUNCTION_BLOCK "FB_Rcv_ICSMaintRep"
+TITLE =%version: 0.01 %  CN: 40
+//Function:
+//Handle received message 'ICS Maintenace Reply'
+//Reply to the Area which send a Maintenance Reply
+//
+//History:
+//This version  %created_by: nljmol %
+//              %date_created: Thursday, May 04, 2017 10:55:36 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version                                       nlJMol   04-05-17   0.01
+//
+//Description:
+//Handle received message 'ICS MaintenanceReply'
+//The message is copied to the FiFo DB. 
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//ANY pointer to received message body
+END_VAR
+VAR
+  s_ICSMaintRep : "UDT_Msg_ICSMaintRep";	//Data Structure: Message
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_ANY_Rcv_Msg_Body : ANY ;	//Any pointer to received message body
+  t_Ret_Val_Int : INT ;	//Return value function call (int)
+  t_FiFo_DB_Maint : INT ;	//DB number of maintenance reply
+  t_Ret_Val_Fifo : WORD ;	//Return value FiFo
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy Received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_ICSMaintRep);
+
+NETWORK
+TITLE =CA: Reply maintenance Reply
+//check tub id
+      OPN   "DB_ICSMainRep"; 
+      L     DBNO; 
+      T     #t_FiFo_DB_Maint; 
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_FiFo_DB_Maint,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_ICSMaintRep,
+           i_ID                     := DW#16#0,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Fifo);
+
+
+END_FUNCTION_BLOCK
+

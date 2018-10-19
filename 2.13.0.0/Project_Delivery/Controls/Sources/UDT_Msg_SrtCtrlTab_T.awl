@@ -1,0 +1,36 @@
+TYPE "UDT_Msg_SrtCtrlTab_T"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:50:04 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.01
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on 0.02 TTC                    nlHdL    26-02-14   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Body : STRUCT 	
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 703;	//Message ID
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    TableEntries : ARRAY  [1 .. 4 ] OF STRUCT 	
+     TubType : INT ;	//Tub type (1=SBT, 2=OBT)
+     TubStatus : INT ;	//Tub status (1=Empty, 2=Loaded)
+     NumberOfTubs : INT ;	//Number of tubs allowed to be diverted 
+     TrainLength : INT ;	//Number of tubs approaching the divert (Ratio X)
+     AllowedSorting : INT ;	//Number of tubs approaching to be diverted (Ratio Y)
+    END_STRUCT ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

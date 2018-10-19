@@ -1,0 +1,116 @@
+FUNCTION "FC_Crt_ICSMaintReq" : VOID
+TITLE =%version: 0.02 % CN: 32
+//Function:
+//Prepare and send message 'ICS Maintenace Request'
+//
+//History:
+//This version  %created_by: nljmol %
+//              %date_created: Thursday, May 04, 2017 10:33:10 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22601: Updates required ICS maintenance req/rep    nlJMol   04-05-17   0.02
+//Initial Version                                       nlHdL    17-02-17   0.01
+//
+//Description:
+//Prepare and send message 'ICS Maintenance Request'
+//Send a maintenance request from maintenance area to the transport areas
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+  i_MaintInstruction : INT ;	//Maintenance instruction (1=Set Maint, 2=Reset Maint, 3=Query, 4=Query All)
+  i_Carrier_ID : INT ;	//Carrier ID
+  i_TypeCarrier : INT ;	//Type of carrier (1=CART, 2=TUB, 3= TRAY)
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value
+  t_Ret_Val_Int : INT ;	//Return Value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".ICSMaintenanceRequest.EventTime);
+
+NETWORK
+TITLE =BA: Write messageID
+
+      L     2901; 
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.MessageID; 
+
+NETWORK
+TITLE =CA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.EquipmentID; // Transfer to outgoing messages
+
+NETWORK
+TITLE =DA: Write data to log messages
+
+      L     #i_MaintInstruction; 
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.ICSMaintInstruction; 
+
+      L     #i_Carrier_ID; 
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.Carrier.ID; 
+
+      L     #i_TypeCarrier; 
+      T     "DB_Outgoing_Msgs".ICSMaintenanceRequest.Carrier.TypeCarrier; 
+
+NETWORK
+TITLE =EA: Put message in buffer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".ICSMaintenanceRequest,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =GA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+
+END_FUNCTION
+

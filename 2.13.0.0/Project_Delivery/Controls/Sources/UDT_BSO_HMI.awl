@@ -1,0 +1,67 @@
+TYPE "UDT_BSO_HMI"
+TITLE =%version: 0.01 % CN: 18 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, October 04, 2016 1:15:28 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version, based on Eindhoven BSO               nlhdl    10-04-16   0.01
+//
+//
+FAMILY : General
+
+
+  STRUCT 	
+   HMI_Interface_Area : STRUCT 	
+    HMI_Screen : STRUCT 	//Area pointer 'screen number'
+     Current_Type : WORD ;	//Current screen type
+     Current_Number : WORD ;	//Current screen number
+     reserved_1 : WORD ;	//Reserved
+     Current_Field : WORD ;	//Current field number
+     reserved_2 : WORD ;	//Reserved
+    END_STRUCT ;	
+    Coordination_Area : WORD ;	//Area pointer 'Coordination' 
+    Job_Mailbox_Area : ARRAY  [0 .. 3 ] OF //Area pointer 'Job mailbox'
+    WORD ;	
+    Function_Keys : STRUCT 	
+     CMD_1 : BOOL ;	
+     CMD_2 : BOOL ;	
+     CMD_3 : BOOL ;	
+     CMD_4 : BOOL ;	
+     FUNC_1 : BOOL ;	
+     FUNC_2 : BOOL ;	
+     FUNC_3 : BOOL ;	
+     FUNC_4 : BOOL ;	
+    END_STRUCT ;	
+    System_Keys : STRUCT 	
+     ACK : BOOL ;	
+     ESC : BOOL ;	
+     ENTER : BOOL ;	
+    END_STRUCT ;	
+    LEDs : WORD ;	//K1=b0/1 K2=b2/3 K3=B4/5 K4=b6/7 (11=ON 01=Slow 10=Fast flash)
+   END_STRUCT ;	
+   HMI_Navigation : STRUCT 	//HMI menu navigation
+    Left : BOOL ;	//Arrow to Left
+    Right : BOOL ;	//Arrow to Right
+   END_STRUCT ;	
+   Password : STRUCT 	//Password input
+    Status : INT ;	//Text list number
+    Value : INT ;	//Entered password on HMI
+    Prompt_Elapse_Bar : INT ;	//Elapse bar on password promt screen
+   END_STRUCT ;	
+   Communication_Alive_Sign : INT ;	//Value for Communication Alive Sign bar
+   Data_Handled : BOOL ;	//Bit to indicate new data was handled
+   Data_Not_Accepted : BOOL ;	//Bit to indicate new data was not accepted
+   Scanning_Enabled : BOOL ;	//Bit to indicate scanning is enabled (operator can use scanner)
+   Scan_Result : ARRAY  [1 .. 10 ] OF //Array filled with [0] to [9]
+   CHAR ;	
+   Password_Level : "UDT_HMI_Menu_Passw";	
+   Start_0_8_0_0 : "UDT_HMI_Menu_Node";	
+   LPN_Entry_1_0_0_0 : "UDT_HMI_Menu_Node";	
+   All_Green_2_0_0_0 : "UDT_HMI_Menu_Node";	
+  END_STRUCT ;	
+END_TYPE
+

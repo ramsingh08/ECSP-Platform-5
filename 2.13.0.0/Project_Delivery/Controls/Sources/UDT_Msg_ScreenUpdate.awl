@@ -1,0 +1,28 @@
+TYPE "UDT_Msg_ScreenUpdate"
+TITLE =%version: 0.02 % CN: 11
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, December 13, 2016 9:33:03 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18904 : Block updated                              inajos   13-12-16   0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+   Message_Type : INT ;	//100 = Handover message, 200 = lifesign request, 201 = lifesign reply
+   Message_Identifier : DINT ;	//Message indentifier SSSTLLLL (SSS = Sequence number T = Type LLLL = LIC number)
+   HBA_LNK : INT ;	//HBS area local identification code
+   TRA_LIC : INT ;	//Screening process Transport area local identification code
+   ScreeningProcessID : INT ;	//Screening process identification
+   Reached_Screen_Lev : BYTE ;	//Screening process reached screening level
+   Failed_Screen_Lev : BYTE ;	//Screening process failed screening level
+   Result : INT ;	//Screening, indicating why the level is reached or failed
+  END_STRUCT ;	
+END_TYPE
+

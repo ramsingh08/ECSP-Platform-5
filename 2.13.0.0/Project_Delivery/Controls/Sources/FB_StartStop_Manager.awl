@@ -1,0 +1,330 @@
+FUNCTION_BLOCK "FB_StartStop_Manager"
+TITLE =%version: 0.15 % CN: 30
+//Function: 
+//Provide start and stop functions for a group of objects/sections.
+//
+//History:
+//This version  %created_by: nljsla %
+//             %date_created: Monday, February 06, 2017 4:26:56 PM %
+//             %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#20472: Fixed restarting when timer was set to '0'  nljsla   06-02-17   0.15
+//ra#12656: Enable cmd between CCC to SSM no Dirct stp  nlJClo   08-04-16   0.14
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.13
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.13
+//17046: Ready to Restart not visible on HMI or SCADA   nlHdL    30-04-15   0.13
+//15797: Keyword release added                          nlwwij   26-09-13   0.12
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.11
+//CR8095 Comments input CFG changed                     nlple    06-01-12   0.09
+//Update after review coding conventions                nlRSwi   15-09-10   0.08
+//Update after review coding conventions                nlRSwi   14-09-10   0.07
+//Update according coding convention                    nlRSwi   09-09-10   0.06
+//PR5250 Beeper should beep every second, not 0.5 sec   nlMRe    11-06-10   0.05
+//PR5136 Change settings in configurations              nlMRe    11-06-10   0.04
+//PR5104 solved                                         inSMahi  16-04-10   0.03
+//PR5009                                                inSMahi  29-03-10   0.02 
+//Initial version                                       inSMahi  17-03-10   0.01
+//Description:
+//The following functions are handled by the start stop manager:
+//- Direct stop
+//- Controlled stop 
+//- Start of a group of object/sections
+//- Re-start of individual objects/sections
+//- (Re)-Start indication
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_StartUp_Indication : INT ;	//CFG: [sec] Duration of Start-Up indication
+  i_CFG_Restart_Indication : INT ;	//CFG: [sec] Duration of Restart indication
+  i_CFG_ControlStop_Time : INT ;	//CFG: [sec] Time out on controlled stop
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start_Request : BOOL ;	//CMD: Start request command
+  i_CMD_Stop_Request : BOOL ;	//CMD: Stop request command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Emergency_Stop : BOOL ;	//Emergency stop (FALSE=E-stop OK)
+  i_CMD_Controlled_Stop : BOOL ;	//CMD: Error on which a controlled stop must be executed
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Actions_Active : BOOL ;	//Signal for indication that Sections/objects are still action active
+  i_Ready_to_Restart : BOOL ;	//Signal for indication that sections/objects are ready to start
+END_VAR
+VAR_OUTPUT
+  o_Enable : BOOL ;	//Signal: Enable the component
+  o_Start : BOOL ;	//Signal: Start one-shot for components
+  o_Controlled_Stop : BOOL ;	//Signal: Controlled stop for components
+  o_Reset : BOOL ;	//Signal: Reset one-shot for components
+  o_IO_FL_Start_Up : BOOL ;	//HW: Flashlight when starting up
+  o_IO_Horn_Start_Up : BOOL ;	//HW: Horn when starting up this level
+  o_ST_Ready_To_Restart : BOOL ;	//ST: The component is ready to restart
+  o_ST_Starting : BOOL ;	//ST: The component is going from 'Stopped' to 'Started'
+  o_ST_Started : BOOL ;	//ST: The component is automatically fulfilling its function
+  o_ST_Stopping : BOOL ;	//ST: The component is going from 'Started' to 'Stopped'
+  o_ST_Stopped : BOOL ;	//ST: The component is operational off 
+END_VAR
+VAR
+  s_OS_Start_request : BOOL ;	//One Shot Start Request
+  s_OS_Stop_request : BOOL ;	//One Shot Stop Request
+  s_OS_Reset : BOOL ;	//One Shot Reset
+  s_Direct_Stop : BOOL ;	//Direct Stop
+  s_OS_Start : BOOL ;	//One Shot Start
+  s_Startup_Delay_done : BOOL ;	//Startup delay done
+  s_CV_Start_Up : INT ;	//Start up current value counter
+  s_CV_Restart : INT ;	//Restart current value counter
+  s_CV_Control_Stop_TO : INT ;	//Controlled stop time-out current value counter
+  s_Start_Up : BOOL ;	//Starting up
+  s_Start_Request_Detected : BOOL ;	//Start request detected 
+  s_Restart : BOOL ;	//Restarted
+  s_Enable : BOOL ;	//Enable
+  s_Stop_Control_Active : BOOL ;	//Stopping controlled
+  s_FP_Enabled : BOOL ;	//Positive Flank Operational On
+  s_FP_Start_Request : BOOL ;	//Positive Flank Start Request
+  s_FP_Stop_Request : BOOL ;	//Positive Flank Stop Request
+  s_FP_Error_Control_Stop : BOOL ;	//Positive Flank Error Controlled Stop
+  s_FP_Reset : BOOL ;	//Positive Flank Reset
+  s_OS_Enabled : BOOL ;	//One short Enable
+  s_OS_Restart : BOOL ;	//One Short Restart
+  s_ControlStp_delay_done : BOOL ;	//Controlled stop delay done
+  s_Restart_delay_done : BOOL ;	//Restart delay done
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_Direct_Stop : BOOL ;	//Direct stop
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: One Shot Start Requests Command
+//One shot start request is made here. 
+      A     #i_CMD_Enable; // Enable
+      A     #i_CMD_Start_Request; // AND Start request
+      FP    #s_FP_Start_Request; // Enable AND
+      =     #s_OS_Start_request; 
+NETWORK
+TITLE =BA: One shot stop Requests command
+//One shot stop request is made here. If an error occurs that must generate a 
+//controlled stop, a stop request is generated.
+      A     #i_CMD_Stop_Request; //IF stop request
+      FP    #s_FP_Stop_Request; 
+      O(    ; 
+      A     #i_CMD_Controlled_Stop; // OR controlled stop request
+      FP    #s_FP_Error_Control_Stop; 
+      )     ; 
+      =     #s_OS_Stop_request; // THEN make One shot stop request
+NETWORK
+TITLE =CA: Direct stop
+//Direct Stop is given in case 
+// Enable
+// IO availble 
+// Emergency stop
+// Error direct stop 
+// First Scan
+      ON    #i_CMD_Enable; // OR enable
+      ON    #i_Available_IO; // OR IO availble
+      O     #i_Emergency_Stop; // Or Emergency stop
+      O     "M_First_Scan"; // OR first PLC scan
+      =     #s_Direct_Stop; //THEN direct stop
+NETWORK
+TITLE =EA: One shot start request detected
+
+      A     #s_OS_Start_request; //IF One-shot start request
+      AN    #s_Enable; // AND not operational on
+      AN    #s_Direct_Stop; // AND NOT direct stop
+      AN    #i_CMD_Stop_Request; // AND no stop request
+      AN    #i_CMD_Controlled_Stop; // AND no error controlled stopp
+      =     #s_OS_Start; 
+NETWORK
+TITLE =FA: Start_up delay 
+//If the start/stop detect the start request .After the start-up delay the enable 
+//and the start signal are generated.The start-up delay during which the visidual 
+//and acustic signals are generated. 
+      A     #s_OS_Start; //IF One shot start
+      S     #s_Start_Up; // THEN set bit enable start-up delay counter
+
+      A     #s_Direct_Stop; // Reset Start-Up of Running when succeeded
+      O     #s_Stop_Control_Active; // or aborted.
+      O     #s_Enable; 
+      O     "M_First_Scan"; 
+      R     #s_Start_Up; 
+
+// Count the Start-up delay
+
+      AN    #s_Start_Up; //IF no startup
+      JCN   FA01; 
+      L     #i_CFG_StartUp_Indication; // THEN preset start up counter
+      T     #s_CV_Start_Up; 
+FA01: NOP   0; 
+      A     #s_Start_Up; // Countdown Start-Up counter on time-base
+      A     "M_OS_/1.0_sec."; 
+      JCN   FA03; 
+      L     #s_CV_Start_Up; 
+      L     1; 
+      -I    ; 
+      T     #s_CV_Start_Up; 
+      JPZ   FA02; 
+      L     0; 
+FA02: T     #s_CV_Start_Up; 
+
+FA03: L     #s_CV_Start_Up; 
+      L     0; 
+      <=I   ; // IF counter value <=0 
+      =     #s_Startup_Delay_done; // Startup Delay Done
+
+NETWORK
+TITLE =GA: Controlled stop delay (Timeout)
+//When a stop request is given, start/stop manager waits until no section/objects 
+//is reporting Action_Active, before syatem is stopped.
+//The maximum stopping time is guarded by a controlled stop time out.
+      AN    #s_Enable; //IF not operational ON
+      O     #s_OS_Start_request; // OR one-shot start request
+      R     #s_Stop_Control_Active; // THEN reset stop controlled
+
+      A     #s_OS_Stop_request; //IF One shot stop request
+      S     #s_Stop_Control_Active; // THEN set stop controlled    
+
+// Count the controlled- stop delay
+
+      AN    #s_Stop_Control_Active; //IF no controlled stop
+      JCN   GA01; 
+      L     #i_CFG_ControlStop_Time; //THEN preset controlled stop time out counter
+      T     #s_CV_Control_Stop_TO; 
+GA01: NOP   0; 
+      A     #s_Stop_Control_Active; // Countdown controlled stop time out counter
+      A     "M_OS_/1.0_sec."; 
+      JCN   GA03; 
+      L     #s_CV_Control_Stop_TO; 
+      L     1; 
+      -I    ; 
+      JPZ   GA02; 
+      L     0; 
+GA02: T     #s_CV_Control_Stop_TO; 
+GA03: L     #s_CV_Control_Stop_TO; 
+      L     0; 
+      <=I   ; 
+      =     #s_ControlStp_delay_done; // Controlled stop done
+NETWORK
+TITLE =HA: Restart delay
+//If enable ON, object/sections reporting Ready to start and a start command is 
+//detected a Re-start indication is given before the OS_start 
+//command is generated.
+      A     #s_Restart; // Restart
+      A     #s_Restart_delay_done; // AND restart delay done
+      O     #s_Direct_Stop; // Direct stop
+      O     #s_Stop_Control_Active; // when restart aborted
+      O     "M_First_Scan"; 
+      O     #s_OS_Restart; 
+      R     #s_Restart; 
+
+      A     #s_Enable; // AND Enable
+      A     #i_Ready_to_Restart; // Ready to start
+      A     #s_OS_Start_request; // AND Start requested
+      S     #s_Restart; 
+
+// Count the restart delay
+
+      AN    #s_Restart; //IF no Restart
+      JCN   HA01; 
+      L     #i_CFG_Restart_Indication; //THEN preset restart time counter
+      T     #s_CV_Restart; 
+HA01: NOP   0; 
+      A     #s_Restart; // Countdown restart time counter
+      A     "M_OS_/1.0_sec."; 
+      JCN   HA03; 
+      L     #s_CV_Restart; 
+      L     1; 
+      -I    ; 
+      JPZ   HA02; 
+      L     0; 
+HA02: T     #s_CV_Restart; 
+HA03: L     #s_CV_Restart; 
+      L     0; 
+      <=I   ; 
+      =     #s_Restart_delay_done; // Controlled stop done
+
+NETWORK
+TITLE =IA: Start Up indications Flashlight and Horn
+//The Flashlight and Horn indicate start up and restart.
+//The flashlight is continuously on, and the horn frequency of 1 second.
+      A     #s_Start_Up; //IF Start up
+      O     #s_Restart; // OR Re-start
+      =     #o_IO_FL_Start_Up; // THEN make Flashlight
+
+      A(    ; 
+      O     #s_Start_Up; // OR Starting 
+      O     #s_Restart; // restarting
+      )     ; 
+      A     "M_System_Clock_1.0_sec."; //AND Clock 1.0 seconds
+      =     #o_IO_Horn_Start_Up; //Horn alternates with frequency of 1 sec during start-up or restart
+NETWORK
+TITLE =JA: Enable 
+
+      A     #s_Start_Up; // Startup 
+      A     #s_Startup_Delay_done; // AND Startup delay done
+      S     #s_Enable; // THEN set Enable
+
+      A     #s_ControlStp_delay_done; //IF Controlled stop time out expired
+      A     #s_Stop_Control_Active; // AND stop controlled active
+      O(    ; 
+      A     #s_Stop_Control_Active; // AND stop controlled active
+      AN    #i_Actions_Active; // AND no actions active
+      )     ; 
+      O     #s_Direct_Stop; // OR direct stop                    
+      R     #s_Enable; // THEN reset enable
+NETWORK
+TITLE =KA: Determine the Control signals
+
+      A     #s_Enable; // Enable
+      FP    #s_FP_Enabled; 
+      =     #s_OS_Enabled; // One shot Enable 
+
+      A     #s_Restart; // Restart
+      A     #s_Restart_delay_done; // AND restart delay done
+      =     #s_OS_Restart; // THEN One shot restart
+
+      A     #s_Enable; // Enable signal
+      =     #o_Enable; 
+
+      A     #s_OS_Enabled; // OS start
+      O     #s_OS_Restart; 
+      =     #o_Start; 
+
+      A     #s_Stop_Control_Active; // Controlled Stop
+      =     #o_Controlled_Stop; 
+
+      A     #i_CMD_Reset; //IF Reset
+      FP    #s_FP_Reset; 
+      =     #o_Reset; // THEN make One shot Reset 
+
+NETWORK
+TITLE =LA: Determine Collected status
+
+      A     #s_Enable; 
+      AN    #s_Start_Up; 
+      A     #i_Ready_to_Restart; 
+      =     #o_ST_Ready_To_Restart; 
+
+// "Starting"
+      A     #s_Start_Up; 
+      =     #o_ST_Starting; 
+
+// "Stopping"
+      A     #s_Stop_Control_Active; 
+      AN    #s_Start_Up; 
+      =     #o_ST_Stopping; 
+
+// "Started"
+      A     #s_Enable; 
+      AN    #o_ST_Stopping; 
+      AN    #o_ST_Starting; 
+      =     #o_ST_Started; 
+
+// "Stopped"
+      AN    #s_Enable; 
+      AN    #o_ST_Starting; 
+      AN    #o_ST_Stopping; 
+      =     #o_ST_Stopped; 
+END_FUNCTION_BLOCK
+

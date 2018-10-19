@@ -1,0 +1,39 @@
+TYPE "UDT_HBS_Process"
+TITLE =%version: 0.04 % CN: 11 
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, October 25, 2017 7:21:06 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Screening pending updates                   nldy     25-10-17   0.04
+//ra#21133: Add EDS destination                         nldy     18-09-17   0.03
+//ra#22220: Support multiple processes                  nldy     22-05-17   0.02
+//Initial Version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Timestamp_screening : DATE_AND_TIME ;	//Time stamp item enter security screening
+   ID_Screening : DWORD ;	//ID of Section ID Record HEX AAAA - ZZSS.
+   DBNum_Force_Reject : INT ;	//Number of FIFO for force reject images
+   HBA_LNK : INT ;	//HBS Area Link number
+   TRA_LIC : INT ;	//Transport area Local Identification 
+   EDS_Destination : INT ;	//Destination of the EDS with pending result for current item
+   Bag_Status : INT ;	//Actual screening status of the bag
+   Screen_Result : "UDT_Screen_Result";	//Screening Process
+   Process_Active : BOOL ;	//Current process holds pending information
+   Machine_Result_Rcvd : BOOL ;	//Machine result was received from the EDS and processed
+   Operator_Result_Rcvd : BOOL ;	//Operator result was received from the EDS and processed
+   Result_Pending : BOOL ;	//Waiting for final result - EDS decision expected
+   Update_Send : BOOL ;	//Screening update send to downstream area.
+   Resend_Required : BOOL ;	//Failed to send data to downstream. Retry to send
+   Force_Rejected : BOOL ;	//Force Reject sent to screening machine 
+   Received_From_Upstream : BOOL ;	//The data on this record is received from upstream area (Middle area indication)
+  END_STRUCT ;	
+END_TYPE
+

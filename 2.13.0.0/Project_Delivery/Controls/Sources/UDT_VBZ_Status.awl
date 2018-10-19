@@ -1,0 +1,47 @@
+TYPE "UDT_VBZ_Status"
+TITLE =%version: 0.11 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, March 12, 2018 1:12:16 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27602: Redundant Bit added for VBZ07               inajos   12-03-18   0.11
+//bhs_plf#4311: fixed mode is not shown on HMI          nlHdL    18-12-17   0.10
+//ra#24976: VBZ status Item not allowed, for divert     nlHdL    20-10-17   0.09
+//ra#24976: Item not allowed on section VBZ             nlHdL    16-10-17   0.08
+//ra#21259: Add status No route available               nlHdL    30-03-17   0.07
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.06
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//CR12401 ASI slave added for PEC 2                     nlple    17-01-13   0.05
+//PR8788 Update after site testing project Kiev         nlple    19-01-12   0.04    
+//CR6691 Add gap switch not clear + dir not allowed     nlple    29-03-11   0.03
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.02 
+//Initial version                                       nlHdL    17-09-10   0.01                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Fixed_Straight_On : BOOL ;	//Fixed straight on mode activated
+   Fixed_Divert : BOOL ;	//Fixed divert mode activated
+   Position_Straight_On : BOOL ;	//Vertibelt position straight on
+   Position_Divert : BOOL ;	//Vertibelt position divert
+   Switch_Gap_Not_Clear : BOOL ;	//Gap between two items too small to enable switch action
+   Redundant : BOOL ;	//Redundant mode
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Item_Not_Allowed : BOOL ;	//Bag on EOS of divert is not allowed to transport in this direction
+   No_Route_Available : BOOL ;	//No route available
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

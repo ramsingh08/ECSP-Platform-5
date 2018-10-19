@@ -1,0 +1,21 @@
+DATA_BLOCK "DI_CHK_Assigned_Rout"
+TITLE =%version: 0.03 % CN: 49 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, December 13, 2016 1:36:28 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16735: DI NON_RETAIN PLC Memory                    nlHdL    13-12-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7990: Cart Bagtrax Record added to library            nlHdL    01-10-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+"FB_CHK_Assigned_List"
+BEGIN
+END_DATA_BLOCK

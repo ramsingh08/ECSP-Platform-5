@@ -1,0 +1,107 @@
+FUNCTION_BLOCK "FB_Bag_Buf_FIFO"
+TITLE =%version: 0.01 % CN: 33
+//Function:
+//Collecting Bag info, with the use of a Upstream and Downstream FIFO
+//Info is retreived on Node position within PLT DB.
+//
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, October 06, 2016 3:06:12 PM %
+//              %release:  VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on Version 0.01 VI_TTC          nlHdL    06-10-16   0.01
+//
+//Description:
+//This function is used to generate and clear bag buffer DB's. It must
+//be implemented at every node in a system. When the bag enters the node the bag 
+//entry needs to be removed from the upstream bag buffer and needs to be placed 
+//into the downstream bag buffer. To determine the tub class for the bag the bag 
+//length needs to be determined. When the length of the bag can not be determined 
+//from the BIR record the length of the bag will be determined by searching in 
+//the PLT DB for the leading and trailing edge of the bag. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Upstr_Bag_Buf : BLOCK_DB ;	//DB upstream bag buffer
+  i_DB_Dwnstr_Bag_Buf : BLOCK_DB ;	//DB downstream bag buffer
+  i_DB_Event : BLOCK_DB ;	//DB event number
+  i_DB_PLT_Node : BLOCK_DB ;	//DB PLT node border
+  i_CFG_Position_Node : INT ;	//CFG: [cm] Node border position in DB PLT
+END_VAR
+VAR
+  s_FP_Buf_change : BOOL ;	//Trigger change buffer for BIR length determination
+END_VAR
+VAR_TEMP
+  t_DB_Upstr_Bag_Buf_Num : INT ;	//Number of DB upstream bag buffer
+  t_DB_Dwnstr_Bag_Buf_Num : INT ;	//Number of DB downstream bag buffer
+  t_DB_PLT_Num : INT ;	//Number of DB PLT
+  t_DB_Event_Num : INT ;	//DB event number
+  t_LNK : INT ;	//Found link number
+  t_Number_Items_Found : INT ;	//Number of items found
+  t_Not_Used_INT : INT ;	//Not used integer
+  t_Position_Leading : INT ;	//Position leading edge
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine DB numbers
+
+      NOP   0; 
+
+// Write DB number of bag buffer DB's
+      OPN   #i_DB_Upstr_Bag_Buf; 
+      L     DBNO; 
+      T     #t_DB_Upstr_Bag_Buf_Num; 
+
+      OPN   #i_DB_Dwnstr_Bag_Buf; 
+      L     DBNO; 
+      T     #t_DB_Dwnstr_Bag_Buf_Num; 
+
+// Write DB number of node border
+      OPN   #i_DB_PLT_Node; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num; 
+
+// Write DB number of event DB
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Trigger buffer function to move bag on BIR length
+//When the bag enters the node the bag entry needs to be removed from the 
+//upstream bag buffer and needs to be placed into the downstream bag buffer. In 
+//this network this action will be executed but only when the destination is 
+//valid from the BIR record. By default the class is SBT only by check length BIR 
+//OBT can be defined.
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num,
+           i_Position               := #i_CFG_Position_Node,
+           i_Window                 := 10,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Leading,
+           o_Info                   := #t_Not_Used_INT,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_INT,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+// Create positive flank trigger of item found
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      FP    #s_FP_Buf_change; 
+      JCN   BA99; 
+
+// Change item from upstream to downstream bag buffer DB
+      CALL "FC_Bag_Buf_Change" (
+           i_DB_Upstr_Bag_Buf_Num   := #t_DB_Upstr_Bag_Buf_Num,
+           i_DB_Dwnstr_Bag_Buf_Num  := #t_DB_Dwnstr_Bag_Buf_Num,
+           i_LNK                    := #t_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

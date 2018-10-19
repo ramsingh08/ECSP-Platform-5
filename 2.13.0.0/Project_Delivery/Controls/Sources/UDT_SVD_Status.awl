@@ -1,0 +1,48 @@
+TYPE "UDT_SVD_Status"
+TITLE =%version: 0.12 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, November 29, 2017 9:34:52 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25250: SVD/MVD stop manual on fence opened         nlHdL    29-11-17   0.12
+//ra#17281: Network switches in SVD                     nlHdL    12-07-17   0.11
+//ra#18082: Update SVD errors/warnings                  nldy     08-12-16   0.10
+//ra#18563: Aligned for HMI                             inajos   23-11-16   0.09 
+//ra#16024: Update the statussen according productbook  nlJClo   25-07-16   0.08
+//ra#16024: Update the SVD according MCFV decomposition nlHdL    25-07-16   0.07
+//ra#16024: Update the SVD according MCFV decomposition nlHdL    25-07-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//23983: SDV detailed status DP to FieldBus             nlHdL    12-05-15   0.07
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//WP12624 update family name to General                 nlHdL    24-01-13   0.04
+//CR6780 Comment change PEC Blockage                    nlHdL    13-04-11   0.03 
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.02 
+//Initial version                                       nlHdL    24-09-10   0.01 
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Fixed_Up : BOOL ;	//Fixed up mode activated
+   Fixed_Down : BOOL ;	//Fixed down mode activated
+   Manual : BOOL ;	//Manual mode activated
+   Mainswitch_OFF : BOOL ;	//Mainswitch OFF
+   FieldB_Not_Prsnt : BOOL ;	//Fieldbus Slave not Present
+   FieldB_Error : BOOL ;	//Fieldbus Slave error
+   Fence_opened : BOOL ;	//Security fence opened
+   Position_Up : BOOL ;	//Vertisorter in Up position
+   Position_down : BOOL ;	//Vertisorter in Down position
+   Not_Allowed_Item : BOOL ;	//Item on outfeed is not allowed to continue in it's current direction
+   No_Route_Available : BOOL ;	//No route for the current destination available
+   Switch_FieldB_NotPrsnt : BOOL ;	//Switch Fieldbus Slave not Present
+   Switch_FieldB_Error : BOOL ;	//Switch Fieldbus Slave error
+   Maintenance_mode : BOOL ;	//maintenance mode activated by Keyswitch
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

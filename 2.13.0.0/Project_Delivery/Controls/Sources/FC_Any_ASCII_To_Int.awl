@@ -1,0 +1,400 @@
+FUNCTION "FC_Any_ASCII_To_Int" : VOID
+TITLE =%version: 0.05 % CN: 31
+//Function: 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, December 07, 2015 4:04:11 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//ra#9864: incorrect non numeric chars check            nlHdL    08-12-15
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//CR8255 Update internal logging event value            nlcsu    11-11-11   0.03
+//CR6415 Remove o_RET_VAL                               nlple    28-09-11   0.02
+//Initial Revision                                      nlHdL    27-01-11   0.01
+//
+//Description:
+//IMPORTANT
+//When u use symbolics at the input of type ANY that refer to a variable of the 
+//type array or structure be aware that the number of array or structure is even 
+//!                                                      
+//
+//examples: array[1..2]; array[1..4]; array[1..24]; etc. 
+//                                           
+//             t_char   STRUCT     
+//              |nr_1   BYTE       
+//              |nr_2   BYTE       
+//              |nr_3   BYTE        
+//              |nr_4   BYTE         
+//
+//The any pointer points points to an area which contains an ASCII number. When 
+//called, this function converts the input ASCII number to an integer and returns 
+//the result through o_integer_number. The ASCII number can be of 1, 2, 3, 4 or 5 
+//bytes. This number has a range of 0 to 32767. When those conditions are 
+//not met, the BR bit will be set and the conversion will not be carried out.
+//Contents of the address registers are being remembered during the block call. 
+//This way the address registers can be used in the current block.
+//The output o_RET_VAL contains information about the cause of the errror.
+//. Code 0000:
+//No error.
+//. Code 3115: {information code}
+//The area destination of the any pointer is too small (<5 bytes). When the 
+//integer number is greater than the destination, only the msb's of the integer 
+//number will be copied.
+//. Code 3112: {error code}
+//ASCII type is not 3x hex (0 <= x <=  9). BR-bit is set.
+//. Code 3111: {error code}
+//The double integer number is out of range. BR-bit is set.
+//. Code 3113: {error code}
+//Data type is neither byte nor char. BR-bit is set.
+//. Code 3114: {error code}
+//Wrong memory area from any pointer. BR-bit is set.
+//
+//example: '1234' (31 32 33 34 hex.) is converted into 1234
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_ASCII : ANY ;	//ANY pointer to the ASCII digits
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_INT : INT ;	//Output of the INT
+END_VAR
+VAR_TEMP
+  t_char : STRUCT 	//Local Copy of the ASCII digits
+   nr_1 : BYTE ;	
+   nr_2 : BYTE ;	
+   nr_3 : BYTE ;	
+   nr_4 : BYTE ;	
+   nr_5 : BYTE ;	
+  END_STRUCT ;	
+  t_DInteger_number : DINT ;	//Temp Double Integer
+  t_ANY_P_Length : INT ;	//Lenght of ANY
+  t_Data_Type : DWORD ;	//Data Type of ANY
+  t_ANY_P_Byte_Address : DWORD ;	//ANY Pointer to Byte Address
+  t_AR2_Store : DWORD ;	//Store for AR2
+  t_DB_Number : INT ;	//DB Number  
+  t_Data_Type_Byte : BYTE ;	//Data Type 
+  t_Loop_cntr : INT ;	//Loop Counter
+  t_integer : INT ;	//Integer for storage of data
+  t_Ret_Event : INT ;	//Return value for Write Event
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: store address registers and preset return value
+//The address registers are used in this block. In this network the address 
+//registers are stored to be remembered. The return value of this function is 
+//presetted on zero.
+      TAR2  ; //Store AR2
+      T     #t_AR2_Store; 
+
+      L     0; 
+      T     #o_INT; 
+NETWORK
+TITLE =BA: check any pointer
+//The any pointer is checked on data type and memory area. And further 
+//information 
+//is stored to be used later in the program.
+      L     P##i_ANY_ASCII; //input any pointer
+      LAR1  ; 
+
+//check data type on byte
+      O(    ; 
+      L     B [AR1,P#1.0]; 
+      L     B#16#2; 
+      ==I   ; //IF data type =byte 
+      )     ; 
+      O(    ; 
+      L     B [AR1,P#1.0]; 
+      L     B#16#3; 
+      ==I   ; //IF data type =char 
+      )     ; 
+      JC    BA01; //THEN copy any pointer
+      SET   ; //set RLO-bit
+      SAVE  ; //save RLO status in BR-bit
+
+      L     B [AR1,P#1.0]; 
+      T     #t_integer; 
+
+      CALL "FC_Write_Event" (// Report event "Data type ANY pointer is incorrect" (3116)
+           i_Message_ID             := 3116,
+           i_Event_value            := #t_integer,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      JU    HA01; 
+
+BA01: L     W [AR1,P#2.0]; //load byte 2&3 = message length
+      T     #t_ANY_P_Length; //store message length
+      L     W [AR1,P#4.0]; //load byte 4&5 = DB number
+      T     #t_DB_Number; //store DB number
+      A(    ; 
+      L     W#16#0; 
+      >I    ; //IF1 DB pointer
+      )     ; 
+      JCN   BA03; //ELSE1 do not open DB or DI
+      A(    ; //THEN1:
+      L     B [AR1,P#6.0]; 
+      L     B#16#84; 
+      ==I   ; //IF2 memory area = DB
+      )     ; 
+      JCN   BA02; 
+      OPN   DB [#t_DB_Number]; //THEN2 open DB
+      JU    BA03; 
+
+BA02: OPN   DI [#t_DB_Number]; //ELSE2 open DI
+
+BA03: L     B [AR1,P#6.0]; //load area code of crossing pointer
+      T     #t_Data_Type_Byte; //store data type (byte)
+      SLD   24; 
+      T     #t_Data_Type; //store data type for area pointer
+      L     D [AR1,P#6.0]; //load area crossing pointer
+      AD    DW#16#FFFF; //mask address area
+      SRD   3; //remove bit address from accu 1
+      T     #t_ANY_P_Byte_Address; //store begin byte address  
+
+NETWORK
+TITLE =CA: create destination and source pointer
+//Depending on the length of the destination area destination and source pointers 
+//are being created. IF length>=10 THEN source pointer reserves a 10 byte space 
+//in 
+//the destination area ELSE only msb's of the integer are copied
+//
+      L     6; 
+      L     #t_ANY_P_Length; 
+      >=I   ; //IF1 length > 6
+      JCN   CA01; 
+
+//Preset char 5
+      L     B#16#30; 
+      T     #t_char.nr_5; //reset t_char.nr_5
+
+//create source pointer
+      L     #t_ANY_P_Length; 
+      T     #t_Loop_cntr; //set loop counter
+
+      L     #t_ANY_P_Byte_Address; 
+      SLD   3; 
+      L     #t_Data_Type; 
+      +D    ; 
+      LAR2  ; 
+
+//create destination pointer
+      L     P##t_char; 
+      LAR1  ; // store source pointer in AR1
+      JU    CA99; 
+
+CA01: CALL "FC_Write_Event" (// Report event "Area destination of the ANY pointer is too small" (3115)
+           i_Message_ID             := 3115,
+           i_Event_value            := #t_ANY_P_Length,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      JU    HA01; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: copy contents of i_ANY_P_ASCII
+//Copy bytes from source area to local data area.
+//CASE t_Data_Type_Byte OF
+      L     #t_Data_Type_Byte; 
+      L     B#16#83; 
+      ==I   ; //1: t_Data_Type_Byte = 83
+      L     #t_Loop_cntr; 
+      JC    DA01; //copy from memory bits memory area
+      L     #t_Data_Type_Byte; 
+      L     B#16#84; 
+      ==I   ; //2: t_Data_Type_Byte = 84
+      L     #t_Loop_cntr; 
+      JC    DA02; //copy from data block
+      L     #t_Data_Type_Byte; 
+      L     B#16#85; 
+      ==I   ; //3: t_Data_Type_Byte = 85
+      L     #t_Loop_cntr; 
+      JC    DA03; //copy from instance data block
+      L     #t_Data_Type_Byte; 
+      L     B#16#87; 
+      ==I   ; //4: t_Data_Type_Byte = 87
+      L     #t_Loop_cntr; 
+      JC    DA04; //copy from previous local data
+      SET   ; //set RLO-bit
+      SAVE  ; //save RLO status in BR-bit
+
+      L     #t_Data_Type_Byte; 
+      T     #t_integer; 
+
+      CALL "FC_Write_Event" (// Report event "The ANY pointer has a wrong memory area" (3114)
+           i_Message_ID             := 3114,
+           i_Event_value            := #t_integer,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      JU    HA01; 
+
+DA01: T     #t_Loop_cntr; 
+      L     MB [AR2,P#0.0]; 
+      T     LB [AR1,P#0.0]; 
+      +AR1  P#1.0; 
+      +AR2  P#1.0; 
+      L     #t_Loop_cntr; 
+      LOOP  DA01; 
+      JU    DA05; 
+
+DA02: T     #t_Loop_cntr; 
+      L     DBB [AR2,P#0.0]; 
+      T     LB [AR1,P#0.0]; 
+      +AR1  P#1.0; 
+      +AR2  P#1.0; 
+      L     #t_Loop_cntr; 
+      LOOP  DA02; 
+      JU    DA05; 
+
+DA03: T     #t_Loop_cntr; 
+      L     DIB [AR2,P#0.0]; 
+      T     LB [AR1,P#0.0]; 
+      +AR1  P#1.0; 
+      +AR2  P#1.0; 
+      L     #t_Loop_cntr; 
+      LOOP  DA03; 
+      JU    DA05; 
+
+DA04: T     #t_Loop_cntr; 
+      L     B [AR2,P#0.0]; 
+      T     LB [AR1,P#0.0]; 
+      +AR1  P#1.0; 
+      +AR2  P#1.0; 
+      L     #t_Loop_cntr; 
+      LOOP  DA04; 
+
+DA05: NOP   0; 
+NETWORK
+TITLE =EA: check ASCII type & filter ASCII number
+//Filter hex30 from ASCII number
+      L     LD     0; //load ASCII char 1..4 
+      L     DW#16#F0F0F0F0; 
+      AD    ; 
+      A(    ; 
+      L     DW#16#30303030; 
+      ==D   ; 
+      )     ; 
+      A(    ; 
+      L     #t_char.nr_5; //load ASCII char 5
+      L     B#16#F0; 
+      AW    ; 
+      L     B#16#30; 
+      ==D   ; //IF ASCII type = 3 
+      )     ; 
+      JC    EA01; //THEN filter hex30
+      SET   ; //set RLO-bit
+      SAVE  ; //save RLO status in BR-bit
+
+      CALL "FC_Write_Event" (// Report event 'Data_Type_Conversion: ASCII character(s) out of range (0 <= X <= 9)' (3112)
+           i_Message_ID             := 3112,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      JU    HA01; 
+
+EA01: L     LD     0; //load ASCII char 1..4 
+      L     DW#16#F0F0F0F; 
+      AD    ; //filter hex30
+      T     LD     0; 
+
+      L     #t_char.nr_5; //load ASCII char 5
+      L     B#16#F; 
+      AD    ; //filter hex30
+      T     #t_char.nr_5; 
+      NOP   0; 
+NETWORK
+TITLE =FA: convert ASCII to integer
+//convert ASCII-number to integer-number
+      L     4; 
+      L     #t_ANY_P_Length; 
+      ==I   ; 
+      JCN   FA01; 
+
+      L     #t_char.nr_5; //load ten thousands
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_1; //load thousands
+      +D    ; //add accu1 + thhousands
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_2; //load hundreds
+      +D    ; //add accu1 + hundreds
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_3; //load tens
+      +D    ; //add accu1 + tens
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_4; //load units
+      +D    ; //add accu1 + units
+      T     #t_DInteger_number; //store in a temp. of type DINT
+      JU    FA99; 
+
+FA01: L     #t_char.nr_1; //load ten thousands
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_2; //load thousands
+      +D    ; //add accu1 + thhousands
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_3; //load hundreds
+      +D    ; //add accu1 + hundreds
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_4; //load tens
+      +D    ; //add accu1 + tens
+      L     10; 
+      *D    ; //multiply with 10
+      L     #t_char.nr_5; //load units
+      +D    ; //add accu1 + units
+      T     #t_DInteger_number; //store in a temp. of type DINT
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: check ASCII number
+//Check the input ASCII number on range.
+//The ASCII number must be between 0 and +32767. If not, the RLO = 0 and the 
+//conversion will not be carried out. The error code = 3111 
+      A(    ; 
+      L     #t_DInteger_number; 
+      L     0; 
+      >=D   ; //IF integer >= 0
+      )     ; 
+      A(    ; 
+      L     #t_DInteger_number; 
+      L     32767; 
+      <=D   ; //AND integer <= 32767
+      )     ; 
+      JC    GA01; 
+      SET   ; //set RLO-bit
+      SAVE  ; //save RLO status in BR-bit
+
+      CALL "FC_Write_Event" (// Report event 'Data_Type_Conversion: Double integer is out of range (0 <= X <= 2147483647)' (3111)
+           i_Message_ID             := 3111,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      JU    HA01; 
+GA01: L     #t_DInteger_number; //THEN transfer to INT
+      T     #o_INT; 
+
+NETWORK
+TITLE =HA: restore stored address registers
+//The stored adderss registers are restored in this network.
+HA01: L     #t_AR2_Store; 
+      LAR2  ; 
+
+END_FUNCTION
+

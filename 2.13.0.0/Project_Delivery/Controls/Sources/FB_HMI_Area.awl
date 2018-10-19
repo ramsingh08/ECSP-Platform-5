@@ -1,0 +1,216 @@
+FUNCTION_BLOCK "FB_HMI_Area"
+TITLE =%version: 0.08 % CN: 60
+//Function:    
+//Control HMI Operator Display on behalf of system
+// 
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Monday, November 14, 2016 2:45:47 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189:Updates based on Zone KTP code               inajos   27-10-16   0.08
+//ra#13652 Added Zone Mode code                         inajos   20-09-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//14163: check new alarm not correct                    nlHdL    07-01-14   0.06
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//14609: Modify comments DB_Status_Index (HMI_index)    nlHdL    01-08-13   0.03
+//Updated for new status managing principle             nlMRe    21-09-10   0.02
+//Initial revision                                      inSMahi  10-06-10   0.01
+//
+//Description:
+//
+//Different functions can be distinguished on behalf of the HMI Operator 
+//Display
+//- Initalise the DB_Status_Index with start address and the length.
+//- Alarm handling and visidualise the alarms.
+//- Handle Start/stop Maganer Interface with status display and commands.
+//- Navigate through the various screens (menu control is specified within a DB)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Record_Start : ANY ;	//Record in DB_Status_Index where to start from
+  i_ANY_Record_End : ANY ;	//Record in DB_Status_Index where to end 
+  i_CFG_Records_Per_Scan : INT ;	//CFG: [Num] Number of status records to handle per PLC scan
+  i_DB_HMI_Menu : BLOCK_DB ;	//DB HMI Menu navigation configuration 
+  i_DB_HMI_IF : BLOCK_DB ;	//HMI Interface DB
+  i_DB_HMI_IF_SSM : BLOCK_DB ;	//HMI Interface DB for SSM
+  i_DB_HMI_SSM_Index : BLOCK_DB ;	//Index DB for Start/Stop manager
+  i_DB_HMI_IF_Mode : BLOCK_DB ;	//HMI Interface DB for mode
+  i_DB_HMI_Mode_Index : BLOCK_DB ;	//Index DB for zones with modes
+  i_DB_HMI_Command : BLOCK_DB ;	//HMI_Command
+END_VAR
+VAR_OUTPUT
+  o_ST_Communication_Error : BOOL ;	//ST: Communication error
+END_VAR
+VAR
+  s_HMI_Alarm_Array : ARRAY  [0 .. 129 ] OF //HMI alarm queue
+  "UDT_HMI_Alrm_Record";	
+  s_FB_HMI_init : "FB_HMI_Init";	
+  s_FB_HMI_AlarmHandler : "FB_HMI_AlarmHandler";	
+  s_FB_HMI_Menu_Control : "FB_HMI_Menu_Control";	
+  s_HMI_SSM_IF : "FB_HMI_SSM_IF";	
+  s_HMI_Mode_IF : "FB_HMI_Mode_IF";	
+  s_Done : BOOL ;	
+  s_total_Num_Recs : INT ;	
+  s_HMI : STRUCT 	
+   Amount_Active_Alarms : INT ;	//Amount of active alarms
+   New_Activated_Alarm : INT ;	//Index number of new activated alarm
+   Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+   Command : INT ;	//HMI Command interface
+   Act_Node_ID : DWORD ;	//Actual Node-ID Root/Tree/Branch/Leaf [4-bytes]
+   Req_Node_ID : DWORD ;	//External Request Node-ID Root/Tree/Branch/Leaf [4-bytes]
+   Current_Number_SSM : INT  := 1;	//Curreent Selected SSM number
+   Total_Numbers_SSM : INT ;	//Total number of SSM present
+   Current_Number_Zone : INT  := 1;	//Current Selected zone number
+   Total_Number_Zones : INT ;	//Total number of zones with modes present
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_ANY_Record_Start : ANY ;	//Record in DB_Record_Handling where to start from
+  t_ANY_Record_End : ANY ;	//Record in DB_Record_Handling where to end 
+  t_Loop_Cnt_Comp_Scan : INT ;	//Loop counter scan xx status records per PLC scan
+  t_Record_Start_Pntr : DWORD ;	
+  t_Record_End_Pntr : DWORD ;	
+  t_Record_Length_Pointer : DWORD ;	//Length of Record index in pointer format
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: AR2 mask , Initialisation 
+//Get relative addres out of AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      T     #t_AR2_Store_Restore; // Store AR2
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+
+      L     P#16.0; // Length of record in DB_Status_Index ponter format 
+      T     #t_Record_Length_Pointer; 
+NETWORK
+TITLE =BA: Copy pointers
+
+      L     P##i_ANY_Record_Start; // Copy ANY pointer
+      L     #t_AR2_Mask; // Add AR2 Mask to pointer
+      +D    ; 
+      LAR1  ; 
+      LAR2  P##t_ANY_Record_Start; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+      AD    DW#16#FFFFFF; 
+      T     #t_Record_Start_Pntr; 
+
+
+      L     P##i_ANY_Record_End; // Copy ANY pointer
+      L     #t_AR2_Mask; // Add AR2 Mask to pointer
+      +D    ; 
+      LAR1  ; 
+      LAR2  P##t_ANY_Record_End; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+      AD    DW#16#FFFFFF; 
+      T     #t_Record_End_Pntr; 
+
+      L     #t_AR2_Store_Restore; // Restore AR2
+      LAR2  ; 
+NETWORK
+TITLE =CA: Calculate the number of records with start and end pointers 
+
+      L     #t_Record_End_Pntr; // End Record
+      L     #t_Record_Start_Pntr; // Start record
+      -D    ; 
+      L     #t_Record_Length_Pointer; // lenght of one record in DB_Status_Index
+      /D    ; 
+      L     1; 
+      +I    ; // increment 1 to compensate for last record 
+      T     #s_total_Num_Recs; // Total number of compnents to scan      
+
+NETWORK
+TITLE =DA: HMI Alarm Handler
+// 
+      L     0; // Clear loop counter scan status records 
+      T     #t_Loop_Cnt_Comp_Scan; 
+
+DA01: CALL #s_FB_HMI_AlarmHandler (
+           i_ANY_Record_Start       := #t_ANY_Record_Start,
+           i_ANY_Record_End         := #t_ANY_Record_End,
+           i_Alarm_Array            := #s_HMI_Alarm_Array,
+           i_DB_HMI_IF              := #i_DB_HMI_IF,
+           i_DB_AlrmTxtLst_Default  := "DB_AlrmTxtLst_Eng",
+           i_DB_AlrmTxtLst_Project  := "DB_AlrmTxtLst_Ned",
+           i_Pntr_Visible_Alarm     := #s_HMI.Pntr_Visible_Alarm,
+           i_New_Activated_Alarm    := #s_HMI.New_Activated_Alarm,
+           o_Amount_Active_Alarms   := #s_HMI.Amount_Active_Alarms,
+           o_New_Activated_Alarm    := #s_HMI.New_Activated_Alarm,
+           o_Pntr_Visible_Alarm     := #s_HMI.Pntr_Visible_Alarm);
+
+      L     #t_Loop_Cnt_Comp_Scan; 
+      +I    ; 
+      T     #t_Loop_Cnt_Comp_Scan; // increase loop counter
+      L     #i_CFG_Records_Per_Scan; 
+      >=I   ; // IF Loop counter => number of status records per scan
+      JCN   DA01; // THEN stop scanning status records for errors and continu  
+
+NETWORK
+TITLE =EA: HMI SSM Interface
+
+      CALL #s_HMI_SSM_IF (
+           i_DB_HMI_SSM_Index       := #i_DB_HMI_SSM_Index,
+           i_DB_HMI_IF_SSM          := #i_DB_HMI_IF_SSM,
+           i_HMI_Act_Node_ID        := #s_HMI.Act_Node_ID,
+           i_SSM_Current            := #s_HMI.Current_Number_SSM,
+           i_HMI_Command            := #s_HMI.Command,
+           o_Total_No_SSM           := #s_HMI.Total_Numbers_SSM);
+
+NETWORK
+TITLE =FA: HMI Mode Interface
+
+      CALL #s_HMI_Mode_IF (
+           i_DB_HMI_Mode_Index      := #i_DB_HMI_Mode_Index,
+           i_DB_HMI_IF_Mode         := #i_DB_HMI_IF_Mode,
+           i_DB_HMI_Command         := #i_DB_HMI_Command,
+           i_Zone_Current           := #s_HMI.Current_Number_Zone,
+           i_HMI_Command            := #s_HMI.Command,
+           o_Total_No_Zones         := #s_HMI.Total_Number_Zones);
+
+NETWORK
+TITLE =GA: HMI menu control
+
+      CALL #s_FB_HMI_Menu_Control (
+           i_DB_HMI_Menu            := #i_DB_HMI_Menu,
+           i_DB_HMI_IF              := #i_DB_HMI_IF,
+           i_Amount_Active_Alarms   := #s_HMI.Amount_Active_Alarms,
+           i_Total_No_SSM           := #s_HMI.Total_Numbers_SSM,
+           i_Total_No_Zones         := #s_HMI.Total_Number_Zones,
+           i_HMI_Req_Node_ID        := #s_HMI.Req_Node_ID,
+           i_New_Activated_Alarm    := #s_HMI.New_Activated_Alarm,
+           i_Pntr_Visible_Alarm     := #s_HMI.Pntr_Visible_Alarm,
+           o_HMI_Command            := #s_HMI.Command,
+           o_HMI_Act_Node_ID        := #s_HMI.Act_Node_ID,
+           o_HMI_Error              := #o_ST_Communication_Error,
+           o_Current_SSM_No         := #s_HMI.Current_Number_SSM,
+           o_Current_Zone_No        := #s_HMI.Current_Number_Zone,
+           o_HMI_Req_Node_ID        := #s_HMI.Req_Node_ID,
+           o_New_Activated_Alarm    := #s_HMI.New_Activated_Alarm,
+           o_Pntr_Visible_Alarm     := #s_HMI.Pntr_Visible_Alarm);
+
+END_FUNCTION_BLOCK
+

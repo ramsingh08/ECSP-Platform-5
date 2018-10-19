@@ -1,0 +1,847 @@
+FUNCTION "FC_Exec_Succ_Dir" : VOID
+TITLE =%version: 0.16 % CN: 33
+//Function:
+//Report Succes Direction into Route record for tracking report
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 7:00:55 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.16
+//ina#7185: offset change pointer routing DB            nlHdL    17-08-17   0.15
+//ra#20995: fail dir C on CFG i_CFG_Dir_C               nlHdL    15-03-17   0.14
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.12
+//ra#9916: No PID clear rep_route from tracking report  nlHdL    11-12-15   0.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.11
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.11
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.11
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.10
+//14146: Check RoutingTableDB before opening            nlHdL    05-06-13   0.09
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.08
+//CR13167 Update sources according S7 Manager           nlple    15-03-13   0.07
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.06
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.05
+//Correct record read and comment                       nlLvdG   04-04-12   0.04
+//LIC record paths changed                              nlLvdG   23-03-12   0.03
+//Update no return value                                nlHdL    03-10-11   0.02
+//Initial Revision                                      nlHdL    28-09-11   0.01
+//
+//Description:
+//Report Succes Direction into Route record for tracking report
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LNK : INT ;	//LNK number
+  i_ANY_Decision_mess : ANY ;	//ANY pointer to the Decision messages
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_CFG_Dir_C : BOOL ;	//Included direction C
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : INT ;	//Preference for Direction A
+  t_Preference_B : INT ;	//Preference for Direction B
+  t_Preference_C : INT ;	//Preference for Direction C
+  t_DecisionLvl : INT ;	//Decision Level
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_Direction : INT ;	//Direction
+  t_ECS : INT ;	//ECS number
+  t_RoutingTableDB : INT ;	//RoutingTableDB number from ECS reocrd
+  t_LIC : INT ;	//LIC number
+  t_Rep_Route : INT ;	//Replay Route message for tracking report
+  t_FailedReason : INT ;	//Failed reason for Route record
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Decision_mess; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Preference_B; 
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Preference_C; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_FailedReason_B; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_FailedReason_C; 
+      L     DIB [AR2,P#9.0]; 
+      T     #t_Direction; 
+
+NETWORK
+TITLE =BA: Check succes direction and write to ECS record
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Rep_Route);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".bir,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".lic,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_LIC,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     #t_DecisionLvl; 
+      L     10; 
+      ==I   ; 
+      JC    BA02; 
+//Make wait report
+
+      L     0; 
+      L     #t_Direction; 
+      <>I   ; 
+      JCN   BA99; 
+//Clear data of the succesdirection if there is no direction
+
+      L     1; 
+      L     #t_Direction; 
+      ==I   ; 
+      JCN   BA01; 
+
+//check the failed reason for direction A
+      L     0; 
+      L     #t_FailedReason_A; 
+      ==I   ; 
+      JCN   BA99; 
+//End network No succes dir A
+
+      JU    BA02; 
+//Write succesdirection A
+
+//check the failed reason for direction B
+BA01: A(    ; 
+      L     0; 
+      L     #t_FailedReason_B; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      O(    ; 
+      L     0; 
+      L     #t_FailedReason_C; 
+      ==I   ; 
+      )     ; 
+      ON    #i_CFG_Dir_C; 
+      )     ; 
+      JCN   BA99; 
+//End network No succes dir B or C
+
+BA02: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.Destination,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Destination,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionTaken,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Direction,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_DecisionLvl,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     #t_DecisionLvl; 
+      L     2; 
+      ==I   ; 
+      JCN   BA03; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routingtabletype,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 1,//Default Routing
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    BA99; 
+
+BA03: L     #t_DecisionLvl; 
+      L     3; 
+      ==I   ; 
+      JCN   BA04; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routingtabletype,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,//System Routing
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    BA99; 
+
+BA04: L     #t_DecisionLvl; 
+      L     4; 
+      ==I   ; 
+      JCN   BA99; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routingtabletype,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 3,//System Priority Routing
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Determine the routing Status
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".failedDirection1.failedreason,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_FailedReason);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".failedDirection1.destination,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".failedDirection1.decisionlevel,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_DecisionLvl);
+
+      L     #t_FailedReason; 
+      L     2; 
+      ==I   ; 
+      JC    CA01; 
+
+      L     #t_FailedReason; 
+      L     1; 
+      ==I   ; 
+      JC    CA02; 
+
+      L     #t_DecisionLvl; 
+      L     1; 
+      ==I   ; 
+      JC    CA02; 
+
+      JU    CA03; 
+
+CA01: L     #t_Destination; 
+      L     0; 
+      >I    ; 
+      JC    CA02; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 2,//2 = No destination
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    CA99; 
+
+CA02: NOP   0; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 3,// 3 = NoRroute Table entry
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    CA99; 
+
+CA03: NOP   0; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 1,// 1 = Status OK
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =GA: Routing decisions
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".routing_result.routingtabledb,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_RoutingTableDB);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".routing_result.SuccesDirTaken,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #t_Direction,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      L     #t_RoutingTableDB; 
+      L     1; 
+      >I    ; 
+      JCN   GA99; 
+
+      AN    #i_CFG_Dir_C; 
+      JCN   GA11; 
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA02; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 1
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest1Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest1Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA02: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA03; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 2
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest2Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest2Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA03: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_3,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA04; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 3
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest3Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest3Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA04: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_4,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA05; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 4
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest4Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest4Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA05: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_5,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA99; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 5
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest5Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest5Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    GA99; 
+
+GA11: OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA12; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 1
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest1Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest1Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA12: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA13; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 2
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest2Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest2Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA13: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_3,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA14; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 3
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest3Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest3Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA14: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_4,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA15; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 4
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest4Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest4Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+// Calculate pointer to destionation entry
+GA15: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".bir.Destination_5,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Destination);
+
+      OPN   DB [#t_RoutingTableDB]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #t_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   GA99; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+      SLD   3; // Conversion to pointer format
+      LAR1  ; 
+
+//Copy direction for destination 5
+      L     DBB [AR1,P#0.0]; 
+      T     #t_Preference_A; 
+
+      L     DBB [AR1,P#1.0]; 
+      T     #t_Preference_B; 
+
+      L     256; //Dir A Byte 1 = 256 + Pref A
+      L     #t_Preference_A; 
+      +I    ; 
+      T     #t_Preference_A; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest5Direction1,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_A,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     512; //Dir B Byte 2 = 512 + Pref B
+      L     #t_Preference_B; 
+      +I    ; 
+      T     #t_Preference_B; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Routing_Records.Dest5Direction2,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_Preference_B,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+GA99: NOP   0; 
+END_FUNCTION
+

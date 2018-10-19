@@ -1,0 +1,134 @@
+TYPE "UDT_CCC_Status"
+TITLE =%version: 0.18 % CN: 11
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 28, 2018 11:50:13 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29174: Add CCC status TFC communication error      nlHdL    28-05-18   0.18
+//ra#22510: Remove DP master statuses                   nlHdL    14-05-18   0.17
+//ra#25707: CCC add inputs to cabinet manager           nlHdL    20-10-17   0.16
+//ra#23669: CCC Cabinet temperature too high            nlHdL    14-08-17   0.15
+//ra#18831 : Feedback Safety Relay added                inajos   17-01-17   0.14
+//ra#15864: slave cabinet CCC03                         nlHdL    13-10-16   0.13
+//ra#17133: Handle HLC Msgs as template in OB1          nlHdL    30-09-16   0.12
+//ra#15599: Added Communication error to status of CCC  nlHdL    10-08-16   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//21106: markcode for CAB and DPC change to CCC and LCC nlHdL    30-09-14   0.10
+//18716: Add functionality to support ECS safety lib    nlBV     26-06-14   0.09
+//15797: Keyword release added                          nlwwij   26-09-13   0.08
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.07
+//CR7001 Added Mainswitch Off                           nlJBax   06-10-11   0.06
+//CR7887 Deleted/changed order                          nlJBax   30-09-11   0.05
+//CR6707 Adding power relay supply                      nlple    29-03-11   0.04
+//CR6231 Status UDT Update                              nlJBax   10-01-11   0.03 
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.02 
+//WP5678 Added init block to Library                    nlHdL    16-09-10   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Mainswitch_OFF : BOOL ;	//Mainswitch OFF 	
+   PLC_Power_Supply_Error : BOOL ;	//PLC Power supply failure
+   PLC_Hardware_Error : BOOL ;	//PLC Hardware failure
+   PLC_Battery_Error : BOOL ;	//PLC Battery failure 
+   CCC_THO_24VDC : BOOL ;	//Thermal overload signal from 24Vdc CCC
+   CCC_THO_24VDC_ESTOP : BOOL ;	//Thermal overload signal from EStop
+   CCC_THO_AMP : BOOL ;	//Thermal overload signal from AMP measuring
+   CCC_THO_Phase : BOOL ;	//Thermal overload signal from Phase
+   CCC_THO_PWR_Relais : BOOL ;	//Power relay supply
+   CCC_Phase_Fault : BOOL ;	//Phase Fault
+   Safety_Comm_Fault : BOOL ;	//Safety Communication Failure
+   Fire_Alarm_Zone_1 : BOOL ;	//Fire Alarm detected
+   Fire_Alarm_Zone_2 : BOOL ;	//Fire Alarm 02 detected
+   ETH_Switch_Fault : BOOL ;	//Ethernet Switch fault
+   HLC_Comm_Fault : BOOL ;	//HLC communication error
+   CAB_Temp_High : BOOL ;	//Cabinet temperature too High
+   CAB_Temp_Error : BOOL ;	//Cabinet temperature time out
+   UPS_THO : BOOL ;	//Thermal Overload UPS power
+   TFC_Comm_Fault : BOOL ;	//TFC communication error
+   Spare_2_3 : BOOL ;	//Spare 2_3
+   PN_Master_NotPrsnt : BOOL ;	//Profinet: PN Master is not present
+   PN_Master_Error : BOOL ;	//Profinet: PN Master has an error
+   HMI_Communication_Error : BOOL ;	//HMI Communication error
+   Connection_Error : BOOL ;	//Connection error
+   THO_400VAC_GRP01 : BOOL ;	//Thermal Overload (400Vac) Motor Group 1
+   THO_400VAC_GRP02 : BOOL ;	//Thermal Overload (400Vac) Motor Group 2
+   THO_400VAC_GRP03 : BOOL ;	//Thermal Overload (400Vac) Motor Group 3
+   THO_400VAC_GRP04 : BOOL ;	//Thermal Overload (400Vac) Motor Group 4
+   THO_400VAC_GRP05 : BOOL ;	//Thermal Overload (400Vac) Motor Group 5
+   THO_400VAC_GRP06 : BOOL ;	//Thermal Overload (400Vac) Motor Group 6
+   THO_400VAC_GRP07 : BOOL ;	//Thermal Overload (400Vac) Motor Group 7
+   THO_400VAC_GRP08 : BOOL ;	//Thermal Overload (400Vac) Motor Group 8
+   THO_400VAC_GRP09 : BOOL ;	//Thermal Overload (400Vac) Motor Group 9
+   THO_400VAC_GRP10 : BOOL ;	//Thermal Overload (400Vac) Motor Group 10
+   THO_400VAC_GRP11 : BOOL ;	//Thermal Overload (400Vac) Motor Group 11
+   THO_400VAC_GRP12 : BOOL ;	//Thermal Overload (400Vac) Motor Group 12
+   THO_400VAC_GRP13 : BOOL ;	//Thermal Overload (400Vac) Motor Group 13
+   THO_400VAC_GRP14 : BOOL ;	//Thermal Overload (400Vac) Motor Group 14
+   THO_400VAC_GRP15 : BOOL ;	//Thermal Overload (400Vac) Motor Group 15
+   THO_400VAC_GRP16 : BOOL ;	//Thermal Overload (400Vac) Motor Group 16
+   THO_230VAC_GRP01 : BOOL ;	//Thermal Overload (230Vac) Motor Group 1
+   THO_230VAC_GRP02 : BOOL ;	//Thermal Overload (230Vac) Motor Group 2
+   THO_230VAC_GRP03 : BOOL ;	//Thermal Overload (230Vac) Motor Group 3
+   THO_230VAC_GRP04 : BOOL ;	//Thermal Overload (230Vac) Motor Group 4
+   THO_230VAC_GRP05 : BOOL ;	//Thermal Overload (230Vac) Motor Group 5
+   THO_230VAC_GRP06 : BOOL ;	//Thermal Overload (230Vac) Motor Group 6
+   THO_230VAC_GRP07 : BOOL ;	//Thermal Overload (230Vac) Motor Group 7
+   THO_230VAC_GRP08 : BOOL ;	//Thermal Overload (230Vac) Motor Group 8
+   THO_230VAC_GRP09 : BOOL ;	//Thermal Overload (230Vac) Motor Group 9
+   THO_230VAC_GRP10 : BOOL ;	//Thermal Overload (230Vac) Motor Group 10
+   THO_230VAC_GRP11 : BOOL ;	//Thermal Overload (230Vac) Motor Group 11
+   THO_230VAC_GRP12 : BOOL ;	//Thermal Overload (230Vac) Motor Group 12
+   THO_230VAC_GRP13 : BOOL ;	//Thermal Overload (230Vac) Motor Group 13
+   THO_230VAC_GRP14 : BOOL ;	//Thermal Overload (230Vac) Motor Group 14
+   THO_230VAC_GRP15 : BOOL ;	//Thermal Overload (230Vac) Motor Group 15
+   THO_230VAC_GRP16 : BOOL ;	//Thermal Overload (230Vac) Motor Group 16
+   No_Power_GRP01 : BOOL ;	//No power group 1 Time Out
+   No_Power_GRP02 : BOOL ;	//No power group 2 Time Out
+   No_Power_GRP03 : BOOL ;	//No power group 3 Time Out
+   No_Power_GRP04 : BOOL ;	//No power group 4 Time Out
+   No_Power_GRP05 : BOOL ;	//No power group 5 Time Out
+   No_Power_GRP06 : BOOL ;	//No power group 6 Time Out
+   No_Power_GRP07 : BOOL ;	//No power group 7 Time Out
+   No_Power_GRP08 : BOOL ;	//No power group 8 Time Out
+   No_Power_GRP09 : BOOL ;	//No power group 9 Time Out
+   No_Power_GRP10 : BOOL ;	//No power group 10 Time Out
+   No_Power_GRP11 : BOOL ;	//No power group 11 Time Out
+   No_Power_GRP12 : BOOL ;	//No power group 12 Time Out
+   No_Power_GRP13 : BOOL ;	//No power group 13 Time Out
+   No_Power_GRP14 : BOOL ;	//No power group 14 Time Out
+   No_Power_GRP15 : BOOL ;	//No power group 15 Time Out
+   No_Power_GRP16 : BOOL ;	//No power group 16 Time Out
+   PN1_NotPrsnt : BOOL ;	//PN slave 1 is not present
+   PN1_Error : BOOL ;	//PN slave 1 has an error
+   PN2_NotPrsnt : BOOL ;	//PN slave 2 is not present
+   PN2_Error : BOOL ;	//PN slave 2 has an error
+   PN3_NotPrsnt : BOOL ;	//PN slave 1 is not present
+   PN3_Error : BOOL ;	//PN slave 1 has an error
+   Link_Protect_THO : BOOL ;	//Thermal Overload Link Protector
+   Link_Protect_Fault : BOOL ;	//Link Protector fault
+   SafetyRelais_Err_GRP01 : BOOL ;	//Feedbackerror safetyrelais 1 only used with Isafe 
+   SafetyRelais_Err_GRP02 : BOOL ;	//Feedbackerror safetyrelais 2 only used with Isafe 
+   SafetyRelais_Err_GRP03 : BOOL ;	//Feedbackerror safetyrelais 3 only used with Isafe 
+   SafetyRelais_Err_GRP04 : BOOL ;	//Feedbackerror safetyrelais 4 only used with Isafe 
+   SafetyRelais_Err_GRP05 : BOOL ;	//Feedbackerror safetyrelais 5 only used with Isafe 
+   SafetyRelais_Err_GRP06 : BOOL ;	//Feedbackerror safetyrelais 6 only used with Isafe 
+   SafetyRelais_Err_GRP07 : BOOL ;	//Feedbackerror safetyrelais 7 only used with Isafe 
+   SafetyRelais_Err_GRP08 : BOOL ;	//Feedbackerror safetyrelais 8 only used with Isafe 
+   SafetyRelais_Err_GRP09 : BOOL ;	//Feedbackerror safetyrelais 9 only used with Isafe 
+   SafetyRelais_Err_GRP10 : BOOL ;	//Feedbackerror safetyrelais 10 only used with Isafe 
+   SafetyRelais_Err_GRP11 : BOOL ;	//Feedbackerror safetyrelais 11 only used with Isafe 
+   SafetyRelais_Err_GRP12 : BOOL ;	//Feedbackerror safetyrelais 12 only used with Isafe 
+   SafetyRelais_Err_GRP13 : BOOL ;	//Feedbackerror safetyrelais 13 only used with Isafe 
+   SafetyRelais_Err_GRP14 : BOOL ;	//Feedbackerror safetyrelais 14 only used with Isafe 
+   SafetyRelais_Err_GRP15 : BOOL ;	//Feedbackerror safetyrelais 15 only used with Isafe 
+   SafetyRelais_Err_GRP16 : BOOL ;	//Feedbackerror safetyrelais 16 only used with Isafe 
+  END_STRUCT ;	
+END_TYPE
+

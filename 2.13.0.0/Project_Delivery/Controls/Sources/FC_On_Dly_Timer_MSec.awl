@@ -1,0 +1,104 @@
+FUNCTION "FC_On_Dly_Timer_MSec" : VOID
+TITLE =%version: 0.06 %  CN: 30
+//Function:
+//This function block acts as a delay on timer that can be configured in milli
+//seconds.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, April 30, 2018 8:41:36 AM %
+//              %release:  VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#28841: block comment update too match logic        nlHdL    30-04-18   0.06
+//ra#22404: Modified the msec timer to count down       nlHdL    13-07-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//21571: Add overflow cycle time > remain setpnt value  nlHdL    03-11-14   0.04
+//19201: Timer restarts after timer has elapsed         nlHdL    09-05-14   0.03
+//19134: Timer problem integer overflow occurs          nlHdL    07-05-14   0.02
+//Initial version                                       nlHHop   07-02-14   0.01
+//
+//Description:
+//The timer can be configured by assigning the required time value (in milli 
+//seconds) to the configuration input. When the command start is received the 
+//timer will start running (timer will stop running when command start is 
+//false). 
+//
+//DECREMENT:
+//The counter is decremented when active every scan by the cycle time.
+//Timer is active when Start="1" and Enable="1" and the value of the counter is 
+//greater than "0". 
+//
+//SET:
+//The Counter is preset with the value at input Time_Value if input Start="0". 
+//Time_Value only accept if >=0 and <=32767 else the counter is preset with 0.
+//If Set On-delay and the Time_Value is not accepted the BR will be "0".
+//This indicate an error occurred during execution, the BR bit is "0".
+//If the function was executed with no error, the BR bit is "1".
+//
+//Time_Value format [* 0.1 Sec]
+//                          __________________________           _____      
+//i_CMD_Start:   __________|                          |_________|     |_____
+//                                                                          
+//                         |<-CFG Value(t)-> |                              
+//                          _________________                    _____      
+//Timer running: __________|                 |__________________|     |_____
+//                                                                          
+//                                            ________                      
+//Timer elapsed: ____________________________|        |_____________________
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Start : BOOL ;	//CMD: Start the timer
+  i_CFG_Timer_Value : INT ;	//CFG: [msec] Timer value
+  i_Setpoint : INT ;	//Setpoint (connect to output with same name)
+END_VAR
+VAR_OUTPUT
+  o_Setpoint : INT ;	//Setpoint (connect to input with same name)
+  o_Timer_Elapsed : BOOL ;	//Status of the timer (when true the timer has elapsed)
+END_VAR
+VAR_TEMP
+  t_Toggle : BOOL ;	//Toggle bit to indicate if integer value is negative or positive
+  t_Disable_Inversion : BOOL ;	//Disable inversion because integer value is already negative
+  t_Check_Toggle_Bit : BOOL ;	//Check timer toggle bit
+  t_Setpoint : INT ;	//Setpoint
+  t_Setpoint_Dint : DINT ;	//Dint value of setpoint
+  t_Overflow_Active : BOOL ;	//Overflow setpoint + scantime > 30000 (Max value)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Timer count down and Timer status
+
+      SET   ; // Init
+      SAVE  ; // BR-bit
+
+      AN    #i_CMD_Start; 
+      JCN   AA01; 
+
+      L     #i_CFG_Timer_Value; 
+      T     #o_Setpoint; 
+      JU    AA02; 
+
+AA01: L     #i_Setpoint; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      T     #o_Setpoint; 
+      JPZ   AA02; 
+
+      L     0; 
+      T     #o_Setpoint; 
+
+AA02: L     #o_Setpoint; 
+      L     0; 
+      <=I   ; 
+      =     #o_Timer_Elapsed; 
+
+      NOP   0; 
+END_FUNCTION
+

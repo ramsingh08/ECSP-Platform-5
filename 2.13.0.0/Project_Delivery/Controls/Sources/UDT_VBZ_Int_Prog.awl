@@ -1,0 +1,40 @@
+TYPE "UDT_VBZ_Int_Prog"
+TITLE =%version: 1.07 % CN: 10 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Friday, May 19, 2017 8:49:29 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22412: update UDT_VBZ_Int_Prog for FB_VBZ05_F      nlHdL    19-05-17   1.07
+//ra#19081: Added DB variables for VBZ05                nlJClo   29-02-16   1.06
+//ra#21059: Added H2H variable for VBZ05                nlSdW    07-03-17   1.05
+//ra#21059: Added variables for transport direction rep nlSdW    06-03-17   1.04
+//ra#19081: Added variables for VBZ05                   nlJClo   17-02-16   1.03
+//ra#15981: align variables                             nljclo   20-10-16   1.02
+//Initial revision                                      nlHdL    01-08-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Req_Halt_Sorter : BOOL ;	//Request halt sorter
+   Req_Stop_Sorter : BOOL ;	//Request stop sorter
+   TRS_Divert_Req_Halt : BOOL ;	//Request halt divert section
+   TRS_Divert_Req_Stop : BOOL ;	//Request stop divert section
+   Redundant : BOOL ; //Redundant mode from VBZ
+   Restart_TranspDir_Tim : BOOL ;	//Restart Transport Direction Report
+   FP_TransportDir_Report : BOOL ;	//FP Send TransportDirection Report
+   Num_DB_PLT_TRS : INT ; // DB number from PLT DB TRS
+   Num_DB_Event : INT ; // DB number from Event DB   
+   Calculated_H2H_Length : INT ;	//calculated head to head length
+   TRS4_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS4_Basic_Offset : INT ;	// TRS4 basic offset
+   TRS4_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   Event_Zone : INT ;	//DB Event Zone
+   TransportDirection : INT ;	//Direction of transport 1 = Normal, 2 = Reverse
+   Restart_TranspDirRep : INT ;	//Timer value restart transport direction report
+  END_STRUCT ;	
+END_TYPE
+

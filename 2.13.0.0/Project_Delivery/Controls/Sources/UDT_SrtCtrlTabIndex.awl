@@ -1,0 +1,20 @@
+TYPE "UDT_SrtCtrlTabIndex"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by:  nlsdw %
+//              %date_created:  Thursday, April 13, 2017 10:31:49 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version based                                 nlSdW    13-04-17   0.01
+//
+FAMILY : General
+
+  STRUCT 	
+   Area_Zone_Section_ID : DINT ;	//(AreaID * 10000) + (ZoneID * 100) + SectionID (example: AreaID 1234 and ZoneID 
+   SrtCtrlTable_DB_Number : INT ;	//DB number of Sort Control Table that belongs to Area_Zone_Section_ID
+   Stack_Size : INT  := 1;	//Stack size (Default 1 = Single carrier)
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,24 @@
+DATA_BLOCK "DB_LSZ_Release"
+TITLE =%version: 0.01 % CN: 49
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Monday, June 19, 2017 9:32:26 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Revision                                       inajos  08-06-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+  STRUCT 	
+   LanesReleasing : INT ;	//Number of lane releasing 
+   OS_Empty : BOOL ;	//ST: One Shot Lane empty trigger
+   Emptying : BOOL ;	//ST: Lane Emptying
+  END_STRUCT ;	
+BEGIN
+  
+END_DATA_BLOCK
+

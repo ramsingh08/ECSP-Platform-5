@@ -1,0 +1,39 @@
+TYPE "UDT_OPZ_Status"
+TITLE =%version: 0.04 % CN: 10
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, November 16, 2017 10:19:56 AM %
+//
+//Modification History:                                 By:     Date:     Rev:
+//Project
+//----------------------------------------------------  -------  --------  -----
+//ra#26361: OPZ01: Align Status for Conveyor mode       inajos   16-11-17   0.04
+//ra#23742: OPZ01: add states transport mode, disable   nlHdL    21-08-17   0.03
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   07-10-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   07-10-16   0.02
+//Initial Revision                                      nlHdL    04-05-15   0.01
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Disabled : BOOL ;	//Disable mode activated (Conveyor Mode)
+   FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave not present
+   FieldB_Error : BOOL ;	//Fieldbus Slave error
+   Unattended_Bag : BOOL ;	//Unattended Bag
+   SLC_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   SLC_ASI_Error : BOOL ;	//ASI slave error
+   PBB_ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   PBB_ASI_Error : BOOL ;	//ASI slave error
+   Bit_1_0 : BOOL ;	//Spare
+   Bit_1_1 : BOOL ;	//Spare
+   Bit_1_2 : BOOL ;	//Spare
+   Bit_1_3 : BOOL ;	//Spare
+   Bit_1_4 : BOOL ;	//Spare
+   Bit_1_5 : BOOL ;	//Spare
+   Bit_1_6 : BOOL ;	//Spare
+   Bit_1_7 : BOOL ;	//Spare
+  END_STRUCT ;	
+END_TYPE
+

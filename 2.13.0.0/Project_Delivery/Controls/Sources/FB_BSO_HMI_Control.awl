@@ -1,0 +1,184 @@
+FUNCTION_BLOCK "FB_BSO_HMI_Control"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Menu control of a operator panel (KTP400) in combination with a BSO40 
+//(handscanner).
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:15:39 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version, based on Eindhoven BSO               nlhdl    10-04-16   0.01
+//
+//Description:
+//Menu control of a operator panel (KTP400)
+//The functions of menu control are:
+//- Navigation of menu screens
+//- Handle HMI password levels
+//- Output pressed command
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_BSO_Data : "UDT_BSO_HMI";	//DB for level 1 data which is received from the HBS
+  i_Enable_HMI : BOOL ;	//Enable HMI (=TRUE)
+END_VAR
+VAR_OUTPUT
+  o_ST_HMI_Comm_Error : BOOL ;	//ST: Communication error
+  o_Comm_Alive_Sign : INT ;	//Value for Communication Alive Sign bar
+  o_Job_Mailbox_Area : ARRAY  [0 .. 3 ] OF //Area pointer 'Job mailbox'
+  WORD ;	
+END_VAR
+VAR
+  s_Act_Timer : STRUCT 	//Actual timer values
+   HMI_Alive : INT ;	//Actuale timer HMI alive
+   HMI_Error : INT ;	//Actuale timer HMI error
+  END_STRUCT ;	
+  Coordination_Area : ARRAY  [0 .. 15 ] OF //Area pointer 'Coordination' 
+  BOOL ;	
+  s_Alive_Sign : INT ;	//Alive sign bar value
+  s_HMI_Alive : BOOL ;	//HMI panel Alive
+  s_HMI_Not_Alive : BOOL ;	//HMI panel not Alive
+  s_FP_HMI_Alive : BOOL ;	//FP copy
+  s_FN_HMI_Alive : BOOL ;	//FN copy
+  FP_Data_Handled : BOOL ;	//FP copy Data Handled
+  FN_Data_Handled : BOOL ;	//FN copy Data Handled
+  FP_HMI_Disabled : BOOL ;	//FP copy TRS Not Started
+  FP_HMI_Enabled : BOOL ;	//FP copy TRS Started
+END_VAR
+VAR_TEMP
+  t_HMI_Coordinat_Area : ARRAY  [0 .. 15 ] OF //HMI Interface Area
+  BOOL ;	
+  t_Not_Used_Int : INT ;	//Not Used Integer
+  t_Tmr_Start : BOOL ;	//Timer start 
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy relevant data from HMI DB input
+//Here the offset to data in the used datablocks is layed down.
+      NOP   0; 
+// Offsets in "i_DB_HMI_IF" for HMI interfacing
+      CALL "BLKMOV" (
+           SRCBLK                   := #i_DB_BSO_Data.HMI_Interface_Area.Coordination_Area,
+           RET_VAL                  := #t_Not_Used_Int,
+           DSTBLK                   := #t_HMI_Coordinat_Area);
+
+NETWORK
+TITLE =BA: Check Operator Panel Alive
+//Check if the HMI_Alive bit toggles. 
+//The "Life bit" from the HMI is inverted by the HMI device at intervals of 
+//approximately one second. By querying this bit in the PLC program, you can 
+//check whether or not the connection to the HMI device still exists.
+      SET   ; // IF Operator Panel Alive bit does not toggle
+      =     #t_Tmr_Start; 
+
+      A     #t_HMI_Coordinat_Area[10]; // Get HMI Alive
+      =     #s_HMI_Alive; 
+
+      A     #s_HMI_Alive; 
+      FP    #s_FP_HMI_Alive; 
+      R     #t_Tmr_Start; 
+
+      A     #s_HMI_Alive; 
+      FN    #s_FN_HMI_Alive; 
+      R     #t_Tmr_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (// Timer-out Operator Panel not reaction time
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 20,
+           i_Current_Value          := #s_Act_Timer.HMI_Alive,
+           o_Status                 := #s_HMI_Not_Alive,// HMI device faulted ('tag' data from HMI invallid)
+           o_Current_Value          := #s_Act_Timer.HMI_Alive);
+
+      CALL "FC_On_Dly_T_0.1s" (// Timer-out Operator Panel error
+           i_Start                  := #s_HMI_Not_Alive,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 600,
+           i_Current_Value          := #s_Act_Timer.HMI_Error,
+           o_Status                 := #o_ST_HMI_Comm_Error,// HMI device faulted => Error
+           o_Current_Value          := #s_Act_Timer.HMI_Error);
+
+NETWORK
+TITLE =CA: Activate screen
+
+      NOP   0; // Hold comments
+
+// ALL GREEN screen
+      A     #i_DB_BSO_Data.Data_Handled; 
+      FP    #FP_Data_Handled; 
+      AN    #i_DB_BSO_Data.Data_Not_Accepted; // Data was accepted
+      JCN   CA01; 
+// Create PLC job to give a trigger to the HMI device for new screen.
+// Fill "Job mailbox" area pointer:
+      L     51; // Display selection
+      T     #o_Job_Mailbox_Area[0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[0] = Job number
+      L     20; // Screen number
+      T     #o_Job_Mailbox_Area[1]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[1] = Parameter 1 Screen number
+      L     0; 
+      T     #o_Job_Mailbox_Area[2]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[2] = Parameter 2
+      T     #o_Job_Mailbox_Area[3]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[3] = Parameter 3 Field number
+
+// Back to manual entry screen
+CA01: A     #i_DB_BSO_Data.Data_Handled; 
+      FN    #FN_Data_Handled; 
+      O(    ; 
+      A     #i_Enable_HMI; 
+      FP    #FP_HMI_Enabled; 
+      )     ; 
+      JCN   CA02; 
+
+// Create PLC job to give a trigger to the HMI device for new screen.
+// Fill "Job mailbox" area pointer:
+      L     51; // Display selection
+      T     #o_Job_Mailbox_Area[0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[0] = Job number
+      L     10; // Screen number
+      T     #o_Job_Mailbox_Area[1]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[1] = Parameter 1 Screen number
+      L     0; 
+      T     #o_Job_Mailbox_Area[2]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[2] = Parameter 2
+      T     #o_Job_Mailbox_Area[3]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[3] = Parameter 3 Field number
+
+// ALL RED screen
+CA02: AN    #i_Enable_HMI; 
+      FP    #FP_HMI_Disabled; 
+      JCN   CA99; 
+
+// Create PLC job to give a trigger to the HMI device for new screen.
+// Fill "Job mailbox" area pointer:
+      L     51; // Display selection
+      T     #o_Job_Mailbox_Area[0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[0] = Job number
+      L     21; // Screen number
+      T     #o_Job_Mailbox_Area[1]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[1] = Parameter 1 Screen number
+      L     0; 
+      T     #o_Job_Mailbox_Area[2]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[2] = Parameter 2
+      T     #o_Job_Mailbox_Area[3]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[3] = Parameter 3 Field number
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Alive sign
+//Because no message is shown by the OP device when there is no communication 
+//there is a small bar in the corner of the screen which shows the communication 
+//alive. When it's moves there is communication, so PLC runnning and 
+//communication 
+//OK.
+      A     "M_OS_/1.0_sec."; // Increment every second the value for the alive sign bar.
+      JCN   DA01; 
+      L     #s_Alive_Sign; 
+      +     1; 
+      T     #s_Alive_Sign; 
+      L     3; // Alive_Sign value [0..3]
+      <=I   ; 
+      JC    DA01; 
+      L     0; 
+      T     #s_Alive_Sign; 
+DA01: NOP   0; 
+
+      L     #s_Alive_Sign; 
+      T     #o_Comm_Alive_Sign; 
+END_FUNCTION_BLOCK
+

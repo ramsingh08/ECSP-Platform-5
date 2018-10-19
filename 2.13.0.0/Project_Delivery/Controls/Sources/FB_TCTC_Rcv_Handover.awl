@@ -1,0 +1,316 @@
+FUNCTION_BLOCK "FB_TCTC_Rcv_Handover"
+TITLE =%version: 1.16 % CN: 40
+//Function: 
+//This block handles the handover signals for the receiving side of a TCTC 
+//interface.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, April 30, 2018 9:19:29 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27957: Included inhibit into RTR of handover       nlHdL    30-04-18   1.16
+//ina#7193: Registering UFO with bag data including PID nlHdL    05-09-17   1.15
+//ra#12091: Add 50% rule to TC-TC                       nlHdL    26-01-17   1.14
+//ra#12675: TCTC PNPN non track with window codes       nlJClo   08-04-16   1.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.12
+//8673: Reset:Restart for errors via  PNPN interface    nlHdL    29-10-15   1.12
+//8479: NOT RTR when section is inhibit or not stopped  nlHdL    29-09-15   1.11
+//8039: Section stopped change to inhibit rcv for RTR   nlHdL    01-09-15   1.10
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   1.09
+//24612: Sectie RTR when section in dieback             nlHdL    30-07-15   1.09
+//24166: IHO active when no displacement, Mess on IHO   nlHdL    26-06-15   1.08
+//22704: HOO TIP and item at handover status seperated  nlHdL    12-03-15   1.07
+//20843: Add type in messageID for data to record       nlHdL    30-10-14   1.06
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   1.05
+//19500: PNPN receive not using default record          nlHdL    26-05-14   1.04
+//12269: Replaced LNK Generator. Default LNK            nlHdL    09-01-14   1.03
+//16747: Receive not reset RTR on Link errror           nlHdL    19-11-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.01 of PLT version 0
+//
+//Description:
+//This block will handle all received handover signals and create all required 
+//handover signals that will be send to the sending side of the TCTC interface.
+//
+// --------------------+     RTS     +------+            +--------------------
+//                     | ----------> |      |            |                    
+//                     |     IHO     |      |            |                    
+//                     | ----------> |      |    RTR     |                    
+//   Sending Module    |     TIP     |      | <--------- |   Receiving Module 
+//                     | ----------> |      |            |                    
+//                     | Reset Esave |      |            |                    
+//                     | ----------> |      |            |                    
+// --------------------+             +------+            +--------------------
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Rcv_RTS : BOOL ;	//Receiving: Ready-To-Send
+  i_Rcv_IHO : BOOL ;	//Receiving: Item Handover
+  i_Rcv_TIP : BOOL ;	//Receiving: Tranfer-In-Progress
+  i_Rcv_Reset_E_Saving : BOOL ;	//Receiving: Reset Energy Saving
+  i_Eqp_Operational_On : BOOL ;	//Handover object is operational on
+  i_CFG_Track_Present : BOOL ;	//CFG: Tracking layer is used for this section
+  i_Rcv_Item_Length : INT ;	//Receiving: [mm] Item length, if not used =0
+END_VAR
+VAR_OUTPUT
+  o_LNK_Number : INT ;	//LNK number of generated LNK
+  o_Snd_RTR : BOOL ;	//Sending: Ready-To-Receive
+  o_Snd_ResetRestart : BOOL ;	//Sending: Reset Restart to receiving
+  o_Req_Halt_TRS : BOOL ;	//Request halt section
+  o_Reset_E_Save_Section : BOOL ;	//Reset energy saving section
+END_VAR
+VAR
+  s_DB_Num_PLT_Dwn : INT ;	//DB number of downstream PLT DB
+  s_Length_Section_Dwn : INT ;	//Length of the downstream section
+  s_LNK : INT ;	//LNK number
+  s_Delay_ResetRestart : INT ;	//Counter: Minimum ResetRestart signal length
+  s_OS_Copy_FP_IHO : BOOL ;	//Copy of Flank Positive
+  s_OS_FP_IHO : BOOL ;	//Flank Positive of Ready To Send signal
+  s_OS_Copy_FN_IHO : BOOL ;	//Copy of Flank Negative
+  s_OS_FN_IHO : BOOL ;	//Flank Negative of Ready To Send signal
+  s_Request_Halt : BOOL ;	//Reqeust halt signal
+  s_RTR : BOOL ;	//Ready To Receive
+  s_Section_Run : BOOL ;	//Section running signal
+  s_Section_RTR : BOOL ;	//Section is operational
+  s_FN_Link_Error : BOOL ;	//Flank Negative Link error for sending reset restart
+  s_Trailing_Edge_Present : BOOL ;	//When trailing edge already present in PLT
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//Number of the event DB
+  t_DB_List_Num : INT ;	//DB number of the list DB
+  t_ECS : INT ;	//ECS number of the LNK
+  t_Displacement : INT ;	//Displacement receiving section
+  t_Write_Position : INT ;	//Write position receive item
+  t_ResetRestart_Snd : BOOL ;	//Reset Restart to receiving
+  t_Inhibit_Rcv : BOOL ;	//Section is setting the inhibit to receive item found in upstream handover	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB and transfer the event DB number 
+//to a temporary.
+      OPN   #i_DB_PLT_DwnStr; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT_Dwn; // Determine PLT block DB number
+
+      A     DBX   11.0; 
+      =     #t_Inhibit_Rcv; 
+
+      A     DBX   10.1; 
+      =     #s_Section_Run; 
+
+      A     DBX   10.3; // cascade start up
+      A     DBX   10.4; // Section available
+      A     DBX   10.5; // Section operation
+      A(    ; 
+      ON    DBX   10.6; // Or not Item in Handover
+      O     ; 
+      A     DBX   10.6; // Or Item in Handover
+      AN    DBX   11.1; // And section not stopped (for LMS-V start-up delay time)
+      A     DBX   10.1; // Section_run
+      )     ; 
+      AN    DBX   11.0; // Inhibit Rcv
+      =     #s_Section_RTR; 
+
+      L     DBW    2; 
+      T     #t_Displacement; 
+
+      L     DBW   12; 
+      T     #s_Length_Section_Dwn; 
+
+// Transfer event DB number to temp
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+NETWORK
+TITLE =BA: Handover signals
+//Create the ready to receive signal and handle the received handover signals.
+      NOP   0; 
+// Copy link error input to static
+
+// Ready To Receive
+      A     #s_Section_Run; // IF Section_Run
+      AN    #t_Inhibit_Rcv; // And not inhibit
+      O(    ; 
+      A     #s_Section_RTR; 
+      AN    #s_Request_Halt; 
+      )     ; 
+      A     #i_Available_IO; 
+      A     #i_Eqp_Operational_On; 
+      =     #s_RTR; // RTR
+
+// Reset Energy Saving
+      A     #i_Rcv_Reset_E_Saving; // Reset E Saving from sending part
+      O     #i_Rcv_RTS; // OR Ready-To-Send
+      =     #o_Reset_E_Save_Section; // IS Reset E Saving
+
+// TIP true AND RTS false -> Request_Halt
+      A     #i_Rcv_TIP; 
+      AN    #i_Rcv_RTS; 
+      =     #s_Request_Halt; 
+
+NETWORK
+TITLE =CA: Create LNK, LIC and ECS records and write item in PLT DB
+//On the positive flank of the IHO signal LNK, LIC and ECS records are generated 
+//and the leading edge is written into the PLT DB. on the negative edge of the 
+//IHO the trailing edge is written into the PLT DB.
+      NOP   0; 
+//Create rising trigger of IHO
+      A     #i_Rcv_IHO; 
+      FP    #s_OS_Copy_FP_IHO; 
+      =     #s_OS_FP_IHO; 
+
+//Create falling trigger of IHO
+      A     #i_Rcv_IHO; 
+      FN    #s_OS_Copy_FN_IHO; 
+      =     #s_OS_FN_IHO; 
+
+// At positive flank of item handover
+      A     #s_OS_FP_IHO; 
+      JCN   CA01; 
+
+      AN    #i_CFG_Track_Present; 
+      JCN   CA02; 
+
+//Non tracking
+      L     0; 
+      T     #s_LNK; 
+
+      JU    CA03; 
+
+CA02: OPN   "DB_ECS_List"; 
+
+      L     DBNO; 
+      T     #t_DB_List_Num; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := 0,
+           i_DB_List                := #t_DB_List_Num,
+           i_Default_Record         := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #s_DB_Num_PLT_Dwn,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Handover_Data,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+CA03: L     #s_Length_Section_Dwn; 
+      L     #t_Displacement; 
+      -I    ; 
+      T     #t_Write_Position; 
+
+      CALL "FC_PLT_Write" (// Write leading edge of item in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #t_Write_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     #s_LNK; 
+      T     #o_LNK_Number; 
+
+      SET   ; 
+      R     #s_Trailing_Edge_Present; 
+
+      L     #i_Rcv_Item_Length; 
+      L     0; 
+      >I    ; 
+      JCN   CA01; 
+      S     #s_Trailing_Edge_Present; 
+
+      L     #i_Rcv_Item_Length; 
+      L     10; //Convert mm -> cm
+      /I    ; 
+      L     #t_Write_Position; 
+      +I    ; 
+      T     #t_Write_Position; 
+
+      CALL "FC_PLT_Write" (// Write trailing edge of item in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #t_Write_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+CA01: NOP   0; 
+
+// At negative flank of item handover
+      A     #s_OS_FN_IHO; 
+      AN    #s_Trailing_Edge_Present; 
+      JCN   CA99; 
+
+      CALL "FC_PLT_Write" (// Write trailing edge of item in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Created the Reset Restart
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #i_Eqp_Operational_On,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Delay_ResetRestart,
+           o_Setpoint               := #s_Delay_ResetRestart,
+           o_Timer_Elapsed          := #t_ResetRestart_Snd);
+
+NETWORK
+TITLE =EA: Copy to output
+//Copy statics to outputs.
+      NOP   0; 
+// Handle request halt signal
+      A     #s_Request_Halt; 
+      =     #o_Req_Halt_TRS; 
+
+//Handle Ready To Receive signal
+      A     #s_RTR; 
+      =     #o_Snd_RTR; 
+
+// Output ResetRestart
+      AN    #t_ResetRestart_Snd; 
+      A     #i_Eqp_Operational_On; 
+      =     #o_Snd_ResetRestart; 
+
+END_FUNCTION_BLOCK
+

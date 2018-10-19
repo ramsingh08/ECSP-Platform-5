@@ -1,0 +1,37 @@
+TYPE "UDT_CH_Status"
+TITLE =%version: 0.01 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, May 31, 2018 12:42:16 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inajos   31-05-18   0.01                                        
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Items : BOOL ;	//Items present on the section
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Chute_Full_WR : BOOL ;	//Chute is full warning
+   Chute_Full_ER : BOOL ;	//Chute is full Error
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present
+   ASI_Error : BOOL ;	//ASI slave error
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

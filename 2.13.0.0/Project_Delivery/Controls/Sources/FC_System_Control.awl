@@ -1,0 +1,47 @@
+FUNCTION "FC_System_Control" : VOID
+TITLE =%version: 0.08 % CN: 50
+//Function:
+//Template for system control
+//
+//History:
+//This version  %created_by:   nldy %
+//              %date_created:   Thursday, August 11, 2016 5:56:13 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#15830 FB_Manage_Statistics call will be generated  nlDY     11-08-16   0.08
+//ra#12651 common setting time interval statisticals    nlJClo   08-04-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//20065: Spread statistics over a configurable time     nlHdL    13-11-14   0.06
+//17743: Change CN to 50 because Loop_StartUp           nlHdL    10-02-14   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.03
+//Added inputs FB_Manage_Statisticals                   nlHdL    11-01-13   0.02
+//Initial version based on FB_System_Control V 0.13     nlHdL    10-01-13   0.01
+//
+//Description:
+//
+//This block calls the StartStop Managers.
+//One StartStop Manager can control the other ones.
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//The generated source will be added overhere.
+
+
+//NETWORK
+//TITLE =..: Send statistical trigger 
+//
+//      CALL "FB_Manage_Statistics" , "DI_Manage_Statistics" (
+//           i_CFG_Total_Time         := "DB_Setting".common.Send_Statistic_Int_Time,
+//           i_DB_System_Control      := "DB_System_Control");
+
+END_FUNCTION
+

@@ -1,0 +1,166 @@
+FUNCTION_BLOCK "FB_OB82_HW_Error"
+TITLE =%version: 0.03 % CN: 30
+//Function: 
+//Module for acyclic diagnose of diagnostic interrupts (module errors) in main 
+//rack modules
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:01:00 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description: 
+//On the basis of OB82 Event class, Fault ID and module address the main rack 
+//module error bitmap is updated dependent on the type of event.                  
+//     
+//IMPORTANT: This module must be called from within OB82 and could not be used on 
+//another location!
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_HW_Error_Bitmap : ANY ;	//ANY pointer to HW Error Bitmap
+END_VAR
+VAR
+  s_Error : BOOL ;	//Error during execution
+END_VAR
+VAR_TEMP
+  t_OB82_EV_CLASS : BYTE ;	//Temp Event Class OB82
+  t_OB82_FLT_ID : BYTE ;	//Temp Fault Identification OB82
+  t_OB82_MDL_ADDR : WORD ;	//Temp Module Address OB82
+  t_DB_num : INT ;	//Temp DB number bitmaps
+  t_RET_VAL : INT ;	//Temp return value SFC49
+  t_AREA : BYTE ;	//Temp AREA SFC49
+  t_RACK : WORD ;	//Temp RACK SFC49
+  t_SLOT : WORD ;	//Temp SLOT SFC49
+  t_SUBADDR : WORD ;	//Temp SUBADDR SFC49
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+NETWORK
+TITLE =BA: Load local data OB82
+//Load EV_CLASS, FLT_ID and MDL_ADDR from OB82 local data stack
+      L     DW#16#87000000; // Load local data OB82
+      LAR1  ; 
+      L     B [AR1,P#0.0]; // Load EV_CLASS
+      T     #t_OB82_EV_CLASS; // Transfer to temp
+      L     B [AR1,P#1.0]; // Load FLT_ID
+      T     #t_OB82_FLT_ID; // Transfer to temp
+      L     W [AR1,P#6.0]; // Load MDL_ADDR
+      T     #t_OB82_MDL_ADDR; // Transfer to temp
+
+NETWORK
+TITLE =CA: Detect main rack module errors
+//First the logical address of the faulty module is converted. If the conversion 
+//is correctly executed (RET_VAL = 0), the area code is correct (<= 2) and the 
+//error code is correct (B#16#42) then continue, else end with error (BEU). If 
+//the area code is 1/2 and the rack number is 0 there is a fault in a main rack 
+//module. If not, the function ends without error.
+      CALL "LGC_GADR" (// Retrieve Area (S7 system or DP system)
+           IOID                     := B#16#54,// Retrieve Rack (Rack number or DP station number+master system ID)
+           LADDR                    := #t_OB82_MDL_ADDR,// Retrieve Slot (slot number in the station)
+           RET_VAL                  := #t_RET_VAL,
+           AREA                     := #t_AREA,
+           RACK                     := #t_RACK,
+           SLOT                     := #t_SLOT,
+           SUBADDR                  := #t_SUBADDR);
+
+// IF return value < 0 (conversion error)
+      L     #t_RET_VAL; 
+      L     0; 
+      <I    ; 
+      O(    ; // OR no correct area code..
+      L     #t_AREA; 
+      L     B#16#2; 
+      >I    ; 
+      )     ; 
+      O(    ; // OR no correct fault ID..
+      L     #t_OB82_FLT_ID; 
+      L     B#16#42; 
+      <>I   ; 
+      )     ; 
+// ************** TODO: Error handling **************
+      S     #s_Error; // ..THEN end with error
+      JC    CA01; // ..ELSE continue
+
+// Detect error in central rack
+// IF area code 0 or 1 (S7 system)
+      L     #t_AREA; 
+      L     B#16#2; 
+      >=I   ; 
+      O(    ; // Or main rack (rack = 0).. 
+      L     #t_RACK; 
+      L     W#16#0; 
+      <>I   ; 
+      )     ; // ..THEN continue --> module error in central rack
+      JCN   CA99; // ..ELSE end without error
+
+CA01: BEU   ; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Handling of main rack module errors
+//If the module is in Fault (incoming event) a flag is SET in the HW Error Bitmap 
+//on the slot number of the module. If the module is not in Fault anymore 
+//(outgoing event) a flag is RESET in the HW Error Bitmap on the slot number of 
+//the module. If a flag is SET/RESET the global merker HW_Diag_Interrupt is SET 
+//to indicate that a async. int. has occurred.
+      L     #t_SLOT; // IF slot number > 18 (NO valid slot number)..
+      L     18; 
+      >I    ; 
+// ************** TODO: Error handling **************
+      S     #s_Error; // ..THEN end with error
+      JC    DA99; // ..ELSE continue
+
+      L     #t_SLOT; // Decrease slot number by 1 for correct 
+      DEC   1; // positioning in HW status bitmaps
+      T     #t_SLOT; 
+
+      L     P##i_HW_Error_Bitmap; // Load pointer to HW Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number HW Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of HW Error bitmap in DB
+      L     #t_SLOT; // And add Offset in HW Error bitmap (=slot number)
+      +D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of HW Error bitmap (temp DB number)
+
+      L     #t_OB82_EV_CLASS; // IF incoming event (Error)..
+      L     B#16#39; 
+      ==I   ; 
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on module slot position (AR1)
+      S     "M_HW_Diag_Interrupt"; // ..SET Global merker M_HW_Diag_Interrupt
+
+      L     #t_OB82_EV_CLASS; // IF outgoing event (No Error anymore)..
+      L     B#16#38; 
+      ==I   ; 
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on module slot position (AR1) 
+      S     "M_HW_Diag_Interrupt"; // ..SET Global merker M_HW_Diag_Interrupt
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

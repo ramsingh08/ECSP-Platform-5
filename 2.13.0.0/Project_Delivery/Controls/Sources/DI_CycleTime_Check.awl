@@ -1,0 +1,17 @@
+DATA_BLOCK "DI_CycleTime_Check"
+TITLE =%version: 0.01 % CN: 39 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, December 06, 2016 11:19:25 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#10464:Initial version based on VI_TTC/RA_Dev_15.3  inajos   05-12-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+NON_RETAIN
+
+"FB_CycleTime_Check"
+BEGIN
+END_DATA_BLOCK

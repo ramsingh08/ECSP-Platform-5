@@ -1,0 +1,333 @@
+FUNCTION_BLOCK "FB_StartStop_Slave"
+TITLE = %version: 0.06 % CN: 41
+//Function: 
+//This block provides start and stop functions for Slave PLC in a LTC-LTC 
+//to a group of components.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, March 26, 2018 10:19:25 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27933: Restart slave givens no ready to restart    nlHdL    26-03-18   0.06
+//ina#9367: Latch comm error on SSM slave               nlHdL    27-02-18   0.05
+//ra#20472: Updated block + Implemented StartStopMngr   nljsla   06-02-17   0.04
+//ra#17668: Implemented ready to restart functionality  inrjoi   24-10-16   0.03
+//ra#12608: Changed CN from 30 to 41                    nltsil   30-09-16   0.02
+//Initial version                                       nltsil   29-09-16   0.01
+//
+//Description:
+//The following functions are handled by the start stop manager:
+//- Start of a group of object/sections
+//- Re-start of individual objects/sections
+//- (Re)-Start indication
+//- Direct stop
+//- Controlled stop 
+//- Safety stop
+//- Degraded mode
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Stop : BOOL ;	//CMD: Stop command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Safety_Reset : BOOL ;	//CMD: Safety reset command
+  i_CMD_Safety_Stop : BOOL ;	//CMD: Safety stop command
+  i_CMD_Controlled_Stop : BOOL ;	//CMD: Error on which a controlled stop must be executed
+  i_CMD_Direct_Stop : BOOL ;	//CMD: Direct stop command
+  i_IO_Available : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Actions_Active : BOOL ;	//Signal for indication that Sections/objects are still action active
+  i_Ready_To_Restart : BOOL ;	//Signal for indication that sections/objects are ready to start
+  i_Avail_Win_Count : INT ;	//Total number of available windows from this area
+  i_SBT_Count : INT ;	//Total SBT count from this area
+  i_SSM_Mst_Start : BOOL ;	//Start command from SSM master to SSM slave
+  i_SSM_Mst_Reset : BOOL ;	//Reset command from SSM master to SSM slave
+  i_SSM_Mst_Safety_Reset : BOOL ;	//Safety reset command from SSM master to SSM slave
+  i_SSM_Mst_Degraded_Mode : BOOL ;	//Degraded mode is active
+  i_SSM_Mst_StartUp_Ind : BOOL ;	//Start-up indication from SSM master to SSM slave
+  i_SSM_Mst_Lifesign_Req : BOOL ;	//Lifesign request signal
+  i_SSM_Mst_Enable : BOOL ;	//Enable command from SSM master to SSM slave
+  i_SSM_Mst_Control_Stop : BOOL ;	//Controlled stop command from SSM master to SSM slave
+  i_SSM_Mst_Safety_Stop : BOOL ;	//Safety stop command from SSM master to SSM slave
+  i_SSM_Mst_ReadyToRestart : BOOL ;	//Signal for indication that sections/objects are ready to start
+  i_SSM_Mst_Filling_Rate : INT ;	//[%] Total filling rate from the whole loop from SSM master to SSM slave
+END_VAR
+VAR_OUTPUT
+  o_IO_FL_Start_Up : BOOL ;	//HW: Flashlight when starting up
+  o_IO_Horn_Start_Up : BOOL ;	//HW: Horn when starting up this level
+  o_ST_Started : BOOL ;	//ST: The component is automatically fulfilling its function
+  o_ST_Starting : BOOL ;	//ST: The component is going from 'Stopped' to 'Started'
+  o_ST_Stopped : BOOL ;	//ST: The component is operational off
+  o_ST_Stopping : BOOL ;	//ST: The component is going from 'Started' to 'Stopped'
+  o_ST_Ready_To_Restart : BOOL ;	//ST: The component is ready to restart
+  o_ST_Link_Error : BOOL ;	//ST: Link error
+  o_Enable : BOOL ;	//Signal: Enable the component
+  o_Start : BOOL ;	//Signal: Start one-shot for components
+  o_Controlled_Stop : BOOL ;	//Signal: Controlled stop for components
+  o_Reset : BOOL ;	//Signal: Reset one-shot for components
+  o_Safety_Reset : BOOL ;	//Signal: Safety reset one-shot for components
+  o_Filling_Rate : INT ;	//[%] Total filling rate from the whole loop
+  o_SSM_Slv_Start : BOOL ;	//Start request from SSM slave to SSM master
+  o_SSM_Slv_Stop : BOOL ;	//Stop request from SSM slave to SSM master
+  o_SSM_Slv_Reset : BOOL ;	//Reset request from SSM slave to SSM master
+  o_SSM_Slv_Safety_Reset : BOOL ;	//Safety reset request from SSM slave to SSM master
+  o_SSM_Slv_Lifesign_Res : BOOL ;	//Lifesign response signal
+  o_SSM_Slv_Control_Stop : BOOL ;	//Controlled stop request from SSM slave to SSM master
+  o_SSM_Slv_Direct_Stop : BOOL ;	//Direct stop request from SSM slave to SSM master
+  o_SSM_Slv_Safety_Stop : BOOL ;	//Safety stop request from SSM slave to SSM master
+  o_SSM_Slv_Actions_Active : BOOL ;	//SSM slave has an action active
+  o_SSM_Slv_ReadyToRestart : BOOL ;	//SSM slave has sections/objects that are ready to restart
+  o_SSM_Slv_Avail_Win_Cnt : INT ;	//SSM slave total number of available windows
+  o_SSM_Slv_SBT_Count : INT ;	//SSM slave total SBT count
+END_VAR
+VAR
+  s_FB_TCTC_Rcv_Lifesign : "FB_TCTC_Rcv_Lifesign";	//Block call static FB_TCTC_Rcv_Lifesign
+  s_FB_StartStop_Manager : "FB_StartStop_Manager";	//Block call static FB_StartStop_Manager
+  s_Start_Timer_CV : INT ;	//Start timer Current Value
+  s_Stop_Timer_CV : INT ;	//Stop timer Current Value
+  s_Reset_Timer_CV : INT ;	//Reset timer Current Value
+  s_Saf_Reset_Timer_CV : INT ;	//Safety reset timer Current Value
+  s_Start_Timer_Start : BOOL ;	//Start the start timer
+  s_Start_Timer_Done : BOOL ;	//Start timer is done
+  s_Stop_Timer_Start : BOOL ;	//Start the stop timer
+  s_Stop_Timer_Done : BOOL ;	//Stop timer is done
+  s_Reset_Timer_Start : BOOL ;	//Start the reset timer
+  s_Reset_Timer_Done : BOOL ;	//Reset timer is done
+  s_FP_Safety_Reset : BOOL ;	//Positive flank safety reset
+  s_Saf_Reset_Timer_Start : BOOL ;	//Start the safety reset timer
+  s_Saf_Reset_Timer_Done : BOOL ;	//Safety reset timer is done
+  s_Degraded_Mode : BOOL ;	//Degraded mode is active
+  s_ST_Started : BOOL ;	//ST: The component is automatically fulfilling its function
+  s_ST_Stopped : BOOL ;	//ST: The component is operational off
+  s_ST_Link_Error : BOOL ;	//ST: Link error
+END_VAR
+VAR_TEMP
+  t_CMD_Enable : BOOL ;	//CMD: Enable command
+  t_ST_Link_Error : BOOL ;	//Lifesign error  with the communication
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Handle lifesign signals
+
+      CALL #s_FB_TCTC_Rcv_Lifesign (
+           i_Available_IO           := #i_IO_Available,
+           i_Rcv_Lifesign           := #i_SSM_Mst_Lifesign_Req,
+           o_Snd_Lifesign_Reply     := #o_SSM_Slv_Lifesign_Res,
+           o_ST_Link_Error          := #t_ST_Link_Error);
+
+NETWORK
+TITLE =BA: Start request
+
+      A     #i_CMD_Start; 
+      S     #s_Start_Timer_Start; 
+
+// Extend the signal with 100 msec, to make sure the other PLC is able to detect the signal 
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Start_Timer_Start,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Start_Timer_CV,
+           o_Setpoint               := #s_Start_Timer_CV,
+           o_Timer_Elapsed          := #s_Start_Timer_Done);
+
+      A     #s_Start_Timer_Done; 
+      R     #s_Start_Timer_Start; 
+
+// Start request to master
+      A     #s_Start_Timer_Start; 
+      AN    #s_ST_Link_Error; 
+      =     #o_SSM_Slv_Start; 
+
+NETWORK
+TITLE =CA: Stop request
+
+      A     #i_CMD_Stop; 
+      S     #s_Stop_Timer_Start; 
+
+// Extend the signal with 100 msec, to make sure the other PLC is able to detect the signal 
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Stop_Timer_Start,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Stop_Timer_CV,
+           o_Setpoint               := #s_Stop_Timer_CV,
+           o_Timer_Elapsed          := #s_Stop_Timer_Done);
+
+      A     #s_Stop_Timer_Done; 
+      R     #s_Stop_Timer_Start; 
+
+// Stop request to master
+      A     #s_Stop_Timer_Start; 
+      =     #o_SSM_Slv_Stop; 
+
+NETWORK
+TITLE =DA: Reset request
+
+      A     #i_CMD_Reset; 
+      S     #s_Reset_Timer_Start; 
+
+// Extend the signal with 100 msec, to make sure the other PLC is able to detect the signal 
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Reset_Timer_Start,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Reset_Timer_CV,
+           o_Setpoint               := #s_Reset_Timer_CV,
+           o_Timer_Elapsed          := #s_Reset_Timer_Done);
+
+      A     #s_Reset_Timer_Done; 
+      R     #s_Reset_Timer_Start; 
+
+// Reset request to master
+      A     #s_Reset_Timer_Start; 
+      =     #o_SSM_Slv_Reset; 
+
+NETWORK
+TITLE =EA: Safety reset request
+
+      A     #i_CMD_Safety_Reset; 
+      S     #s_Saf_Reset_Timer_Start; 
+
+// Extend the signal with 100 msec, to make sure the other PLC is able to detect the signal 
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Saf_Reset_Timer_Start,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Saf_Reset_Timer_CV,
+           o_Setpoint               := #s_Saf_Reset_Timer_CV,
+           o_Timer_Elapsed          := #s_Saf_Reset_Timer_Done);
+
+      A     #s_Saf_Reset_Timer_Done; 
+      R     #s_Saf_Reset_Timer_Start; 
+
+// Safety reset request to master
+      A     #s_Saf_Reset_Timer_Start; 
+      =     #o_SSM_Slv_Safety_Reset; 
+
+NETWORK
+TITLE =FA: Handle requests
+
+      A     #i_CMD_Controlled_Stop; 
+      =     #o_SSM_Slv_Control_Stop; 
+
+      A     #i_CMD_Direct_Stop; 
+      =     #o_SSM_Slv_Direct_Stop; 
+
+      A     #i_CMD_Safety_Stop; 
+      =     #o_SSM_Slv_Safety_Stop; 
+
+      A     #i_Actions_Active; 
+      =     #o_SSM_Slv_Actions_Active; 
+
+      A     #i_Ready_To_Restart; 
+      O(    ; 
+      A     #o_ST_Stopping; 
+      A     #o_SSM_Slv_Start; 
+      )     ; 
+      =     #o_SSM_Slv_ReadyToRestart; 
+
+NETWORK
+TITLE =GA: Enable and latch comm error
+
+      A     #i_CMD_Reset; 
+      O     #s_Reset_Timer_Start; 
+      R     #s_ST_Link_Error; 
+
+      A     #t_ST_Link_Error; 
+      S     #s_ST_Link_Error; 
+
+      A     #i_SSM_Mst_Enable; 
+      AN    #s_ST_Link_Error; 
+      =     #t_CMD_Enable; 
+
+NETWORK
+TITLE =HA: Filling rate
+
+      NOP   0; 
+
+// Area available window count to master
+      L     #i_Avail_Win_Count; 
+      T     #o_SSM_Slv_Avail_Win_Cnt; 
+
+// Area SBT count to master
+      L     #i_SBT_Count; 
+      T     #o_SSM_Slv_SBT_Count; 
+
+NETWORK
+TITLE =IA: Degraded mode
+
+      A     #i_SSM_Mst_Degraded_Mode; 
+      S     #s_Degraded_Mode; 
+
+      AN    #i_SSM_Mst_Degraded_Mode; 
+      AN    #s_ST_Link_Error; 
+      O     "M_First_Scan"; 
+      R     #s_Degraded_Mode; 
+
+      A     #s_Degraded_Mode; 
+      =     "M_Comm_Degraded"; 
+NETWORK
+TITLE =JA: Start Stop Manager
+
+      CALL #s_FB_StartStop_Manager (
+           i_CFG_StartUp_Indication := 0,// Configured as '0' because the SSM master is in control of the start-up indication
+           i_CFG_Restart_Indication := 0,// Configured as '0' because the SSM master is in control of the restart indication
+           i_CFG_ControlStop_Time   := 9999,// Configured as '9999' because the time must always be higher than the SSM master configured time in order to get the o_Controlled_Stop correctly working
+           i_CMD_Enable             := #t_CMD_Enable,
+           i_CMD_Start_Request      := #i_SSM_Mst_Start,
+           i_CMD_Stop_Request       := FALSE,// Input default set to FALSE, slave's stop command goes to the master which handles the stop
+           i_CMD_Reset              := #i_SSM_Mst_Reset,
+           i_Emergency_Stop         := #i_SSM_Mst_Safety_Stop,
+           i_CMD_Controlled_Stop    := #i_SSM_Mst_Control_Stop,
+           i_Available_IO           := #i_IO_Available,
+           i_Actions_Active         := TRUE,// Input default set to TRUE, SSM master handles the direct stop
+           i_Ready_to_Restart       := #i_SSM_Mst_ReadyToRestart,
+           o_Enable                 := #o_Enable,
+           o_Start                  := #o_Start,
+           o_Controlled_Stop        := #o_Controlled_Stop,
+           o_Reset                  := #o_Reset,
+           o_ST_Ready_To_Restart    := #o_ST_Ready_To_Restart,
+           o_ST_Started             := #s_ST_Started,
+           o_ST_Stopping            := #o_ST_Stopping,
+           o_ST_Stopped             := #s_ST_Stopped);
+
+NETWORK
+TITLE =KA: Filling rate signal
+
+      NOP   0; 
+
+// Total filling rate from the whole loop (master + slave(s))
+      L     #i_SSM_Mst_Filling_Rate; 
+      T     #o_Filling_Rate; 
+
+NETWORK
+TITLE =LA: Write outputs
+
+      A     #i_SSM_Mst_Safety_Reset; 
+      FP    #s_FP_Safety_Reset; 
+      =     #o_Safety_Reset; 
+
+      A     #i_SSM_Mst_StartUp_Ind; 
+      =     #o_IO_FL_Start_Up; 
+
+      A     #i_SSM_Mst_StartUp_Ind; 
+      A     "M_System_Clock_1.0_sec."; 
+      =     #o_IO_Horn_Start_Up; 
+
+      A     #s_ST_Started; 
+      =     #o_ST_Started; 
+
+      A     #i_SSM_Mst_StartUp_Ind; 
+      AN    #s_ST_Started; 
+      =     #o_ST_Starting; 
+
+      A     #s_ST_Stopped; 
+      AN    #i_SSM_Mst_StartUp_Ind; 
+      =     #o_ST_Stopped; 
+
+      A     #s_ST_Link_Error; 
+      =     #o_ST_Link_Error; 
+
+END_FUNCTION_BLOCK
+

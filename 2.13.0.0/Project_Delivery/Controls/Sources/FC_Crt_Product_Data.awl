@@ -1,0 +1,201 @@
+FUNCTION "FC_Crt_Product_Data" : VOID
+TITLE =%version: 0.07 % CN: 32
+//Function:
+//Create product data message for TCTC interface and copy complete message into 
+//the FIFO DB.
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Monday, September 18, 2017 4:28:26 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21133: Screening pending Update                    inajos   15-09-17   0.07
+//Screen Pending  Update from SIN_T1_CONV_COMPONENT     inajos   13-12-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   0.05
+//23824: Remove station ID                              nlMlaut  29-04-15   0.05
+//20144: PNPN TCTC interface Gen and Vibes not equal    nlHdL    15-08-14   0.04
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description:
+//The product data message contains a message header and a message body like 
+//displayed below.
+//Message header:
+// -> Event time
+// -> Message type
+// -> Message identifier
+//Message body:
+// -> Bagage Information Record
+// -> Tub Information Record
+//
+//Description:
+//Create product data message for TCTC interface and copy complete message into 
+//the FIFO DB.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_FIFO_TCTC_DB_num : INT ;	//Number of DB TCTC FIFO
+  i_Message_ID : DINT ;	//Message identifier (PID number or LIC number with mmss)
+  i_BIR : ANY ;	//BIR of current bag
+  i_TIR : ANY ;	//TIR of current bag
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Pr_1_HBA_LNK : INT ;	//Screening process 1, HBS area local identification code
+END_VAR
+VAR_TEMP
+  t_Snd_P_ProductData_Area : ANY ;	//Copy of input any pointer
+  t_Snd_P_TubData_Area : ANY ;	//Copy of input any pointer
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_Base_Address : DWORD ;	
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//out of the 'central' DB (e.g. DB_Setting). During a 'call' of a FB, the start-
+//address of the pointer to the instance-DB can be read out of the last 3 bytes 
+//of AR2 (Address Register). A 'Mask' byte is used to filter the last 3 bytes out 
+//of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      NOP   0; 
+// Determine base address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+// Store AR1
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+NETWORK
+TITLE =BA: Create message header and copy to DB_PNPN_OutgoingMsgs
+//In this network the message header is created and copied into 
+//DB_PNPN_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+// -> Sending area ID [DINT]
+      NOP   0; 
+// Copy date and time into message header
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_PNPN_OutgoingMsgs".Handover_Message.Header.EventTime);
+
+// Copy handover message type (100) into message header
+      L     100; // HandOver message
+      T     "DB_PNPN_OutgoingMsgs".Handover_Message.Header.Message_Type; 
+
+// Copy correct message identifier into message header
+      L     #i_Message_ID; 
+      T     "DB_PNPN_OutgoingMsgs".Handover_Message.Header.Message_Identifier; 
+
+
+
+NETWORK
+TITLE =CA: Copy BIR to outgoing messages DB
+//The bagage information record is copied into DB_PNPN_OutgoingMsgs.
+      NOP   0; 
+// ANY pointer has to be copied to use as parameter for function calls
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_BIR; // 'area-crossing pointer'
+      LAR1  ; 
+      LAR2  P##t_Snd_P_ProductData_Area; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+// Copy Product Data
+      CALL "BLKMOV" (//Copy Product Data to Send-buffer
+           SRCBLK                   := #t_Snd_P_ProductData_Area,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Handover_Message.BIR);
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =DA: Copy Process Screen Pending Information
+// The process screen pending LNK information is copied into 
+//DB_PNPN_OutgoiningMsgs.
+      L     #i_Pr_1_HBA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".Handover_Message.Process_1_HBA_LNK; 
+
+NETWORK
+TITLE =EA: Copy TIR to outgoing messages DB
+//The tub information record is copied into DB_PNPN_OutgoingMsgs.
+      NOP   0; 
+// ANY pointer has to be copied to use as parameter for function calls
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_TIR; // 'area-crossing pointer'
+      LAR1  ; 
+      LAR2  P##t_Snd_P_TubData_Area; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+// Copy Tub Data
+      CALL "BLKMOV" (//Copy Product Data to Send-buffer
+           SRCBLK                   := #t_Snd_P_TubData_Area,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Handover_Message.TIR);
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =FA: Put message in buffer
+//Copy complete message into FIFO DB.
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".Handover_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_TCTC_DB_num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =GA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

@@ -1,0 +1,21 @@
+TYPE "UDT_Pending_Maint"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, December 09, 2016 11:27:45 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   HBA_LNK : INT ;	//Screening process HBS local area identification code
+   TRA_LIC : INT ;	//Screening process Transport area local identification code
+   Confirmation : INT ;	//Screening process screening confirmation status, 00=Not Pending, 01 = Pending
+  END_STRUCT ;	
+END_TYPE
+

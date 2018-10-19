@@ -1,0 +1,221 @@
+FUNCTION_BLOCK "FB_Handle_Status"
+TITLE =%version: 0.06 %  CN: 30
+//Function:
+//This block fills in DB_Status_Index the positions in DB_Status.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 02, 2016 3:41:07 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#10112: PLC stop when UDT status <> Type DB length  nlHdL    02-05-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7524: Change SLW to SLD for pointer shifting          nlHdL    20-07-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//Length of the record changed, Mark Code added         nlMRe    21-09-10   0.02
+//Initial Revision                                      nlMRe    15-09-10   0.01
+//
+//Description:
+//This FB reads the DB_Satus_Index. It opens the components type DB's and read the 
+//length of the number of records. This is converted to the start address in 
+//DB_Status. This address in filled in DB_Status_Index.
+//
+//Example: 
+//First record always starts at "0".
+//component type db has 16 bits.
+//Addres of the next component in DB_Status: 2 (= 16 bits /8 bit)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR
+  s_Done : BOOL ;	//Only First Cycle or when DB is downloaded again
+  s_Length_Status_Index : INT ;	//Total Length of DB_status_Index
+  s_Record_Status_Index : INT ;	//Which record is handled in DB_Status_Index
+  s_ST_Idx_Address_Record : INT ;	//Addres of the current record
+  s_Lenght_Current_Record : INT ;	//Length of this record (total status bits)
+  s_Total_Rec_Status_Index : INT ;	//Total number of records in DB_Status_Index
+  s_Status_Address : INT ;	//Address in the Status DB
+  s_Length_DB_Changed : BOOL ;	//if length is changed = 10
+  s_Log_Data : "UDT_Log_Event";	//Data which will be logged
+END_VAR
+VAR_TEMP
+  t_Component_Type_DB : INT ;	//Number of the component Type DB
+  t_NOT_Used : WORD ;	//Temp not used
+  t_PLC_Log_FIFO_DB : INT ;	//DB number of PLC FIFO Log DB
+  t_Log_info : BOOL ;	//Check Log level for report events
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: First Cycle initialisation
+//Calculate length of DB_Status_Index
+      OPN   "DB_LOG_Event_FIFO"; 
+      L     DBNO; 
+      T     #t_PLC_Log_FIFO_DB; 
+
+      L     "DB_Setting".common.Internal_Log_Level; 
+      L     7; // Check if level 8 are higher
+      >I    ; 
+      =     #t_Log_info; 
+
+      OPN   "DB_Status_Index"; // If the length is changed, than re-initialise
+      L     DBLG; // Take DB length
+      L     #s_Length_Status_Index; // Compare to total length in static
+      <>I   ; 
+      =     #s_Length_DB_Changed; // If unequal, do the initialisation again
+
+      A     "M_First_Scan"; // Start initialisation on first scan
+      ON    #s_Done; // Or when DI is redownloaded
+      O     #s_Length_DB_Changed; // Or when the lengths are unequal
+      JCN   AA99; 
+
+      SET   ; 
+      =     #s_Done; 
+
+      L     0; // Initialise variables
+      T     #s_ST_Idx_Address_Record; 
+      T     #s_Status_Address; 
+
+      L     1; // Start with 
+      T     #s_Record_Status_Index; 
+
+// Calculate length and number of records in DB_Status Index
+
+      OPN   "DB_Status_Index"; // Calculate number of records
+      L     DBLG; 
+      T     #s_Length_Status_Index; 
+      L     16; // Fixed length of the Status Index Record
+      /I    ; 
+      T     #s_Total_Rec_Status_Index; 
+
+// Calculate address of next record in DB_Status_Index
+AA01: L     #s_Record_Status_Index; 
+      L     16; // Length of Status Index record
+      *I    ; 
+      L     16; 
+      -I    ; // Go to begin of this record
+      T     #s_ST_Idx_Address_Record; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#12.0]; // Take Component Type DB number
+      T     #t_Component_Type_DB; 
+
+      OPN   DB [#t_Component_Type_DB]; // Open component type DB
+
+      L     0; 
+      LAR1  ; 
+
+// Calculate the next records start address in DB_Status
+
+      L     DBB [AR1,P#1.0]; // Take the number of statusses (= UDT length)
+      BTI   ; // Convert HEX to DEC
+      T     #s_Lenght_Current_Record; 
+      L     8; // Convert BITS to BYTE
+      /I    ; 
+      L     #s_Status_Address; // Add previous status offset
+      +I    ; 
+      T     #s_Status_Address; // Is the start address for the next record
+
+// Increase to the next record in DB_Status_Index
+      L     1; // Go to next Status Index record
+      L     #s_Record_Status_Index; 
+      +I    ; 
+      T     #s_Record_Status_Index; 
+
+// Check if the next start address should be written
+
+      L     #s_Record_Status_Index; // If there is a next record in DB_Status_Index
+      L     #s_Total_Rec_Status_Index; 
+      <=I   ; 
+      JCN   AA99; // Than write at the next record the start addres
+
+      OPN   "DB_Status_Index"; 
+
+      L     #s_ST_Idx_Address_Record; // Load current record address in AR1
+      SLD   3; 
+      LAR1  ; 
+
+      L     #s_Status_Address; // Put start address in NEXT record 
+      T     DBW [AR1,P#30.0]; 
+
+//Write extra info to check Status DB and Type DB only for debugging
+      A     #t_Log_info; 
+      JCN   AA01; 
+
+      OPN   "DB_Status_Index"; 
+
+      L     "MW_Date"; // Timestamp (Date + Time_Of_Day)
+      T     #s_Log_Data.Event_Date; 
+
+      L     "MD_Time_Of_Day"; 
+      T     #s_Log_Data.Event_Time; 
+
+      L     3810; 
+      T     #s_Log_Data.Event_ID; 
+
+      L     DBD [AR1,P#24.0]; 
+      T     #s_Log_Data.ID; 
+
+      L     #s_Status_Address; 
+      T     #s_Log_Data.Value; 
+
+      CALL "FC_FIFO" (// Write Event Record offset to DB_Status
+           i_FIFO_DB_Num            := #t_PLC_Log_FIFO_DB,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Log_Data,
+           i_ID                     := #s_Log_Data.ID,
+           o_RET_VAL_FIFO           := #t_NOT_Used);
+
+      OPN   "DB_Status_Index"; 
+
+      L     #s_ST_Idx_Address_Record; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#28.0]; 
+      T     #t_Component_Type_DB; 
+      T     #s_Log_Data.Value; 
+
+      L     3811; 
+      T     #s_Log_Data.Event_ID; 
+
+      CALL "FC_FIFO" (// Write Event Type DB number
+           i_FIFO_DB_Num            := #t_PLC_Log_FIFO_DB,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Log_Data,
+           i_ID                     := #s_Log_Data.ID,
+           o_RET_VAL_FIFO           := #t_NOT_Used);
+
+
+      OPN   DB [#t_Component_Type_DB]; // Open component type DB
+      L     DBLG; 
+      L     2; 
+      -I    ; 
+      L     32; // 4 byte each record and 8 bits 1 byte = 32
+      /I    ; 
+      T     #s_Log_Data.Value; // Length in Bytes of Type DB
+
+      L     3812; 
+      T     #s_Log_Data.Event_ID; 
+
+      CALL "FC_FIFO" (// Write Event record length of Type DB
+           i_FIFO_DB_Num            := #t_PLC_Log_FIFO_DB,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Log_Data,
+           i_ID                     := #s_Log_Data.ID,
+           o_RET_VAL_FIFO           := #t_NOT_Used);
+
+      OPN   "DB_Status_Index"; // Restore AR1 to DB Status index
+
+      JU    AA01; // Next LOOP
+
+AA99: NOP   0; 
+END_FUNCTION_BLOCK
+

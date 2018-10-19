@@ -1,0 +1,513 @@
+FUNCTION_BLOCK "FB_BSO40_Control"
+TITLE =%version: 0.05 % CN: 41 
+//Function:
+//Interface with an HMI with barcode scanner to retreive LPN's scanned by an 
+//operator.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, May 23, 2018 8:44:39 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:    Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10274: BSO40 remove fieldbus status               nlHdL    23-05-18   0.05
+//bhs_plf#5534: Invalid LPN while LPN correct in BSO DB nlHdL    05-03-18   0.04
+//bhs_plf#5534: Invalid LPN while LPN correct in BSO DB nlHdL    12-02-18   0.03
+//bhs_plf#4577: BSO40 Statisticals, succesive, scanned  nlHdL    23-11-17   0.02
+//Init. v. based on v0.03 in p05867_EIN_RAW_COMPONENT   nldy     24-03-17   0.01
+//
+//Description:
+//When a bag is present at an encode position, this block will trigger the HMI to 
+//show relevant options to the operator. The operator is able to scan an LPN or 
+//enter it manually. When the LPN is confirmed, the LPN content will be checked 
+//and written in the bag LIC record. Validity of the code should be evaluated 
+//outside of this block (usually HL). Feedback will be shown to the operator 
+//based 
+//on the inputs on this block.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_BSO40_Data : BLOCK_DB ;	//BSO40 data
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_CFG_Num_Unexp_Data_Err : INT  := 3;	//CFG: [Num] Value of consecutive unexpected-data before an unexpected-data error
+  i_LNK : INT ;	//LNK number of the 'to be encoded' bag
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Field bus or IO error)
+  i_Encode_Request : BOOL ;	//Item present which needs to be coded
+  i_LPN_Valid : BOOL ;	//LPN was accepted (usually by HL). Signal is used as feedback to the user
+  i_LPN_Invalid : BOOL ;	//LPN was rejected (usually by HL). Signal is used as feedback to the user
+END_VAR
+VAR_OUTPUT
+  o_ST_Comm_Error : BOOL ;	//Communication error (no lifesign)
+  o_ST_Unex_Data_Recv : BOOL ;	//ST: WR: Unexpected data has been received
+  o_ST_Succ_Unex_Data_Rec : BOOL ;	//ST: Too many successive unexpected-data situations have occured
+  o_Cancel_Coding : BOOL ;	//Request to cancel coding
+  o_Done : BOOL ;	//LPN available. Valid/Invalid feedback expected
+END_VAR
+VAR
+  s_LPN_Code : ARRAY  [0 .. 9 ] OF //Last received LPN code
+  CHAR ;	
+  s_LPN_Status : STRUCT 	//Last received LPN status
+   Valid_Data : BOOL ;	//Valid data in LPN1
+   Invalid_data : BOOL ;	//InValid data in LPN1
+  END_STRUCT ;	
+  s_States : STRUCT 	//Internal states
+   Bag_Present : BOOL ;	//A bag which needs to be coded is present
+   Bag_Needs_Coding : BOOL ;	//Bag present which requires coding
+   Waiting_For_Operator : BOOL ;	//Waiting for operator to encode the item
+   LPN_Provided : BOOL ;	//A coding request was active and an LPN is provided
+   LPN_Valid_Feedback : BOOL ;	//Feedback to the operator: LPN is valid
+   LPN_Invalid_Feedback : BOOL ;	//Feedback to the operator: LPN is invalid
+  END_STRUCT ;	
+  s_Statisticals : STRUCT 	//BSO statisticals
+   Good_Read : INT ;	//Number of valid LPN reads
+   Invalid_Data : INT ;	//Number of invalid LPN reads
+  END_STRUCT ;	
+  s_Lifesign_Tmr_Act_Val : INT ;	//Actual value of the lifesign timer
+  s_Inval_LPN_Tmr_Act_Val : INT ;	//Actual value of the invalid LPN feedback on the HMI
+  s_Lifesign_Response : INT ;	//Lifesign response
+  s_Succ_Unexp_Data_Cnt : INT ;	//Successive unexpected data counter
+  s_FP_HMI_Lifesign : BOOL ;	//Positive flank on HMI lifesign
+  s_FP_New_LPN_Present : BOOL ;	//Positive flank: New LPN available
+  s_FP_Invalid_Data : BOOL ;	//Positive flank: Invalid data received
+  s_FP_Valid_Data : BOOL ;	//Positive flank: Invalid data received
+  s_FN_HMI_Lifesign : BOOL ;	//Negative flank on HMI lifesign
+  s_New_LPN_Present : BOOL ;	//New LPN is available
+END_VAR
+VAR_TEMP
+  t_ANY_Scanner_Data : ANY ;	//Any pointer to Raw scanner data
+  t_HMI_Coord_Area_Bool : ARRAY  [0 .. 15 ] OF //Coordination area of the HMI (booleans)
+  BOOL ;	
+  t_HMI_Coord_Area_Word : WORD ;	//Coordination area of the HMI (word)
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Loop_Iteration : INT ;	//Number of remaining loop iterations
+  t_DB_Event_num : INT ;	//Event DB number
+  t_HMI_Lifesign : BOOL ;	//HMI lifesign (changes every second)
+  t_Start_Lifesign_Tmr : BOOL ;	//Start lifesign timeout timer
+  t_Cancel_Encoding : BOOL ;	//Cancel button pushed on HMI
+  t_OS_New_LPN_Present : BOOL ;	//One shot: New LPN available
+  t_LIC : INT ;	//LIC number of the bag being encoded
+  t_BSO_Data_DB : INT ;	//DB number where interfaced BSO data is stored
+  t_IO_Available : BOOL ;	//Signal for indication IO is OK (no Field bus or IO error)
+  t_OS_Invalid_Data : BOOL ;	//One shot: Invalid data received
+  t_OS_Retry_After_Invalid : BOOL ;	//One shot: Received LPN was invalid, trigger to restart procedure
+  t_OS_Valid_Data : BOOL ;	//One shot: Valid data received
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read data from interface DB
+
+      OPN   #i_BSO40_Data; 
+
+      L     DBW    0; 
+      T     #t_HMI_Coord_Area_Word; 
+
+      A     DBX    4.0; 
+      =     #s_New_LPN_Present; 
+
+      A     DBX    4.1; 
+      =     #t_Cancel_Encoding; 
+NETWORK
+TITLE =BA: Init data
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_num; 
+
+      OPN   #i_BSO40_Data; 
+      L     DBNO; 
+      T     #t_BSO_Data_DB; 
+
+      A     #i_Available_IO; 
+      AN    #o_ST_Comm_Error; 
+      =     #t_IO_Available; 
+NETWORK
+TITLE =CA: Exchange lifesign signals
+//Check if the HMI_Alive bit toggles and send a lifesign signal to the HMI. 
+//
+//The "Life bit" from the HMI is inverted by the HMI device at intervals of 
+//approximately one second.
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_HMI_Coord_Area_Word,
+           RET_VAL                  := #t_Not_Used_Int,
+           DSTBLK                   := #t_HMI_Coord_Area_Bool);
+
+      A     #t_HMI_Coord_Area_Bool[10]; // Get HMI Alive
+      =     #t_HMI_Lifesign; 
+
+      SET   ; 
+      =     #t_Start_Lifesign_Tmr; 
+
+      A     #t_HMI_Lifesign; 
+      FP    #s_FP_HMI_Lifesign; 
+      R     #t_Start_Lifesign_Tmr; 
+
+      A     #t_HMI_Lifesign; 
+      FN    #s_FN_HMI_Lifesign; 
+      R     #t_Start_Lifesign_Tmr; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Start_Lifesign_Tmr,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 30,
+           i_Current_Value          := #s_Lifesign_Tmr_Act_Val,
+           o_Status                 := #o_ST_Comm_Error,
+           o_Current_Value          := #s_Lifesign_Tmr_Act_Val);
+
+      A     "M_OS_/1.0_sec."; // Increment every second the value for the alive sign bar.
+      JCN   BA01; 
+      L     #s_Lifesign_Response; 
+      +     1; 
+      T     #s_Lifesign_Response; 
+      L     3; // Alive_Sign value [0..3]
+      <=I   ; 
+      JC    BA01; 
+      L     0; 
+      T     #s_Lifesign_Response; 
+BA01: NOP   0; 
+NETWORK
+TITLE =DA: Validate new LPN
+//Network checks if the received LPN is valid. All 10 characters should have a 
+//value between '0' and '9'
+      OPN   #i_BSO40_Data; 
+
+      L     P#DBX 6.0; 
+      LAR1  ; 
+
+      L     B [AR1,P#0.0]; 
+      L     ' '; 
+      <>I   ; 
+      FP    #s_FP_New_LPN_Present; 
+      =     #t_OS_New_LPN_Present; 
+      R     #s_New_LPN_Present; 
+      JCN   DA99; 
+
+      L     10; //Determin Received LPN data is valid
+DA01: T     #t_Loop_Iteration; 
+
+      A(    ; 
+      L     B [AR1,P#0.0]; 
+      L     '0'; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     B [AR1,P#0.0]; 
+      L     '9'; 
+      >I    ; 
+      )     ; 
+      JCN   DA02; 
+
+      SET   ; 
+      S     #s_LPN_Status.Invalid_data; 
+      R     #s_LPN_Status.Valid_Data; 
+
+      JU    DA99; 
+
+DA02: TAR1  ; 
+      L     P#1.0; 
+      +D    ; 
+      LAR1  ; 
+
+      L     #t_Loop_Iteration; 
+      LOOP  DA01; 
+
+      SET   ; 
+      R     #s_LPN_Status.Invalid_data; 
+      S     #s_LPN_Status.Valid_Data; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Process LPN (if valid)
+//Network copies the received LPN (if valid) to the LIC record of the current 
+//bag. LPC2 and LPC3 are filled with 0's to prevent a multiread interpretation.
+      A     #t_OS_New_LPN_Present; 
+      A     #s_LPN_Status.Valid_Data; 
+      JCN   EA99; 
+
+      L     #i_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   EA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_num,
+           o_INT                    := #t_LIC);
+
+      L     #t_LIC; 
+      L     0; 
+      >I    ; 
+      JCN   EA99; 
+
+      L     '0'; 
+      T     #s_LPN_Code[0]; 
+      T     #s_LPN_Code[1]; 
+      T     #s_LPN_Code[2]; 
+      T     #s_LPN_Code[3]; 
+      T     #s_LPN_Code[4]; 
+      T     #s_LPN_Code[5]; 
+      T     #s_LPN_Code[6]; 
+      T     #s_LPN_Code[7]; 
+      T     #s_LPN_Code[8]; 
+      T     #s_LPN_Code[9]; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".Status.Scanresult.LPC2,
+           i_ANY_Data               := #s_LPN_Code,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".Status.Scanresult.LPC3,
+           i_ANY_Data               := #s_LPN_Code,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_num);
+
+      LAR1  P##t_ANY_Scanner_Data; //  address Destination
+
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; // Standard S7 code
+
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; // Data type 2=byte
+
+      L     10; // 10 bytes = LPN length
+      T     LW [AR1,P#2.0]; // Number of bytes can be copied
+
+      L     #t_BSO_Data_DB; 
+      T     LW [AR1,P#4.0]; // Byte4..5=DB number 
+
+      L     6; //Pointing to the Raw data 
+      SLW   3; 
+      L     DW#16#84000000; 
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Scanner_Data,
+           RET_VAL                  := #t_Not_Used_Int,
+           DSTBLK                   := #s_LPN_Code);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".Status.Scanresult.LPC1,
+           i_ANY_Data               := #s_LPN_Code,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_num);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =EB: Clear LPN
+//Clear the LPN in the scanner DB
+      A     #t_OS_New_LPN_Present; 
+      JCN   EB99; 
+
+      LAR1  P##t_ANY_Scanner_Data; //  address Destination
+
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; // Standard S7 code
+
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; // Data type 2=byte
+
+      L     10; // 10 bytes = LPN length
+      T     LW [AR1,P#2.0]; // Number of bytes can be copied
+
+      L     #t_BSO_Data_DB; 
+      T     LW [AR1,P#4.0]; // Byte4..5=DB number 
+
+      L     6; //Pointing to the Raw data 
+      SLW   3; 
+      L     DW#16#84000000; 
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+
+//Clear the LPN in the DB BSO data
+      L     ' '; 
+      T     #s_LPN_Code[0]; 
+      T     #s_LPN_Code[1]; 
+      T     #s_LPN_Code[2]; 
+      T     #s_LPN_Code[3]; 
+      T     #s_LPN_Code[4]; 
+      T     #s_LPN_Code[5]; 
+      T     #s_LPN_Code[6]; 
+      T     #s_LPN_Code[7]; 
+      T     #s_LPN_Code[8]; 
+      T     #s_LPN_Code[9]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_LPN_Code,
+           RET_VAL                  := #t_Not_Used_Int,
+           DSTBLK                   := #t_ANY_Scanner_Data);
+
+EB99: NOP   0; 
+NETWORK
+TITLE =FA: Determine states and statusses
+//Set states which are sent to the HMI.
+//
+//Bag_Needs_Coding = Current bag should be coded
+//Waiting_For_Operator = Operator action is required. HMI shows encode options
+//LPN_Provided = Operator provided an LPN. LPN should be validated (usually by HL)
+//LPN_Invalid_Feedback = Show operator the LPN was invalid
+//LPN_Valid_Feedback = Show operator the LPN is valid
+      L     #i_LNK; 
+      L     0; 
+      >I    ; 
+      A     #i_Encode_Request; 
+      =     #s_States.Bag_Present; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_States.LPN_Invalid_Feedback,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 20,
+           i_Current_Value          := #s_Inval_LPN_Tmr_Act_Val,
+           o_Status                 := #t_OS_Retry_After_Invalid,
+           o_Current_Value          := #s_Inval_LPN_Tmr_Act_Val);
+
+      AN    #s_States.Bag_Present; 
+      O     #t_OS_Retry_After_Invalid; 
+      R     #s_States.LPN_Provided; 
+      R     #s_States.LPN_Valid_Feedback; 
+      R     #s_States.LPN_Invalid_Feedback; 
+
+      A     #s_States.Bag_Present; 
+      A     #i_Encode_Request; 
+      =     #s_States.Bag_Needs_Coding; 
+
+      A     #s_States.Bag_Needs_Coding; 
+      AN    #s_States.LPN_Provided; 
+      AN    #o_ST_Succ_Unex_Data_Rec; 
+      =     #s_States.Waiting_For_Operator; 
+
+      A     #s_States.Waiting_For_Operator; 
+      A     #t_OS_New_LPN_Present; 
+      S     #s_States.LPN_Provided; 
+
+      A     #i_LPN_Valid; 
+      A     #o_Done; 
+      S     #s_States.LPN_Valid_Feedback; 
+      R     #s_States.LPN_Invalid_Feedback; 
+      R     #o_ST_Unex_Data_Recv; 
+
+      A     #s_States.LPN_Provided; 
+      A(    ; 
+      A     #i_LPN_Invalid; 
+      A     #o_Done; 
+      O     #s_LPN_Status.Invalid_data; 
+      )     ; 
+      S     #s_States.LPN_Invalid_Feedback; 
+      S     #o_ST_Unex_Data_Recv; 
+      R     #s_States.LPN_Valid_Feedback; 
+NETWORK
+TITLE =GA: Write & send statisticals
+
+      A     #s_States.LPN_Invalid_Feedback; 
+      FP    #s_FP_Invalid_Data; 
+      =     #t_OS_Invalid_Data; 
+      JCN   GA01; 
+
+      L     #s_Statisticals.Invalid_Data; 
+      L     1; 
+      +I    ; 
+      T     #s_Statisticals.Invalid_Data; 
+
+GA01: A     #s_States.LPN_Valid_Feedback; 
+      FP    #s_FP_Valid_Data; 
+      =     #t_OS_Valid_Data; 
+      JCN   GA02; 
+
+      L     #s_Statisticals.Good_Read; 
+      L     1; 
+      +I    ; 
+      T     #s_Statisticals.Good_Read; 
+
+GA02: A     #i_CMD_Send_Stat; 
+      JCN   GA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statisticals.Good_Read,
+           i_DB_Event_Num           := #t_DB_Event_num,
+           o_Return_Value           := #t_Not_Used_Int);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statisticals.Invalid_Data,
+           i_DB_Event_Num           := #t_DB_Event_num,
+           o_Return_Value           := #t_Not_Used_Int);
+
+      L     0; 
+      T     #s_Statisticals.Good_Read; 
+      T     #s_Statisticals.Invalid_Data; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Detect successive unexpected data
+
+      L     #i_CFG_Num_Unexp_Data_Err; 
+      L     0; 
+      ==I   ; 
+      R     #o_ST_Succ_Unex_Data_Rec; 
+      JC    HA99; 
+
+      A     #t_OS_Invalid_Data; 
+      JCN   HA01; 
+
+      L     #s_Succ_Unexp_Data_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Succ_Unexp_Data_Cnt; 
+
+HA01: A     #i_CMD_Reset; 
+      A     #o_ST_Succ_Unex_Data_Rec; 
+      O     #t_OS_Valid_Data; 
+      R     #o_ST_Succ_Unex_Data_Rec; 
+      JCN   HA99; 
+
+      L     0; 
+      T     #s_Succ_Unexp_Data_Cnt; 
+
+HA99: L     #s_Succ_Unexp_Data_Cnt; 
+      L     #i_CFG_Num_Unexp_Data_Err; 
+      >=I   ; 
+      S     #o_ST_Succ_Unex_Data_Rec; 
+NETWORK
+TITLE =IA: Write outputs
+
+      OPN   #i_BSO40_Data; 
+
+      L     #s_Lifesign_Response; // Lifesign bar on the HMI
+      T     DBW    2; 
+
+      A     #s_New_LPN_Present; // Reset 'new LPN present'
+      =     DBX    4.0; 
+
+      A     #s_States.Waiting_For_Operator; 
+      =     DBX    4.2; 
+
+      A     #s_States.LPN_Provided; 
+      AN    #s_States.LPN_Valid_Feedback; 
+      AN    #s_States.LPN_Invalid_Feedback; 
+      =     DBX    4.3; 
+      =     #o_Done; 
+
+      A     #s_States.LPN_Valid_Feedback; 
+      =     DBX    4.4; 
+
+      A     #s_States.LPN_Invalid_Feedback; 
+      O     #o_ST_Succ_Unex_Data_Rec; 
+      =     DBX    4.5; 
+
+      A     #t_Cancel_Encoding; 
+      =     #o_Cancel_Coding; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,203 @@
+FUNCTION_BLOCK "FB_Establish_Con_T"
+TITLE =%version: 0.05 % CN: 40 
+//Function:
+//This block establishes an 'Open IE communication' TCP/IP connection, via an CPU 
+//integrated PN interface. To be used with CPU 319-3 PN/DP.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:10:51 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//CR8479 Some minor fixes                               nlHHop   12-12-11   0.04
+//CR8479 Modified to be able to use the Open            nlHHop   09-12-11   0.03 
+//Communication Wizard
+//Update block interface                                nlMRe    08-09-10   0.02
+//Initial Revision                                      nlMRe    01-09-10   0.01
+//
+//Description:
+//This block needs to be called from OB1.
+//All configuration parameters are applied on the block interface.
+//After start up of the CPU, this block will initiate the connection 
+//establishment. The connection will be setup according the parameters.
+//Once the connection is establised, the CPU will maintain it. If the connection 
+//is interupted it will try to establish it again.
+//
+//Note:
+//An interupted connection is not indicated with o_Connection_Established.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Enable_Conn : BOOL ;	//Enable signal: FP = establish connection/FN = disconnect connection 
+  i_DB_Con_Par_TCP_IP : ANY ;	//Data Structure:Configuration parameters
+END_VAR
+VAR_OUTPUT
+  o_Con_Established_Once : BOOL ;	//Connection has been set up once, since last CPU start and will be maintained
+END_VAR
+VAR
+  s_FB_TCON : "TCON";	//Siemens block
+  s_FB_TDISCON : "TDISCON";	//Siemens block
+  s_TCON_PAR : "UDT_TCON_PAR";	//TCON Parameters
+  s_IPAddress_1st_Num : INT ;	//1st Number of Remote IP Address, {0..255}
+  s_IPAddress_2nd_Num : INT ;	//2nd Number of Remote IP Address, {0..255}
+  s_IPAddress_3th_Num : INT ;	//3th Number of Remote IP Address, {0..255}
+  s_IPAddress_4th_Num : INT ;	//4th Number of Remote IP Address, {0..255}
+  s_TCON_PAR_ID : WORD ;	//TCON Identification copied from the parameter UDT
+  s_TCON_STATUS : WORD ;	//Actual status supplied by TCON block
+  s_TCON_ERROR_Status : WORD ;	//Actual stored error status
+  s_TCON_ERR : BOOL ;	//Job ended with an error
+  s_TCON_REQ : BOOL ;	//Request for job connection establishment
+  s_TCON_DONE : BOOL ;	//Job executed without error
+  s_TCON_BUSY : BOOL ;	//Job in execution
+  s_TCON_Initialised_Done : BOOL ;	//Initialisation of the TCON block is done.
+  s_TDISCON_DONE : BOOL ;	//Job executed without error
+  s_TDISCON_BUSY : BOOL ;	//Job in execution
+  s_TDISCON_ERR : BOOL ;	//Job ended with an error
+  s_TDISCON_STATUS : WORD ;	//Actual status supplied by TDISCON block
+  s_REQ_Disable_CON : BOOL ;	//Request to disable the connection
+  s_FP : BOOL ;	//Positive Flank
+  s_FP_Enable : BOOL ;	//Positive Flank of enable signal
+  s_FN : BOOL ;	//Negative Flank
+  s_FN_Enable : BOOL ;	//Negative Flank of enable signal
+END_VAR
+VAR_TEMP
+  t_UDT_TCON_PAR : ANY ;	//Anypointer to correct UDT_TCON_PAR
+  t_AR2_Store_Restore : DWORD ;	//Backup address register AR2
+  t_RET_VAL : INT ;	//Return value integer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Intialising TCON Parameters
+
+      NOP   0; // Hold comments
+
+      A     #i_Enable_Conn; 
+      FP    #s_FP; 
+      =     #s_FP_Enable; 
+
+      A     #i_Enable_Conn; 
+      FN    #s_FN; 
+      =     #s_FN_Enable; 
+
+//Copy IP address to instance to make a decimal representation instead of hex
+      L     #s_TCON_PAR.rem_staddr[1]; 
+      T     #s_IPAddress_1st_Num; 
+      L     #s_TCON_PAR.rem_staddr[2]; 
+      T     #s_IPAddress_2nd_Num; 
+      L     #s_TCON_PAR.rem_staddr[3]; 
+      T     #s_IPAddress_3th_Num; 
+      L     #s_TCON_PAR.rem_staddr[4]; 
+      T     #s_IPAddress_4th_Num; 
+
+      A     #s_FP_Enable; 
+      O     "M_First_Scan"; // On first PLC scan 
+      ON    #s_TCON_Initialised_Done; 
+      O     #s_TCON_ERR; 
+      JCN   AA99; 
+
+      TAR2  #t_AR2_Store_Restore; 
+
+      LAR1  P##i_DB_Con_Par_TCP_IP; // Copy ANY pointer
+      LAR2  P##t_UDT_TCON_PAR; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+
+      LAR2  #t_AR2_Store_Restore; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_UDT_TCON_PAR,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_TCON_PAR);
+
+      L     #s_TCON_PAR.id; 
+      T     #s_TCON_PAR_ID; 
+
+      SET   ; // Reset variables
+      R     #s_TCON_REQ; 
+      R     #s_TCON_DONE; 
+      R     #s_TCON_ERR; 
+      R     #o_Con_Established_Once; 
+
+      S     #s_TCON_Initialised_Done; // Initialisation is done.
+
+AA99: NOP   0; 
+
+NETWORK
+TITLE =BA: Establish the connection.
+
+      CALL #s_FB_TCON (// TCON Siemens block
+           REQ                      := #s_TCON_REQ,
+           ID                       := #s_TCON_PAR_ID,
+           DONE                     := #s_TCON_DONE,
+           BUSY                     := #s_TCON_BUSY,
+           ERROR                    := #s_TCON_ERR,
+           STATUS                   := #s_TCON_STATUS,
+           CONNECT                  := #s_TCON_PAR);
+
+      A     #s_TCON_DONE; // IF Job completed successfully
+      O(    ; 
+      A     #s_TCON_ERR; 
+      A(    ; 
+      L     #s_TCON_STATUS; 
+      L     W#16#80A3; // OR Connection already exists!
+      ==I   ; 
+      )     ; 
+      )     ; 
+      AN    #s_TCON_BUSY; 
+      S     #o_Con_Established_Once; // THEN SET Connection_Established
+
+
+      AN    #s_TCON_BUSY; // IF Job completed with an error
+      A     #s_TCON_ERR; 
+      A(    ; // OR an Error is detected
+      O(    ; 
+      L     #s_TCON_STATUS; 
+      L     W#16#F000; 
+      AW    ; 
+      L     W#16#8000; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_TCON_STATUS; 
+      L     W#16#7000; // No job processing active
+      ==I   ; 
+      )     ; 
+      )     ; 
+      ON    #i_Enable_Conn; 
+      R     #o_Con_Established_Once; // THEN Reset Connection_Established
+
+      L     #s_TCON_STATUS; 
+      T     #s_TCON_ERROR_Status; 
+
+      AN    #o_Con_Established_Once; // IF no connection
+      AN    #s_TCON_ERR; 
+      A     #i_Enable_Conn; 
+      S     #s_TCON_REQ; // THEN start new job request
+
+NETWORK
+TITLE =CA: Disconnect connection
+//When the instance DB is downloaded or i_Enable becomes false the 
+//connection is disconnected.
+      CALL #s_FB_TDISCON (
+           REQ                      := #s_FN_Enable,
+           ID                       := #s_TCON_PAR_ID,
+           DONE                     := #s_TDISCON_DONE,
+           BUSY                     := #s_TDISCON_BUSY,
+           ERROR                    := #s_TDISCON_ERR,
+           STATUS                   := #s_TDISCON_STATUS);
+
+END_FUNCTION_BLOCK
+

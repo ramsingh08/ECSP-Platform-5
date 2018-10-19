@@ -1,0 +1,311 @@
+FUNCTION_BLOCK "FB_UQZ01_F"
+TITLE =%version: 1.10 % CN: 55
+//Function:
+//- Fixed/control part of Unloading Quay Zone type 01 (UQZ01)
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Friday, September 01, 2017 3:02:25 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   1.10
+//ra#47812: Flow control configuration                  nlJClo   24-01-17   1.09
+//ra#18817: Clear PLT function Update                   inajos   07-12-16   1.08
+//ra#16186 i_UQS_Ext_Req_Dis_Send added                 nlDY     01-09-16   1.07
+//ra#15675 Variable updates & Cascade delay time change nlDY     09-08-16   1.06
+//ra#13659 Update according to coding standard          nlJClo   07-06-16   1.05
+//correct version number                                nlJClo   13-06-16   1.04
+//ra#13659 Add external stop to conveyor section        nlJClo   03-06-16   1.03
+//ra#13659 Correct compile number                       nlJClo   03-06-16   1.02
+//ra#13659 Initial version                              nlJClo   03-05-16   1.01
+//
+//Description:  
+//The block fulfils the following functions:
+//- Start/stopping the UQZ
+//- Re-stating from energy save
+//- Enabling/disabling the UQZ
+//- Selecting capacity
+//- Status reporting
+//- Cascade start up
+//
+//The UQZ will be controlled with the following transport control functions:
+//- Capacity control
+//- Gap control
+//- Flap filtering
+//- Die-back control
+//- Energy saving
+//- Cascade starting
+//- Delay start-up after die-back
+//- Run signal equipment
+//- Flow Control
+//- Energy Saving
+//- Displacement
+//- External interfacing
+//
+//The hardware LMS block fulfils the following functions:
+//- Monitoring ASI address (not present/error)
+//- Monitoring motor connection
+//- Monitoring LMS healthy
+//- Run motor signal
+//
+//The UQZ belts have no tracking functionality. 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Capacity : INT  := 1200;	//CMD: [items/hour] Capacity
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_PB_IO_Restart : BOOL ;	//HW: Push Button Restart
+  i_PBB_ASI_NotPrsnt : BOOL ;	//ASI: Slave is not Present
+  i_PBB_ASI_Err : BOOL ;	//ASI: Slave has an error
+  i_TSO_IO_NOT_PEC : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TSO_CFG_Block_Len : INT  := 50;	//CFG: [0,1 sec] Delay for detecting a PEC blockage
+  i_CFG_Min_Capacity : INT  := 300;	//CFG: [items/hour] Minimum Capacity
+  i_CFG_Max_Capacity : INT  := 1800;	//CFG: [items/hour] Maximum Capacity
+  i_CFG_Conv_Speed_Dwn : INT ;	//CFG: [mm/sec] Conveyor Speed of downstream section
+  i_UQS_Setting : "UDT_TRS_Bas1dir_Sett";	//Data Structure: Setting Record UQS
+  i_UQS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_UQS_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock UQS
+  i_UQS_DwnStr_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock downstream TRS
+  i_UQS_CFG_Conv_Speed : INT  := 1000;	//CFG: [mm/sec] Conveyor Speed
+  i_UQS_CFG_Run_Out_Dist : INT  := 20;	//CFG: [cm] Run out distance for the section
+  i_UQS_CFG_Cnt_ESave : INT  := 300;	//CFG: [sec] Energy safe counter
+  i_UQS_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_UQS_Ext_Req_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_UQS_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_UQS_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_UQS_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_UQS_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_UQS_IO_NOT_PEC : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+END_VAR
+VAR_OUTPUT
+  o_ST_Capacity_Too_Low : BOOL ;	//ST: The UQZ is reporting Capacity too low
+  o_ST_Capacity_Too_High : BOOL ;	//ST: The UQZ is reporting Capacity too high
+  o_ST_PBB_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_PBB_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_Capacity : INT ;	//Actual Value Capacity [items per hour] 
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_TSO_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_UQS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_UQS_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_UQS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_UQS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_UQS_ST_ASI_Error : BOOL ;	//Status: LMS ASI slave has an error
+  o_UQS_ST_Items : BOOL ;	//ST: Items present on section
+  o_UQS_ST_Running : BOOL ;	//ST: Section is running
+  o_UQS_ST_Started : BOOL ;	//ST: Started
+  o_UQS_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_UQS_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_UQS_ST_Ext_Stop : BOOL ;	//ST: External_Stop
+  o_UQS_ST_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_UQS_ST_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_UQS_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_UQS_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_Calculated_H2H_Length : INT ;	//Calculated head to head length	
+END_VAR
+VAR
+  s_UQS : "UDT_TRS_Int_Prog";	//Data Structure Int 
+  s_UQS_FB_EQP_PEC : "FB_EQP_PEC";	//Block Call PEC
+  s_UQS_FB_Trigg_PEC : "FB_EQP_PEC_Trigger";	//Block Call Trigger PEC
+  s_UQS_FB_EQP_Basic : "FB_EQP_Basic";	//Block Call Basic
+  s_UQS_FB_HW_MTR_LMS : "FB_HW_MTR_LMS";	//Block Call LMS Hardware
+  s_UQS_FB_DAT : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_Capacity_Actual_Value : INT ;	//Capacity [items per hour] Actual Value
+  s_UQS_Ext_Req_Stop : BOOL ;	//request from external to stop conveyor
+  s_UQS_Ext_Req_Rst_ESave : BOOL ;	//request from external to reset energy saving
+  s_UQS_PEC_Flap_Filter : BOOL ;	//flap filter including delay on leading edge of product
+  s_UQS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+END_VAR
+VAR_TEMP
+  t_INT_Not_Used : INT ;	//Integer Not Used
+  t_UQS_Start_Up_Dist : INT ;	//Calculated start-up distance = run-out / 2
+  t_Not_Used_bool : BOOL ;	//Dummy Bool which is not used.
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Handle Electrical Input statuses
+//Some errors and statuses are coming directly from electrical inputs.
+//If the IO becomes not available, those inputs must be ignored, to avoid 
+//(as consequence of) all kind of meaningless status changes, 
+//which are indicated to HMI.
+//
+//REMARK: The status bit must be used in the application instead of 
+//        the input itself.
+      NOP   0; 
+// PBB ASI Not Present / Error
+      O     #i_CMD_Reset; // Reset ASI PBB errors
+      ON    #i_Available_IO; 
+      R     #o_ST_PBB_ASI_NotPrsnt; 
+      R     #o_ST_PBB_ASI_Error; 
+
+      A     #i_PBB_ASI_NotPrsnt; // Set ASI PBB errors
+      A     #i_Available_IO; 
+      S     #o_ST_PBB_ASI_NotPrsnt; 
+
+      A     #i_PBB_ASI_Err; 
+      A     #i_Available_IO; 
+      S     #o_ST_PBB_ASI_Error; 
+
+NETWORK
+TITLE =BA: Trigger Energy Saving UQZ
+
+      CALL #s_UQS_FB_Trigg_PEC (
+           i_CFG_Blockage_Length    := #i_TSO_CFG_Block_Len,
+           i_CFG_Delay_On_Filter    := 500,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_CFG_Time_Displacement  := FALSE,
+           i_IO_NOT_PEC             := #i_TSO_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_INT_Not_Used,
+           o_ST_PEC_Blk             := #o_TSO_ST_PEC_Blk,
+           o_PEC_Flap_Filter        := #s_UQS_PEC_Flap_Filter);
+
+NETWORK
+TITLE =DA: UQS Unloading conveyor
+
+      CALL #s_UQS_FB_EQP_PEC (
+           i_Setting                := #i_UQS_Setting.PEC_1D,
+           i_DB_PLT                 := #i_UQS_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 300,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #s_UQS_ST_LMS_Not_Auto,
+           i_CFG_Track_Present      := FALSE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_UQS_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_UQS.LPOS,
+           o_PEC_Position           := #s_UQS.PEC_Offset,
+           o_ST_PEC_Blk             := #o_UQS_ST_PEC_Blk);
+
+//Calculated standard start-up for section
+      L     #i_UQS_CFG_Run_Out_Dist; 
+      L     2; 
+      /I    ; 
+      T     #t_UQS_Start_Up_Dist; 
+
+      A     #o_UQS_ST_PEC_Blk; 
+      O     #o_UQS_ST_ASI_NotPrsnt; 
+      O     #o_UQS_ST_ASI_Error; 
+      O     #o_UQS_ST_Not_Auto; 
+      O     #o_UQS_ST_Not_Hthy; 
+      =     #s_UQS_Ext_Req_Stop; 
+
+      A     #s_UQS_PEC_Flap_Filter; 
+      O     #i_PB_IO_Restart; 
+      =     #s_UQS_Ext_Req_Rst_ESave; // THEN request reset energy save
+
+      CALL #s_UQS_FB_EQP_Basic (
+           i_ID_Section             := #i_UQS_ID,
+           i_Basic_Offset           := #i_UQS_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_UQS_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_UQS_DwnStr_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_UQS_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_UQS_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #t_UQS_Start_Up_Dist,
+           i_Minimum_Gap            := #i_UQS_Setting.Basic.Minimum_Gap,
+           i_Add_Gap_Stop           := #i_UQS_Setting.Basic.Add_Gap_Stop,
+           i_Minimum_H2H            := #i_UQS_Setting.Basic.Minimum_H2H,
+           i_Add_H2H_Stop           := #i_UQS_Setting.Basic.Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := #i_UQS_CFG_Cnt_ESave,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_UQS.PEC_Offset,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_UQS_Ext_Req_Stop,
+           i_Ext_Req_Halt           := #i_UQS_Ext_Req_Halt,
+           i_Ext_Req_Dis_Send       := #i_UQS_Ext_Req_Dis_Send,
+           i_Ext_Req_Rst_ESave      := #s_UQS_Ext_Req_Rst_ESave,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #s_UQS_ST_LMS_Not_Auto,
+           o_External               := #o_UQS_EXT_Outputs,
+           o_Motor_Run              := #s_UQS.Motor_Run,
+           o_ST_Items               := #o_UQS_ST_Items,
+           o_ST_Running             := #o_UQS_ST_Running,
+           o_ST_Started             := #o_UQS_ST_Started,
+           o_ST_Request_Halt        := #o_UQS_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_UQS_ST_Req_Stop,
+           o_ST_External_Stop       := #o_UQS_ST_Ext_Stop,
+           o_Ready_To_Restart       := #o_Ready_To_Restart);
+
+      CALL #s_UQS_FB_HW_MTR_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_UQS_LMS_NotPrsnt,
+           i_LMS_Error              := #i_UQS_LMS_Error,
+           i_IO_LMS_Auto            := #i_UQS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_UQS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_UQS.Motor_Run,
+           o_IO_MTR_Fwd             := #o_UQS_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_UQS_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_UQS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_UQS_ST_ASI_NotPrsnt,
+           o_ST_ASI_Err             := #o_UQS_ST_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_UQS_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_UQS_ST_Not_Hthy);
+
+//Copy Static to Output
+      A     #s_UQS_ST_LMS_Not_Auto; 
+      =     #o_UQS_ST_Not_Auto; 
+
+      CALL #s_UQS_FB_DAT (
+           i_ID_Section             := #i_UQS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =EA: Calculate H2H Distance
+
+      L     #i_CMD_Capacity; 
+      L     0; 
+      >I    ; 
+      JCN   EA01; 
+
+      L     #i_CMD_Capacity; 
+      T     #s_Capacity_Actual_Value; 
+
+EA01: NOP   0; 
+
+      CALL "FC_Calc_H2H_Distance" (
+           i_CFG_Conveyor_Speed     := #i_CFG_Conv_Speed_Dwn,
+           i_CFG_Capacity           := #s_Capacity_Actual_Value,
+           i_CFG_Minimum_Capacity   := #i_CFG_Min_Capacity,
+           i_CFG_Maximum_Capacity   := #i_CFG_Max_Capacity,
+           o_H2H_Length             := #o_Calculated_H2H_Length,
+           o_Current_Capacity       := #o_Capacity,
+           o_ST_Capacity_2Low       := #o_ST_Capacity_Too_Low,
+           o_ST_Capacity_2High      := #o_ST_Capacity_Too_High,
+           o_ST_CalcH2H_Disable     := #t_Not_Used_bool);
+
+
+
+END_FUNCTION_BLOCK
+

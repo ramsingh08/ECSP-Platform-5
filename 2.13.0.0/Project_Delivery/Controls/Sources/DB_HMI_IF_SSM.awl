@@ -1,0 +1,32 @@
+DATA_BLOCK "DB_HMI_IF_SSM"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 15:56:27 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      insmahi  10-06-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   SSM_ID : STRING  [30 ];	//Selected Start Stop Manager ID 
+   SSM_Status : INT ;	//Selected Start stop Manager Status ( On ,Off , Starting ,Stopping )
+   SSM_Active_No : INT ;	//Active Start/stop manager Number
+   SSM_Total_No : INT ;	//Total Number of Start/stop manager
+  END_STRUCT ;	
+BEGIN
+   SSM_ID := ''; 
+   SSM_Status := 0; 
+   SSM_Active_No := 0; 
+   SSM_Total_No := 0; 
+END_DATA_BLOCK
+

@@ -1,0 +1,427 @@
+FUNCTION_BLOCK "FB_TCTC_PNPN_Send"
+TITLE =%version: 1.13 % CN: 41
+//Function: 
+//This block sends handover signals and product data via a PN/PN coupler from one 
+//transport controller to another
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, February 01, 2018 2:15:08 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24569: Wrong dwnstr PLT used by send handover      nlHdL    01-02-18   1.13
+//ra#20703: Add TEP/TOP IO interface                    nlHdL    07-03-17   1.12
+//ra#12091: Add 50% rule to TC-TC                       nlHdL    26-01-17   1.11
+//Update based on SIN_T1_CONV_COMPONENT                 inajos   28-11-16   1.10
+//ra#17055: No link error before HOO ready to restart   nlHdL    04-10-16   1.09
+//ra#12675: TCTC PNPN non track with window codes       nlJClo   11-04-16   1.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.07
+//ra#9919: Add warning restart required on HOO          nlHdL    11-12-15   1.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.06
+//8673: Reset:Restart for errors via  PNPN interface    nlHdL    29-10-15   1.06
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   1.05
+//24166: IHO active when no displacement, Mess on IHO   nlHdL    26-06-15   1.05
+//22752: HOO PLT header wrong num entries and displ     nlHdL    12-03-15   1.04
+//20843: Add type in messageID for data to record       nlHdL    30-10-14   1.03
+//20144: PNPN TCTC interface Gen and Vibes not equal    nlHdL    15-08-14   1.02
+//20198: Remove 2 block call to s_TCTC_Snd_Proddata     nlHdL    11-08-14   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.01 of PLT version 0
+//
+//Description:
+//This block sends handover data to the first transporter in a PLC 
+//(the receiving module). This handover data contains lifesign signals, handover 
+//signals and product data. The product data is send via the acyclic part of a 
+//PN/PN coupler at the start of the item handover. A message identifier is send 
+//with the handover signals to synchronise the product data with the correct item.
+//
+// --------------------+  Lifesign  +------+            +--------------------
+//                     | ---------> |      |  Lifesign  |                    
+//                     | HO Signals |      | <--------- |                    
+//   Sending Module    | ---------> |      |    RTR     |   Receiving Module 
+//                     | Prod Data  |      | <--------- |                    
+//                     | ---------> |      |            |                    
+// --------------------+            +------+            +--------------------
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 	
+  i_DB_Send_FIFO_PNPN : BLOCK_DB ;	//Data Structure: TCTC DB send message FIFO for PN/PN coupler
+  i_DB_Snd_FIFO_Pending : BLOCK_DB ;	//Data Structure: TCTC DB send message FIFO Pending messages
+  i_CFG_LM_Border : BOOL ;	//CFG: LM transition
+  i_CFG_Run_Out_Distance : INT ;	//CFG: [cm] Run out distance for the section
+  i_Link_Err_Interface : BOOL ;	//Indicating that an error has occured in data lifesign messaging
+  i_Snd_Started : BOOL ;	//Sending: Conveyor is started
+  i_Snd_Reset_E_Saving : BOOL ;	//Sending: Reset E Saving
+  i_Rcv_RTR : BOOL ;	//Reveiving: Ready-To-Reveive
+  i_Rcv_Lifesign_Reply : BOOL ;	//Receiving: Lifesign Reply
+  i_Rcv_ResetRestart : BOOL ;	//Receiving: Reset Restart
+  i_Rcv_TEP : INT ;	//Receiving: Total Empty Positions
+  i_Rcv_TOP : INT ;	//Receiving: Total Occupied Positions
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+END_VAR
+VAR_OUTPUT
+  o_Snd_RTS : BOOL ;	//Sending: Ready-To-Send
+  o_Snd_IHO : BOOL ;	//Sending: Item HandOver
+  o_Snd_Motor_Run : BOOL  := TRUE;	//Sending: Motor Run
+  o_Snd_TIP : BOOL ;	//Sending: Transfer-In-Progress
+  o_Snd_Reset_E_Saving : BOOL ;	//Sending: Reset E Saving receiver
+  o_Snd_Lifesign : BOOL ;	//Sending: Lifesign pulse
+  o_Snd_Window_Code : BOOL ;	//Sending: Window code
+  o_Snd_ResetRestart : BOOL ;	//Sending: Reset Restart to receiving
+  o_Snd_Message_Identifier : DINT ;	//Sending: Message identifier for product data message
+  o_Snd_Item_Length : INT ;	//Sending: [mm] Item length
+  o_Req_Halt_TRS : BOOL ;	//Receiving: TIP true RTS false
+  o_ST_Link_Error : BOOL ;	//ST: Link Error
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_TEP : INT ;	//Downstream Total Empty Position
+  o_TOP : INT ;	//Downstream Total Occupied Positions
+END_VAR
+VAR
+  s_TCTC_Snd_Lifesign : "FB_TCTC_Snd_Lifesign";	//Block call static FB_TCTC_Snd_Lifesign
+  s_TCTC_Snd_Handover : "FB_TCTC_Snd_Handover";	//Block call static FB_TCTC_Snd_Handover
+  s_TCTC_Snd_Proddata : "FB_TCTC_Snd_Proddata";	//Block call static FB_TCTC_Snd_Proddata  
+  s_Handover_In : STRUCT 	//Receiving: Handover Signals
+   Spare_0_0 : BOOL ;	
+   RTR : BOOL ;	
+   Spare_0_2 : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Spare_0_5 : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Spare_1_0 : BOOL ;	
+   Spare_1_1 : BOOL ;	
+   Lifesign_Reply : BOOL ;	
+   Spare_1_3 : BOOL ;	
+   Spare_1_4 : BOOL ;	
+   Window_Code : BOOL ;	
+   ResetRestart : BOOL ;	
+   Spare_1_7 : BOOL ;	
+   TEP : INT ;	
+   TOP : INT ;	
+  END_STRUCT ;	
+  s_Handover_Out : STRUCT 	//Sending: Handover Signals
+   RTS : BOOL ;	
+   Spare_0_1 : BOOL ;	
+   IHO : BOOL ;	
+   Motor_Run : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   TIP : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Reset_E_Saving : BOOL ;	
+   Lifesign : BOOL ;	
+   Spare_1_2 : BOOL ;	
+   Spare_1_3 : BOOL ;	
+   Spare_1_4 : BOOL ;	
+   Window_Code : BOOL ;	
+   ResetRestart : BOOL ;	
+   Spare_1_7 : BOOL ;	
+   Message_Identifier : DINT ;	
+  END_STRUCT ;	
+  s_Link_Er_Flow_Interface : BOOL ;	//Link error in flow interface
+  s_Link_Er_Data_Interface : BOOL ;	//Link error in data interface
+  s_Link_Error : BOOL ;	//Combined link error signal for flow and data interface
+  s_Request_Halt : BOOL ;	//Request halt to section
+  s_FP_Rcv_ResetRestart : BOOL ;	//FlankPositive Receiving ResetRestart
+  s_Eqp_Operational_On : BOOL ;	//Operational on signal of this section
+  s_FP_Snd_ResetRestart : BOOL ;	//FlankPositive sending ResetRestart
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//DB number of event DB
+  t_DB_PLT_Dwnstr_Nr : INT ;	//PLT DB number of downstream PLT DB
+  t_NOT_Used_INT : INT ;	//Not used integer
+  t_LNK : INT ;	//LNK number found
+  t_Displacement : INT ;	//Displacement from section before HO
+  t_Clr_Enable_command : BOOL ;	//Clear Handover PLT
+  t_OS_Rcv_ResetRestart : BOOL ;	//One Shot Receive ResetRestart
+  t_OS_Snd_ResetRestart : BOOL ;	//One Shot Send ResetRestart
+  t_Section_Stopped : BOOL ;	//Section Stopped
+  t_Link_Er_Data_Interface : BOOL ;	//Link error from FIFO DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy s_HO_In 
+//Copy the physical input area coupled with the PN/PN coupler to s_Handover_In 
+//structure.
+      NOP   0; 
+      SET   ; 
+      R     #t_Link_Er_Data_Interface; 
+
+//Retreive error link from FIFO DB
+      OPN   #i_DB_Send_FIFO_PNPN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      A     DBX    1.2; 
+      =     #t_Link_Er_Data_Interface; 
+
+AA01: NOP   0; 
+
+// Handle link error in handover messaging
+      A     #i_Link_Err_Interface; 
+      O     #t_Link_Er_Data_Interface; 
+      =     #s_Link_Er_Data_Interface; 
+
+// Handle handover input signals
+      A     #i_Rcv_RTR; 
+      =     #s_Handover_In.RTR; 
+
+// Handle lifesign reply signal
+      A     #i_Rcv_Lifesign_Reply; 
+      =     #s_Handover_In.Lifesign_Reply; 
+
+// Handle ResetRestart signal
+      A     #i_Rcv_ResetRestart; 
+      =     #s_Handover_In.ResetRestart; 
+
+// Handle input total empty positions value
+      L     #i_Rcv_TEP; 
+      T     #s_Handover_In.TEP; 
+
+// Handle input total occupied positions value
+      L     #i_Rcv_TOP; 
+      T     #s_Handover_In.TOP; 
+
+NETWORK
+TITLE =BA: Handle lifesign signals
+//This network handles the lifesign signals for the sending module and combines 
+//the lifesign error of the flow interface and the lifesign signal of the 
+//handover messaging.
+      CALL #s_TCTC_Snd_Lifesign (
+           i_Available_IO           := #i_Available_IO,
+           i_Rcv_Lifesign_Reply     := #s_Handover_In.Lifesign_Reply,
+           o_Snd_Lifesign           := #s_Handover_Out.Lifesign,
+           o_ST_Link_Error          := #s_Link_Er_Flow_Interface);
+
+NETWORK
+TITLE =CA: Detect link error
+
+      NOP   0; 
+// Combine link error in flow interface and link error in data interface
+// to one link error signal
+      A     #s_Handover_In.ResetRestart; 
+      FP    #s_FP_Rcv_ResetRestart; 
+      =     #t_OS_Rcv_ResetRestart; 
+
+      A     #t_OS_Rcv_ResetRestart; 
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      R     #s_Link_Error; 
+
+      A     #s_Link_Er_Flow_Interface; 
+      O     #s_Link_Er_Data_Interface; 
+      A     #i_Available_IO; 
+      AN    #t_OS_Rcv_ResetRestart; 
+      S     #s_Link_Error; 
+
+NETWORK
+TITLE =DA: Determine 'Operational_ON' status
+//LAD!
+      A(    ; 
+      O     #i_CMD_Start; 
+      O     #t_OS_Rcv_ResetRestart; 
+      )     ; 
+      S     #s_Eqp_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #s_Link_Error; 
+      )     ; 
+      R     #s_Eqp_Operational_On; 
+      NOP   0; 
+NETWORK
+TITLE =EA: Handle handover signals
+//This network handles the handover signals for the sending module
+      CALL #s_TCTC_Snd_Handover (
+           i_Event_DB               := #i_Event_DB,
+           i_DB_PLT                 := #i_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_DwnStr,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_Available_IO           := #i_Available_IO,
+           i_Snd_Started            := #i_Snd_Started,
+           i_Snd_Reset_E_Saving     := #i_Snd_Reset_E_Saving,
+           i_Rcv_RTR                := #s_Handover_In.RTR,
+           i_Eqp_Operational_On     := #s_Eqp_Operational_On,
+           o_Snd_RTS                := #s_Handover_Out.RTS,
+           o_Snd_IHO                := #s_Handover_Out.IHO,
+           o_Snd_TIP                := #s_Handover_Out.TIP,
+           o_Snd_ResetRestart       := #s_Handover_Out.ResetRestart,
+           o_Reset_E_Saving         := #s_Handover_Out.Reset_E_Saving,
+           o_Req_Halt               := #s_Request_Halt,
+           o_Snd_Item_Length        := #o_Snd_Item_Length);
+
+NETWORK
+TITLE =FA: Handle product data
+//In this network the product data of the item that is handed over is gathered 
+//and copied to a FIFO DB.
+      CALL #s_TCTC_Snd_Proddata (
+           i_ID                     := #i_ID,
+           i_Event_DB               := #i_Event_DB,
+           i_DB_Send_FIFO_PNPN      := #i_DB_Send_FIFO_PNPN,
+           i_DB_Send_FIFO_Pending   := #i_DB_Snd_FIFO_Pending,
+           i_DB_PLT                 := #i_DB_PLT,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_LM_Border          := #i_CFG_LM_Border,
+           i_IHO                    := #s_Handover_Out.IHO,
+           i_TIP                    := #s_Handover_Out.TIP,
+           o_Snd_Window_Code        := #s_Handover_Out.Window_Code,
+           o_Snd_Message_Identifier := #s_Handover_Out.Message_Identifier);
+
+NETWORK
+TITLE =GA: Handle handover output signals
+//Copy the s_Handover_Out structure to the physical output area coupled with the 
+//PN/PN coupler.
+      A     #s_Handover_Out.RTS; 
+      =     #o_Snd_RTS; 
+
+      A     #s_Handover_Out.IHO; 
+      =     #o_Snd_IHO; 
+
+      A     #s_Handover_Out.TIP; 
+      =     #o_Snd_TIP; 
+
+      A     #s_Handover_Out.Reset_E_Saving; 
+      =     #o_Snd_Reset_E_Saving; 
+
+      A     #s_Handover_Out.Lifesign; 
+      =     #o_Snd_Lifesign; 
+
+      A     #s_Handover_Out.Window_Code; 
+      =     #o_Snd_Window_Code; 
+
+      A     #s_Handover_Out.ResetRestart; 
+      =     #o_Snd_ResetRestart; 
+
+      L     #s_Handover_Out.Message_Identifier; 
+      T     #o_Snd_Message_Identifier; 
+
+NETWORK
+TITLE =HA: Handle TCTC statusses
+
+      NOP   0; 
+// Handle link error signal
+      A     #s_Link_Error; 
+      =     #o_ST_Link_Error; 
+
+// Request halt signal
+      A     #s_Request_Halt; 
+      =     #o_Req_Halt_TRS; 
+
+// Create Ready to Restart if EQP not operational on 
+      AN    #s_Eqp_Operational_On; 
+      A     #i_CMD_Enable; 
+      A     #i_Available_IO; 
+      AN    #s_Link_Error; 
+      =     #o_Ready_To_Restart; 
+      =     #o_ST_WN_Restart; 
+
+      L     0; 
+      AN    #s_Link_Error; 
+      JCN   HA02; 
+      L     #s_Handover_In.TEP; 
+HA02: T     #o_TEP; // Write TEP to 0 when link has error
+      L     #s_Handover_In.TOP; 
+      T     #o_TOP; 
+
+      A     #s_Handover_Out.ResetRestart; 
+      FP    #s_FP_Snd_ResetRestart; 
+      =     #t_OS_Snd_ResetRestart; 
+
+      A     #t_OS_Snd_ResetRestart; 
+      O     #i_CMD_Reset; 
+      O     #t_OS_Rcv_ResetRestart; 
+      JCN   HA99; 
+
+      OPN   #i_DB_Send_FIFO_PNPN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   HA99; 
+//ResetRestart bit in Send FIFO
+      S     DBX    1.0; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Handle downstream PLT DB
+//A "dummy" PLT DB is used as downstream PLT DB for the last transport section. In
+//this network the header of the downstream PLT DB is configured. Also all items 
+//in this PLT DB will be de-assigned and the cleared from the PLT DB.
+      NOP   0; 
+// Read DB number of event DB
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_PLT; 
+      L     DBW    2; 
+      T     #t_Displacement; 
+
+      A     DBX   10.1; 
+      =     #s_Handover_Out.Motor_Run; 
+      =     #o_Snd_Motor_Run; 
+//Section run from PLT Header
+
+      A     DBX   11.1; 
+      =     #t_Section_Stopped; 
+
+// Read PLT DB number of downstream PLT DB
+      OPN   #i_DB_PLT_DwnStr; 
+      L     DBNO; 
+      T     #t_DB_PLT_Dwnstr_Nr; 
+
+// Set section run signal when receiving side of TCTC is ready to receive
+      A     #s_Handover_In.RTR; 
+      A     #s_Eqp_Operational_On; 
+      AN    #s_Link_Error; 
+      =     DBX   10.1; 
+
+      A     #t_Section_Stopped; 
+      =     DBX   11.1; 
+
+// Set default displacement of section
+      L     #t_Displacement; 
+      T     DBW    2; 
+
+//Set entries present to 3
+      L     3; 
+      T     DBW    4; 
+
+//Set done bit in PLT header
+      SET   ; 
+      =     DBX   10.0; 
+
+// Set on speed signal in PLT Header 
+      SET   ; 
+      =     DBX   10.2; 
+
+// Set cascade start-up signal in PLT Header
+      SET   ; 
+      =     DBX   10.3; 
+
+      A     #s_Eqp_Operational_On; 
+      =     DBX   10.5; 
+
+// Set default section length of 10 cm
+      L     10; 
+      T     DBW   12; 
+
+      NOP   0; 
+END_FUNCTION_BLOCK
+

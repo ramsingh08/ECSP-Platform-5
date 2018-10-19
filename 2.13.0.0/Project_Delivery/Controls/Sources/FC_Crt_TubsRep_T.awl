@@ -1,0 +1,320 @@
+FUNCTION "FC_Crt_TubsRep_T" : VOID
+TITLE =%version: 0.06 % CN: 31
+//Function:
+//Prepare and send message 'TubsReport'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, April 12, 2018 08:26:19 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9862: Bags report no items present                nlHdL    12-04-18   0.06
+//ra#24616: PLC in Stop due to FC_Crt_Tubsrep_T         nlJMol   18-09-17   0.05
+//ra#22071: Add Tub ID to TubsReport                    nlHdL    24-04-17   0.04
+//ra#14652: Clear remaining msg not complet msg         nlHdL    14-06-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.02
+//20645: Tubs Bags report blocks updated                nlHdL    09-09-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on version 0.01 TTC            nlHdL    26-02-14   0.01
+//
+//Description:
+//Prepare and send message 'TubsReport'
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+END_VAR
+VAR_TEMP
+  t_ANY_Segment : ANY ;	//ANY pointer of segment info to copy
+  t_ANY_Report : ANY ;	//ANY pointer of position in report to save segment info
+  t_ANY_Index : ANY ;	
+  t_AR1_Backup : DWORD ;	//Save the contents of AR1
+  t_DB_Segment_Backup : DWORD ;	
+  t_TubTable_Index : ARRAY  [0 .. 100 ] OF STRUCT 	
+   Route_Segement_ID : INT ;	//Route segment ID (range 1-9999)
+   TubTable_DB_Number : INT ;	//DB number of tub table DB that matches the configured route segment ID
+  END_STRUCT ;	
+  t_DB_TubsReport_Num : INT ;	//DB tubs report number
+  t_Segment_ID_Current : INT ;	//Current segment ID number
+  t_DB_Segment_Current : INT ;	//Current loaded segment DB number
+  t_Record_Data_length : INT ;	//Length of record to copy
+  t_Loop_Cnt : INT ;	//Loop counter
+  t_Start_AddressMsg : INT ;	//Start address to save in tubs report DB
+  t_TubsReport_Length : INT ;	//Length of DB tubs report
+  t_DB_TubTableIndex_Num : INT ;	//DB Tub Table Index number
+  t_TubTableIndex_Length : INT ;	//Length of DB tub table index
+  t_TubTableInd_Entries : INT ;	//Number of entries present in DB tub table index
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_ZeroValue : INT ;	//Zero value to reset values in DB
+  t_ANY_ClearDB : ANY ;	//ANY pointer of Clear DB fucntion
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear Previous send message
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      L     0; 
+      T     "DB_Snd_TubsRep_T".Msgs.Body.Messages_Length; 
+      T     "DB_Snd_TubsRep_T".Msgs.Body.Number_Of_Segments; 
+
+      CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := "DB_Snd_TubsRep_T".Msgs.Body.Route_Segment[1].Route_Segment_ID,
+           o_Adress                 := #t_Start_AddressMsg);
+
+      OPN   "DB_Snd_TubsRep_T"; 
+      L     DBLG; 
+      T     #t_TubsReport_Length; 
+
+NETWORK
+TITLE =BA: Load all DB segment numbers
+
+      OPN   "DB_Snd_TubsRep_T"; 
+      L     DBNO; 
+      T     #t_DB_TubsReport_Num; 
+
+      OPN   "DB_TubTableIndex_T"; 
+      L     DBLG; 
+      T     #t_TubTableIndex_Length; 
+
+//Retrieve the number of entries
+      L     4; 
+      /I    ; 
+      T     #t_TubTableInd_Entries; 
+      L     1; 
+      <I    ; 
+      BEC   ; // No entries found
+
+      L     DBNO; 
+      T     #t_DB_TubTableIndex_Num; 
+
+//Create Source pointer (Segment DB)
+      LAR1  P##t_ANY_Index; //Load pointer to temp of type ANY
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+      L     #t_TubTableIndex_Length; //Store number (=data length) in ANY
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_TubTableIndex_Num; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+      L     0; 
+      SLD   3; //Convert byte address to bit pointer format
+      T     LD [AR1,P#6.0]; //and store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy record of segment DB
+           SRCBLK                   := #t_ANY_Index,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #t_TubTable_Index);
+
+NETWORK
+TITLE =CA: Copy segment DB's to message DB
+
+      LAR1  P##t_TubTable_Index; //Retreive first Segment DB number from pointer
+      L     LW [AR1,P#0.0]; 
+      T     #t_Segment_ID_Current; //Store first Route Segment ID number
+      L     LW [AR1,P#2.0]; 
+      T     #t_DB_Segment_Current; //Store first Segment DB number 
+
+      L     1; //IF no Segment DB's are connected
+      <=I   ; 
+      BEC   ; //THEN end block
+
+      L     0; 
+      T     #t_Loop_Cnt; //Init loop counter value
+
+CA01: TAR1  #t_DB_Segment_Backup; 
+      OPN   DB [#t_DB_Segment_Current]; 
+      L     DBW    0; //Retreive number of tubs stored in segment DB
+      L     6; //Multiply with the length of a tub record (6 bytes)
+      *I    ; 
+      L     2; //Add header length (2 bytes)
+      +I    ; 
+      T     #t_Record_Data_length; //Is the total length to be copied 
+
+//Check if Segment info is able to be stored in the message DB
+      L     #t_Start_AddressMsg; //Current address position
+      L     #t_Record_Data_length; //Total length to be copied
+      +I    ; 
+      L     4; //Plus 4 bytes footer
+      +I    ; 
+
+      L     #t_TubsReport_Length; //Must not get bigger then the maximum message DB length
+      <=D   ; 
+      JCN   CA99; 
+
+      OPN   DB [#t_DB_TubsReport_Num]; 
+      L     #t_Start_AddressMsg; 
+      SLD   3; 
+      LAR1  ; 
+      L     #t_Segment_ID_Current; 
+      T     DBW [AR1,P#0.0]; 
+
+//Create Source pointer (Segment DB)
+      LAR1  P##t_ANY_Segment; //Load pointer to temp of type ANY
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+      L     #t_Record_Data_length; //Store number (=data length) in ANY
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Segment_Current; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+      L     0; 
+      SLD   3; //Convert byte address to bit pointer format
+      T     LD [AR1,P#6.0]; //and store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+//Create destination pointer (Message DB)
+      LAR1  P##t_ANY_Report; //Load pointer to temp of type ANY
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+      L     #t_Record_Data_length; //Store number (=data length) in ANY
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_TubsReport_Num; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+      L     #t_Start_AddressMsg; 
+      L     2; 
+      +D    ; 
+      SLD   3; //Convert byte address to bit pointer format
+      T     LD [AR1,P#6.0]; //and store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy record of segment DB
+           SRCBLK                   := #t_ANY_Segment,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #t_ANY_Report);
+
+//Calculate the new start position to save for the next Segment DB info
+      L     #t_Start_AddressMsg; 
+      L     #t_Record_Data_length; // Add previous record length
+      +I    ; 
+      L     2; // And 2 bytes Zone/section ID
+      +I    ; 
+      T     #t_Start_AddressMsg; // For new Start address
+
+//Add loop counter with one
+      L     #t_Loop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Cnt; 
+
+//Check if the maximum number of segment DB's to copy is elapsed
+      L     #t_TubTableInd_Entries; 
+      <I    ; 
+      JCN   CA99; 
+
+//Load the next Segment DB number
+      LAR1  #t_DB_Segment_Backup; 
+      TAR1  ; 
+      L     P#4.0; 
+      +D    ; 
+      LAR1  ; 
+      L     LW [AR1,P#0.0]; 
+      T     #t_Segment_ID_Current; //Store Route Segment ID number
+      L     LW [AR1,P#2.0]; 
+      T     #t_DB_Segment_Current; //Store Segment DB number 
+
+//IF New Segment DB number is valid, THEN loop
+      L     1; 
+      <=I   ; 
+      JCN   CA01; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Write messageID Clear remaining message
+
+      LAR1  P##t_ANY_ClearDB; 
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+      L     W#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+      L     #t_TubsReport_Length; //Store number (=data length) in ANY
+      L     #t_Start_AddressMsg; 
+      -I    ; 
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_TubsReport_Num; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+      L     #t_Start_AddressMsg; //Start Address in DB
+      SLD   3; //Convert byte address to bit pointer format
+      T     LD [AR1,P#6.0]; //and store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+//Create "Zero Value" for clear function
+      L     0; 
+      T     #t_ZeroValue; 
+
+//Clear DB entry values
+      CALL "FILL" (
+           BVAL                     := #t_ZeroValue,
+           RET_VAL                  := #t_Ret_Val_Int,
+           BLK                      := #t_ANY_ClearDB);
+
+      AN    "M_Comm_Degraded"; // When in degraded mode
+      JCN   DA01; 
+
+      L     801; // When NOT in degraded mode
+      T     "DB_Snd_TubsRep_T".Msgs.Body.MessageID; 
+
+      JU    DA99; 
+
+DA01: L     1801; // When in degraded mode
+      T     "DB_Snd_TubsRep_T".Msgs.Body.MessageID; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Put message in buffer
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Snd_TubsRep_T".Msgs.Body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Snd_TubsRep_T".Msgs.Body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Snd_TubsRep_T".Msgs.Body.EquipmentID; // Transfer to outgoing messages
+
+      L     #t_Loop_Cnt; 
+      T     "DB_Snd_TubsRep_T".Msgs.Body.Number_Of_Segments; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Snd_TubsRep_T".Msgs.Body.EventTime);
+
+//Set message length and trigger the send function
+      L     #t_Start_AddressMsg; 
+      L     4; //Footer 4 Bytes
+      +I    ; 
+      T     "DB_Snd_TubsRep_T".Msgs.Body.Messages_Length; 
+
+      L     #t_AR1_Backup; //Restore AR1
+      LAR1  ; 
+END_FUNCTION
+

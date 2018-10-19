@@ -1,0 +1,22 @@
+TYPE "UDT_CIC_Record"
+TITLE =%version: 0.01 % CN: 12 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:53:45 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//Initial revision                                      nljmol   31-08-15   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   LNK : INT ;	//LNK Number
+   CBR : "UDT_CBR";	//Cart Bagtrax Record
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,201 @@
+FUNCTION "FC_Crt_Log_Msg" : VOID
+TITLE =%version: 0.12 % CN: 32
+//Function:
+//Prepare and send message 'PackageReport' - ATR result
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:06:21 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.12
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.12
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.12
+//21726: Remove BIR translation from the log message    nlHdL    11-11-14   0.08
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.07
+//19818: Messages layout added severity                 nlHdL    23-06-14   0.06
+//18060: Update messages ID's for Vibes 3.2             nlHdL    19-02-14   0.05
+//16734: Log msg upd BIR11_1 no fixed postion DB        nlHdL    07-11-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.07 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Prepare and send message 'PackageReport' - ATR result
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+  i_Event_value : INT ;	//Event Value
+  i_Event_ID : INT ;	//[ID] Identification of the log messages event
+END_VAR
+VAR_TEMP
+  t_ANY_text : ANY ;	
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value
+  t_Ret_Val_Int : INT ;	//Return Value
+  t_DB_Num : INT ;	
+  t_Text_Clear_Counter : INT ;	//Counter to clear all text characters
+  t_Next_Adress : INT ;	
+  t_Event_ID_Number : INT ;	//Sequence number of an event
+  t_Start_Adress : INT ;	//Start adress in DB_outgoing_Msgs of Logging Messages
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".Logging.EventTime);
+
+NETWORK
+TITLE =BA: Write messageID
+
+      L     2601; 
+      T     "DB_Outgoing_Msgs".Logging.MessageID; 
+NETWORK
+TITLE =CA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".Logging.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".Logging.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".Logging.EquipmentID; // Transfer to outgoing messages
+NETWORK
+TITLE =DA: Write data to log messages
+
+      L     #i_Event_value; 
+      T     "DB_Outgoing_Msgs".Logging.Value; // Transfer to outgoing messages
+
+      L     #i_Event_ID; 
+      T     "DB_Outgoing_Msgs".Logging.Event_ID; // Transfer to outgoing messages
+
+// determine severity from Event ID 
+      L     #i_Event_ID; 
+      L     3200; 
+      <I    ; 
+      JCN   DA02; 
+//Set severity to FATAL
+      L     1; 
+      JU    DA10; 
+
+DA02: L     #i_Event_ID; 
+      L     3400; 
+      <I    ; 
+      JCN   DA03; 
+//Set severity to ERROR
+      L     2; 
+      JU    DA10; 
+
+DA03: L     #i_Event_ID; 
+      L     3600; 
+      <I    ; 
+      JCN   DA04; 
+//Set severity to Warning
+      L     3; 
+      JU    DA10; 
+
+DA04: L     #i_Event_ID; 
+      L     3800; 
+      <I    ; 
+      JCN   DA05; 
+//Set severity to Info
+      L     4; 
+      JU    DA10; 
+
+DA05: L     #i_Event_ID; 
+      L     4000; 
+      <I    ; 
+      JCN   DA06; 
+//Set severity to Debug
+      L     5; 
+      JU    DA10; 
+
+DA06: L     1; 
+
+DA10: T     "DB_Outgoing_Msgs".Logging.Severity; // Transfer to outgoing messages
+NETWORK
+TITLE =EA: Clear Text with spaces
+
+      OPN   "DB_Outgoing_Msgs"; 
+      L     0; 
+      T     #t_Text_Clear_Counter; 
+
+      CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := "DB_Outgoing_Msgs".Logging.MessageBody,
+           o_Adress                 := #t_Start_Adress);
+
+
+EA01: L     #t_Start_Adress; 
+      L     #t_Text_Clear_Counter; 
+      +I    ; 
+      T     #t_Next_Adress; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     ' '; 
+      T     DBB [AR1,P#0.0]; 
+
+      L     #t_Text_Clear_Counter; 
+      L     1; 
+      +I    ; 
+      T     #t_Text_Clear_Counter; 
+      L     104; 
+      >=I   ; 
+      JCN   EA01; 
+
+      L     #t_Next_Adress; 
+NETWORK
+TITLE =GA: Put message in buffer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Logging,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =HA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

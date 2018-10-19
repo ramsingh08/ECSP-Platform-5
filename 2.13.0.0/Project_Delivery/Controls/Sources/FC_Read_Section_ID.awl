@@ -1,0 +1,278 @@
+FUNCTION "FC_Read_Section_ID" : VOID
+TITLE =%version: 0.01 % CN: 20
+//Function:
+//Read the section ID.
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Wednesday, June 21, 2017 6:24:46 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inrjoi   21-06-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Mode_Index : BLOCK_DB ;	//Index DB for zones with modes
+  i_DB_HMI_IF_Mode : BLOCK_DB ;	//HMI Interface DB for zones with modes
+  i_DB_HMI_IF : BLOCK_DB ;	//HMI Interface DB
+END_VAR
+VAR_TEMP
+  t_ID_to_HMI : STRING  [18 ];	//Zone indentification which is to be shown on HMI
+  t_ANY_P_To_ID_On_HMI : ANY ;	//Any pointer
+  t_ID : DWORD ;	//Temp variable for indentification
+  t_DBNO_IF_HMI : WORD ;	//Interfcae HMI DB number
+  t_HMI_IF_Offset_ID : DWORD ;	
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_DB_HMI_Mode_Index : "UDT_IF_HMI_Mode";	//Index DB for zones with modes
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read the active screen number
+
+      OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     31; 
+      ==I   ; 
+      JCN   AA01; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD    8; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA01: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     32; 
+      ==I   ; 
+      JCN   AA02; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD   28; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA02: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     33; 
+      ==I   ; 
+      JCN   AA03; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD   48; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA03: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     34; 
+      ==I   ; 
+      JCN   AA04; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD   68; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA04: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     35; 
+      ==I   ; 
+      JCN   AA05; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD   88; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA05: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     36; 
+      ==I   ; 
+      JCN   AA06; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD  108; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA06: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     37; 
+      ==I   ; 
+      JCN   AA07; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD  128; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA07: OPN   #i_DB_HMI_IF; 
+      L     DBW    2; 
+      L     38; 
+      ==I   ; 
+      JCN   AA08; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBD  148; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+      JU    AA99; 
+
+AA08: OPN   #i_DB_HMI_Mode_Index; 
+      L     0; 
+      T     #t_DB_HMI_Mode_Index.ID; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Current zone ID conversion to ASCII 
+//The current zone ID convert into the ASCII Chatrer to display ON HMI
+//ID is in format MC AAAAZZSS Where 
+//   MC = 
+//   AAAAZZSS = HEX format
+//The ID is converted to ASCII and shown on the HMI
+//MC.AAAA.ZZ.SS
+//
+      L     #t_DB_HMI_Mode_Index.ID; // Load Current zone ID
+      T     #t_ID; // Transfer to temp
+
+// ID format AAAAZZSS
+// Convert Section ID to ASCII
+      L     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[17]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[16]; 
+
+      L     '.'; // Add '.' Add dot
+      T     #t_ID_to_HMI[15]; 
+
+// Convert the ZZ ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID
+      L     DW#16#F; //select last
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[14]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[13]; 
+
+      L     '.'; //Add '.'  (dot)
+      T     #t_ID_to_HMI[12]; 
+
+// Convert AAAA ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[11]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[10]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[9]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #t_ID_to_HMI[8]; 
+
+      L     ' '; 
+      T     #t_ID_to_HMI[1]; 
+      T     #t_ID_to_HMI[2]; 
+      T     #t_ID_to_HMI[3]; 
+      T     #t_ID_to_HMI[4]; 
+      T     #t_ID_to_HMI[5]; 
+      T     #t_ID_to_HMI[6]; 
+      T     #t_ID_to_HMI[7]; 
+      T     #t_ID_to_HMI[18]; 
+NETWORK
+TITLE =CA: Copy Current section ID to HMI 
+
+      OPN   #i_DB_HMI_IF_Mode; 
+      L     DBNO; //Get DB number of interface DB
+      T     #t_DBNO_IF_HMI; 
+
+      L     P##t_ANY_P_To_ID_On_HMI; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     30; //Store data length in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_HMI; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+// Offset for the ID and status IN DB_HMI_IF_app
+      L     P#0.0; // Offset of the ID  (ID String 30)
+      T     #t_HMI_IF_Offset_ID; 
+
+      L     #t_HMI_IF_Offset_ID; 
+      T     LD [AR1,P#6.0]; //and store in ANY
+
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+//  Write Actul length in the ID pointer
+      L     P##t_ID_to_HMI; //Set pointer to ID variable
+      LAR1  ; 
+
+      L     17; // Copy only 17 CHAR
+      T     B [AR1,P#1.0]; // Write string 'actual' length
+
+// Move the current Zone ID to the HMI diasplay location
+      CALL "BLKMOV" (// Write ID to HMI interface DB
+           SRCBLK                   := #t_ID_to_HMI,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_ANY_P_To_ID_On_HMI);
+
+END_FUNCTION
+

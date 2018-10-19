@@ -1,0 +1,97 @@
+FUNCTION_BLOCK "FB_SW_ADN04"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Advanced dieback node (Incline/Decline) 04
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Friday, April 21, 2017 11:08:34 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inrjoi   21-04-17   0.01
+//
+//Description:
+//The advanced dieback detection node function is used to prevent dieback
+//on the inclined and declined locations by looking into the TEP/TOP values.
+//This functionality holds the baggage flow upstream of non-storage line only
+//when the storage line does not has enough positions available to accomodate
+//additional items. When the TEP of the storage line are available, items will
+//be allowed to be transported thereafter.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Allowed_Storage : INT ;	//CFG: Number of available storage locations [Range: 1-100]
+  i_CFG_Delay_On : INT ;	//CFG: [0.1 sec] Delay on filter
+  i_CFG_Delay_Off : INT ;	//CFG: [1 sec] Delay off filter
+  i_TOP_Downstream : INT ;	//Total occupied position (TOP) value from the storage line downstream
+END_VAR
+VAR_OUTPUT
+  o_TRS_Disable_Send : BOOL ;	//Disable send to the transport section
+END_VAR
+VAR
+  s_Delay_On_Setpoint : INT ;	//Set point value for delay on timer
+  s_Delay_Off_Setpoint : INT ;	//Set point value for delay on timer
+END_VAR
+VAR_TEMP
+  t_Dieback_Delay_On_Msec : INT ;	//Dieback delay on filter value in milliseconds
+  t_On_Delay_Tmr_Elapsed : BOOL ;	//The on delay timer is elapsed
+  t_Off_Delay_Tmr_Elapsed : BOOL ;	//The off delay timer is elapsed
+  t_Enable_Disable_Send : BOOL ;	//Enable to disable the section from sending new item to downstream
+  t_Off_Delay_Tmr_Active : BOOL ;	//Signal to indicate off delay timer is active
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Evaluate the TOP value with configured TEP value
+
+// If the i_TOP_Downstream >= i_CFG_Allowed_Storage, disable send the next item
+      L     #i_TOP_Downstream; 
+      L     #i_CFG_Allowed_Storage; 
+      >=I   ; 
+      =     #t_Enable_Disable_Send; 
+NETWORK
+TITLE =BA: Delay on timer to activate disable send
+
+      L     #i_CFG_Delay_On; 
+      L     100; 
+      *I    ; 
+      T     #t_Dieback_Delay_On_Msec; // Convert 0,1 seconds to milliseconds
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #t_Enable_Disable_Send,
+           i_CFG_Timer_Value        := #t_Dieback_Delay_On_Msec,
+           i_Setpoint               := #s_Delay_On_Setpoint,
+           o_Setpoint               := #s_Delay_On_Setpoint,
+           o_Timer_Elapsed          := #t_On_Delay_Tmr_Elapsed);
+
+NETWORK
+TITLE =CA: Delay off filter to de-activate disable send
+
+      AN    #t_Enable_Disable_Send; 
+      A     #o_TRS_Disable_Send; 
+      =     #t_Off_Delay_Tmr_Active; 
+
+      CALL "FC_On_Dly_Timer_Sec" (// Delay off filter to hold the disable send after the TEP positions are available
+           i_CMD_Start              := #t_Off_Delay_Tmr_Active,
+           i_CFG_Timer_Value        := #i_CFG_Delay_Off,
+           i_Setpoint               := #s_Delay_Off_Setpoint,
+           o_Setpoint               := #s_Delay_Off_Setpoint,
+           o_Timer_Elapsed          := #t_Off_Delay_Tmr_Elapsed);
+
+NETWORK
+TITLE =DA: Determine when disable send has to be triggered
+//Disable send is triggerd when the TEP value is <= TOP and the on delay timer is 
+//elapsed. This continues until the off delay timer is no longer active.
+      A     #t_Enable_Disable_Send; 
+      A     #t_On_Delay_Tmr_Elapsed; 
+      O(    ; 
+      A     #t_Off_Delay_Tmr_Active; 
+      AN    #t_Off_Delay_Tmr_Elapsed; 
+      )     ; 
+      =     #o_TRS_Disable_Send; 
+END_FUNCTION_BLOCK
+

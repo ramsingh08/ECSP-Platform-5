@@ -1,0 +1,55 @@
+TYPE "UDT_HBO_Comm_OUT_XCT"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, June 09, 2017 5:48:04 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on v0.02 of UDT_HBO_Comm_IN      nldy    09-06-17  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Online_PLC_Status : DINT ;	//BHS PLC Active
+   Master_Clk_Designator : BOOL ;	//Data[0].0 BHS master clock designator
+   Keep_XCT_Alive : BOOL ;	//Data[0].1 Keep alive/running
+   Infeed_Ready_To_Send : BOOL ;	//Data[0].2 Infeed ready to send (IRTS)
+   Spare_0_3 : BOOL ;	//Data[0].3 Spare
+   Inf_Bag_Data_Ready : BOOL ;	//Data[0].4 Infeed bag data ready
+   Exit_Ready_To_Receive : BOOL ;	//Data[0].5 Exit ready to receive (XRTR)
+   Dec_Bag_Data_Received : BOOL ;	//Data[0].6 Decision Bag Data Received
+   Exit_Bag_Data_Received : BOOL ;	//Data[0].7 Exit bag data received from XCT
+   Infeed_Conveyor_Run : BOOL ;	//Data[0].8 Infeed conveyor run (BHS)
+   Spare_0_9 : BOOL ;	//Data[0].9 Spare
+   Spare_0_10 : BOOL ;	//Data[0].10 Spare
+   Exit_Conveyor_Run : BOOL ;	//Data[0].11 Exit conveyor run (BHS)
+   Infeed_Conv_PEC : BOOL ;	//Data[0].12 Infeed conveyor PEC 0=Clear 1=Blocked (IPEC)
+   Exit_Conv_PEC : BOOL ;	//Data[0].13 Exit conveyor PEC 0=Clear 1=Blocked (XPEC)
+   Spare_0_14 : BOOL ;	//Data[0].14 Spare
+   Spare_0_15 : BOOL ;	//Data[0].15 Spare
+   Spare_Int_0_H : INT ;	//Data[0].HighOrder Spare
+   Time_Sync_Sec : INT ;	//Data[1].Low_Order BHS time sync sec
+   Time_Sync_Min : INT ;	//Data[1].HighOrder BHS time sync min
+   Time_Sync_Hour : INT ;	//Data[2].Low_Order BHS time sync hour
+   Time_Sync_Day : INT ;	//Data[2].HighOrder BHS time sync day
+   Time_Sync_Month : INT ;	//Data[3].Low_Order BHS time sync month
+   Time_Sync_Year : INT ;	//Data[3].HighOrder BHS time sync year
+   Spare_Int_4_L : INT ;	//Data[4].Low_Order BHS spare
+   Spare_Int_4_H : INT ;	//Data[4].HighOrder BHS spare
+   Spare_Int_5_L : INT ;	//Data[5].Low_Order Spare
+   Spare_Int_5_H : INT ;	//Data[5].HighOrder Spare
+   Spare_Dint_6 : DINT ;	//Data[6] Spare
+   Forced_Rej_Bag_ID : DINT ;	//Data[7] Forced Reject Bag ID 
+   Spare_Int_8_L : INT ;	//Data[8].L Spare
+   Spare_Int_8_H : INT ;	//Data[8].H Spare
+   Spare_9_0 : BOOL ;	//Data[9].0 Spare
+   Forced_Rej_Valid : BOOL ;	//Data[9].1 Forced Reject Valid
+   Estop_Reset : BOOL ;	//Data[9].2 Clear Estop remotely
+   XCT_Fault_Reset : BOOL ;	//Data[9].3 XCT fault reset
+   Spare_Int_9_H : INT ;	//Data[9].H Spare
+  END_STRUCT ;	
+END_TYPE
+

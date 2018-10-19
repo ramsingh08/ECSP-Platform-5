@@ -1,0 +1,35 @@
+DATA_BLOCK "DB_PNPN_OutgoingMsgs"
+TITLE =%version: 0.05 % CN: 20
+//History:
+//This version  %created_by:  nlrob %
+//              %date_created:  Friday, April 21, 2017 12:35:16 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22284: Added stacked carrier report                nlrob    21-04-17   0.05
+//Added messages based on SIN_T1_CONV_COMPONENT         inajos   28-11-16   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   0.03
+//20144: PNPN TCTC interface Gen and Vibes not equal    nlHdL    15-08-14   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Lifesign_Message : "UDT_PN_Msg_Lifesign";	
+   Handover_Message : "UDT_PN_Msg_Handover";	
+   Default : "UDT_PN_Msg_Body";	//Default message filled with FF as fillers
+   Merged_Message : "UDT_PN_Msg_Body";	//Merge of Default and Report
+   ScreenUpdate_Message : "UDT_Msg_ScreenUpdate";	//Screening Update	
+   PendingUpdate_Message : "UDT_Msg_PendingUpd";	//Layout of PendingUpdate message send via PN TCP/IP interface
+   PendingMaint_Message : "UDT_Msg_PendingMaint";	//Layout of PendingMaint used for Request/Response messages
+   StackHandover_Message : "UDT_PN_Msg_StackRep";	//Stacked carrier report message
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

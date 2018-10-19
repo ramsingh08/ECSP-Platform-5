@@ -1,0 +1,268 @@
+FUNCTION "FC_Check_Succ_Dest_x" : VOID
+TITLE =%version: 0.04 % CN: 33
+//Function:
+//Retreive data for instance DB and then check the succes direction
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 7:00:43 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.04
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHdL    02-04-13   0.01
+//
+//Description:
+//Retreive data for instance DB and then check the succes direction
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Succes_Dir : ANY ;	//ANY pointer to the Decision messages
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_Preference_C : BYTE ;	//Preference for Direction C
+  t_DecisionLvl : BYTE ;	//Decision Level	
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_Direction : BYTE ;	//Direction selected
+  t_DINO : INT ;	//DB number of instance	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Succes_Dir; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Preference_B; 
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Preference_C; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_FailedReason_B; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_FailedReason_C; 
+      L     DIB [AR2,P#9.0]; 
+      T     #t_Direction; 
+
+      L     DINO; 
+      T     #t_DINO; 
+
+NETWORK
+TITLE =BA: Check if direction 1 is active and no failed reason
+
+      L     #t_Direction; 
+      L     1; 
+      ==I   ; 
+      JCN   BA99; 
+//Check direction A
+
+      L     #t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      JC    BA99; 
+
+//If No failed then end
+
+      L     0; 
+      T     #t_Direction; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check if direction 2 is active and no failed reason
+
+      L     #t_Direction; 
+      L     2; 
+      ==I   ; 
+      JCN   CA99; 
+//Check direction B
+
+      L     #t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      JC    CA99; 
+
+//If No failed then end
+
+      L     0; 
+      T     #t_Direction; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =CB: Check if direction 3 is active and no failed reason
+
+      L     #t_Direction; 
+      L     3; 
+      ==I   ; 
+      JCN   CB99; 
+//Check direction C
+
+      L     #t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      JC    CB99; 
+
+//If No failed then end
+
+      L     0; 
+      T     #t_Direction; 
+
+CB99: NOP   0; 
+NETWORK
+TITLE =DA: If no direction check Dir A and B
+
+      L     #t_Direction; 
+      L     0; 
+      ==I   ; 
+      JCN   DA99; 
+//IF direction = 0 determine direction
+
+      L     #t_Preference_A; 
+      L     1; 
+      ==I   ; 
+      JCN   DA01; 
+
+      L     #t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      JCN   DA01; 
+
+//Set to direction A
+      L     1; 
+      T     #t_Direction; 
+      JU    DA99; 
+
+DA01: L     #t_Preference_B; 
+      L     1; 
+      ==I   ; 
+      JCN   DA02; 
+
+      L     #t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      JCN   DA02; 
+
+//Set to direction B
+      L     2; 
+      T     #t_Direction; 
+      JU    DA99; 
+
+DA02: L     #t_Preference_C; 
+      L     1; 
+      ==I   ; 
+      JCN   DA03; 
+
+      L     #t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      JCN   DA03; 
+
+//Set to direction C
+      L     3; 
+      T     #t_Direction; 
+      JU    DA99; 
+
+
+DA03: L     #t_Preference_A; 
+      L     2; 
+      ==I   ; 
+      JCN   DA04; 
+
+      L     #t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      JCN   DA04; 
+
+//Set to direction A
+      L     1; 
+      T     #t_Direction; 
+      JU    DA99; 
+
+DA04: L     #t_Preference_B; 
+      L     2; 
+      ==I   ; 
+      JCN   DA05; 
+
+      L     #t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      JCN   DA05; 
+
+//Set to direction B
+      L     2; 
+      T     #t_Direction; 
+      JU    DA99; 
+
+
+DA05: L     #t_Preference_C; 
+      L     2; 
+      ==I   ; 
+      JCN   DA99; 
+
+      L     #t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      JCN   DA99; 
+
+//Set to direction C
+      L     3; 
+      T     #t_Direction; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =DA: Write data to preferred direction
+
+      L     P##i_ANY_Succes_Dir; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     #t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+END_FUNCTION
+

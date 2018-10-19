@@ -1,0 +1,68 @@
+TYPE "UDT_HBO_Comm_IN_XCT"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, June 09, 2017 5:48:03 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on v0.02 of UDT_HBO_Comm_IN      nldy    09-06-17  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Master_Clock_Designator : BOOL ;	//Data[0].0 Master clock designator
+   Keep_BHS_Alive : BOOL ;	//Data[0].1 Alive state 
+   XCT_Ready_To_Receive : BOOL ;	//Data[0].2 XCT ready to receive
+   Spare_0_3 : BOOL ;	//Data[0].3 Spare
+   Infeed_Bag_Data_Rcvd : BOOL ;	//Data[0].4 Infeed bag data received
+   Bag_In_Process : BOOL ;	//Data[0].5 Bag in process 
+   Exit_Ready_To_Send : BOOL ;	//Data[0].6 Exit ready to send
+   Exit_Bag_Data_Available : BOOL ;	//Data[0].7 Exit bag data available
+   Decision_Bag_Data_Ready : BOOL ;	//Data[0].8 Decision bag data ready
+   Forced_Reject_Ackn : BOOL ;	//Data[0].9 Force reject acknowledge
+   Auto_Calibration_Warning : BOOL ;	//Data[0].10 Auto calibration warning
+   Spare_0_11 : BOOL ;	//Data[0].11 Spare
+   Spare_0_12 : BOOL ;	//Data[0].12 Spare
+   Spare_0_13 : BOOL ;	//Data[0].13 Spare
+   Spare_0_14 : BOOL ;	//Data[0].14 Spare
+   Spare_0_15 : BOOL ;	//Data[0].15 Spare
+   Spare_Int_0_H : INT ;	//Data[0].16-31 Spare
+   Time_Sync_Sec : INT ;	//Data[1].Low_Order time sync sec
+   Time_Sync_Min : INT ;	//Data[1].HighOrder time sync min
+   Time_Sync_Hour : INT ;	//Data[2].Low_Order time sync hour
+   Time_Sync_Day : INT ;	//Data[2].HighOrder time sync day
+   Time_Sync_Month : INT ;	//Data[3].Low_Order time sync month
+   Time_Sync_Year : INT ;	//Data[3].HighOrder time sync year
+   Screening_Mode_XCT : INT ;	//Data[4].Low_Order XCT screening mode
+   System_Fault_Status_XCT : INT ;	//Data[4].HighOrder System fault status XCT
+   Entr_Conv_Running : BOOL ;	//Data[5].0 Entrance tunnel conveyor running
+   Scan_Conv_Running : BOOL ;	//Data[5].1 Scan tunnel conveyor running
+   Exit_Conv_Running : BOOL ;	//Data[5].2 Exit tunnel conveyor running
+   Spare_5_3 : BOOL ;	//Data[5].3 Spare
+   PEC_0 : BOOL ;	//Data[5].4 PEC 0; 1=Clear 0=Blocked
+   PEC_1 : BOOL ;	//Data[5].5 PEC 1; 1=Clear 0=Blocked
+   PEC_2 : BOOL ;	//Data[5].6 PEC 2; 1=Clear 0=Blocked
+   PEC_3 : BOOL ;	//Data[5].7 PEC 3; 1=Clear 0=Blocked
+   Encoder_Pulse : BOOL ;	//Data[5].8 Encoder pulse
+   Spare_5_9 : BOOL ;	//Data[5].9 Spare
+   Spare_5_10 : BOOL ;	//Data[5].10 Spare
+   Spare_5_11 : BOOL ;	//Data[5].11 Spare
+   E_Stop : BOOL ;	//Data[5].12 Emergency stop out bit to BHS
+   Spare_5_13 : BOOL ;	//Data[5].13 Spare
+   Spare_5_14 : BOOL ;	//Data[5].14 Spare
+   Spare_5_15 : BOOL ;	//Data[5].15 Spare
+   Spare_Int_5_H : INT ;	//Data[5].HighOrder Spare
+   Spare_Int_6_L : INT ;	//Data[6].Low_Order Spare
+   Spare_Int_6_H : INT ;	//Data[6].HighOrder Spare
+   Spare_Int_7_L : INT ;	//Data[7].Low_Order Spare
+   Spare_Int_7_H : INT ;	//Data[7].HighOrder Spare
+   Spare_Int_8_L : INT ;	//Data[8].Low_Order Spare
+   Spare_Int_8_H : INT ;	//Data[8].HighOrder Spare
+   Spare_Int_9_L : INT ;	//Data[9].Low_Order Spare
+   Spare_Int_9_H : INT ;	//Data[9].HighOrder Spare
+  END_STRUCT ;	
+END_TYPE
+

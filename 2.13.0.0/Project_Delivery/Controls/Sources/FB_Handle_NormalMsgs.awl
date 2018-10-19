@@ -1,0 +1,159 @@
+FUNCTION_BLOCK "FB_Handle_NormalMsgs"
+TITLE =%version: 0.09 %  CN: 60
+//Function:
+//Handle received message.
+//
+//Description:
+//This FB handles the received message. It divides the received message depending 
+//on message characteristic over the specific message handlers.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 18, 2018 11:52:16 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27040: Remove StatusReport from library            nlHdL    18-01-18   0.09
+//ra#12668: Add TransportDirReport to 2 dir merge zone  nlJClo   12-04-16   0.08 
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//23966: Added or create ID from FIFO block             nlHdL    18-06-15   0.07
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.06
+//19189: Correct Area ID conversion up to two digit     nlple    28-05-14   0.05
+//17292: Add status report on InitSync                  nlHdL    16-12-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//Delete RoutingTableUpdate                             nlLvdG   03-06-13   0.02
+//Initial Version based on version 0.03 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Recv_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive FIFO
+  i_DB_Send_FIFO : BLOCK_DB ;	//Data Structure: DB send FIFO
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_LifeSignReq_Interv : INT ;	//CFG: [sec] Interval for sending a LifeSignRequest msg (0 = send no LifeSigns)
+  i_CFG_LifeSignResp_Time : INT ;	//CFG: [sec] Time after sending Request that Response must be received
+  i_CFG_NumLifeSgnMiss_Err : INT ;	//CFG: [Num] Number of Lifesign responses to be missed before an error is set
+  i_CFG_AreaID : INT ;	//CFG: Area ID number
+  i_CMD_Degraded_Mode : BOOL ;	//CMD: Degraded mode
+END_VAR
+VAR_OUTPUT
+  o_Err_No_Lifesigns : BOOL ;	//DS: A predefined number of LifeSignResponses have not been received
+END_VAR
+VAR
+  s_FB_Rcv_PackageInstr : "FB_Rcv_PackageInstr";	//Data Structure:
+  s_FB_Rcv_CapacityInstr : "FB_Rcv_CapacityInstr";	
+  s_FB_LS : "FB_LifeSign";	//Data Structure:
+  s_FB_EmtyLaneInstr : "FB_Rcv_EmtyLaneInstr";	//Data Structure:
+  s_Received_Message : "UDT_Msg_Rcv_Body";	//Data Structure: Received Message
+  s_RET_VAL_Recv_FIFO : WORD ;	//Return value in WORD format
+  s_Recv_FIFO_DBNr : INT ;	//DB number of used Receive FIFO DB 
+  s_Send_FIFO_DBNr : INT ;	//DB number of used Send FIFO DB
+  s_Message_Received : BOOL ;	//One shot signal when a new message is received
+END_VAR
+VAR_TEMP
+  t_Event_DB_Num : INT ;	//Number of the local event DB
+  t_Comm_OS_InitSync_1 : BOOL ;	
+  t_ID_Area : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check FIFO for new messages
+
+      OPN   #i_DB_Event; // Determin event DB nr
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      L     #i_CFG_AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID_Area; 
+
+      OPN   #i_DB_Send_FIFO; // Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #s_Send_FIFO_DBNr; 
+
+      OPN   #i_DB_Recv_FIFO; // Determine receive FIFO's DB nr
+      L     DBNO; 
+      T     #s_Recv_FIFO_DBNr; 
+
+      AN    DBX    0.0; // When FIFO is not empty (empty bit is first bit in FIFO DB)
+      =     #s_Message_Received; 
+      JCN   AA01; 
+
+      CALL "FC_FIFO" (// Retrieve one message from Receive FIFO
+           i_FIFO_DB_Num            := #s_Recv_FIFO_DBNr,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Received_Message,
+           i_ID                     := #t_ID_Area,
+           o_RET_VAL_FIFO           := #s_RET_VAL_Recv_FIFO);
+
+AA01: NOP   0; 
+NETWORK
+TITLE =BA: LifeSignResponse('2')
+
+      CALL #s_FB_LS (
+           i_ANY_RCV_Msg_Body       := #s_Received_Message,
+           i_CFG_LifeSignReq_Interv := #i_CFG_LifeSignReq_Interv,
+           i_CFG_LifeSignResp_Time  := #i_CFG_LifeSignResp_Time,
+           i_CFG_NumLifeSgnMiss_Err := #i_CFG_NumLifeSgnMiss_Err,
+           i_CFG_AreaID             := #i_CFG_AreaID,
+           i_CFG_LifeSignReq_MsgID  := 1,
+           i_CFG_LifeSignResp_MsgID := 2,
+           i_InitSync_MsgID         := 3,
+           i_DB_Num_Send_FIFO       := #s_Send_FIFO_DBNr,
+           i_Message_Received       := #s_Message_Received,
+           i_Degraded_Mode          := #i_CMD_Degraded_Mode,
+           o_Err_No_Lifesigns       := #o_Err_No_Lifesigns,
+           o_OS_Comm_Restored       := "M_Comm_OS_InitSync");
+
+NETWORK
+TITLE =CA: PackageInstruction ('102')
+
+      L     #s_Received_Message.MessageID; 
+      L     102; 
+      ==I   ; 
+      A     #s_Message_Received; 
+      JCN   CA99; 
+
+      CALL #s_FB_Rcv_PackageInstr (
+           i_ANY_RCV_Msg_Body       := #s_Received_Message,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: CapacityInstruction ('103')
+
+      L     #s_Received_Message.MessageID; 
+      L     103; 
+      ==I   ; 
+      A     #s_Message_Received; 
+      JCN   DA99; 
+
+      CALL #s_FB_Rcv_CapacityInstr (
+           i_ANY_RCV_Msg_Body       := #s_Received_Message);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: EmptyLaneInstruction ('104')
+
+      CALL "FC_Clear_Bool_DB" (
+           i_TableDB                := "DB_EmptyLaneTable");
+
+      L     #s_Received_Message.MessageID; 
+      L     104; 
+      ==I   ; 
+      A     #s_Message_Received; 
+      JCN   EA99; 
+
+      CALL #s_FB_EmtyLaneInstr (
+           i_ANY_RCV_Msg_Body       := #s_Received_Message);
+
+EA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

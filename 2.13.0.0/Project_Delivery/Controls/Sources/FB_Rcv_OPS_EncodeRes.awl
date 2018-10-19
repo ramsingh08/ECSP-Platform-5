@@ -1,0 +1,396 @@
+FUNCTION_BLOCK "FB_Rcv_OPS_EncodeRes"
+TITLE =%version: 0.04 % CN: 34
+//
+//Function:
+//Handle received message 'Encode Result'
+// Will write after check the encode result into the LIC record as update
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, October 17, 2017 3:13:43 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#7643: OPS check LIC>0 before LPN check            nlHdL    17-10-17   0.04
+//ra#23284: OPS handle Fallback tags                    nlHdL    03-10-17   0.03
+//ina#7643: Check LIC>0 to prevent log 3123             nlHdL    27-09-17   0.02
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Recv_OPS_FIFO_Num : INT ;	//DB number of receive FIFO
+  i_LIC : INT ;	//LIC number of item on OPZ
+  i_DB_Event_Nr : INT ;	//DB event number
+  i_CFG_Airport_No : INT ;	//CFG: Airport Number(Only 4 Numeric value Max 9999)
+  i_ID : DWORD ;	//ID of Object ID Record HEX AAAA - ZZSS.
+END_VAR
+VAR_OUTPUT
+  o_EncodeResult_Received : BOOL ;	//Encode Result received from OPS
+END_VAR
+VAR
+  s_Msg_EncodResult : "UDT_OPS_Msg_EncodRes";	//Message Dispatch 
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Integer return value
+  t_DB_Recv_OPS_FIFO : INT ;	//Number of the Receive DB FIFO that contain the LifeSign Signals	
+  t_Ret_Val_Word : WORD ;	//Return value FIFO function
+  t_PID : DINT ;	//PID number from LIC record
+  t_Message_Received : BOOL ;	//New Message Received
+  t_LPN_Empty : BOOL ;	//LPN field in Dispatch message is empty (all 0's)
+  t_Valid_FallBack_Tag : BOOL ;	//Valid Fallback tag in encode result
+  t_Airport_Char : ARRAY  [1 .. 4 ] OF //Unquie Airport Character
+  CHAR ;	
+  t_CHAR3 : CHAR ;	//CHAR 3
+  t_CHAR4 : CHAR ;	//CHAR 4
+  t_Destination : INT ;	//Fallback tag destination
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Define temps
+
+      L     #i_DB_Recv_OPS_FIFO_Num; 
+      T     #t_DB_Recv_OPS_FIFO; 
+
+      SET   ; 
+      R     #t_Message_Received; 
+
+NETWORK
+TITLE =BA: Create message Body
+//Put requested Mode in Message
+      NOP   0; 
+// Check if new message is present
+      OPN   DB [#t_DB_Recv_OPS_FIFO]; 
+
+      L     DBW    6; // When the DB_FIFO is empty the record "Num_Of_Records_stored" within the DB is equal to "0"
+      L     0; 
+      ==I   ; 
+      JC    BA99; // IF DB_FIFO is empty then end this Network
+
+// Create pointer to the message type within the first available message
+// The first available message within the FIFO DB is specified via the entry "Next_Record_Retrieve"
+// Calculate the Offset to the first available message
+      L     0; 
+      LAR1  ; 
+
+      L     DBW   12; // Position of the record
+      L     1; 
+      -I    ; 
+      L     DBW    4; // The length of each message in the DB_FIFO ("Record_Data_Length")
+      *I    ; 
+      +     14; // Length of the general record in DB_FIFO/Offset to the first message in the DB_FIFO
+      SLD   3; 
+      LAR1  ; // Store the Offset, to the first available message, in the Accumulator 1.
+
+// Retrieve the message type from the message to check if it is a encode result (52)
+      A(    ; // IF the retrieved message is a Lifesign Request
+      L     DBW [AR1,P#8.0]; // Retrieve the message type from the first available message from DB_FIFO
+      L     52; // Compare the retrieved message type with 52. (EncodeResult
+      ==D   ; 
+      )     ; 
+      JCN   BA99; // If the message is a lifesign request, then retrieve the record
+
+      CALL "FC_FIFO" (// Retrieve one message from Receive FIFO DB
+           i_FIFO_DB_Num            := #t_DB_Recv_OPS_FIFO,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Msg_EncodResult,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+      SET   ; 
+      =     #t_Message_Received; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check if LPN is empty
+//The LPN field in the Dispatch message is an optional field, if the value of the 
+//LPN field is all '0' (30hex) it is indicated as being empty.
+      AN    #t_Message_Received; 
+      R     #o_EncodeResult_Received; 
+      BEC   ; // if no message received end block
+
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[1]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[2]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[3]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[4]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[5]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[6]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[7]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[8]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[9]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[10]; 
+      L     ' '; 
+      ==I   ; 
+      )     ; 
+      =     #t_LPN_Empty; 
+
+NETWORK
+TITLE =DA: check validate PID for system mode
+
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.PID; 
+      L     0; 
+      >D    ; 
+      JCN   DA99; 
+//Check if PID in message from OPS matches with PID in BIR
+
+//Check if there is an valid LIC before writing data in to records
+      L     #i_LIC; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+      CALL "FC_Read_Dint_Record" (//Read PID from BIR
+           i_Record_Number          := #i_LIC,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr,
+           o_DINT                   := #t_PID);
+
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.PID; 
+      L     #t_PID; 
+      <>I   ; 
+      JCN   DA02; 
+// When different PID, send log Message.
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3205,
+           i_Event_value            := #i_LIC,
+           i_DB_Event_Num           := #i_DB_Event_Nr,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      BEU   ; // end block
+
+DA02: AN    #t_LPN_Empty; 
+      JCN   DA03; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #i_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+DA03: SET   ; 
+      S     #o_EncodeResult_Received; // When the same, valid EncodeResult is Received
+      BEU   ; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: FallBack Tag Check (Degraded)
+//Check the LPN if this has a valid fallback tag.
+//Fallback is valid if first char is '1' no airline '000' and airport is correct
+//If valid fallbacktag then write the LPN and destination into BIR and set 
+//assignment reason
+      SET   ; 
+      R     #t_Valid_FallBack_Tag; 
+
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[1]; 
+      L     '1'; 
+      ==I   ; 
+      )     ; 
+      JCN   EA01; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[2]; 
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[3]; 
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[4]; 
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+      JCN   EA01; //IF_NOT no Fallback Tag
+
+
+//--- Identify the Unique Airport Number  
+
+      CALL "FC_INT_To_4_CHARs" (
+           i_INT                    := #i_CFG_Airport_No,
+           o_CHAR_1                 := #t_Airport_Char[1],
+           o_CHAR_2                 := #t_Airport_Char[2],
+           o_CHAR_3                 := #t_Airport_Char[3],
+           o_CHAR_4                 := #t_Airport_Char[4]);
+
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[5]; 
+      L     #t_Airport_Char[1]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[6]; 
+      L     #t_Airport_Char[2]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[7]; 
+      L     #t_Airport_Char[3]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[8]; 
+      L     #t_Airport_Char[4]; 
+      ==I   ; 
+      )     ; 
+      JCN   EA01; // Airport number not correct
+
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[9]; 
+      T     #t_CHAR3; 
+      L     #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN[10]; 
+      T     #t_CHAR4; 
+
+      CALL "FC_4_CHARs_To_INT" (
+           i_CHAR_1                 := '0',
+           i_CHAR_2                 := '0',
+           i_CHAR_3                 := #t_CHAR3,
+           i_CHAR_4                 := #t_CHAR4,
+           o_INT                    := #t_Destination);
+
+      L     #t_Destination; 
+      L     0; 
+      >I    ; 
+      =     #t_Valid_FallBack_Tag; 
+
+EA01: AN    #t_Valid_FallBack_Tag; //IF valid fallbag tag
+      BEC   ; 
+
+      L     #i_LIC; 
+      L     0; 
+      >I    ; //Check if there is an valid LIC before writing data in to records
+      JCN   EA02; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #i_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #i_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN_Extension,
+           i_ANY_Data               := #s_Msg_EncodResult.Msg_Body_EncodeResult.LPN_Extension,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+//Store the destination
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+//  and clear all other destinations in the BIR
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+//Store the Flight number
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #i_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.Flight.Airline_Number,
+           i_ANY_Data               := #s_Msg_EncodResult.Msg_Body_EncodeResult.Flight.Airline_Number,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+//Store the BID and BID_Extension
+
+      CALL "FC_Write_Dint_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.BID,
+           i_DB                     := "DB_LIC_List",
+           i_DINT                   := #s_Msg_EncodResult.Msg_Body_EncodeResult.BID,
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #i_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.BID_Extension,
+           i_ANY_Data               := #s_Msg_EncodResult.Msg_Body_EncodeResult.BID_Extension,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+      CALL "FC_Write_Byte_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BYTE_Record          := "DB_UDT_LIC_Record".BIR.assignment_reason,
+           i_DB                     := "DB_LIC_List",
+           i_BYTE                   := B#16#14,//Dec = 20 = Fallback tag
+           i_DB_Event_Num           := #i_DB_Event_Nr);
+
+EA02: SET   ; 
+      =     #o_EncodeResult_Received; 
+END_FUNCTION_BLOCK
+

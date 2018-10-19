@@ -1,0 +1,300 @@
+FUNCTION "FC_PLT_Srch_UpLimit" : VOID
+TITLE =%version: 1.01 % CN: 30
+//Function:
+//Search in a domain of the sorted PLT list for specific data.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:02:51 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.08 of PLT version 0
+//
+//Description:
+//This function searches for data in a specific search window of the PLT.
+//This search window is represented by a window that is referenced with an open 
+//window offset and an close window offset regard to the position.
+//The PLT_DB Limit can be configured when the search function has to end at a 
+//specific PLT DB number.
+//
+//
+//                                              Search Window
+//                                       |<---s-------------------->|
+//       ________________________________ __________________________________      
+//                                       |
+//                                       |
+//               ===flow-direction===>   |                                        
+//                     PLT 1             |          PLT 2
+//       ________________________________|__________________________________      
+// 
+//                                       ^ 
+//                        ^              |                          ^
+//                        |        Limit PLT = 2                    |
+//              i_Window  <-----------------------------------------|
+//                                        i_Position     
+//                                              
+//t_Search_Start_Position = i_Position + i_Close_Window_Offset 
+//t_Search_End_Position = i_Position - i_Open_Window_Offset OR Start PLT DB Limit
+//
+//                                                                          
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Position : INT ;	//SETT: [cm] Position in PLT
+  i_Window : INT ;	//SETT: [cm] upstream window
+  i_Info : INT ;	//SETT [info] Info to search for in PLT
+  i_DB_PLT_Limit_Num : INT ;	//Number of DB PLT Limit search
+END_VAR
+VAR_OUTPUT
+  o_Position : INT ;	//[cm] PLT position where data is found
+  o_Info : INT ;	//First Info found in PLT DB
+  o_Link : INT ;	//First Link found in PLT DB
+  o_DB_PLT_Num : INT ;	//Number of DB PLT where first item was found
+  o_Number_Items_Found : INT ;	//Number of items found within the window
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Search_Start_Position : INT ;	//t_Search_Start_Position = i_Position + i_Close_Window_Offset
+  t_Search_End_Position : INT ;	//t_Search_End_Position = i_Position - i_Open_Window_Offset
+  t_First_Position : BOOL ;	//Check if first position found
+  t_Check_Upstr_DB : BOOL ;	//Check DB PLT Upstream is present
+  t_Res_Window : INT ;	//Remainder of Window value
+  t_Conv_Length : INT ;	//Conveyor Length
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initialisation output variables
+// 
+      L     0; // Initialisation of output variables
+      T     #o_Position; 
+      T     #o_Info; 
+      T     #o_Link; 
+      T     #o_DB_PLT_Num; 
+      T     #o_Number_Items_Found; 
+      CLR   ; 
+      =     #t_First_Position; 
+NETWORK
+TITLE =BA: Open PLT DB
+
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; // Open PLT DB
+
+//End block if PLT DB is not Done (Init)
+      AN    DBX   10.0; 
+      BEC   ; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length; 
+
+      L     #i_DB_PLT_Limit_Num; // IF the configured maximum search PLT DB is reached
+      L     #t_PLT_DB_Nr; 
+      ==I   ; 
+      JCN   BA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB; 
+
+      JU    BA99; 
+
+BA01: L     1; 
+      L     DBW    6; 
+      <I    ; 
+      JC    BA02; 
+      SET   ; 
+      R     #t_Check_Upstr_DB; 
+
+      JU    BA99; 
+
+BA02: T     #t_PLT_DB_Nr; 
+      SET   ; 
+      S     #t_Check_Upstr_DB; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Calculate pointer to data in last record PLT DB  
+// 
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   CA01; 
+      L     DBW    0; // Number of entries used in PLT DB
+CA01: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+NETWORK
+TITLE =DA: Calculate start- and end-position of search-window
+// 
+      L     #i_Position; 
+      L     DBW    2; 
+      -I    ; 
+      T     #t_Search_Start_Position; // Search_Start_Position = Position - Displacement
+
+      L     #i_Position; 
+      L     #i_Window; 
+      +I    ; 
+      T     #t_Search_End_Position; // Search_End_Position = Position + Window
+
+      L     #i_Position; 
+      L     #t_Conv_Length; 
+      -I    ; 
+      L     #i_Window; 
+      +I    ; 
+      JP    DA01; 
+
+      SET   ; 
+      R     #t_Check_Upstr_DB; // If Remaining window = 0, No Upstream search
+
+      L     0; 
+DA01: T     #t_Res_Window; // t_Res_Window = window -(conveyor_length - Position)
+
+NETWORK
+TITLE =EA: Search for data in search-window
+// 
+EA01: L     DBW [AR1,P#0.0]; 
+      L     0; 
+      <I    ; // IF position is negative
+      A(    ; 
+      L     #t_Search_Start_Position; // AND search start position = 0
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JC    EA02; // Entry in negative position found
+
+      L     #t_Search_Start_Position; // START OF SEARCH-LOOP
+      L     DBW [AR1,P#0.0]; // Actual entry position 
+      >I    ; // IF Search-Start-position < read position THEN jump to decrease pointer  
+      JC    EA03; // THEN jump to decrement pointer 
+
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      L     #t_Search_End_Position; 
+      <=I   ; // ELSE Actual-position >= Search-End-Position jump to make outputs  
+      JC    EA02; // THEN data found  
+
+      JU    EA99; // ELSE jump to no data found end of search-loop
+
+EA02: L     DBW [AR1,P#4.0]; // Pos - Info
+      L     #i_Info; 
+      ==I   ; // IF PTL-Info == Searched Info 
+      JCN   EA03; // THEN
+
+// IF item found increase the counter number of items founds
+      L     #o_Number_Items_Found; 
+      L     1; 
+      +I    ; 
+      T     #o_Number_Items_Found; 
+
+//Write position only on first found
+      A     #t_First_Position; 
+      JC    EA03; 
+
+      L     DBW [AR1,P#0.0]; // Store position 
+      T     #o_Position; 
+
+      L     DBW [AR1,P#4.0]; // Store info
+      T     #o_Info; 
+
+      L     DBW [AR1,P#6.0]; // Store data
+      T     #o_Link; 
+
+      L     DBNO; 
+      T     #o_DB_PLT_Num; // Stote PLT DB
+
+      SET   ; 
+      =     #t_First_Position; 
+
+EA03: TAR1  ; // Read Entry pointer of address-register
+      L     P#14.0; // 14 bytes, because the header of a PLT DB is 14 bytes long.
+      -D    ; // Entry pointer = Entry pointer - P#6.0
+      JMZ   EA99; // IF Entry pointer > 0
+
+      L     P#6.0; // THEN Entry pointer = -14 + 8 = -6
+      +D    ; 
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    EA01; // GOTO START OF SEARCH-LOOP
+EA99: NOP   0; 
+      JU    FA00; 
+//      BE    
+NETWORK
+TITLE =FA: Loop to upstream PLT DB
+
+FA00: AN    #t_Check_Upstr_DB; 
+      BEC   ; // OR no Upstream DB then END block
+
+// Set the search window
+      L     0; 
+      T     #t_Search_Start_Position; 
+
+      L     #t_Res_Window; 
+      T     #t_Search_End_Position; 
+
+// Determine the Upstream PLT DB with conveyor_length
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+      L     DBW   12; 
+      T     #t_Conv_Length; // Upstream Conveyor Length
+
+      L     #i_DB_PLT_Limit_Num; // IF the configured maximum search PLT DB is reached
+      L     #t_PLT_DB_Nr; 
+      ==I   ; 
+      R     #t_Check_Upstr_DB; 
+      JC    FA02; 
+
+      L     1; 
+      L     DBW    6; // Upstream DB_PLT
+      <I    ; 
+      JC    FA01; 
+      SET   ; 
+      R     #t_Check_Upstr_DB; 
+
+      JU    FA02; 
+
+FA01: T     #t_PLT_DB_Nr; 
+      SET   ; 
+      S     #t_Check_Upstr_DB; 
+
+FA02: NOP   0; 
+//Calculate pointer to data in last record PLT DB
+      L     DBW    0; 
+      L     1; 
+      >I    ; // Check if entry > 1
+      JCN   FA03; 
+      L     DBW    0; // Number of entries used in PLT DB
+FA03: L     8; // 8 bytes for each entry
+      *I    ; 
+      L     6; 
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+
+//Calculated remaining window for upstream search
+      L     #t_Res_Window; 
+      L     #t_Conv_Length; 
+      -I    ; 
+      JMZ   FA04; 
+      T     #t_Res_Window; 
+
+      JU    EA01; // Goto the check data loop
+
+FA04: SET   ; // IF remaining window = 0 no upstream DB check
+      R     #t_Check_Upstr_DB; 
+      L     0; 
+      T     #t_Res_Window; 
+
+      JU    EA01; // Goto the check data loop
+
+END_FUNCTION
+

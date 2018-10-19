@@ -1,0 +1,56 @@
+DATA_BLOCK "DB_Loop_StartUp_Seq"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Monday, February 08, 2016 4:31:54 PM %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#10582: Remove not used var in DB_Loop_StartUp_Seq  nlHdL    08-02-16   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//Initial revision                                      nlHHop   19-11-13   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Sequence_1 : "UDT_Loop_StartUp_Seq";	
+   Sequence_2 : "UDT_Loop_StartUp_Seq";	
+   Sequence_3 : "UDT_Loop_StartUp_Seq";	
+   Sequence_4 : "UDT_Loop_StartUp_Seq";	
+   Sequence_5 : "UDT_Loop_StartUp_Seq";	
+   Sequence_6 : "UDT_Loop_StartUp_Seq";	
+   Sequence_7 : "UDT_Loop_StartUp_Seq";	
+   Sequence_8 : "UDT_Loop_StartUp_Seq";	
+   Sequence_9 : "UDT_Loop_StartUp_Seq";	
+   Sequence_10 : "UDT_Loop_StartUp_Seq";	
+   Sequence_11 : "UDT_Loop_StartUp_Seq";	
+   Sequence_12 : "UDT_Loop_StartUp_Seq";	
+   Sequence_13 : "UDT_Loop_StartUp_Seq";	
+   Sequence_14 : "UDT_Loop_StartUp_Seq";	
+   Sequence_15 : "UDT_Loop_StartUp_Seq";	
+   Sequence_16 : "UDT_Loop_StartUp_Seq";	
+   Sequence_17 : "UDT_Loop_StartUp_Seq";	
+   Sequence_18 : "UDT_Loop_StartUp_Seq";	
+   Sequence_19 : "UDT_Loop_StartUp_Seq";	
+   Sequence_20 : "UDT_Loop_StartUp_Seq";	
+   Sequence_21 : "UDT_Loop_StartUp_Seq";	
+   Sequence_22 : "UDT_Loop_StartUp_Seq";	
+   Sequence_23 : "UDT_Loop_StartUp_Seq";	
+   Sequence_24 : "UDT_Loop_StartUp_Seq";	
+   Sequence_25 : "UDT_Loop_StartUp_Seq";	
+   Sequence_26 : "UDT_Loop_StartUp_Seq";	
+   Sequence_27 : "UDT_Loop_StartUp_Seq";	
+   Sequence_28 : "UDT_Loop_StartUp_Seq";	
+   Sequence_29 : "UDT_Loop_StartUp_Seq";	
+   Sequence_30 : "UDT_Loop_StartUp_Seq";	
+   Sequence_31 : "UDT_Loop_StartUp_Seq";	
+   Sequence_32 : "UDT_Loop_StartUp_Seq";	
+  END_STRUCT ;	
+BEGIN 
+END_DATA_BLOCK
+

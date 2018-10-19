@@ -1,0 +1,842 @@
+FUNCTION_BLOCK "FB_Diagnose_PN"
+TITLE =%version: 0.05 % CN: 30
+//Function:
+//The primary diagnostic of the ProfiNET Devices
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:00:37 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//PR19427: station diagnose keeps reporting PN error    nlbv     10-06-14   0.05
+//16544: Update profinet diagnose and add OB83 failure  nlHdL    12-03-14   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//PR14161 Update violation coding convention 9          nlple    25-06-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description:
+//The primary diagnostic of the ProfiNET Devices: "Device Not Present" and  
+//"Device Error" is done based on the Interrupts OB's (OB82 and OB86). 
+//The purpose of this block call is to cyclically recheck the  statuses of 
+//PN Devices for exception handling(For example to find out a device status 
+//change, which happened when the PLC was in Stop or Halted mode)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Refresh_Rate : INT ;	//[sec] Refresh rate of the cyclic PN diagnosis
+  i_PNIO_System_ID : INT ;	//ID of the PNIO System that shall be checked
+  i_CFG_Records_Per_Scan : INT ;	//Number of status records to handle per PLC scan
+  i_PN_Status_Bitmap : ANY ;	//ANY pointer to PN Status Bitmap in "DB_Diagnose_PN"
+  i_SFC51_DiagnosticBitmap : ANY ;	// ANY pointer to the Diagnostic Record in "DB_DIAG_PROFINET"
+END_VAR
+VAR
+  s_Diagnostic_Interval : INT ;	// Diagnostic Interval (delay time till next diagnostic process)
+  s_Timer_Diagnostic_Trig : INT ;	// Counter - Count Down the time to next diagnostic process check
+  s_Current_Station_Nr : INT ;	// Number of currently checked station
+  s_Num_Item_Per_Cycle : INT ;	// Number of station that shall be check per clock cycle
+  s_SFC51_INDEX : WORD ;	// SFC51 PROFINET IO System ID  
+  s_SFC51_INDEX_Detailed : WORD ;	// SFC51 Address to the Station that shall be checked
+  s_SFC51_BUSY : BOOL ;	// SFC51 Evaluation busy
+  s_SFC51_BUSY_Detailed : BOOL ;	// SFC51 Evaluation busy
+  s_Error_General_Status : BOOL ;	//Device has a error or NP in detailed state
+  s_Sequencer : STRUCT 	
+   OS_Start_Diagnostics : BOOL ;	
+   FN_Diag_Process_Active : BOOL ;	// The negative edge of the diagnostic process active signal
+   Diag_Process_Active : BOOL ;	// The diagnostic process is active
+   Step_1_Reset_Markers : BOOL ;	// Reset the "M_PN1xx_Diag_Interrupt" marker of "i_PNIO_System_ID "
+   Step_2_Get_Status_List : BOOL ;	// Retrive the general statuses of PN Devices (Call SFC51 with SZL_ID W#16#694)
+   Step_3_Check_Markers : BOOL ;	// CHeck "M_PN1xx_Diag_Interrupt" marker (When TRUE stop diagnose) 
+   Step_4_Evaluate_Statuses : BOOL ;	// Check if any of the PN Devices report "error"
+   Step_5_Get_Details_Inf : BOOL ;	// Check the detailed status of the device with an error (found in the Step 3)
+   Step_6_Evaluate_Det_Stat : BOOL ;	//	Ascertain the detailed status: error or not present
+   Spare_1_1 : BOOL ;	// Spare
+   Spare_1_2 : BOOL ;	// Spare
+   Spare_1_3 : BOOL ;	// Spare
+   Spare_1_4 : BOOL ;	// Spare
+   Spare_1_5 : BOOL ;	// Spare
+   Spare_1_6 : BOOL ;	// Spare
+   Spare_1_7 : BOOL ;	// Spare
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_ANY_Gen_Diagnostic_Rec : ANY ;	//Any Pointer to the Record that contains the GENERAL statuses for all PN Devices
+  t_ANY_Det_Diagnostic_DB : ANY ;	//Any Pointer to the Record that contains the DETAILED status of PN Device	
+  t_Diagnostic_RecordStart : DWORD ;	//Start address of the diagnostic record for current PNIO System in DIAG_PROFINET
+  t_Pointer_To_Start : DWORD ;	//Pointer to the PN statues bitmap in "DB_Diagnose_PN" for current PNIO System
+  t_P_Diag_PN_Er_Stat_Num : DWORD ;	//Pointer to the 'Error entry' in "DB_Diagnose_PN" for current station
+  t_P_Diag_PN_NP_Stat_Num : DWORD ;	//Pointer to the 'Not Present' entry in "DB_Diagnose_PN" for current station
+  t_P_DB_Diag_Station_Num : DWORD ;	//Pointer to the status entry in "DB_DIAG_PROFINET" for current station
+  t_Offset_To_Station_Byte : DWORD ;	//Help variable to create "t_P_DB_Diag_Station_Num"
+  t_Offset_To_Station_Bite : DWORD ;	//Help variable to create "t_P_DB_Diag_Station_Num"
+  t_AR2_Mask : DWORD ;	//'relative address'-mask  
+  t_Copy_AR2 : DWORD ;	//Copy of the Address register 2
+  t_Detailed_Error_Status : WORD ;	//Error Code that contains the detailed information about the PN device
+  t_Diagnostic_Record_Len : INT ;	//Length of the Diagnostic Record in "DB_DIAG_PROFINET" for single PNIO System
+  t_Status_Bitmap_Length : INT ;	//Length of the PN Status Bitmap in "DB_Diagnose_PN" for single PNIO System
+  t_DIAG_PROFINET_DB_Num : INT ;	//Number of the "DB_DIAG_PROFINET" data block
+  t_DB_Diagnose_PN_Num : INT ;	//Number of the "DB_Diagnose_PN" data block
+  t_PNIO_ID_TO_Check : INT ;	//Help variable for the verification of the PNIO System ID in a loop
+  t_RET_VAL : INT ;	//Error Code
+  t_Help_Loop : INT ;	//Help variable to count the loops iteration steps
+  t_Error_in_PN_Diag_DB : BOOL ;	//At least one device reports a 'error/not present' status in "DB_Diagnose_PN"
+  t_Station_Error : BOOL ;	//PN Device reports an error
+  t_Station_Not_Present : BOOL ;	//PN Device is not present
+  t_Station_Present_OK : BOOL ;	//PN Device was rediscovered on the Pn network
+  s_SSL_Header : STRUCT 	
+   LENTHDR : WORD ;	//Length of a data record of the SSL list or the SSL partial list
+   N_DR : WORD ;	//Number of Data Records
+  END_STRUCT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+
+NETWORK
+TITLE =BA: Initialize variables and Pointers
+
+      NOP   0; 
+
+/////////////////////////////////////////////////////////
+// -------- Initialize variables and Pointers -------- //
+/////////////////////////////////////////////////////////
+
+// -------- Initialize temp variables -------- //
+
+      CLR   ; 
+      =     #t_Error_in_PN_Diag_DB; 
+      =     #t_Station_Error; 
+      =     #t_Station_Not_Present; 
+      =     #t_Station_Present_OK; 
+
+// ------- Reset 'Sequencer' -------- //
+
+      A     #s_Sequencer.Diag_Process_Active; // When the diagnose process in finished then reset all  sequence step
+      FN    #s_Sequencer.FN_Diag_Process_Active; 
+      O     #s_Sequencer.OS_Start_Diagnostics; 
+      JCN   BA01; 
+
+      SET   ; 
+      R     #s_Sequencer.Step_1_Reset_Markers; 
+      R     #s_Sequencer.Step_2_Get_Status_List; 
+      R     #s_Sequencer.Step_3_Check_Markers; 
+      R     #s_Sequencer.Step_4_Evaluate_Statuses; 
+      R     #s_Sequencer.Step_5_Get_Details_Inf; 
+      R     #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+
+      L     0; // reset the counters     // AND reset contert
+      T     #t_P_DB_Diag_Station_Num; 
+      T     #s_Current_Station_Nr; 
+
+// -------- Set the amount of record that shall be checked per clock cycle -------- //
+
+// The amount of records from the Diagnostic DBs that shall be check per clock cycle shall
+// be specified via the input "i_Num_Check_Per_Cycle". In a case the number of cycles was
+// not specified 10 records per cycle will be assign as an default.
+
+BA01: L     #i_CFG_Records_Per_Scan; 
+      L     0; 
+      <>I   ; 
+      JC    BA02; 
+
+      L     #i_CFG_Records_Per_Scan; 
+      T     #s_Num_Item_Per_Cycle; 
+      JU    BA03; 
+
+BA02: L     10; 
+      T     #s_Num_Item_Per_Cycle; 
+
+// -------- Retrieve information over "DB_DIAG_PROFINET" -------- // 
+
+BA03: L     P##i_SFC51_DiagnosticBitmap; 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Retrieve the DB number of "DB_DIAG_PROFINET"
+      T     #t_DIAG_PROFINET_DB_Num; 
+      L     W [AR1,P#2.0]; // Retrieve the length of the diagnostic record for single PNIO System from the "DB_DIAG_PROFINET"
+      T     #t_Diagnostic_Record_Len; 
+      L     D [AR1,P#6.0]; // Retrieve the start address of current the diagnostic record
+      T     #t_Diagnostic_RecordStart; 
+
+// -------- Create ANY Pointer to the GENERAL Diagnostic Record in the "DB_DIAG_PROFINET" -------- //
+
+// The general diagnostic record in the "DB_DIAG_PROFINET" contains an information over
+// all PN Devices. This diagnostic record provide only the information, if the device has a
+// problem or not. To ascertain the information over the problem reason an detailed information  
+// record has to be retrieved for each 'problem' device separately. 
+
+      LAR1  P##t_ANY_Gen_Diagnostic_Rec; 
+
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; // Byte0=$10 (for S7)
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; // Byte1=data type
+      L     258; // Length of the General diagnostic record in the "DB_DIAG_PROFINET" (Fixed value) 
+      T     LW [AR1,P#2.0]; // Byte2..3=Repetition factor
+      L     #t_DIAG_PROFINET_DB_Num; // DB number of the "DB_DIAG_PROFINET"
+      T     LW [AR1,P#4.0]; // Byte4..5=DB number
+      L     #t_Diagnostic_RecordStart; // General diagnostic record start address for current PNIO System
+      L     DW#16#84000000; // Load operand area for the Inputs (84 - Global DB)
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+// -------- Create ANY Pointer to the Detailed Diagnostic Record in the "DB_DIAG_PROFINET" -------- //
+
+      LAR1  P##t_ANY_Det_Diagnostic_DB; 
+
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; // Byte0=$10 (for S7)
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; // Byte1=data type
+      L     16; // Length of the Detailed diagnostic record in the "DB_DIAG_PROFINET" (We only want status of the io station 8 words) 
+      T     LW [AR1,P#2.0]; // Byte2..3=Repetition factor
+      L     #t_DIAG_PROFINET_DB_Num; // DB number of the "DB_DIAG_PROFINET"
+      T     LW [AR1,P#4.0]; // Byte4..5=DB number
+      L     258; // Offset to the detailed diagnostic record within a Diagnostic Record in the "DB_DIAG_PROFINET"
+      SLD   3; 
+      L     #t_Diagnostic_RecordStart; // Pointer to the start address of Diagnostic Record in the "DB_DIAG_PROFINET"  
+      +D    ; 
+      L     DW#16#84000000; // Load operand area for the Inputs (84 - Global DB)
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+// -------- Retrieve intimation over "DB_Diagnose_PN" -------- // 
+
+      L     P##i_PN_Status_Bitmap; 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number of 
+      T     #t_DB_Diagnose_PN_Num; // Transfer to temp DB number  "DB_Diagnose_PN"
+      L     W [AR1,P#2.0]; // Length of PN Status bitmap in "DB_Diagnose_PN"
+      L     2; // Subtract 2 to compensate the length of Device_Diagnose_Interrup
+      -I    ; // We only want the length of not present and error
+      T     #t_Status_Bitmap_Length; // Length of the status record for single PNIO System in Bytes (Not Present and Error bitmap together)
+      L     D [AR1,P#6.0]; // Load Pointer to start of PN Status bitmap in "DB_Diagnose_PN"
+      T     #t_Pointer_To_Start; 
+
+// -------- Set Cycle interval time -------- //
+
+// There shall be a time delay (internal) between the following diagnostic process.
+// The cycl interval is specified by the input "i_Refresh_Rate". If no value was 
+// assigned them the check shall be perform after "30" seconds
+
+      L     #i_Refresh_Rate; 
+      T     #s_Diagnostic_Interval; 
+      L     0; 
+      <>I   ; 
+      JC    BA99; 
+
+      L     30; 
+      T     #s_Diagnostic_Interval; 
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Evaluate when new diagnostic process shall start
+
+      NOP   0; 
+
+//////////////////////////////////////////////////
+// -------- Start New Diagnostic Cycle -------- //
+//////////////////////////////////////////////////
+
+//*********************************************//
+// -------- Reset Cycle interval time -------- //
+//*********************************************//
+
+// If the "s_OS_Start_Diagnostics" signal is TRUE (set in a previous clock cycle)
+// then reset the delay counter and the "s_OS_Start_Diagnostics" signal
+
+      A     #s_Sequencer.OS_Start_Diagnostics; 
+      JCN   CA01; 
+
+      L     #s_Diagnostic_Interval; 
+      T     #s_Timer_Diagnostic_Trig; 
+
+//*****************************************************//
+// -------- Set "s_OS_Start_Diagnostics" flag -------- //
+//*****************************************************//
+
+CA01: CLR   ; 
+      =     #s_Sequencer.OS_Start_Diagnostics; 
+
+      A     #s_Sequencer.Step_2_Get_Status_List; // If the process was already started and SFC51 was called with SZL_ID:= W#16#694
+      JC    DA02; // Then wait until the general diagnostic record is retrieved
+
+      A     #s_Sequencer.Step_5_Get_Details_Inf; // If the process was already started and SFC51 was called with SZL_ID:= W#16#D91
+      JC    HA00; // Then wait until the detailed diagnostic record for the PN device that has reported a problem is retrieved
+
+      A     #s_Sequencer.Diag_Process_Active; // IF the diagnostic process is active
+      JC    DA00; // Then perform the diagnostic procedure // Then suppress the count down of the time till the next diagnostic process
+
+      A     "M_OS_/1.0_sec."; // If the diagnostic process in not active the count down the time to next diagnostic iteration 
+      AN    #s_Sequencer.Diag_Process_Active; 
+      JCN   CA99; 
+
+      L     #s_Timer_Diagnostic_Trig; 
+      L     1; 
+      -I    ; 
+      T     #s_Timer_Diagnostic_Trig; 
+
+      L     #s_Timer_Diagnostic_Trig; 
+      L     0; 
+      <=I   ; // When the time to next diagnostic process elapsed
+      S     #s_Sequencer.OS_Start_Diagnostics; // THEN SET the one shot fag to reset the delay timer
+      S     #s_Sequencer.Diag_Process_Active; // AND SET the flag diagnostic process started/active
+      S     #s_Sequencer.Step_1_Reset_Markers; // AND SET the flag to reset the interrupt marker "M_PN1xx_Diag_Interrupt" for the PNIO system specified via the input "i_PNIO_System_ID"
+      R     #s_Sequencer.Step_2_Get_Status_List; 
+      R     #s_Sequencer.Step_3_Check_Markers; 
+      R     #s_Sequencer.Step_4_Evaluate_Statuses; 
+      R     #s_Sequencer.Step_5_Get_Details_Inf; 
+      R     #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+      JC    DA00; 
+
+CA99: NOP   0; 
+
+      AN    #s_Sequencer.Diag_Process_Active; // IF the previous diagnostic process was finished and the new one did not start jet
+      BEC   ; // THEN end this block call
+
+NETWORK
+TITLE =DA: Reset markers and check the PN Devices statuses
+//Based on the SFC51 the list of all the PN devices statuses
+//is retrieved. The evaluation of statuses normally takes 
+//more then one clock cycle. 
+//
+//To avoid a situation when, we are evaluating a data that 
+//are not up to date, the global markers are introduced. 
+//The markers "M_PN1xx_Diag_Interrupt" are set "TRUE" within a 
+//OB82 and OB86 to indicate that the new interrupt was called.
+//The marker related with the PNIO System that is evaluated 
+//in this block shall be reset on the beginning of each 
+//PN diagnostic process. Later on when the status of the 
+//marker is set "true" during the diagnostic process,
+//the process shall be stooped.
+      NOP   0; 
+
+/////////////////////////////////////////////////////////
+// -------- Reset Global PN Interrupt Markers -------- //
+/////////////////////////////////////////////////////////
+
+DA00: A     #s_Sequencer.Step_1_Reset_Markers; // When the new diagnostic process starts
+      JCN   DA02; 
+
+      L     P##i_PN_Status_Bitmap; 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+      OPN   DB [#t_DB_Diagnose_PN_Num]; // OPEN  "DB_Diagnose_PN"
+
+      L     100; 
+      T     #t_PNIO_ID_TO_Check; // ID of the PNIO System that that shall be check in current loop iteration 
+
+      L     15; // The maximum number of the PNIO system in the S7-400 Project
+      +     1; // The loop function ends counts to value 1
+DA01: T     #t_Help_Loop; 
+
+      A(    ; 
+      L     #i_PNIO_System_ID; // IF the PNIO System specified on an input
+      L     #t_PNIO_ID_TO_Check; // IS equal to the System ID check in current iteration
+      ==I   ; 
+      )     ; 
+      R     DBX [AR1,P#64.0]; // THEN Reset Diagnose interrupt bit
+      JC    DA02; // AND END this loop
+
+      L     #t_PNIO_ID_TO_Check; // Increase the PNIO System ID for next iteration process
+      +     1; 
+      T     #t_PNIO_ID_TO_Check; 
+
+      L     #t_Help_Loop; 
+      LOOP  DA01; 
+
+      JU    DA99; 
+
+DA02: CLR   ; 
+      =     #s_Sequencer.Step_1_Reset_Markers; 
+      SET   ; 
+      =     #s_Sequencer.Step_2_Get_Status_List; 
+
+      A     #s_Sequencer.Step_2_Get_Status_List; 
+      JCN   DA99; 
+
+/////////////////////////////////////////////////////////////
+// -------- Retrieve the PN Devices statuses List -------- //
+/////////////////////////////////////////////////////////////
+
+// To retrieve the list of ProfiNET Devices, that contains an information 
+// about the devices Operational statuses, the SFC51 has to be called
+// with the SZL_ID "W#16#0x94"
+
+// The partial list with SZL-ID W#16#0x94 contains information about the
+// expected and actual configuration of module racks in central configurations
+// and stations of PROFINET IO controller system
+
+      L     #i_PNIO_System_ID; 
+      T     #s_SFC51_INDEX; 
+
+      CALL "RDSYSST" (// The request call SFC51 is executed in one clock cycle
+           REQ                      := #s_Sequencer.Step_2_Get_Status_List,
+           SZL_ID                   := W#16#694,// Retrieve Diagnostic status of the expansion units in the central rack / stations of an IO controller system
+           INDEX                    := #s_SFC51_INDEX,// Distributed module on PROFINET IO System 
+           RET_VAL                  := #t_RET_VAL,
+           BUSY                     := #s_SFC51_BUSY,
+           SZL_HEADER               := #s_SSL_Header,
+           DR                       := #t_ANY_Gen_Diagnostic_Rec);
+
+      A     #s_SFC51_BUSY; // If the execution of the SFC51 is not finished 
+      BEC   ; // THEN END this block call
+
+      AN    #s_SFC51_BUSY; 
+      R     #s_Sequencer.Step_2_Get_Status_List; 
+
+      L     #t_RET_VAL; 
+      L     W#16#F000; //Check if the status list was retrieved without errors. For as it is not important what type of error was discovered. The mask is used to ears the 3 lowest bytes of the error code
+      AW    ; // If the remaining byte is equal to "W#16#8" 
+      L     W#16#8000; 
+      <>I   ; 
+      AN    #s_SFC51_BUSY; // AND the SFC51 report the he has finished the procedure 
+      JCN   DA03; 
+      S     #s_Sequencer.Step_3_Check_Markers; 
+      S     #s_Sequencer.Step_4_Evaluate_Statuses; 
+      JU    DA99; 
+
+DA03: CLR   ; 
+      =     #s_Sequencer.Diag_Process_Active; 
+
+// AND restart the procedure within 1 second.
+      L     1; // By setting the s_Timer_Diagnostic_Trig to ‘1’. Within a second the diagnostic process will be restarted
+      T     #s_Timer_Diagnostic_Trig; 
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Check if interrupt was called during check
+//The output data from the SFC51 that was called in network "DA" are evaluated
+//in a multiple clock cycles. To avoid a situation that we will evaluate data, 
+//already already are not up to date, the global markers "M_PN1xx_Diag_Interrupt" 
+//are introduced. The marker for the corresponding PNIO System ID is set TRUE as 
+//soon as the interrupt is discovered and one of the interrupt OB (OB82 and OB86) 
+//is called. In a case the "M_PN1xx_Diag_Interrupt" that correspond with the 
+//"i_PNIO_System_ID" is "TRUE" the evaluation of the data in "DB_DIAG_PROFINET"  
+//shall be terminated.
+      A     #s_Sequencer.Step_3_Check_Markers; 
+      JC    EA01; 
+      CLR   ; 
+      =     #s_Sequencer.Diag_Process_Active; 
+      BEU   ; 
+
+////////////////////////////////////////////////////////////////////
+// --------   Check if new interrupt was called during   -------- //
+// -------- evaluation of the data in "DB_DIAG_PROFINET" -------- //
+////////////////////////////////////////////////////////////////////
+EA01: L     P##i_PN_Status_Bitmap; 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+      OPN   DB [#t_DB_Diagnose_PN_Num]; // OPEN  "DB_Diagnose_PN"
+
+      L     100; 
+      T     #t_PNIO_ID_TO_Check; 
+
+      L     15; // The maximum number of the PNIO system in the S7-400 Project
+      +     1; 
+EA02: T     #t_Help_Loop; 
+
+      A     DBX [AR1,P#64.0]; // THEN Reset Diagnose interrupt bit
+      A(    ; 
+      L     #i_PNIO_System_ID; // For the PNIO System specified on an input
+      L     #t_PNIO_ID_TO_Check; 
+      ==I   ; 
+      )     ; 
+      R     #s_Sequencer.Diag_Process_Active; // THEN stop evaluation of the data from "DB_DIAG_PROFINET"
+      JC    EA99; 
+
+      L     #t_PNIO_ID_TO_Check; 
+      +     1; 
+      T     #t_PNIO_ID_TO_Check; 
+
+      L     #t_Help_Loop; 
+      LOOP  EA02; 
+
+EA99: AN    #s_Sequencer.Diag_Process_Active; 
+      BEC   ; 
+
+NETWORK
+TITLE =FA: Evaluation of the diagnostic data - Part 1
+
+      NOP   0; 
+
+/////////////////////////////////////////////////////////////////
+// -------- Evaluation of the statuses of PN devices  -------- //
+/////////////////////////////////////////////////////////////////
+
+//*****************************************************************************//
+// --------  Part 1: Check if the evaluation is required, and if so,  -------- //
+// --------     create initial pointer and reset related counters     -------- //
+//*****************************************************************************//
+
+//------------------------------------------------------------------------------//
+// -------- Check if any type of Error is reported in "DB_Diagnose_PN" -------- // 
+//------------------------------------------------------------------------------//
+
+      TAR2  #t_Copy_AR2; // Store Register Two
+
+      OPN   DB [#t_DB_Diagnose_PN_Num]; // OPEN  "DB_Diagnose_PN"
+
+      L     #t_Pointer_To_Start; // Load a pointer to the status record in "DB_Diagnose_PN"
+      LAR2  ; 
+
+      L     #t_Status_Bitmap_Length; // Length of the single status record (in bytes) in "DB_Diagnose_PN" per PNIO System
+      L     4; 
+      /I    ; 
+FA01: T     #t_Help_Loop; // Length of the status record for single PNIO System in DWORD in "DB_Diagnose_PN"
+
+      L     DBD [AR2,P#0.0]; // IF any Error Or NOT Present status was found in the "DB_Diagnose_PN" 
+      L     0; 
+      <>D   ; 
+      =     #t_Error_in_PN_Diag_DB; // THEN set a flag "t_Error_in_PN_Diag_DB"
+      JC    FA02; // AND END the loop
+
+      +AR2  P#4.0; 
+      L     #t_Help_Loop; 
+      LOOP  FA01; 
+
+FA02: LAR2  #t_Copy_AR2; // Restore register two 
+
+//--------------------------------------------------------------------//
+// -------- Check if Error is reported in "DB_DIAG_PROFINET" -------- // 
+//--------------------------------------------------------------------//
+
+// The evaluation of the diagnostic DB shall be performed only in a case 
+// the flag "s_Diag_Process_Active" is high and the bit "2.0" in the "DB_DIAG_PROFINET" 
+// is "TRUE". The bit "2.0" in the "DB_DIAG_PROFINET" means that at least one 
+// PN Device is not operational (has an Error or is Nor Present)
+
+      OPN   DB [#t_DIAG_PROFINET_DB_Num]; 
+      L     #t_Diagnostic_RecordStart; // Load pointer to the general diagnostic record in "DB_DIAG_PROFINET"
+      LAR1  ; 
+
+      AN    DBX [AR1,P#2.0]; // IF no errors found or the "#s_Diag_Process_Active" flag is low
+      AN    #t_Error_in_PN_Diag_DB; // AND no Errors in "DB_Diagnose_PN"
+      R     #s_Sequencer.Diag_Process_Active; // Then finish the diagnostic process
+      BEC   ; //AND END this block call
+
+NETWORK
+TITLE =GA: Evaluation of the diagnostic data - Part 2
+
+      AN    #s_Sequencer.Step_4_Evaluate_Statuses; 
+      BEC   ; 
+
+//*****************************************************//
+// --------    Part 2: Check the specified    -------- //
+// -------- per clock cycle amount of records -------- //
+//*****************************************************//
+
+// The amount of records from the Diagnostic DBs that shall be checked per clock cycle shall
+// be specified via the input "i_Num_Check_Per_Cycle". In a case the number off cycle is
+// not specified, 10 records per cycle will be assigned as default.
+
+// To save a clock cycle time, the loop is executed until the first station with
+// an error status is found. The next station will be checked in the next clock cycle
+
+// The aforementioned design is motivated by the fact, that from the general diagnostic
+// record in "DB_DIAG_PROFINET" only information over the operational status of an 
+// PN device can be retrieved. To get a detailed status of the device an additional 
+// SFC has to be called
+
+      L     #s_Num_Item_Per_Cycle; // Number of PN station that shall be check per clock cycle
+GA01: T     #t_Help_Loop; 
+
+// There is 256 Devices allowed on the single PNIO System
+// In a case the "s_Current_Station_Nr" is larger than 256
+// the diagnostic process is finished.
+
+      L     #s_Current_Station_Nr; // IF the number of the station to be evaluated 
+      L     256; // is larger the 256 // (the device with the ID "256" was check in a previous clock cycle)
+      >=I   ; 
+      R     #s_Sequencer.Diag_Process_Active; // THEN the check process is finished
+      JC    GA99; 
+
+      L     #s_Current_Station_Nr; // increase the station number 
+      +     1; 
+      T     #s_Current_Station_Nr; 
+
+// --------    Create a pointer to the bit corresponding   -------- //
+// -------- with the current station in "DB_DIAG_PROFINET" -------- //
+
+      L     #s_Current_Station_Nr; 
+      L     8; 
+      /D    ; 
+      L     2; 
+      +D    ; 
+      T     #t_Offset_To_Station_Byte; // Offset in bytes to the bit with the operational status of current station
+
+      L     #s_Current_Station_Nr; 
+      L     8; 
+      MOD   ; 
+      T     #t_Offset_To_Station_Bite; 
+
+      L     #t_Offset_To_Station_Byte; 
+      SLD   3; 
+      L     #t_Offset_To_Station_Bite; 
+      OD    ; 
+      T     #t_P_DB_Diag_Station_Num; // a remaining bit offset to the status record
+
+      L     #t_Diagnostic_RecordStart; 
+      L     #t_P_DB_Diag_Station_Num; 
+      +D    ; 
+      T     #t_P_DB_Diag_Station_Num; // Pointer to the bit that contains the operational status of current station in "DB_DIAG_PROFINET"
+
+// --------      Create a pointer to the "not present" status bit      -------- //
+// -------- corresponding with the current station in "DB_Diagnose_PN" -------- //
+
+      L     #t_Pointer_To_Start; // Load Pointer to start of PN Not Present bitmap in DB
+      L     #s_Current_Station_Nr; // And add Offset in PN Not Present bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      T     #t_P_Diag_PN_NP_Stat_Num; 
+
+// -------- Create a pointer to the "error" status bit corresponding  -------- //
+// --------        with the current station in "DB_Diagnose_PN"       -------- //
+
+// The status 'Not Present' and 'Error' bitmaps in the "DB_Diagnose_PN", have equal length
+
+      L     #t_Status_Bitmap_Length; 
+      L     2; 
+      /I    ; 
+      SLD   3; 
+      L     #t_P_Diag_PN_NP_Stat_Num; 
+      +D    ; 
+      T     #t_P_Diag_PN_Er_Stat_Num; 
+
+// ------- Check if the currently evaluated station is operational -------- //
+      SET   ; 
+      R     #s_Error_General_Status; // Reset bit that station had an error
+
+      OPN   DB [#t_DIAG_PROFINET_DB_Num]; 
+      A     DBX [#t_P_DB_Diag_Station_Num]; // IF the currently checked station has a not operational status in the "DB_DIAG_PROFINET"
+      S     #s_Sequencer.Step_5_Get_Details_Inf; // THEN SET the flag, that the detailed status off the station shall be checked
+      S     #s_Error_General_Status; // Remember that stations had a error in detailed state
+      JC    GA99; // AND end this loop
+
+      OPN   DB [#t_DB_Diagnose_PN_Num]; 
+      O     DBX [#t_P_Diag_PN_NP_Stat_Num]; // IF the currently checked station has a not operational status in the "DB_Diagnose_PN"
+      O     DBX [#t_P_Diag_PN_Er_Stat_Num]; // OR it has an error status in the "DB_Diagnose_PN"
+      S     #s_Sequencer.Step_5_Get_Details_Inf; // THEN SET the flag, that the detailed status off the station shall be checked
+      JC    GA99; // AND end this loop
+
+      L     #t_Help_Loop; 
+      LOOP  GA01; 
+
+      BEU   ; // If no errors are found in checked entries for all iteration steps specified per clock cycle then end this block  
+GA99: NOP   0; 
+
+NETWORK
+TITLE =HA: Evaluation of the diagnostic data - Part 3
+
+HA00: A     #s_Sequencer.Step_5_Get_Details_Inf; // IF the detailed status of the station shall be checked
+      JCN   HA99; 
+
+//************************************************************//
+// -------- Part 3: Check the station detailed status ------- //
+//************************************************************//
+
+//---------------------------------------------------------------------//
+// -------- Create the INDEX for SFC51 with SZL_ID "W#16#D91" -------- // 
+//---------------------------------------------------------------------//
+
+// In a case the SZL_ID is equal to "W#16#D91". The INDEX has the following structure for the ProfiNET Devices 
+
+// INDEX W#16#xxyy:
+//-----------------
+//    bits [0..10]  : station number, 
+//    bits [11..14] : the last two places in the PNIO system ID
+//    bit 15        : 1
+
+      L     #i_PNIO_System_ID; 
+      L     100; 
+      MOD   ; // Take the last 2 digits of the PNIO system ID   
+      SLW   11; // SET the PNIO System ID in bits [11..14]
+      L     W#16#8000; // SET Bit 15 to TRUE
+      OW    ; 
+      L     #s_Current_Station_Nr; // SET the current station number in the lower byte on the INDEX
+      OW    ; 
+      T     #s_SFC51_INDEX_Detailed; 
+
+//-----------------------------------------------------//
+// -------- Call SFC51 with SZL_ID "W#16#D91" -------- // 
+//-----------------------------------------------------//
+
+      CALL "RDSYSST" (
+           REQ                      := #s_Sequencer.Step_5_Get_Details_Inf,
+           SZL_ID                   := W#16#D91,//W#16#D91  Module status information of all module in the specified rack / specified station (DP or PROFINET)
+           INDEX                    := #s_SFC51_INDEX_Detailed,
+           RET_VAL                  := #t_RET_VAL,
+           BUSY                     := #s_SFC51_BUSY_Detailed,
+           SZL_HEADER               := #s_SSL_Header,
+           DR                       := #t_ANY_Det_Diagnostic_DB);
+
+      A     #s_SFC51_BUSY_Detailed; 
+      BEC   ; 
+
+      AN    #s_SFC51_BUSY_Detailed; 
+      R     #s_Sequencer.Step_5_Get_Details_Inf; 
+
+      L     #t_RET_VAL; 
+      L     W#16#F000; // Because for as it is not important what type of error was discover. The mask is used to ears the 3 lowest bytes of the error code
+      AW    ; // If the remaining byte is equal to "W#16#8" that's means
+      L     W#16#8000; 
+      <>I   ; 
+      AN    #s_SFC51_BUSY_Detailed; 
+      JCN   HA01; 
+      S     #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+
+      JU    HA99; 
+
+HA01: CLR   ; 
+      =     #s_Sequencer.Diag_Process_Active; 
+
+      L     1; // By setting the s_Timer_Diagnostic_Trig to ‘1’. Within a second the diagnostic process will be restarted
+      T     #s_Timer_Diagnostic_Trig; 
+
+HA99: NOP   0; 
+
+NETWORK
+TITLE =IA: Evaluation of the diagnostic data - Part 4
+
+      AN    #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+      BEC   ; 
+
+//***************************************************************//
+// -------- Part 4: Check the Detailed Status of Station ------- //
+//***************************************************************//
+
+// The detailed status of the device retrieved by the SFC51 with
+// SZL_ID W#16#D91, are stored in the "DB_DIAG_PROFINET"
+
+// Within the "DB_DIAG_PROFINET", in a case, when the single device
+// is specified via the INDEX input of the SFC, only the first 
+// data record is used. Within the "DB_DIAG_PROFINET" detailed status  
+// data record, Word 12 of that record (eastat) contains detailed 
+// information about the specified device.
+
+      L     258; // Offset to the detailed status information record in the "DB_DIAG_PROFINET" in bytes
+      SLD   3; 
+      L     #t_Diagnostic_RecordStart; // Pointer to the status information record in the "DB_DIAG_PROFINET" for current PNIO System
+      +D    ; 
+      LAR1  ; 
+
+      OPN   DB [#t_DIAG_PROFINET_DB_Num]; 
+      L     DBW [AR1,P#12.0]; // Retrieve the status word from the "DB_DIAG_PROFINET" 
+      T     #t_Detailed_Error_Status; 
+
+// Structure of the "eastat" Word
+// ------------------------------
+// Bit 0 = 1   :  module error (detected by diagnostic interrupt)
+// Bit 1 = 1   :  module exists
+// Bit 2 = 1   :  module not available
+// Bit 3 = 1   :  module disabled
+// Bit 4 = 1   :  station error (only representative slot)
+// Bit 5 = 1   :  S7: A CIR event at this module /station is busy or not yet completed
+// Bit 6 = 1   :  reserved for S7-400
+// Bit 7 = 1   :  module in local bus segment
+// Bit [8..15] :  data ID for logical address     (input: B#16#B4, output: B#16#B5,       external DP interface: B#16#FF)
+
+      L     P##t_Detailed_Error_Status; 
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+
+
+// -------- Check if module is available -------- //
+      A     L [AR1,P#1.1]; 
+      =     #t_Station_Present_OK; 
+
+      AN    L [AR1,P#1.1]; 
+      A     L [AR1,P#1.2]; 
+      =     #t_Station_Not_Present; 
+
+
+
+// -------- Check if module has an error -------- //
+      O     L [AR1,P#1.0]; // IF module error (detected by diagnostic interrupt)
+      O     L [AR1,P#1.3]; // OR module disabled
+      O     L [AR1,P#1.4]; // OR station error (only representative slot)
+      A     L [AR1,P#1.1]; // AND Module Exists 
+      O(    ; 
+      A     #s_Error_General_Status; // Station has an error in detailed status
+      A     #t_Station_Present_OK; // And main module is present then error on other slot
+      )     ; 
+      =     #t_Station_Error; 
+
+
+      NOP   0; 
+
+NETWORK
+TITLE =JA: Report Station Status in the "DB_Diagnose_PN"
+
+      A     #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+      JCN   JA99; 
+
+/////////////////////////////////////////////////////////////////////
+// -------- Report Station Status in the "DB_Diagnose_PN" -------- // 
+/////////////////////////////////////////////////////////////////////
+
+//*****************************************//
+// -------- PN Device Not Present -------- //
+//*****************************************//
+
+      L     #t_Pointer_To_Start; // Load Pointer to start of PN Not Present bitmap in DB
+      L     #s_Current_Station_Nr; // And add Offset in PN Not Present bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_Diagnose_PN_Num]; // Open DB of PN Not Present bitmap (temp DB number)
+      O     #t_Station_Present_OK; // IF PN device present
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Not Present bitmap on slave station position (AR1)
+
+      A     #t_Station_Not_Present; // IF PN device not present..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Not Present bitmap on slave station position (AR1)
+
+//******************************************//
+// -------- PN Device has an Error -------- //
+//******************************************//
+
+      +AR1  P#32.0; 
+
+      OPN   DB [#t_DB_Diagnose_PN_Num]; // Open DB of PN Not Present bitmap (temp DB number)
+      AN    #t_Station_Error; // AND  error free
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on station position (AR1)
+
+      A     #t_Station_Error; // IF PN device has an error..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on station position (AR1)
+
+      SET   ; 
+      R     #s_Sequencer.Step_6_Evaluate_Det_Stat; 
+
+JA99: NOP   0; 
+END_FUNCTION_BLOCK
+

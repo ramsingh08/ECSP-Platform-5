@@ -1,0 +1,23 @@
+TYPE "UDT_VDZ_Sett"
+TITLE =%version: 0.01 % CN: 12
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, May 30, 2017 10:23:57 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#53655: Initial version                              inajos  30-05-17   0.01
+
+FAMILY : RAW
+
+
+  STRUCT 	
+   Carrier_SOS : "UDT_TRS_Trk2dir_Sett";	
+   Carrier_EOS : "UDT_TRS_Trk2dir_Sett";	
+   Flow_Ratio_Inf : INT  := 1;	//Amount of bags before switch for upper infeed [0 = Priority low infeed]
+   Flow_Ratio_Inf2 : INT  := 1;	//Amount of bags before switch for lower infeed [0 = Priority high infeed]
+   Ratio_TimeOut_Time : INT  := 4000;	//[ms] Time-out time for ratio handling
+  END_STRUCT ;	
+END_TYPE
+

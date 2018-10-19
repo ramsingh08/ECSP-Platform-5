@@ -1,0 +1,1405 @@
+FUNCTION_BLOCK "FB_HBS_Screen_Maint"
+TITLE =%version: 0.07 % CN: 45 
+//Function:
+//This function handles screening bagdata for bags which still have a screening 
+//result pending.
+//
+//History:                                                                        
+//This version   %created_by: nlhdl %
+//              %date_created: Wednesday, May 23, 2018 10:28:00 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#6810: Log_Text 3007 changed too 3807 [Debug]  nlHdL    23-05-18   0.07
+//bhs_plf#6810: Log_Text 3007 changed too 3807 (Debug)  nlHdL    23-05-18   0.07
+//ra#24941: Update to coding standards                   nldy    31-10-17  0.06
+//ra#24941: Screening pending updates                    nldy    25-10-17  0.05
+//ra#21133: Remove unused BOOL                           nldy    19-09-17  0.04
+//ra#21133: Screening pending Update                     nldy    18-09-17  0.03
+//ra#22220: Match UDT_HBS_Record structure changes       nldy    22-05-17  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT         inajos  28-11-16  0.01
+//
+//Description:
+//When a bag enters a screening machine while it's required screening level is 
+//not yet reached the screening machine will screen the bag. As of this point 
+//in time, the bag has 'screening pending' which means that the (final) screening 
+//result is expected but not received yet.
+//
+//This function will update the LIC record when screening machine events occur. 
+//If the LIC is no longer available due to a bag which is handed over to a 
+//downstream area, this function will send an update message to the downstream 
+//area. This function will also monitor all existing HBS records to check for a 
+//machine decision timeout.
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record AAAA - ZZSS  (BCD).
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+  i_DB_Event_HBO : BLOCK_DB ;	//Data Block: for writing events
+  i_Cfg_Pending_Time : INT ;	//CFG: [sec] Time for item waits for first pending decision
+  i_Cfg_Buffer_Time_Pro_1 : INT ;	//CFG: [sec] Time for item waits for final decision
+  i_Cfg_Buffer_Time_Pro_2 : INT ;	//CFG: [sec] Time for item waits for final decision
+  i_Cfg_Buffer_Time_Pro_3 : INT ;	//CFG: [sec] Time for item waits for final decision
+  i_Cfg_Buffer_Time_Pro_4 : INT ;	//CFG: [sec] Time for item waits for final decision
+  i_Cfg_Buffer_Time_Pro_5 : INT ;	//CFG: [sec] Time for item waits for final decision
+END_VAR
+VAR
+  s_FB_DAT : "FB_DAT";	//Data Layer
+  s_FB_Pending_Maint : "FB_Pending_Maint";	
+  s_LIC_Record : "UDT_LIC_Record";	
+  s_HBS_Record : STRUCT 	
+   LNK : INT ;	
+   HBS_General : "UDT_HBS_General";	
+   HBS_Process : "UDT_HBS_Process";	
+  END_STRUCT ;	
+  s_Force_Reject : STRUCT 	//Pseudo ID for reject image
+   Pseudo : DINT ;	
+  END_STRUCT ;	
+  s_Date_And_Time : DATE_AND_TIME ;	//Current Date and Time
+  s_Pseudo_ID : DINT ;	//Pseudo ID of item
+  s_ID_Screening : DWORD ;	//Reporting ID for Data Layer
+  s_PID : DINT ;	//PID Number in LIC List
+  s_Message_Value : INT ;	//Message Value
+  s_HBS_No : INT ;	//HBS Number
+  s_LIC_No : INT ;	//LIC Number
+  s_Event_ID : INT ;	//Event ID
+  s_Number_Of_Processes : INT ;	//Number of HBS_processes defined within 1 HBS record
+  s_HBS_Rec_To_Check : INT ;	//HBS record currently being evaluated for timeout
+  s_BagState : INT ;	//Bag Status
+  s_Send_HL_Message : BOOL ;	//Send an update message to HL
+END_VAR
+VAR_TEMP
+  t_ANY_SRC_Default : ANY ;	//Any pointer
+  t_Base_Address : DWORD ;	//Relative address of instance-DB  
+  t_RET_VAL_Word : WORD ;	//Return value function call (Word)
+  t_LifeTime_Record : TIME ;	//Life time record
+  t_DB_HBS_Res_No : INT ;	//DB number of DB_HBS_Results
+  t_HL_Message : INT ;	//Message to HL
+  t_HL_Reporting_Level : INT ;	//Level on which the current no-decision will be reported
+  t_RET_VAL_INT : INT ;	//Return value function call (INT)
+  t_DB_Event_Pend_Num : INT ;	//Event DB Number Pending
+  t_Entries_Used : INT ;	//Entries Used
+  t_Next_Message_to_Read : INT ;	//Message to Read
+  t_Adres_Next_Message : INT ;	//Next message address
+  t_DB_Event_Num_HBO : INT ;	//Event DB Number used for messages sent with HBO ID
+  t_DB_Event_Num : INT ;	//Event DB Number 
+  t_Send_FIFO_Pend_Ups : INT ;	//Send FIFO Pending Updates
+  t_Next_Entry_to_Clear : INT ;	//Next entry to Clear
+  t_HBS_General_Length : INT ;	//Length of the general part of the HBS record (bytes)
+  t_HBS_Process_Length : INT ;	//Length of the process part of the HBS record (bytes)
+  t_LIC_Scrn_Res_Length : INT ;	//Length of the 'screening result UDT' in the LIC record
+  t_HBS_Record_Offset : INT ;	//Offset used within HBS record
+  t_LIC_Record_Offset : INT ;	//Offset used within LIC record
+  t_Loop_Value : INT ;	//Loop counter
+  t_DB_HBS_Number : INT ;	//DB number of list
+  t_HBS_Rec_Check : INT ;	//HBS record number to verify record compliancy
+  t_DB_HBS_Res_Length : INT ;	//Length of DB_HBS_Results
+  t_Offset_HBS_Res_Lenght : INT ;	//Write offset in DB_HBS_Results
+  t_Max_Process_Lifetime : INT ;	//Maximum liftetime for the current process
+  t_Filtered_Process : INT ;	//Process number filtered from event id
+  t_Max_Pending_Time : INT ;	//Maximum time [s] an item can be pending
+  t_Result_Pend_Process_x : BOOL ;	//Result is pending for process x (1-5)
+  t_Item_Pending : BOOL ;	//At least 1 of the processes is still pending
+  t_Pending_Time_Exceeded : BOOL ;	//Pending time is exceeded for current item on current process
+  t_Buffer_Time_Exceeded : BOOL ;	//Buffer time is exceeded for current item on current process
+  t_No_Records_Pending : BOOL ;	//Non of the processes is pending
+  t_Process_Active : BOOL ;	//Current process holds screening pending information
+  t_Process_x_Needs_Resend : BOOL ;	//Initial sending failed. Retry required.
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+NETWORK
+TITLE =BA: Init values
+
+      L     28; 
+      T     #t_HBS_General_Length; 
+
+      L     30; 
+      T     #t_HBS_Process_Length; 
+
+      L     6; 
+      T     #t_LIC_Scrn_Res_Length; 
+
+      OPN   "DB_HBS_Results"; 
+      L     DBLG; 
+      T     #t_DB_HBS_Res_Length; 
+      L     DBNO; 
+      T     #t_DB_HBS_Res_No; 
+
+      A     "M_First_Scan"; 
+      JCN   BA01; 
+
+      L     0; 
+      T     #s_Number_Of_Processes; 
+      T     "DB_HBS_List".Number_Of_Processes; 
+      T     "DB_HBS_List".HBS_Process_Length; 
+
+      SET   ; 
+      R     "DB_HBS_List".s_Pending_Items_Allowed; 
+
+BA01: AN    "DB_HBS_List".s_Done; 
+      BEC   ; 
+
+      L     "DB_HBS_List".Number_Of_Processes; 
+      L     0; 
+      <=I   ; 
+      JCN   BA99; 
+
+      OPN   "DB_HBS_List"; 
+      L     DBLG; 
+      L     "DB_HBS_List".Length_Header; 
+      -D    ; 
+      L     "DB_HBS_List".Entries_Present; 
+      /D    ; 
+      L     #t_HBS_General_Length; 
+      -D    ; 
+      L     #t_HBS_Process_Length; 
+      /D    ; 
+      T     #s_Number_Of_Processes; 
+
+      A(    ; 
+      L     #s_Number_Of_Processes; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Number_Of_Processes; 
+      L     5; 
+      <=I   ; 
+      )     ; 
+      NOT   ; 
+      BEC   ; // Number of processes not OK. Stop block execution  
+
+      SET   ; 
+      S     "DB_HBS_List".s_Pending_Items_Allowed; 
+
+      L     #s_Number_Of_Processes; 
+      T     "DB_HBS_List".Number_Of_Processes; 
+
+      L     #t_HBS_Process_Length; 
+      T     "DB_HBS_List".HBS_Process_Length; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Read local Event DB Number
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   #i_DB_Event_HBO; 
+      L     DBNO; 
+      T     #t_DB_Event_Num_HBO; 
+
+      OPN   "DB_Event_Pending"; 
+      L     DBNO; 
+      T     #t_DB_Event_Pend_Num; 
+
+      L     DBW    0; // Load number of entries used in Local DB
+      T     #t_Entries_Used; // Transfer to temporary
+NETWORK
+TITLE =DA: Process screening pending events
+
+      L     1; // Start with the first record
+      T     #t_Next_Message_to_Read; 
+
+      L     #t_Entries_Used; // Check if there are messages to send
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+DA01: L     #t_Next_Message_to_Read; // Load next record number
+      L     1; // Take begin of record
+      -I    ; 
+      L     6; // Multiply by record length
+      *I    ; 
+      L     4; // Add header length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #t_Adres_Next_Message; 
+      LAR1  ; // Load to static and AR1
+
+      L     DBW [AR1,P#0.0]; // Load Value of the message 
+      T     #s_Message_Value; //Link Number
+      T     #s_HBS_Record.LNK; 
+
+      L     DBW [AR1,P#2.0]; // Load event ID value
+      T     #s_Event_ID; 
+
+      A(    ; 
+      L     #s_HBS_Record.LNK; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     #s_HBS_Record.LNK; 
+      L     "DB_LNK_List".Entries_Present; 
+      <I    ; 
+      )     ; 
+      JCN   DA98; // If valid LNK: process, else: read next event
+
+// Common code
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_HBS_No);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC_No);
+
+      L     #s_HBS_No; 
+      L     0; 
+      >I    ; 
+      JCN   DA98; // If no HBS record present: updates not possible. HBS always required
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_General,
+           i_ANY_Data               := #s_HBS_Record.HBS_General,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//Read Update Event => Update process information
+      A(    ; 
+      L     #s_Event_ID; 
+      L     1; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Event_ID; 
+      L     #s_Number_Of_Processes; // Max. 5
+      <=I   ; 
+      )     ; 
+      JCN   DA10; // If valid is triggered
+
+      L     #s_Event_ID; 
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A     #s_HBS_Record.HBS_Process.Process_Active; 
+      JCN   DA10; // No updates when process not active
+
+      L     #s_LIC_No; 
+      L     0; 
+      >I    ; 
+      JCN   DA02; // If item still present in current area: Update LIC with HBS info
+
+      L     #s_Event_ID; 
+      L     1; 
+      -I    ; 
+      L     #t_LIC_Scrn_Res_Length; 
+      *I    ; 
+      T     #t_LIC_Record_Offset; 
+
+      CALL "FC_Write_ANY_RecOff" (
+           i_Record_Number          := #s_LIC_No,
+           i_Pointer_Offset         := #t_LIC_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process.Screen_Result,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     #s_Event_ID; 
+      L     1; 
+      ==I   ; 
+      JCN   DA02; // Only for process 1, update bag_status
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_LIC_No,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.Bag_Status,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process.Bag_Status,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA02: AN    #s_HBS_Record.HBS_Process.Result_Pending; 
+      AN    #s_HBS_Record.HBS_Process.Received_From_Upstream; // OR HBO decided the item is no longer pending
+      O     #s_HBS_Record.HBS_Process.Received_From_Upstream; // OR decision origination from upstr. area = final decision
+      JCN   DA98; // If final result while item in downstream area: send update
+
+      A(    ; 
+      L     #s_HBS_Record.HBS_General.DBNum_FIFO_HandOver; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      AN    #s_HBS_Record.HBS_Process.Update_Send; 
+      JCN   DA98; 
+
+      A(    ; 
+      L     #s_HBS_Record.HBS_Process.TRA_LIC; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_LIC_No; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      JCN   DA03; // If LNK of downstream area not known yet. Sending not possible. Retry later
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    DA98; 
+
+DA03: L     #s_HBS_Record.HBS_Process.Screen_Result.Pseudo_ID; 
+      L     0; 
+      >D    ; 
+      JCN   DA04; 
+
+      CALL "FC_Crt_ScreeningUpd" (// Send screening result to downstream area
+           i_ID                     := #s_HBS_Record.HBS_General.ID_HandOver,
+           i_FIFO_TCTC_DB_num       := #s_HBS_Record.HBS_General.DBNum_FIFO_HandOver,
+           i_MessageIdentifier      := DW#16#0,
+           i_HBA_LNK                := #s_HBS_Record.LNK,
+           i_TRA_LIC                := #s_HBS_Record.HBS_Process.TRA_LIC,
+           i_ScreeningProcessID     := #s_Event_ID,
+           i_Result                 := #s_HBS_Record.HBS_Process.Bag_Status,
+           i_Screen_Result          := #s_HBS_Record.HBS_Process.Screen_Result);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3807,
+           i_Event_value            := #s_HBS_Record.HBS_Process.TRA_LIC,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+DA04: SET   ; 
+      =     #s_HBS_Record.HBS_Process.Update_Send; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Update_Send,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := #s_HBS_Record.HBS_Process.Update_Send,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A     #s_HBS_Record.HBS_Process.Received_From_Upstream; 
+      JCN   DA98; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Result_Pending,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    DA98; // Event handled. Proceed to next event
+
+//Read Event 100 => Handle bag information upon handover to downstream area
+DA10: L     #s_Event_ID; 
+      L     100; //Event No 100
+      ==I   ; 
+      JCN   DA11; 
+
+      L     #s_LIC_No; 
+      L     0; 
+      >I    ; 
+      JCN   DA98; // If LIC still present: Put PID in HBS record and clear LIC
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #s_LIC_No,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_DINT                   := #s_PID);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_General.PID,
+           i_ANY_Data               := #s_PID,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_General.LIC,
+           i_DB                     := "DB_HBS_List",
+           i_INT                    := #s_LIC_No,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := 0,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record",
+           i_ANY_Data               := #s_LIC_Record,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_LIC_No,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record",
+           i_ANY_Data               := #s_LIC_Record,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_LIC_No,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    DA98; 
+
+// Read event 200 => Handle bag information when bag is lost
+DA11: L     #s_Event_ID; 
+      L     200; 
+      ==I   ; 
+      JCN   DA15; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_General.DBNum_FIFO_Receive_Upstr,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Send_FIFO_Pend_Ups);
+
+      L     #t_Send_FIFO_Pend_Ups; 
+      L     0; 
+      >I    ; 
+      JCN   DA12; // If item was received through upstream area, inform upstream about lost item
+
+      CALL "FC_Crt_UpdPend_Stat" (
+           i_ID                     := #i_ID,
+           i_FIFO_Pending_DB_Num    := #t_Send_FIFO_Pend_Ups,
+           i_MessageIdentifier      := DW#16#0,
+           i_Process                := 0,
+           i_LNK                    := #s_HBS_Record.LNK,
+           i_UpdateReason           := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA12: L     1; 
+      T     #t_Loop_Value; 
+
+DA13: L     #t_Loop_Value; //Loop: Force reject ID's of each of the applicable processes
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Result_Pending,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A(    ; 
+      L     #s_HBS_Record.HBS_Process.Screen_Result.Pseudo_ID; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     #s_HBS_Record.HBS_Process.DBNum_Force_Reject; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      AN    #s_HBS_Record.HBS_Process.Received_From_Upstream; 
+      A     #s_HBS_Record.HBS_Process.Result_Pending; 
+      JCN   DA14; // If item was screened within current area and pending, force reject it
+
+      L     #s_HBS_Record.HBS_Process.Screen_Result.Pseudo_ID; 
+      T     #s_Force_Reject.Pseudo; 
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #s_HBS_Record.HBS_Process.DBNum_Force_Reject,
+           i_Mode                   := 'I',
+           i_ANY_Data               := #s_Force_Reject,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_RET_VAL_Word);
+
+DA14: CLR   ; 
+      =     #s_HBS_Record.HBS_Process.Result_Pending; 
+
+      L     #t_Loop_Value; 
+      L     #s_Number_Of_Processes; 
+      <I    ; 
+      JCN   DA15; 
+
+      L     #t_Loop_Value; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Value; 
+
+      JU    DA13; 
+
+// Read event 201 - 205 => Handle bag information when bag is lost
+DA15: A(    ; 
+      L     #s_Event_ID; 
+      L     201; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Number_Of_Processes; 
+      L     200; 
+      +I    ; 
+      L     #s_Event_ID; 
+      >=I   ; 
+      )     ; 
+      JCN   DA25; 
+
+      L     #s_Event_ID; 
+      L     200; 
+      -I    ; 
+      T     #t_Filtered_Process; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_General.DBNum_FIFO_Receive_Upstr,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Send_FIFO_Pend_Ups);
+
+      L     #t_Send_FIFO_Pend_Ups; 
+      L     0; 
+      >I    ; 
+      JCN   DA16; // If item was received through upstream area, inform upstream about lost item
+
+      CALL "FC_Crt_UpdPend_Stat" (
+           i_ID                     := #i_ID,
+           i_FIFO_Pending_DB_Num    := #t_Send_FIFO_Pend_Ups,
+           i_MessageIdentifier      := DW#16#0,
+           i_Process                := #t_Filtered_Process,
+           i_LNK                    := #s_HBS_Record.LNK,
+           i_UpdateReason           := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA16: L     #t_Filtered_Process; 
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Result_Pending,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+DA25: L     #s_Event_ID; 
+      L     300; //Event No 300
+      ==I   ; 
+      JCN   DA98; 
+
+// Dummy event to trigger a cleanup in next network
+
+DA98: OPN   "DB_Event_Pending"; // Opn local Event buffer DB
+      L     #t_Adres_Next_Message; // Load adress current message
+      LAR1  ; // Transfer to AR 1
+
+      L     #t_Next_Message_to_Read; // Increase next message with 1
+      L     1; 
+      +I    ; 
+      T     #t_Next_Message_to_Read; // If next record to read is equal or smaller
+      L     #t_Entries_Used; // then number of messages in DB, than do next message
+      >I    ; 
+      JCN   DA01; 
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Clear Event DB
+
+      L     1; // Start with the first record
+      T     #t_Next_Entry_to_Clear; 
+
+      OPN   "DB_Event_Pending"; 
+      L     DBW    0; // Load number of entries used in Local DB
+      T     #t_Entries_Used; // Transfer to temporary
+
+      L     #t_Entries_Used; // Check if there are events 
+      L     0; 
+      <>I   ; 
+      JCN   EA99; 
+
+EA01: L     #t_Next_Entry_to_Clear; // Load next record number
+      L     1; // Take begin of record
+      -I    ; 
+      L     6; // Multiply by record length
+      *I    ; 
+      L     4; // Add header length
+      +I    ; 
+      SLW   3; // Shift bytes to make pointer to last entry
+      T     #t_Adres_Next_Message; 
+      LAR1  ; // Load to static and AR1
+
+      L     DBW [AR1,P#0.0]; // Load Value of the message 
+      T     #s_Message_Value; //Link Number
+      T     #s_HBS_Record.LNK; 
+
+      L     DBW [AR1,P#2.0]; // Load event ID value
+      T     #s_Event_ID; 
+
+      A(    ; 
+      L     #s_HBS_Record.LNK; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     #s_HBS_Record.LNK; 
+      L     "DB_LNK_List".Entries_Present; 
+      <I    ; 
+      )     ; 
+      JCN   EA05; // If valid LNK: process, else: read next event
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_HBS_No);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC_No);
+
+      L     #s_HBS_No; 
+      L     0; 
+      >I    ; 
+      JCN   EA05; // If no HBS record present: updates not possible. HBS always required
+
+      SET   ; 
+      R     #t_Item_Pending; 
+
+      L     1; 
+      T     #t_Loop_Value; 
+
+EA02: L     #t_Loop_Value; 
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Read_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Result_Pending,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Result_Pend_Process_x);
+
+      A     #t_Result_Pend_Process_x; 
+      S     #t_Item_Pending; 
+      JC    EA03; 
+
+      CALL "FC_Read_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Process_x_Needs_Resend);
+
+      A     #t_Process_x_Needs_Resend; 
+      S     #t_Item_Pending; 
+      JC    EA03; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_UDT_HBS_Record".HBS_Process_1,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_HBS_Record.HBS_Process);
+
+      CALL "FC_Write_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+EA03: L     #t_Loop_Value; 
+      L     #s_Number_Of_Processes; 
+      <I    ; 
+      JCN   EA04; 
+
+      L     #t_Loop_Value; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Value; 
+
+      JU    EA02; 
+
+EA04: AN    #t_Item_Pending; 
+      JCN   EA05; // If non of the processes still pending: clear HBS (pending) records
+
+      CALL "FC_Write_Int_Record" (// Clear HBS record LNK
+           i_Record_Number          := #s_HBS_Record.LNK,//Link Number
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_UDT_HBS_Record".HBS_General,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_HBS_Record.HBS_General);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_HBS_No,//HBS Record from Read Event
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_General,
+           i_ANY_Data               := #s_HBS_Record.HBS_General,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (// Release HBS record
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".LNK,
+           i_DB                     := "DB_HBS_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC_No);
+
+      A(    ; 
+      L     #s_Event_ID; 
+      L     200; // Event to remove record (e.g. lost in tracking)
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_LIC_No; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   EA05; // If LIC not in current area while HBS is present: deassign LNK
+
+      CALL "FC_Deassign_LNK" (
+           i_LNK                    := #s_HBS_Record.LNK);
+
+
+EA05: OPN   "DB_Event_Pending"; // Opn local Event buffer DB
+      L     #t_Adres_Next_Message; // Load adress current message
+      LAR1  ; 
+
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear Value
+      T     DBW [AR1,P#2.0]; // Clear Event ID
+
+      CLR   ; 
+      =     DBX [AR1,P#4.0]; // Clear "Handled By Routing" bit
+      =     DBX [AR1,P#4.1]; // Clear "Handled by BPI stats" bit
+      =     DBX [AR1,P#4.2]; // Clear "Handled by BPI LOG" bit
+      =     DBX [AR1,P#4.3]; // Clear "Handled by PLC LOG" bit
+
+      L     #t_Next_Entry_to_Clear; // Increase next message with 1
+      L     1; 
+      +I    ; 
+      T     #t_Next_Entry_to_Clear; // If next record to read is equal or smaller
+      L     #t_Entries_Used; // then number of events in DB, than do next event
+      >I    ; 
+      JCN   EA01; 
+
+EA99: NOP   0; 
+
+      L     0; 
+      T     DBW    0; // Clear entries used
+      NOP   0; 
+NETWORK
+TITLE =EB: Manage buffer PLT DB
+
+      L     #i_Cfg_Buffer_Time_Pro_1; 
+      T     #t_Max_Pending_Time; 
+
+      L     #t_Max_Pending_Time; 
+      L     #i_Cfg_Buffer_Time_Pro_2; 
+      <I    ; 
+      JCN   EB01; 
+
+      T     #t_Max_Pending_Time; 
+
+EB01: L     #t_Max_Pending_Time; 
+      L     #i_Cfg_Buffer_Time_Pro_3; 
+      <I    ; 
+      JCN   EB02; 
+
+      T     #t_Max_Pending_Time; 
+
+EB02: L     #t_Max_Pending_Time; 
+      L     #i_Cfg_Buffer_Time_Pro_4; 
+      <I    ; 
+      JCN   EB03; 
+
+      T     #t_Max_Pending_Time; 
+
+EB03: L     #t_Max_Pending_Time; 
+      L     #i_Cfg_Buffer_Time_Pro_5; 
+      <I    ; 
+      JCN   EB04; 
+
+      T     #t_Max_Pending_Time; 
+
+EB04: CALL #s_FB_Pending_Maint (
+           i_ID                     := #i_ID,
+           i_DB_PLT_Buffer          := "DB_Scrn_Pend_PLT",
+           i_DB_Event               := #i_DB_Event,
+           i_CFG_Limit_Buffer_Time  := #t_Max_Pending_Time);
+NETWORK
+TITLE =FA: Check the HBS List
+
+      OPN   "DB_HBS_List"; //Open the list
+      L     DBNO; 
+      T     #t_DB_HBS_Number; // Save number for find position in LNK record
+      L     DBW    6; 
+      +     -1; 
+      L     #s_HBS_Rec_To_Check; //Checking for Maximum Item present
+      <=I   ; 
+      JCN   FA01; 
+
+      L     1; 
+      T     #s_HBS_Rec_To_Check; 
+      JU    FA99; 
+
+FA01: L     #s_HBS_Rec_To_Check; //Incremental Item number to DB_List
+      +     1; 
+      T     #s_HBS_Rec_To_Check; 
+
+FA99: L     #s_HBS_Rec_To_Check; 
+      T     #s_HBS_No; 
+NETWORK
+TITLE =GA: Determine next HBS record to verify
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".LNK,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_HBS_Record.LNK);
+
+      L     #s_HBS_Record.LNK; // Check if record is valid
+      L     0; 
+      >I    ; 
+      JCN   GA02; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_HBS_Rec_Check);
+
+      L     #t_HBS_Rec_Check; 
+      L     #s_HBS_No; 
+      ==I   ; 
+      JCN   GA01; // If LNK.HBS and HBS.LNK match: load data
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_General,
+           i_ANY_Data               := #s_HBS_Record.HBS_General,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC_No);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_Process_1.Bag_Status,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_BagState);
+
+      JU    GA99; 
+
+GA01: CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_HBS_Rec_Check);
+
+GA02: L     1; 
+      T     #t_Loop_Value; 
+
+GA03: L     #t_Loop_Value; 
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1.Screen_Result.Pseudo_ID,
+           i_ANY_Data               := #s_Pseudo_ID,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     #s_Pseudo_ID; 
+      L     0; 
+      ==D   ; 
+      JCN   GA04; 
+
+      CALL "FC_Read_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_BOOL                   := #t_Process_Active);
+
+      A     #t_Process_Active; 
+      JCN   GA05; 
+
+GA04: CALL "BLKMOV" (
+           SRCBLK                   := "DB_UDT_HBS_Record".HBS_Process_1,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_HBS_Record.HBS_Process);
+
+      CALL "FC_Write_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+GA05: L     #t_Loop_Value; 
+      L     #s_Number_Of_Processes; 
+      >=I   ; 
+      BEC   ; 
+
+      L     #t_Loop_Value; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Value; 
+
+      JU    GA03; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Check pending timeouts
+
+      SET   ; 
+      R     #s_Send_HL_Message; 
+      S     #t_No_Records_Pending; 
+
+      L     0; 
+      T     #t_HL_Message; 
+      T     #t_HL_Reporting_Level; 
+
+      L     1; 
+      T     #t_Loop_Value; 
+
+HA00: L     #t_Loop_Value; 
+      L     1; 
+      -I    ; 
+      L     #t_HBS_Process_Length; 
+      *I    ; 
+      T     #t_HBS_Record_Offset; 
+
+      CALL "FC_Read_ANY_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      A     #s_HBS_Record.HBS_Process.Result_Pending; 
+      O     #s_HBS_Record.HBS_Process.Resend_Required; 
+      R     #t_No_Records_Pending; 
+      JCN   HA90; // If process no longer pending anyway, stop check
+
+      CALL "READ_CLK" (// Read current clock
+           RET_VAL                  := #t_RET_VAL_INT,
+           CDT                      := #s_Date_And_Time);
+
+      CALL "SB_DT_DT" (
+           DT1                      := #s_Date_And_Time,
+           DT2                      := #s_HBS_Record.HBS_Process.Timestamp_screening,
+           RET_VAL                  := #t_LifeTime_Record);
+
+      A(    ; 
+      L     #i_Cfg_Pending_Time; 
+      L     1000; 
+      *D    ; 
+      L     #t_LifeTime_Record; 
+      <=D   ; 
+      )     ; 
+      A(    ; 
+      L     #i_Cfg_Pending_Time; 
+      L     0; 
+      <>I   ; 
+      )     ; 
+      =     #t_Pending_Time_Exceeded; 
+
+      L     #t_Loop_Value; 
+      L     1; 
+      ==I   ; 
+      JCN   HA01; 
+
+      L     #i_Cfg_Buffer_Time_Pro_1; 
+      T     #t_Max_Process_Lifetime; 
+
+      JU    HA06; 
+
+HA01: L     #t_Loop_Value; 
+      L     2; 
+      ==I   ; 
+      JCN   HA02; 
+
+      L     #i_Cfg_Buffer_Time_Pro_2; 
+      T     #t_Max_Process_Lifetime; 
+
+      JU    HA06; 
+
+HA02: L     #t_Loop_Value; 
+      L     3; 
+      ==I   ; 
+      JCN   HA03; 
+
+      L     #i_Cfg_Buffer_Time_Pro_3; 
+      T     #t_Max_Process_Lifetime; 
+
+      JU    HA06; 
+
+HA03: L     #t_Loop_Value; 
+      L     4; 
+      ==I   ; 
+      JCN   HA04; 
+
+      L     #i_Cfg_Buffer_Time_Pro_4; 
+      T     #t_Max_Process_Lifetime; 
+
+      JU    HA06; 
+
+HA04: L     #t_Loop_Value; 
+      L     5; 
+      ==I   ; 
+      JCN   HA05; 
+
+      L     #i_Cfg_Buffer_Time_Pro_5; 
+      T     #t_Max_Process_Lifetime; 
+
+      JU    HA06; 
+
+HA05: L     0; 
+      T     #t_Max_Process_Lifetime; 
+
+HA06: A(    ; 
+      L     #t_Max_Process_Lifetime; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     #t_Max_Process_Lifetime; 
+      L     1000; 
+      *D    ; 
+      L     #t_LifeTime_Record; 
+      <=D   ; 
+      )     ; 
+      =     #t_Buffer_Time_Exceeded; 
+
+      A     #s_HBS_Record.HBS_Process.Resend_Required; 
+      JCN   HA08; // Record needs to be checked
+
+      A     #t_Buffer_Time_Exceeded; 
+      JCN   HA07; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_Record.LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      JU    HA08; 
+
+HA07: A(    ; 
+      L     #s_HBS_Record.HBS_Process.TRA_LIC; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      JCN   HA08; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := #t_Loop_Value,
+           i_Event_value            := #s_HBS_Record.LNK,
+           i_DB_Event_Num           := #t_DB_Event_Pend_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+HA08: A     #t_Pending_Time_Exceeded; 
+      O     #t_Buffer_Time_Exceeded; 
+      JCN   HA90; // Record needs to be checked
+
+      AN    #s_HBS_Record.HBS_Process.Machine_Result_Rcvd; 
+      A(    ; 
+      L     #s_HBS_Record.HBS_Process.Bag_Status; 
+      L     3; 
+      <>I   ; 
+      )     ; 
+      A     #t_Pending_Time_Exceeded; 
+      AN    #t_Buffer_Time_Exceeded; 
+      JCN   HA14; // If pending result is received: check for final result timeout
+
+      AN    #s_HBS_Record.HBS_Process.Received_From_Upstream; 
+      JCN   HA20; // Don't send HL message when in downstream area
+
+      A(    ; 
+      L     #t_Loop_Value; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      JCN   HA13; // Evaluate bag status only for process 1
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_Process_1.Bag_Status,
+           i_DB                     := "DB_HBS_List",
+           i_INT                    := 4,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA13: L     3; 
+      T     #t_HL_Message; 
+
+      L     1; 
+      T     #t_HL_Reporting_Level; 
+
+      JU    HA20; 
+
+HA14: A     #t_Buffer_Time_Exceeded; 
+      JCN   HA90; 
+
+      AN    #s_HBS_Record.HBS_Process.Received_From_Upstream; 
+      JCN   HA20; // Don't send HL message when in downstream area
+
+      A(    ; 
+      L     #t_Loop_Value; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      JCN   HA15; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_HBS_No,
+           i_P_INT_Record           := "DB_UDT_HBS_Record".HBS_Process_1.Bag_Status,
+           i_DB                     := "DB_HBS_List",
+           i_INT                    := 5,//OSR timeout
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA15: L     3; 
+      T     #t_HL_Message; 
+
+      L     2; 
+      T     #t_HL_Reporting_Level; 
+
+HA20: CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Result_Pending,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #s_HBS_No,
+           i_Pointer_Offset         := #t_HBS_Record_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Resend_Required,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (// Trigger a LIC update / send action to downstream
+           i_Message_ID             := #t_Loop_Value,
+           i_Event_value            := #s_HBS_Record.LNK,
+           i_DB_Event_Num           := #t_DB_Event_Pend_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+      L     #t_Loop_Value; // = process currently being processed
+      L     1; 
+      -I    ; 
+      L     10; // each process is 10 bytes in DB_HBS_Results
+      *I    ; 
+      T     #t_Offset_HBS_Res_Lenght; 
+
+      L     #t_HL_Reporting_Level; 
+      L     0; 
+      >I    ; 
+      JCN   HA21; 
+
+      L     #t_HL_Reporting_Level; 
+      L     1; 
+      -I    ; 
+      L     2; 
+      *I    ; 
+      L     #t_Offset_HBS_Res_Lenght; 
+      +I    ; 
+      T     #t_Offset_HBS_Res_Lenght; 
+
+HA21: L     #t_Offset_HBS_Res_Lenght; 
+      L     2; 
+      -I    ; 
+      L     #t_DB_HBS_Res_Length; 
+      <=I   ; 
+      JCN   HA90; 
+
+      AN    #s_HBS_Record.HBS_Process.Received_From_Upstream; 
+      JCN   HA90; // Don't send packagereport if item not originating from current area
+
+      L     #s_HBS_Record.HBS_Process.ID_Screening; 
+      L     0; 
+      <>D   ; 
+      JCN   HA90; 
+
+      L     #s_HBS_Record.HBS_Process.ID_Screening; 
+      T     #s_ID_Screening; 
+
+      LAR1  P##t_ANY_SRC_Default; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     2; // Number of bytes can be copied = record length
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_HBS_Res_No; // Load default DB number from List DB
+      T     LW [AR1,P#4.0]; 
+      L     #t_Offset_HBS_Res_Lenght; 
+      SLD   3; //Convert byte address to Pointer format
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; // DB type global 
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_HL_Message,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #t_ANY_SRC_Default);
+
+      SET   ; 
+      S     #s_Send_HL_Message; 
+
+HA90: L     #t_Loop_Value; 
+      L     #s_Number_Of_Processes; 
+      <I    ; 
+      JCN   HA91; 
+
+      L     #t_Loop_Value; 
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Value; 
+
+      JU    HA00; 
+
+HA91: A     #t_No_Records_Pending; 
+      JCN   HA92; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 300,
+           i_Event_value            := #s_HBS_Record.LNK,
+           i_DB_Event_Num           := #t_DB_Event_Pend_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+HA92: A     #s_Send_HL_Message; 
+      JCN   HA93; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1210,// Send PackageReport: Screening Result
+           i_Event_value            := #s_HBS_Record.LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num_HBO,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+HA93: CALL #s_FB_DAT (
+           i_ID_Section             := #s_ID_Screening,
+           i_DB_Event               := #i_DB_Event_HBO,
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level);
+
+      NOP   0; 
+
+END_FUNCTION_BLOCK
+

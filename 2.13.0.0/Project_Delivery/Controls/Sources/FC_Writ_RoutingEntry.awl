@@ -1,0 +1,275 @@
+FUNCTION "FC_Writ_RoutingEntry" : VOID
+TITLE =%version: 0.03 %  CN: 30
+//Function:
+//Transfer routing information into routing table
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, August 10, 2016 8:08:00 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial Revision                                      nlHdL    29-03-13   0.01
+//
+//Description:
+//Transfer routing information into routing table
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Route_Num : INT ;	//Number of DB routing table
+  i_Destination : INT ;	//[1..300] Destination number
+  i_Direction_And_Pref_1 : WORD ;	//Direction with Prefference, 0 = no dir., 1 = dir 1, 2 = dir 2, LB = pref, 1 = P
+  i_Direction_And_Pref_2 : WORD ;	//Direction with Prefference, 0 = no dir., 1 = dir 1, 2 = dir 2, LB = pref, 1 = P
+  i_Direction_And_Pref_3 : WORD ;	//Direction with Prefference, 0 = no dir., 1 = dir 1, 2 = dir 2, LB = pref, 1 = P
+END_VAR
+VAR_TEMP
+  t_Route_DB_Nr : INT ;	//DB number of routing table
+  t_ANY_Pointer : DWORD ;	//ANY pointer to the Destination
+  t_Direction_1 : BYTE ;	//Direction 1
+  t_Preference_1 : BYTE ;	//Preference 1
+  t_Direction_2 : BYTE ;	//Direction 2
+  t_Preference_2 : BYTE ;	//Preference 2
+  t_Direction_3 : BYTE ;	//Direction 3
+  t_Preference_3 : BYTE ;	//Preference 3
+  t_Copy_Direction_1 : BOOL ;	//Copy of Direction 1 after check
+  t_Copy_Direction_2 : BOOL ;	//Copy of Direction 2 after check
+  t_Copy_Direction_3 : BOOL ;	//Copy of Direction 3 after check
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Split Direction_And_Preference into Direction and Preference
+
+      L     #i_Direction_And_Pref_1; 
+      SRW   8; 
+      T     #t_Direction_1; 
+
+      L     #i_Direction_And_Pref_1; 
+      L     L#255; 
+      AW    ; 
+      T     #t_Preference_1; 
+
+      L     #i_Direction_And_Pref_2; 
+      SRW   8; 
+      T     #t_Direction_2; 
+
+      L     #i_Direction_And_Pref_2; 
+      L     L#255; 
+      AW    ; 
+      T     #t_Preference_2; 
+
+      L     #i_Direction_And_Pref_3; 
+      SRW   8; 
+      T     #t_Direction_3; 
+
+      L     #i_Direction_And_Pref_3; 
+      L     L#255; 
+      AW    ; 
+      T     #t_Preference_3; 
+NETWORK
+TITLE =BA: Check Destination values
+// 
+      NOP   0; 
+// i_Destination must be more than 1 and less then or equal to 300
+      L     1; 
+      L     #i_Destination; 
+      >I    ; 
+      BEC   ; 
+
+      L     300; 
+      L     #i_Destination; 
+      <I    ; 
+      BEC   ; 
+
+NETWORK
+TITLE =CA:Check directions
+//Direction 0 is not allowed!
+// t_Direction_1 must be direction 1
+      L     1; 
+      L     #t_Direction_1; 
+      ==I   ; 
+      =     #t_Copy_Direction_1; 
+
+// t_Direction_2 must be direction 2
+      L     2; 
+      L     #t_Direction_2; 
+      ==I   ; 
+      =     #t_Copy_Direction_2; 
+
+// t_Direction_3 must be direction 3
+      L     3; 
+      L     #t_Direction_3; 
+      ==I   ; 
+      =     #t_Copy_Direction_3; 
+NETWORK
+TITLE =DA:Check preferences
+//check #t_Preference_1 for validate value (value 0, 1, 2, 3, 7, 8 or 9)
+      AN(   ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     8; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_1; 
+      L     9; 
+      ==I   ; 
+      )     ; 
+      )     ; 
+      BEC   ; 
+
+//check #t_Preference_2 for validate value (value 0, 1, 2, 7 or 8)
+      AN(   ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     8; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_2; 
+      L     9; 
+      ==I   ; 
+      )     ; 
+      )     ; 
+      BEC   ; 
+
+      AN(   ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     8; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Preference_3; 
+      L     9; 
+      ==I   ; 
+      )     ; 
+      )     ; 
+      BEC   ; 
+NETWORK
+TITLE =EA: Make pointer to correct table type within routing entry
+
+      L     #i_DB_Route_Num; 
+      T     #t_Route_DB_Nr; 
+      OPN   DB [#t_Route_DB_Nr]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #i_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   EA01; 
+      L     4; // Each destination entry is 4 bytes long
+      *D    ; 
+
+EA01: SLD   3; // Conversion to pointer format
+      L     P#DBX 0.0; // Pointer to the start of the open DB
+      +D    ; 
+      T     #t_ANY_Pointer; 
+
+      LAR1  ; 
+
+NETWORK
+TITLE =FA: Copy direction 1 and direction 2
+
+      A     #t_Copy_Direction_1; 
+      JCN   FA01; 
+
+      L     #t_Preference_1; 
+      T     B [AR1,P#0.0]; 
+
+FA01: A     #t_Copy_Direction_2; 
+      JCN   FA02; 
+      L     #t_Preference_2; 
+      T     B [AR1,P#1.0]; 
+
+FA02: A     #t_Copy_Direction_3; 
+      JCN   FA03; 
+      L     #t_Preference_3; 
+      T     B [AR1,P#2.0]; 
+
+FA03: NOP   0; 
+END_FUNCTION
+

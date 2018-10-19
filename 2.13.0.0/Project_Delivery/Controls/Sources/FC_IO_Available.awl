@@ -1,0 +1,221 @@
+FUNCTION "FC_IO_Available" : VOID
+TITLE =%version: 0.11 % CN: 30
+//Function: 
+//Create IO_Available status for every component in the system. This is tempate 
+//Engineer has to create signals from EM drawing for each component
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, April 10, 2018 10:12:18 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26238: FC_IO_Available, remove local variable      nlHdL    10-04-18   0.11
+//ra#18845: Temp update of FC_IO_Available              nlHdL    01-12-16   0.10
+//ra#14163: IO_Available insertpoint and temp variable  nlHdL    31-05-16   0.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.08
+//24004: BSO and IO_Available DP to Fieldbus            nlHdL    12-05-15   0.08
+//21106: markcode for CAB and DPC change to CCC and LCC nlHdL    30-09-14   0.07
+//16883: Changing based on several BHU project          nlple    27-06-14   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//CR19512 Update sources according S7 Manager file name nlHdL    13-03-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//Change compile number to right range (CN:30)          nlMRe    07-09-10   0.02
+//Initial revision                                      inSMahi  25-03-10   0.01
+//
+//Description:
+//Create IO_Available status for every component in the system. This is tempate 
+//PLC engineer has to study the EM drawing and fill IO available for each 
+//section/objects.
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+////The generated source will be added overhere.
+////Create IO_Available status for every component in the system. This is 
+//template 
+////PLC engineer has to study the EM drawing and fill IO available for each 
+////section/objects.
+//NETWORK
+//TITLE =AA: CCC01 - MASTER CABINET
+//
+// 
+//      
+//      AN    "DB_Status".CCC_00_99.PN_Master_NotPrsnt; 
+//      AN    "DB_Status".CCC_00_99.PN1_NotPrsnt; 
+//      =     "DB_System_Control".SSM_00_01.IO_Available; 
+//      =     "DB_System_Control".CCC_00_99.IO_Available; 
+//
+//NETWORK
+//TITLE =BA: ProfiNET devices Available
+////The availability of the ProfiNET devices in the network. For quick reaction
+////the parent ProfiNET device available signal and the state are taken into
+////account. The EM state is added to create the availability signal of the 
+//ProfiNET 
+////device. The error state isn't taken into account as it doesn't reflect the 
+//ability
+////to transmit data.
+//
+//// LCC22 Local Control Cabinet - Profinet Profinet Coupler
+//      A     "DB_System_Control".CCC_00_99.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".CCC_00_99.PN1_NotPrsnt; //          AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP09; //     AND AUX power
+//      =     "DB_System_Control".LCC_00_79.IO_Available; 
+//
+//// LCC21 Local Control Cabinet - Profinet Switch/Repeater
+//      A     "DB_System_Control".CCC_00_99.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".CCC_00_99.PN1_NotPrsnt; //          AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP02; //     AND AUX power
+//      =     "DB_System_Control".LCC_00_78.IO_Available; 
+//
+//// LCC23 Local Control Cabinet - Profinet ASi Gateway
+//      A     "DB_System_Control".LCC_00_78.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".LCC_00_78.FieldB_NotPrsnt; //       AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP02; //     AND AUX power
+//      =     "DB_System_Control".LCC_00_95.IO_Available; 
+//
+//// WE04 Weighing Scale - Inline overweight check for TRZ
+//      A     "DB_System_Control".LCC_00_78.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".LCC_00_78.FieldB_NotPrsnt; //       AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP01; //     AND AUX power
+//      =     "DB_System_Control".WE_03_99.IO_Available; 
+//
+//// MVD01 Vertimerge Dual Zone
+//      A     "DB_System_Control".LCC_00_78.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".LCC_00_78.FieldB_NotPrsnt; //       AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP01; //     AND AUX power
+//      =     "DB_System_Control".MVD_09_00.IO_Available; 
+//
+//// OPS01 Operator Station - Manual Coding Station (with link to airline)
+//      A     "DB_System_Control".LCC_00_78.IO_Available; //  AND Parent device 
+//available
+//      AN    "DB_Status".LCC_00_78.FieldB_NotPrsnt; //       AND Parent device 
+//state
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP02; //     AND AUX power
+//      =     "DB_System_Control".OPS_17_99.IO_Available; 
+//
+//NETWORK
+//TITLE =CA: Handover Objects IO available
+//
+//// LCC22 Local Control Cabinet - Profinet Profinet Coupler
+//      A     "DB_System_Control".LCC_00_79.IO_Available; //  AND TCTC coupler 
+//available
+//      AN    "DB_Status".LCC_00_79.FieldB_NotPrsnt; //       AND TCTC coupler 
+//state 
+//      =     "DB_System_Control".HOO_98_99.IO_Available; //  Hand Over Object 
+//      =     "DB_System_Control".HOO_75_99.IO_Available; //  Hand Over Object 
+//      =     "DB_System_Control".HOO_93_99.IO_Available; //  Hand Over Object 
+//
+//NETWORK
+//TITLE =DA: ASi Gateway channels OK
+//
+//// LCC23 Local Control Cabinet - Profinet ASi Gateway
+//      A     "DB_System_Control".LCC_00_95.IO_Available; //  AND ASi gateway 
+//available
+//      AN    "DB_Status".LCC_00_95.FieldB_NotPrsnt; //       AND ASi gateway 
+//state
+//      AN    "DB_Status".LCC_00_95.ASI_1_Delta_Error; //     AND A/B slaves OK
+//      AN    "M_ASI_Not_Diagnosed_13"; //                    AND ASi gateway 
+//started
+//      =     #t_ASI_Gateway_13_CH1_OK; 
+//
+//      A     "DB_System_Control".LCC_00_95.IO_Available; //  AND ASi gateway 
+//available
+//      AN    "DB_Status".LCC_00_95.FieldB_NotPrsnt; //       AND ASi gateway 
+//state
+//      AN    "DB_Status".LCC_00_95.ASI_2_Delta_Error; //     AND A/B slaves OK
+//      AN    "M_ASI_Not_Diagnosed_13"; //                    AND ASi gateway 
+//started
+//      =     #t_ASI_Gateway_13_CH2_OK; 
+//
+//NETWORK
+//TITLE =EA: ASi Repeaters OK
+//
+//// LCC29 Local Control Cabinet - ASi Repeater
+//      A     #t_ASI_Gateway_13_CH2_OK; //                    Asi Gateway live
+//      AN    "DB_Status".CCC_00_99.THO_AUX_PWR_GRP01; //     AND AUX power
+//      =     #t_ASI_Rep_1_on_13_CH2_OK; 
+//
+//NETWORK
+//TITLE =FA: ASi powered and controlled slaves OK
+//
+//// ASi Gateway 13, channel 1
+//      A     #t_ASI_Gateway_13_CH1_OK; //                    Asi Gateway live
+//      A     "M_ASI_AUX_PWR_13_CH1"; //                      External 24VDC live
+//      =     "DB_System_Control".SLC_00_87.IO_Available; 
+//      =     "DB_System_Control".CHO_01_98.IO_Available; 
+//      =     "DB_System_Control".WE_03_99.IO_Available_2; 
+//
+//NETWORK
+//TITLE =GA: CCC01 - Motor group - 01
+//
+//// Local Control Cabinet - Profinet ASi Gateway, channel 1
+//      A     #t_ASI_Gateway_13_CH1_OK; //                    Asi Gateway live
+//      A     "M_ASI_AUX_PWR_13_CH1"; //                      External 24VDC live
+//      A     "DB_Motor_CCC01".Motor_Group_01_in; //          Motorgroup engaged
+//      A     "DB_Motor_CCC01".No_Safety_Stop_PG01; //        Safety state ok
+//      =     "DB_System_Control".UQZ_01_00.IO_Available; 
+//      =     "DB_System_Control".TRS_01_01.IO_Available; 
+//      =     "DB_System_Control".TRS_01_02.IO_Available; 
+//      =     "DB_System_Control".TRS_01_03.IO_Available; 
+//      =     "DB_System_Control".TRS_03_02.IO_Available; 
+//      =     "DB_System_Control".TRS_05_01.IO_Available; 
+//      =     "DB_System_Control".TRS_07_01.IO_Available; 
+//      =     "DB_System_Control".TRS_11_01.IO_Available; 
+//      =     "DB_System_Control".TRS_13_01.IO_Available; 
+//      =     "DB_System_Control".TRS_13_02.IO_Available; 
+//
+//// Local Control Cabinet - ASi Repeater, channel 2
+//      A     #t_ASI_Rep_1_on_13_CH2_OK; //                   Asi Gateway live
+//      A     "DB_Motor_CCC01".Motor_Group_01_in; //          Motorgroup engaged
+//      A     "DB_Motor_CCC01".No_Safety_Stop_PG01; //        Safety state ok
+//      =     "DB_System_Control".TRS_03_01.IO_Available; 
+//
+//NETWORK
+//TITLE =HA: CCC01 Motor group - 02
+//
+//// Local Control Cabinet - Profinet ASi Gateway, channel 1
+//      A     #t_ASI_Gateway_13_CH1_OK; //                    Asi Gateway live
+//      A     "M_ASI_AUX_PWR_13_CH1"; //                      External 24VDC live
+//      A     "DB_Motor_CCC01".Motor_Group_02_in; //          Motorgroup engaged
+//      A     "DB_Motor_CCC01".No_Safety_Stop_PG02; //        Safety state ok
+//      =     "DB_System_Control".TRS_15_01.IO_Available; 
+//      =     "DB_System_Control".OPZ_17_00.IO_Available; 
+//      =     "DB_System_Control".TRS_17_01.IO_Available; 
+//      =     "DB_System_Control".TRS_19_01.IO_Available; 
+//      =     "DB_System_Control".VBZ_21_00.IO_Available; 
+//      =     "DB_System_Control".TRS_21_03.IO_Available; 
+//      =     "DB_System_Control".TRS_23_01.IO_Available; 
+//      =     "DB_System_Control".TRS_25_01.IO_Available; 
+//      =     "DB_System_Control".TRS_27_01.IO_Available; 
+//
+//NETWORK
+//TITLE =IA: CCC01 Motor & Aux group: 02
+//
+//// Local Control Cabinet - Profinet ASi Gateway, channel 2
+//      A     #t_ASI_Gateway_14_CH2_OK; //                    Asi Gateway live
+//      A     "M_ASI_AUX_PWR_14_CH2"; //                      External 24VDC live
+//      A     "DB_Motor_CCC01".Motor_Group_03_in; //          Motorgroup engaged
+//      A     "DB_Motor_CCC01".No_Safety_Stop_PG03; //        Safety state ok
+//      AN    "DB_Status".CCC_00_99.THO_230VAC_GRP03; //      AUX POWER power ok
+//      =     "DB_System_Control".SHO_11_98.IO_Available; 
+//
+
+
+END_FUNCTION
+

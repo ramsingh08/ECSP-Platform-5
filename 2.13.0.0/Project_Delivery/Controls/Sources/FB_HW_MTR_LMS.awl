@@ -1,0 +1,264 @@
+FUNCTION_BLOCK "FB_HW_MTR_LMS"
+TITLE =%version: 0.16 % CN: 40
+//Function:
+//Hardware driver for the default LMS.
+// Type supported Eaton and Siemens LMS.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:11:48 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.16
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.16
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.16
+//18028: Modify HardWare block LMS for Eaton Siemens    nlHdL    08-05-14   0.16
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.15
+//PR13607: Add Started_Time statistical to HW           nlHdL    19-04-13   0.14
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    01-11-12   0.13
+//CR8255 Added event 3902 HW: Motor Stopped             nlcsu    11-11-11   0.12
+//PR7287 Changed conditions to reset o_ST_LMS_ASI_Error nlHHop   04-07-11   0.11 
+//PR6080 Added Statisticals ID                          nlHdL    07-12-10   0.10
+//Changed INC 1 into L 1                                nljbax   24-09-10   0.09
+//Changed according Coding Conventions                  nljbax   24-09-10   0.08
+//Modified Input & output name                          inPNa    15-09-10   0.07
+//PR5430: Remove i_ID, because not used                 nlMRe    27-07-10   0.06
+//PR5153: Remove layer error output                     nlMRe    29-04-10   0.05
+//PR4976: Updated with comments from nlMvK              nlMRe    16-04-10   0.04
+//Removed Hardware Ok signal                            nlMRe    09-04-10   0.03
+//Solve PR 4976: Networks not properly named            nlMRe    19-03-10   0.02
+//Initial version                                       nlMRe    05-03-10   0.01
+//
+//Description:                                  
+//
+//Generating the ASI errors, and thermal overloads. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Quick_Stop : BOOL ;	//Enable quick stop functionality (false = quick stop disabled)
+  i_LMS_NotPrsnt : BOOL ;	//ASI LMS is not Present
+  i_LMS_Error : BOOL ;	//ASI LMS has an error
+  i_IO_LMS_Auto : BOOL  := TRUE;	//HW: switch of the motor equipment is in 'Automatic' position 
+  i_IO_LMS_Healthy : BOOL  := TRUE;	//HW: Healthy signal from motor equipment 
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Motor_Forward : BOOL ;	//CMD: Run motor forward
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_IO_MTR_Dis_Quick_Stop : BOOL ;	//HW: Disable quick stop function
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+END_VAR
+VAR
+  s_FP_Copy_Req_Avail_IO : BOOL ;	//Flank positive copy signal of IO available signal
+  s_Pulse_Timer_Active : BOOL ;	//Signal to indicate pulse timer is active
+  s_Reset_Pulse : BOOL ;	//Pulse for reset to LMS
+  s_Copy_FN_o_IO_MTR : BOOL ;	//Flank Negative of MTR Signal
+  s_TSp_Reset_Pulse : INT ;	//TimeSetpoint of reset pulse
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	//Number of times the drive was started counter
+   Started_Time : INT ;	//Number of seconds the drive was started
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Available_IO : BOOL ;	//Available IO signal after error suppression by reset pulse
+  t_FP_IO_Available : BOOL ;	//Flank positive of IO available signal
+  t_Pulse_Timer_Elapsed : BOOL ;	//Status of the pulse timer
+  t_Return_Value_Int : INT ;	//Return value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB event number to temp
+
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Create reset pulse
+//When a LMS has a technical error this can be resetted with a reset pulse of 250 
+//milli seconds. This reset pulse is implemented to make sure that after (for 
+//example) an emergency stop all LMS'es that are still automatic can be started 
+//without local action required.
+//
+//The reset pulse will be given on the positive flank of the IO available signal 
+//and is only required when the LMS is not healthy and in automatic mode.
+      NOP   0; 
+
+// Create signal on positive flank of IO available
+      A     #i_Available_IO; 
+      FP    #s_FP_Copy_Req_Avail_IO; 
+      =     #t_FP_IO_Available; 
+
+// Determine when the reset pulse timer needs to be started
+      A     #t_FP_IO_Available; 
+      A     #i_IO_LMS_Auto; 
+      AN    #i_IO_LMS_Healthy; 
+      S     #s_Pulse_Timer_Active; 
+
+// Continue pulse for 250 milli seconds
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_Pulse_Timer_Active,
+           i_CFG_Timer_Value        := 250,
+           i_Setpoint               := #s_TSp_Reset_Pulse,
+           o_Setpoint               := #s_TSp_Reset_Pulse,
+           o_Timer_Elapsed          := #t_Pulse_Timer_Elapsed);
+
+// When timer is elapsed reset timer active 
+      A     #t_Pulse_Timer_Elapsed; 
+      R     #s_Pulse_Timer_Active; 
+
+// Invert timer elapsed signal to create pulse
+      A     #s_Pulse_Timer_Active; 
+      AN    #t_Pulse_Timer_Elapsed; 
+      =     #s_Reset_Pulse; 
+NETWORK
+TITLE =CA: Handle electrical input statuses
+//Some errors and statuses are coming directly from electrical inputs. If the IO 
+//becomes not available, those inputs must be ignored, to avoid (as consequence 
+//of) all kind of meaningless status changes, which are indicated to HMI.
+//
+//The IO available signal needs to be suppressed when a reset pulse is given 
+//because during the reset pulse the LMS is still not healthy and thus the IO is 
+//still not available.
+      NOP   0; 
+
+// Create IO available signal for suppressing error statusses
+      A     #i_Available_IO; 
+      AN    #s_Reset_Pulse; 
+      =     #t_Available_IO; 
+
+// Reset LMS ASI error
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO; 
+      R     #o_ST_ASI_NotPrsnt; 
+      R     #o_ST_ASI_Err; 
+
+// Reset LMS not healthy
+      A     #i_CMD_Reset; 
+      ON    #t_Available_IO; 
+      O     #o_ST_ASI_NotPrsnt; // When an ASI slave is disconnected not healthy is reported before not present, not present shall have proirity
+      O     #o_ST_ASI_Err; 
+      R     #o_ST_LMS_Not_Hthy; 
+
+// LMS ASI not present
+      A     #i_LMS_NotPrsnt; 
+      A     #t_Available_IO; 
+      S     #o_ST_ASI_NotPrsnt; 
+
+// LMS ASI error
+      A     #i_LMS_Error; 
+      A     #t_Available_IO; 
+      S     #o_ST_ASI_Err; 
+
+// LMS not automatic
+      AN    #i_IO_LMS_Auto; 
+      A     #t_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      =     #o_ST_LMS_Not_Auto; 
+
+// LMS not healthy
+      AN    #i_IO_LMS_Healthy; 
+      A     #t_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      S     #o_ST_LMS_Not_Hthy; 
+
+NETWORK
+TITLE =DA: Motor run signal
+
+      NOP   0; 
+
+// Determine when the motor forward output should be true
+// When a reset pulse is active make motor forward output true to reset the LMS
+      A     #i_CMD_Req_Motor_Forward; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Err; 
+      AN    #o_ST_LMS_Not_Auto; 
+      AN    #o_ST_LMS_Not_Hthy; 
+      O     #s_Reset_Pulse; 
+      =     #o_IO_MTR_Fwd; 
+
+// When a reset pulse is active make motor reverse output true to reset the LMS
+      A     #s_Reset_Pulse; 
+      =     #o_IO_MTR_Rev; 
+
+// Quick stop output must be true when quick stop is disabled
+      AN    #i_Quick_Stop; 
+      =     #o_IO_MTR_Dis_Quick_Stop; 
+NETWORK
+TITLE =EA: Determine statistical values
+
+      NOP   0; 
+
+// When motor forward and motor reverse are both true (e.g. when reset pulse is given) 
+// the motor is not running and the statisticals counters should not be increased.
+      A     #o_IO_MTR_Fwd; 
+      A     #o_IO_MTR_Rev; 
+      JC    EA02; 
+
+// Determine the number of seconds that the motor is running 
+      A     #o_IO_MTR_Fwd; 
+      A     "M_OS_New_Second"; 
+      JCN   EA01; 
+
+      L     #s_Statistical.Started_Time; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Started_Time; 
+
+// Determine the number of times the motor starts/stops
+EA01: A     #o_IO_MTR_Fwd; 
+      FN    #s_Copy_FN_o_IO_MTR; 
+      JCN   EA02; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report Hardware: Motor Stopped (3902)
+           i_Message_ID             := 3902,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+EA02: A     #i_CMD_Send_Stat; 
+      JCN   EA99; 
+
+      CALL "FC_Write_Event" (// Report statistical start/stop information
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of times the motor starts/stops after message has been send
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+      CALL "FC_Write_Event" (// Report statistical started time information
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_Statistical.Started_Time,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+// Clear the number of seconds that the motor is running after message has been send
+      L     0; 
+      T     #s_Statistical.Started_Time; 
+
+EA99: NOP   0; 
+END_FUNCTION_BLOCK
+

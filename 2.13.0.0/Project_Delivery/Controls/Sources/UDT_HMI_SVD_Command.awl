@@ -1,0 +1,34 @@
+TYPE "UDT_HMI_SVD_Command"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Wednesday, March 29, 2017 11:31:54 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#4255 Initial version                              nlHdL    29-03-17   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Cmd_Auto : BOOL ;	//Command button1 Auto
+   Cmd_Start_Up : BOOL ;	//Command button2 Start or Up
+   Cmd_Stop_Down : BOOL ;	//Command button3 Stop o Down
+   Cmd_Button4 : BOOL ;	//Command button 4
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

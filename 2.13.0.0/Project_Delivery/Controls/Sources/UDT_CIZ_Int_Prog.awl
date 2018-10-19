@@ -1,0 +1,31 @@
+TYPE "UDT_CIZ_Int_Prog"
+TITLE =%version: 1.04 % CN: 10 
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Tuesday, July 11, 2017 1:27:13 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#6140: CIZ02 section status stopped                nlHdL    11-07-17   1.04
+//ra#21747: Add PEC blockage                            nldy     03-04-17   1.03
+//ra#15981: align variables                             nljclo   20-10-16   1.02
+//ra#38710: Initial version                             nljclo   13-06-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Req_Halt : BOOL ;	//Request to halt
+   Req_MTR_Run : BOOL ;	//Request motor to run
+   Preset_PEC_Latch : BOOL ;	//Preset the PEC Latch
+   IO_NOT_PEC : BOOL ;	//PEC value
+   IO_Available : BOOL ;	//IO available
+   Reset_PEC_Blockage : BOOL ;	//Reset PEC Blockage
+   MS_Automatic : BOOL ;	//Main Switch auto
+   Req_Induct : BOOL ;	//Request to induct
+   EOS_PEC_Blk : BOOL ;	//End Of Section PEC blockage
+   Req_Die_Forward : BOOL ;	//Request to halt collector conveyor  
+  END_STRUCT ;	
+END_TYPE
+

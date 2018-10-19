@@ -1,0 +1,19 @@
+TYPE "UDT_MLZ_Int_Prog"
+TITLE =%version: 1.01 % CN: 10 
+//History:
+//This version  %created_by:   nljclo %
+//              %date_created:   Wednesday, September 07, 2016 7:37:54 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:      Rev:
+//---------------------------------------------------  -------  --------   -----
+//ra#16880: Initial version                             nljclo   05-09-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Req_PB_Forward : BOOL ;	// Request forward by push button
+  END_STRUCT ;	
+END_TYPE
+

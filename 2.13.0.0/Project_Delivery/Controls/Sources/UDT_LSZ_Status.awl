@@ -1,0 +1,42 @@
+TYPE "UDT_LSZ_Status"
+TITLE =%version: 0.06 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, June 16, 2017 2:08:50 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#54187: Align As per Product Book                   inajos   16-06-17   0.06
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   0.05
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.04
+//CR5764 Status UDT Update                              nlHdL    05-10-10   0.03 
+//Update compile number CN: 10 -> CN: 11                nlMRe    20-09-10   0.02
+//Initial version                                       inpna    15-07-10   0.01                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Operational : BOOL ;	//Lane is operational
+   Empty : BOOL ;	//Lane is empty
+   Full : BOOL ;	//Lane is full
+   Emptying : BOOL ;	//Lane is emptying
+   Empty_Request_Queue : BOOL ;	//Lane Empty Request in Queue
+   Lane_Disabled : BOOL ;	//Lane_Disabled
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

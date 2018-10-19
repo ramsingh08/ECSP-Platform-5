@@ -1,0 +1,707 @@
+FUNCTION "FC_OB86_Rack_Failure" : VOID
+TITLE =%version: 0.05 % CN: 30
+//Function: 
+//Module for acyclic diagnose of DP/PN Slave not present and configuration 
+//error.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:02:09 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//24083: Diagnose profinet or profibus slaves in 1 PLC  nlHdL    21-05-15   0.05
+//16544: Update profinet diagnose and add OB83 failure  nlHdL    12-03-14   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//PR14161 Update violation coding convention 9          nlple    26-06-13   0.02
+//Initial Revision                                      nlHHop   17-04-13   0.01
+//
+//Description: 
+//On the basis of OB86 Event class, Fault ID and module address the 
+//DP/PN slave not present and error bitmaps are updated dependent on the 
+//type of event.                       
+//
+//IMPORTANT: This module must be called from within OB86 and could not be used on 
+//another location!
+//
+//  ------------
+//  -- Remark --
+//  ------------
+//   This network can handle only ONE ProfiNET IO and ProfiBUS Master System.
+//   In a case a multiple IO systems are used within the project, this block 
+//   call has to be called multiple times. It is possible to specified only  
+//   ONE IO SYSTEM on the input of this Block Call
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DP_Master_System_ID : INT ;	//[1..32] DP Master System Identification Setting
+  i_DP_Not_Present_Bitmap : ANY ;	//ANY pointer to DP Not Present Bitmap
+  i_DP_Error_Bitmap : ANY ;	//ANY pointer to DP Error Bitmap
+  i_PN_IO_System_ID : INT ;	//ProfiNET IO System Identification Setting [100..115]
+  i_PN_Not_Present_Bitmap : ANY ;	//ANY Pointer to PN Not Present Bitmap
+  i_PN_Error_Bitmap : ANY ;	//ANY Pointer to PN Error Bitmap
+END_VAR
+VAR_TEMP
+  t_Slave_Not_Present : BOOL ;	//Slave not present
+  t_Slave_Present_OK : BOOL ;	//Slave present and OK (Error Free)
+  t_Slave_Present_Fault : BOOL ;	//Slave present but error detected
+  t_ProfiNET_Device : BOOL ;	//Interrupt course by ProfiNET Device
+  t_ProfiBUS_Device : BOOL ;	//Interrupt course by ProfiBUS Device
+  t_Station_Number : INT ;	//PN or DP  station number
+  t_Slave_Master_System_ID : INT ;	//DP Master/PNIO System Identification
+  t_DB_num : INT ;	//Number of the DB with PN or DP statuses bitmaps
+  t_OB86_EV_CLASS_FLT_ID : WORD ;	//OB86 Local Data - Event Class + Fault Identification
+  t_OB86_EV_CLASS : BYTE ;	//OB86 Local Data - Event Class
+  t_OB86_FLT_ID : BYTE ;	//OB86 Local Data - Fault identification
+  t_OB86_MDL_ADDR : WORD ;	//OB86 Local Data - Module Address
+  t_OB86_RACKS_FLTD : DWORD ;	//OB86 Local Data - Racks Fault
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask and initialize variables
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+
+      CLR   ; // Reset temp variables   
+      =     #t_Slave_Not_Present; 
+      =     #t_Slave_Present_OK; 
+      =     #t_Slave_Present_Fault; 
+
+NETWORK
+TITLE =BA: Load local data OB86
+//Load EV_CLASS, FLT_ID, MDL_ADDR, RACKS_FLTS from OB86 local data 
+//stack
+      NOP   0; 
+
+//////////////////////////////////////////////////////
+// -------- Retrieve Information From OB86 -------- //
+//////////////////////////////////////////////////////
+
+      L     DW#16#87000000; // Load local data OB86
+      LAR1  ; 
+      L     B [AR1,P#0.0]; // Load EV_CLASS
+      T     #t_OB86_EV_CLASS; // Transfer to temp
+      L     B [AR1,P#1.0]; // Load FLT_ID
+      T     #t_OB86_FLT_ID; // Transfer to temp
+      L     W [AR1,P#6.0]; // Load MDL_ADDR
+      T     #t_OB86_MDL_ADDR; // Transfer to temp
+      L     D [AR1,P#8.0]; // Load RACKS_FLTD
+      T     #t_OB86_RACKS_FLTD; // Transfer to temp  
+
+NETWORK
+TITLE =CA: Check if the interrupt was called by DP or PN device
+//The device type can be identified based on the code within
+//OB86_FLT_ID:
+//
+//ProfiBUS Deceives can have the following error codes:
+//-----------------------------------------------------
+//
+//- C3: Distributed I/O devices: failure of a DP master system
+//- C4: Failure of a DP station
+//- C5: Return of the station, but station faulty
+//- C7: Return of a DP station, but error in module parameter assignment
+//- C8: Return of a DP station, however discrepancy in configured and actual
+//      configuration
+//
+//ProfiNET Deceives can have the following error codes:
+//-----------------------------------------------------
+//
+//- CA: PROFINET IO system failure
+//- CB: PROFINET IO station failure/station return
+//- CC: PROFINET IO station return with problem
+//- CD: PROFINET IO station return, expected and actual configuration differ
+//- CE: PROFINET IO station return, error in module configuration parameters
+//
+//
+      NOP   0; 
+
+////////////////////////////////////////////////////
+// -------- Check Device Type (DP or PN) -------- //
+////////////////////////////////////////////////////
+
+      A(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#C3; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#C4; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#C5; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#C7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#C8; 
+      ==I   ; 
+      )     ; 
+      =     #t_ProfiBUS_Device; 
+
+      A(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#CA; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#CB; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#CC; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#CD; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_FLT_ID; 
+      L     W#16#CE; 
+      ==I   ; 
+      )     ; 
+      =     #t_ProfiNET_Device; // When Device type was identified then end this network
+
+// If the OB86 was called by the different reason then mentioned about
+// THEN end this block
+
+      AN    #t_ProfiBUS_Device; 
+      AN    #t_ProfiNET_Device; 
+      BEC   ; // IF the interrupt was not coursed by the DP or PN deceive the end this block
+
+NETWORK
+TITLE =DA: Retrieve DP mater/PNIO system ID and station number
+//Check if the DP master/PNIO System is equal to the input settings, in a case 
+//the IO system is different then specified, end this block call without error.
+//
+//  ------------
+//  -- Remark --
+//  ------------
+//   This network can handle only ONE ProfiNET IO and ProfiBUS Master System.
+//   In a case a multiple IO systems are used within the project, this block 
+//   call has to be called multiple times. It is possible to specified only  
+//   ONE IO SYSTEM on the input of this Block Call
+// 
+//ProfiBUS:
+//---------
+//The slave station number allowed for the DP network is within a range [1..127]
+//
+//ProfiNET:
+//---------
+//The device number allowed for the PN network is within a range [1..256]
+      NOP   0; 
+
+///////////////////////////////////////////////////////////////
+// -------- Check the DP master/ PNIO System number -------- //
+///////////////////////////////////////////////////////////////
+
+// The DP master/PNIO System can be retrieved from the "OB86_RACKS_FLTD"
+// The OB86_RACKS_FLTD has the following structure:
+
+// OB86_RACKS_FLTD for ProfiBUS deceive: 
+//----------------------------------------
+
+// Bits [0..7]: No. of the DP station
+// Bits [8..15]: DP master system ID
+// Bits [16..30]: Logical base address of the DP slave
+// Bit 31: I/O identifier
+
+
+// OB86_RACKS_FLTD for ProfiNET deceive: 
+//----------------------------------------
+
+// Bits [0..10]: station number
+// Bits [11..14]: IO system ID
+// Bit 15: 1
+// Bits [16..30]: logical base address of station
+// Bit 31: I/O identifier
+
+///********************************************//
+// -------- Check the ProfiBUS_Device -------- //
+///********************************************//
+
+      A     #t_ProfiBUS_Device; 
+      JCN   DA01; 
+
+      L     P##t_OB86_RACKS_FLTD; // Load pointer to OB86_RACKS_FLTD
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1 
+      +D    ; 
+      LAR1  ; 
+
+// -------- Check the DP Master System Number -------- //
+
+      L     LB [AR1,P#2.0]; // Retrieve Master System ID
+      T     #t_Slave_Master_System_ID; 
+
+      L     #t_Slave_Master_System_ID; // IF the Master System ID in not equal to the  specified on the input Master System ID
+      L     #i_DP_Master_System_ID; // 
+      <>I   ; 
+      BEC   ; // THEN End This Block (The device that coursed the interrupt was previously identified as a ProfiBUS Slave ) 
+
+// -------- Check the DP Slave address -------- //
+
+      L     LB [AR1,P#3.0]; // Retrieve station number
+      T     #t_Station_Number; 
+
+      L     #t_Station_Number; // The allowed ProfiBUS addresses are within a range [1..127]
+      L     127; // IF the device address is not within this range
+      <=I   ; 
+      NOT   ; 
+      BEC   ; // THEN end this block call
+
+      JU    DA99; // When the DP Slave was identified, then end this network
+
+//*********************************************//
+// -------- Check the ProfiNET_Device -------- //
+//*********************************************//
+
+DA01: L     P##t_OB86_RACKS_FLTD; // Load pointer to OB86_RACKS_FLTD
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1 
+      +D    ; 
+      LAR1  ; 
+
+// -------- Check the PNIO System Number -------- //
+
+      L     LW [AR1,P#2.0]; // Load Bits [15..0]
+      L     W#16#7800; // Load mask "01111000 00000000"
+      AW    ; // Last to digits of the PNIO system
+      SRW   11; 
+      L     100; // The PNIO system has values [100..115] then add 100 to last two digits
+      +I    ; 
+      T     #t_Slave_Master_System_ID; // ID of the PNIO System 
+
+      L     #t_Slave_Master_System_ID; // IF PNIO System in not equal to the specified on the input PNIO System ID..
+      L     #i_PN_IO_System_ID; 
+      <>I   ; 
+      BEC   ; // THEN End This Block  (The device that coursed the interrupt was previously identified as a ProfiNET Device ) 
+
+// -------- Check the DP Slave address -------- //
+
+      L     LW [AR1,P#2.0]; // Load Bits [15..0]
+      L     W#16#3FF; // Load mask "00000011 11111111"
+      AW    ; 
+      T     #t_Station_Number; 
+
+      L     #t_Station_Number; // The allowed ProfiNET device numbers are within a range [1..127]
+      L     256; // IF the device number is not within this range
+      <=I   ; 
+      NOT   ; 
+      BEC   ; // THEN end this block call
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Check the reason of the interrupt for the DP Slave
+//The detailed status of the DP Slave (reason of the interrupt)
+//can be evaluated  based on the EV_CLASS and FLT_ID records
+//retrieved from the OB86 Local Data
+//
+//In a case the EV_CLASS contains value "B#16#39", the interrupt
+//was called because the Slave was discovered missing. 
+//In a case the EV_CLASS contains value "B#16#38", the interrupt
+//was called because the Slave was discovered/found. 
+//
+//The FLT_ID record contains a detail information about the 
+//device error status
+      A     #t_ProfiBUS_Device; 
+      JCN   FA00; 
+
+/////////////////////////////////////////////////////////////////
+// -------- Check Error code for the ProfiBUS Devices -------- //
+/////////////////////////////////////////////////////////////////
+
+//**********************************************//
+// Merge EV_CLASS and FLT_ID to EV_CLASS_FLT_ID //
+//**********************************************//
+
+// The  #t_OB86_EV_CLASS and #t_OB86_FLT_ID have the length of ONE Byte !
+
+      L     #t_OB86_EV_CLASS; 
+      SLW   8; 
+      L     #t_OB86_FLT_ID; 
+      OW    ; 
+      T     #t_OB86_EV_CLASS_FLT_ID; 
+
+//****************************************//
+// -------- DP Slave Not Present -------- //
+//****************************************//
+
+// When the interrupt is called because the DP Slave is not present then the event class "EV_CLASS" has an value "B#16#39"
+
+
+// DP Slave station failure/malfunction are reported by "FLT_ID" with a values:  
+// "C4" and "C5"
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // IF Failure of a DP station
+      L     W#16#39C4; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR Return of the station, but station faulty
+      L     W#16#39C5; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Not_Present; 
+      JC    GA00; 
+
+//*****************************************//
+// -------- DP Slave Present - OK -------- //
+//*****************************************//
+
+// When the interrupt is called because the DP Slave was 
+// discovered/found then the event class "EV_CLASS" has a value "B#16#38"
+
+// DP Slave station statuses are reported by "FLT_ID" with a values:  
+// "C4", "C5", "C7", "C8"
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // IF Station back and error free
+      L     W#16#38C4; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Present_OK; 
+      JC    GA00; 
+
+//*************************************************//
+// -------- DP Slave Present - with error -------- //
+//*************************************************//
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR Station present with internal fault
+      L     W#16#38C5; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR Return of a DP station, but error in module parameter assignment
+      L     W#16#38C7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR Return of a DP station, however discrepancy in configured and actual configuration
+      L     W#16#38C8; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Present_OK; 
+      S     #t_Slave_Present_Fault; 
+      JC    GA00; 
+
+// If any of the mentioned error was discovered then end this block
+
+      BEU   ; 
+
+NETWORK
+TITLE =FA: Check the reason of the interrupt for the PN Device
+//The incoming EV_CLASS and FLT_ID are merged and on the basis of this 
+//combination the status of the slave is determined.
+//
+FA00: NOP   0; 
+
+/////////////////////////////////////////////////////////////////
+// -------- Check Error code for the ProfiNET Devices -------- //
+/////////////////////////////////////////////////////////////////
+
+//**********************************************//
+// Merge EV_CLASS and FLT_ID to EV_CLASS_FLT_ID //
+//**********************************************//
+
+// The  #t_OB86_EV_CLASS and #t_OB86_FLT_ID have the length of ONE Byte !
+
+      L     #t_OB86_EV_CLASS; 
+      SLW   8; 
+      L     #t_OB86_FLT_ID; 
+      OW    ; 
+      T     #t_OB86_EV_CLASS_FLT_ID; 
+
+//*****************************************//
+// -------- PN Device Not Present -------- //
+//*****************************************//
+
+// When the interrupt is called because the PN Slave is not present then the event class "EV_CLASS" has an value "B#16#39"
+
+
+// ProfiNET Slave station failure/malfunction are reported by "FLT_ID" with a values:  
+// "CB" and "CC"
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // IF PROFINET IO station failure
+      L     W#16#39CB; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR PROFINET IO station return with problem
+      L     W#16#39CC; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Not_Present; 
+      JC    IA00; 
+
+//******************************************//
+// -------- PN Device Present - OK -------- //
+//******************************************//
+
+// When the interrupt is called because the DP Slave was 
+// discovered then the event class "EV_CLASS" has an value "3B#16#8"
+
+// DP Slave station statuses are reported by "FLT_ID" with a values:  
+// "CB", "CC", "CD", "CE"
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // IF PROFINET IO station return
+      L     W#16#38CB; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Present_OK; 
+      JC    IA00; 
+
+//**************************************************//
+// -------- PN Device Present - with error -------- //
+//**************************************************//
+
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR PROFINET IO station return with problem
+      L     W#16#38CC; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR PROFINET IO station return, expected and actual configuration differ
+      L     W#16#38CD; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_OB86_EV_CLASS_FLT_ID; // OR PROFINET IO station return, error in module configuration parameters
+      L     W#16#38CE; 
+      ==I   ; 
+      )     ; 
+      S     #t_Slave_Present_OK; 
+      S     #t_Slave_Present_Fault; 
+      JC    IA00; 
+
+// If any of the mentioned error was discovered then end this block
+
+      BEU   ; 
+
+NETWORK
+TITLE =GA: Update DP Slave Not Present Status in "DB_Diagnose_DP"
+//If the slave is not present (not responding) a flag is SET in the Slave Not 
+//Present Bitmap on the station number of the slave. If the slave is present (OK 
+//or Fault) a flag is RESET in the Slave Not Present Bitmap on station number of 
+//the slave
+GA00: A     #t_ProfiBUS_Device; 
+      JCN   IA00; 
+
+/////////////////////////////////////////////////////////
+// -------- Update the Status of the DP Slave -------- //
+// --------      in the "DB_Diagnose_DP"      -------- //
+/////////////////////////////////////////////////////////
+
+//****************************************//
+// -------- DP Slave Not Present -------- //
+//****************************************//
+
+      L     P##i_DP_Not_Present_Bitmap; // Load pointer to DP Slave Not Present bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number DP Slave Not Present bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of DP Slave Not Present bitmap in DB
+      L     #t_Station_Number; // And add Offset in DP Slave Not Present bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of DP Slave Not Present bitmap (temp DB number)
+      O     #t_Slave_Present_Fault; // IF slave present and OK
+      O     #t_Slave_Present_OK; // OR slave present and Fault..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Not Present bitmap on slave station position (AR1)
+
+      A     #t_Slave_Not_Present; // IF slave not present..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Not Present bitmap on slave station position (AR1)
+
+
+NETWORK
+TITLE =HA: Update DP Slave Error Status in "DB_Diagnose_DP"
+//If the slave is present and Fault a flag is SET in the Slave Error Bitmap on 
+//the station number of the slave. If the slave is not present or present and OK 
+//a flag is RESET in the Slave Error Bitmap on the station number of the slave
+      NOP   0; 
+
+//**********************************//
+// -------- DP Slave Error -------- //
+//**********************************//
+
+      L     P##i_DP_Error_Bitmap; // Load pointer to DP Slave Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number DP Slave Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of DP Slave Error bitmap in DB
+      L     #t_Station_Number; // And add Offset in DP Slave Error bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of DP Slave Error bitmap (temp DB number)
+      O     #t_Slave_Not_Present; // IF slave not present
+      O     #t_Slave_Present_OK; // OR slave present and OK..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on slave station position (AR1)   
+
+      A     #t_Slave_Present_Fault; // IF slave present and fault..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on slave station position (AR1)
+
+NETWORK
+TITLE =IA: Update PN Device Not Present Status in "DB_Diagnose_PN"
+//If the PN device is not present (not responding) a flag is SET in the Not 
+//Present Bitmap on the station number of that device. If the device is present  
+//(OK or Fault) a flag is RESET in the Not Present Bitmap on station number of 
+//the device
+IA00: A     #t_ProfiNET_Device; 
+      JCN   JA00; 
+
+//////////////////////////////////////////////////////////
+// -------- Update the Status of the PN Device -------- //
+// --------      in the "DB_Diagnose_PN"       -------- //
+//////////////////////////////////////////////////////////
+
+//******************************************//
+// -------- PN Device NOT Present  -------- //
+//******************************************//
+
+      L     P##i_PN_Not_Present_Bitmap; // Load pointer to PN  Not Present bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number PN Not Present bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of PN Not Present bitmap in DB
+      L     #t_Station_Number; // And add Offset in PN Not Present bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of PN Not Present bitmap (temp DB number)
+      O     #t_Slave_Present_Fault; // IF PN device present and OK
+      O     #t_Slave_Present_OK; // OR slave present and Fault..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Not Present bitmap on slave station position (AR1)
+
+      A     #t_Slave_Not_Present; // IF PN device not present..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Not Present bitmap on slave station position (AR1)
+
+
+NETWORK
+TITLE =JA: Update PN Slave Error Status in "DB_Diagnose_PN"
+//If the PN device is present and Fault a flag is SET in the PN Error Bitmap 
+//on the station number of the device. If the PN Device is not present or present 
+//and OK a flag is RESET in the PN Error Bitmap on the station number of the 
+//device
+JA00: NOP   0; 
+
+//***********************************//
+// -------- PN Device Error -------- //
+//***********************************//
+
+      L     P##i_PN_Error_Bitmap; // Load pointer to PN Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number PN Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; // Load Pointer to start of PN Error bitmap in DB
+      L     #t_Station_Number; // And add Offset in PN Error bitmap (=slave station number)
+      +D    ; 
+      L     1; 
+      -D    ; 
+      LAR1  ; // Transfer to AR1
+
+      OPN   DB [#t_DB_num]; // Open DB of PN Error bitmap (temp DB number)
+      O     #t_Slave_Not_Present; // IF slave not present
+      O     #t_Slave_Present_OK; // OR slave present and OK..
+      R     DBX [AR1,P#0.0]; // ..RESET flag in Error bitmap on slave station position (AR1)   
+
+      A     #t_Slave_Present_Fault; // IF slave present and fault..
+      S     DBX [AR1,P#0.0]; // ..SET flag in Error bitmap on slave station position (AR1)
+
+NETWORK
+TITLE =KA: SET Global Marker belonging to Master Syst. ID
+
+      A     #t_ProfiBUS_Device; 
+      JCN   KA01; 
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 1..
+      L     1; 
+      ==I   ; 
+      S     "M_DP1_Diag_Interrupt"; // ..SET Marker M_DP1_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 2..
+      L     2; 
+      ==I   ; 
+      S     "M_DP2_Diag_Interrupt"; // ..SET Marker M_DP2_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 3..
+      L     3; 
+      ==I   ; 
+      S     "M_DP3_Diag_Interrupt"; // ..SET Marker M_DP3_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 4..
+      L     4; 
+      ==I   ; 
+      S     "M_DP4_Diag_Interrupt"; // ..SET Marker M_DP4_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 5..
+      L     5; 
+      ==I   ; 
+      S     "M_DP5_Diag_Interrupt"; // ..SET Marker M_DP5_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 6..
+      L     6; 
+      ==I   ; 
+      S     "M_DP6_Diag_Interrupt"; // ..SET Marker M_DP6_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 7..
+      L     7; 
+      ==I   ; 
+      S     "M_DP7_Diag_Interrupt"; // ..SET Marker M_DP7_Diag_interrupt
+
+KA01: L     P##i_PN_Error_Bitmap; // Load pointer to ProfiNET Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1  
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#4.0]; // Load DB number PN Error bitmap
+      T     #t_DB_num; // Transfer to temp DB number
+      L     D [AR1,P#6.0]; 
+      LAR1  ; 
+
+      OPN   DB [#t_DB_num]; // Open DB of PN Error bitmap (temp DB number)
+      SET   ; 
+      S     DBX [AR1,P#32.0]; // Set Diagnose interrupt
+
+END_FUNCTION
+

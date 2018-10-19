@@ -1,0 +1,83 @@
+FUNCTION_BLOCK "FB_SW_ADN02"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//Advanced dieback merge node
+//
+//History:
+//This version  %created_by: nlhhop %
+//              %date_created: Tuesday, February 28, 2017 4:16:41 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlhhop   28-02-17   0.01
+//
+//Description:
+//The advanced dieback merge node function is to be used when the available TEP 
+//information from one downstream line has to be distributed over two upstream 
+//lines at a merge zone. The distribution rate should be configurable and be 
+//equal to the merge ratio of the merge zone.
+//
+//The function of this block is to distribute empty places downstream over two 
+//upstream lines. The empty places should be distributed according to the merge 
+//ratio which can be configured.
+//
+//Note: that the empty positions available on the merge zone itself are not taken 
+//in consideration, only sections located in a transport zone are to be taken in 
+//to account to determine the available TEP of a line.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Windows : INT ;	//CFG: Number of windows for ratio calculation
+  i_CFG_Ratio : INT ;	//CFG: Number of windows that are allowed to be used by the side of the merge
+  i_TEP_Dwnstr : INT ;	//Total empty positions downstream
+END_VAR
+VAR_OUTPUT
+  o_TEP_Straight : INT ;	//Total empty positions for the straight line
+  o_TEP_Side : INT ;	//Total empty positions for the side line
+END_VAR
+VAR_TEMP
+  t_Ratio_Straight : INT ;	//Number of windows that are allowed to be used by the straight line
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Calculate the TEP straight according to configured ratio
+//               TEP from downstream * ratio (straight)
+//TEP straight = --------------------------------------
+//                         configured windows
+      NOP   0; 
+
+// Calculate the ratio for the straight line (since only the ratio for the side is configured)
+      L     #i_CFG_Windows; 
+      L     #i_CFG_Ratio; 
+      -I    ; 
+      T     #t_Ratio_Straight; 
+
+// Calculate TEP straight
+      L     #i_TEP_Dwnstr; 
+      L     #t_Ratio_Straight; 
+      *I    ; 
+      L     #i_CFG_Windows; 
+      /I    ; 
+      T     #o_TEP_Straight; 
+
+NETWORK
+TITLE =BA: Calculate the TEP side according to configured ratio
+//           TEP from downstream * ratio
+//TEP side = ---------------------------
+//               configured windows
+      NOP   0; 
+
+// Calculate TEP side
+      L     #i_TEP_Dwnstr; 
+      L     #i_CFG_Ratio; 
+      *I    ; 
+      L     #i_CFG_Windows; 
+      /I    ; 
+      T     #o_TEP_Side; 
+
+END_FUNCTION_BLOCK
+

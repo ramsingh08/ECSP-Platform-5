@@ -1,0 +1,159 @@
+FUNCTION_BLOCK "FB_Rte_Seg_FIFO"
+TITLE =%version: 1.01 % CN: 33
+//Function:
+//This function is used to generate and clear route segment DB's. It must be 
+//implemented at every node in a system.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, December 06, 2016 01:29:16 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Init version Based on V1.03 of TTT                    nlhdl    06-12-16   1.01
+//
+//Description:
+//This function is used to generate data in and clear data from route segment 
+//DB's. It must be implemented at every node in a system and must be run once for 
+//each carrier which is passing by. 
+// 
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Position_Node : INT ;	//Node border Position in DB PLT
+  i_CFG_Area_HO_Dwnstr : BOOL ;	//Area handover present downstream of node
+  i_DB_PLT_Node : BLOCK_DB ;	//Data Structure: DB PLT node border
+  i_DB_RS_Upstr : BLOCK_DB ;	//Data Structure: DB Route Segment upstream buffer
+  i_DB_RS_Dwnstr : BLOCK_DB ;	//Data Structure: DB Route Segment downstream buffer
+  i_DB_Event : BLOCK_DB ;	//Data Structure: DB event
+END_VAR
+VAR
+  s_FP_Trigger_Buffer : BOOL ;	//Trigger for modifying buffers
+END_VAR
+VAR_TEMP
+  t_DB_RS_Upstr_Num : INT ;	//DB Route Segment upstream buffer number
+  t_DB_RS_Dwnstr_Num : INT ;	//DB Route Segment downstream buffer number
+  t_DB_PLT_Node_Num : INT ;	//Number of DB PLT node border
+  t_DB_Event_Num : INT ;	//Number of DB event
+  t_Fnd_Link : INT ;	//Link number found in DB PLT within the search window
+  t_Fnd_Num_Items_Leading : INT ;	//Number of leading edge items found in DB PLT within the search window
+  t_Not_Used_INT : INT ;	//Not used integer
+  t_Info_State : WORD ;	//Info state read
+  t_Position_Found : INT ;	//Position where leading edge is found
+  t_HOO_Running : BOOL ;	//Section downstream of HO is running
+  t_HOO_Operational_On : BOOL ;	//Section downstream of HO is operational on
+  t_DB_PLT_Node_HOO_Num : INT ;	//Number of DB PLT node HOO
+  t_SearchWindow : INT ;	//Search window
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get information from Data Blocks
+
+      SET   ; 
+      S     #t_HOO_Running; 
+      S     #t_HOO_Operational_On; 
+
+// Read DB number Of route segment DB's
+      OPN   #i_DB_RS_Upstr; 
+      L     DBNO; 
+      T     #t_DB_RS_Upstr_Num; 
+
+      OPN   #i_DB_RS_Dwnstr; 
+      L     DBNO; 
+      T     #t_DB_RS_Dwnstr_Num; 
+
+// Read DB number Of node border
+      OPN   #i_DB_PLT_Node; 
+      L     DBNO; 
+      T     #t_DB_PLT_Node_Num; 
+
+// Check if buffer is last in area
+      A     #i_CFG_Area_HO_Dwnstr; 
+      JCN   AA01; 
+
+// Read DB number downstream of node border
+      L     DBW    8; 
+      T     #t_DB_PLT_Node_HOO_Num; 
+
+// Check if downstream is connected
+      L     #t_DB_PLT_Node_HOO_Num; 
+      L     1; 
+      <I    ; 
+      BEC   ; 
+
+// Open downstream PLT DB number
+      OPN   DB [#t_DB_PLT_Node_HOO_Num]; 
+
+// Determine running state of first section in downstream area
+      A     DBX   10.1; 
+      =     #t_HOO_Running; 
+
+// Determine operational on state of first section in downstream area
+      A     DBX   10.5; 
+      =     #t_HOO_Operational_On; 
+
+// Preset value for area handover search
+      L     #i_CFG_Position_Node; 
+      T     #t_SearchWindow; 
+      JU    AA02; 
+
+// Preset value for standard search
+AA01: L     10; 
+      T     #t_SearchWindow; 
+
+// Copy event DB number
+AA02: OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+NETWORK
+TITLE =BA: Create trigger when data must be changed from RS DB
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Node_Num,
+           i_Position               := #i_CFG_Position_Node,
+           i_Window                 := #t_SearchWindow,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Found,
+           o_Info                   := #t_Not_Used_INT,
+           o_LNK                    := #t_Fnd_Link,
+           o_DB_PLT_Num             := #t_Not_Used_INT,
+           o_Number_Items_Found     := #t_Fnd_Num_Items_Leading);
+
+      A(    ; 
+      L     #t_Fnd_Num_Items_Leading; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     #t_HOO_Operational_On; 
+      A     #t_HOO_Running; 
+      FP    #s_FP_Trigger_Buffer; 
+      JCN   BA99; 
+
+// Determine if leading edge is actual product
+      CALL "FC_PLT_Read_State" (
+           i_DB_PLT_Num             := #t_DB_PLT_Node_Num,
+           i_Position               := #t_Position_Found,
+           i_Info_Physical          := 1,
+           o_Info_State             := #t_Info_State);
+
+// Check if entry is not claimed (info state x4xx is not found)
+      L     #t_Info_State; 
+      L     W#16#400; 
+      AW    ; 
+      L     0; 
+      ==I   ; 
+      JCN   BA99; 
+
+// Change item from upstream to downstream route segment buffer    
+      CALL "FC_Rte_Seg_Change" (
+           i_DB_RS_Upstr_Num        := #t_DB_RS_Upstr_Num,
+           i_DB_RS_Dwnstr_Num       := #t_DB_RS_Dwnstr_Num,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           i_LNK                    := #t_Fnd_Link);
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

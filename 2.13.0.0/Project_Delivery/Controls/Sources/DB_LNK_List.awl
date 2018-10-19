@@ -1,0 +1,40 @@
+DATA_BLOCK "DB_LNK_List"
+TITLE =%version: 0.10 % CN: 20
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Tuesday, December 13, 2016 2:24:38 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18904: HBS record added to library                 inajos   13-12-16   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.09
+//7990: Cart Bagtrax Record added to library            nlHdL    01-10-15   0.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.08
+//19734: Increase number of items to 300                nlple    25-06-14   0.08
+//15797: Keyword release added                          nlwwij   26-09-13   0.07
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.06
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.05
+//Header length changed                                 nlLvdG   21-03-12   0.04
+//Comment modified                                      nlLvdG   21-03-12   0.03
+//Remove name field and add history                     nlMRe    22-09-10   0.02
+//Initial revision                                      nlHdL    09-06-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Length_Header : INT  := 28;	//Length of the Header
+   Length_Record : INT ;	//Length of each record
+   Last_Generated : INT ;	//Last generated number
+   Entries_Present : INT ;	//Number of entries present in DB
+   Default_Record_DB : INT ;	//DB number of DB which conteens the default record
+   s_Done : BOOL ;	//Bit to indicate that init of DB has been done
+   DB_nr_Record : "UDT_LNK_Record";	//Record with DB nr for linking
+   LNK : ARRAY  [0 .. 300 ] OF //LNK
+   "UDT_LNK_Record";	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK

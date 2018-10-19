@@ -1,0 +1,378 @@
+FUNCTION_BLOCK "FB_Ratio_Manager"
+TITLE =%version:  0.02 % CN: 42
+//Function:
+//This FB calculate the ratio:range (n:m) for a group of inducts connected to a 
+//merge zone
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:14:22 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//WP9182 Initial version                                nlple    19-03-12  0.01
+//
+//Description:
+//This FB calculate the ratio:range (n:m) for a group of inducts connected to a 
+//merge zone
+//
+//Desciption:
+//Goal is to update dynamicaly the ratio (n) and the range (m) of group of induct 
+//connected to the same merge zone
+//When a induct is not available the ratio/range are divided proportionally to 
+//the other
+//When the TOP of an induct line is smaller than the configured treshold, then 
+//the configured nominal ratio is used.
+//When the TOP of an induct line is bigger than the configured treshold, then a 
+//CFG factor is added to the CFG nominal ratio for the dedicated induct.
+//
+//   ----------------------------------------------------------------
+//
+//                                ------>
+//
+//   ----------------------------------------------------------------
+//    |       |         |       |         |       |         |       |
+//    |       |         |       |         |       |         |       |
+//    |       |         |       |         |       |         |       |
+//    |       |         |       |         |       |         |       |
+//    |       |         |       |         |       |         |       |
+//    |-------|         |-------|         |-------|         |-------|
+//    induct 1          induct 2          induct 3          induct 4
+//    
+//
+//
+//
+//
+//
+//Note: this block is a template, means that it has to be specific adapted to the 
+//project requirements. 
+//                                                             
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Ratio_Nom_Ind_1 : INT ;	//CFG Number of empty windows which have to be claimed by this induct
+  i_CFG_Ratio_Nom_Ind_2 : INT ;	//CFG Number of empty windows which have to be claimed by this induct
+  i_CFG_Ratio_Nom_Ind_3 : INT ;	//CFG Number of empty windows which have to be claimed by this induct
+  i_CFG_Ratio_Nom_Ind_4 : INT ;	//CFG Number of empty windows which have to be claimed by this induct
+  i_CFG_Treshold_TOP_Ind_1 : INT ;	//CFG: When TOP is up this treshold, the ratio is increased by the ratio factor
+  i_CFG_Treshold_TOP_Ind_2 : INT ;	//CFG: When TOP is up this treshold, the ratio is increased by the ratio factor
+  i_CFG_Treshold_TOP_Ind_3 : INT ;	//CFG: When TOP is up this treshold, the ratio is increased by the ratio factor
+  i_CFG_Treshold_TOP_Ind_4 : INT ;	//CFG: When TOP is up this treshold, the ratio is increased by the ratio factor
+  i_CFG_Ratio_Fact_Ind_1 : INT ;	//CFG Factor to increase the ratio if the considered TOP is > than the treshold
+  i_CFG_Ratio_Fact_Ind_2 : INT ;	//CFG Factor to increase the ratio if the considered TOP is > than the treshold
+  i_CFG_Ratio_Fact_Ind_3 : INT ;	//CFG Factor to increase the ratio if the considered TOP is > than the treshold
+  i_CFG_Ratio_Fact_Ind_4 : INT ;	//CFG Factor to increase the ratio if the considered TOP is > than the treshold
+  i_CFG_Refresh_Period : INT  := 1;	//CFG: [sec] period evaluation of manager
+  i_TOP_Induct_1 : INT ;	//Total Occupied Position line induct 1
+  i_TOP_Induct_2 : INT ;	//Total Occupied Position line induct 2
+  i_TOP_Induct_3 : INT ;	//Total Occupied Position line induct 3
+  i_TOP_Induct_4 : INT ;	//Total Occupied Position line induct 4
+  i_Induct_1_OK : BOOL ;	//Induct available (status available for the upstr zone and the induct section)
+  i_Induct_2_OK : BOOL ;	//Induct available (status available for the upstr zone and the induct section)
+  i_Induct_3_OK : BOOL ;	//Induct available (status available for the upstr zone and the induct section)
+  i_Induct_4_OK : BOOL ;	//Induct available (status available for the upstr zone and the induct section)
+END_VAR
+VAR_OUTPUT
+  o_Ratio_Induct_1 : INT ;	//Number of empty windows which have to be claimed by this induct = n (n:m)
+  o_Ratio_Induct_2 : INT ;	//Number of empty windows which have to be claimed by this induct = n (n:m)
+  o_Ratio_Induct_3 : INT ;	//Number of empty windows which have to be claimed by this induct = n (n:m)
+  o_Ratio_Induct_4 : INT ;	//Number of empty windows which have to be claimed by this induct = n (n:m)
+  o_Range_Induct_1 : INT ;	//Range of windows = m (n:m)
+  o_Range_Induct_2 : INT ;	//Range of windows = m (n:m)
+  o_Range_Induct_3 : INT ;	//Range of windows = m (n:m)
+  o_Range_Induct_4 : INT ;	//Range of windows = m (n:m)
+END_VAR
+VAR
+  s_Ratio_Nominal_Induct_1 : INT ;	//Number of empty windows which have to be claimed by this induct
+  s_Ratio_Nominal_Induct_2 : INT ;	//Number of empty windows which have to be claimed by this induct
+  s_Ratio_Nominal_Induct_3 : INT ;	//Number of empty windows which have to be claimed by this induct
+  s_Ratio_Nominal_Induct_4 : INT ;	//Number of empty windows which have to be claimed by this induct
+  s_Cnt_Refresh : INT ;	//Counter refresh evalution
+  s_CNT_Max_Time_Elapsed : INT ;	//Value to be reached by the global timer 
+  s_Induct_1_Available : BOOL ;	//Induct is available
+  s_Induct_2_Available : BOOL ;	//Induct is available
+  s_Induct_3_Available : BOOL ;	//Induct is available
+  s_Induct_4_Available : BOOL ;	//Induct is available
+  s_Refresh : BOOL ;	//Refresh ratio
+  s_Max_Time_Elapsed : BOOL ;	//Timer refresh is done
+  s_Next_Hour_Timer : BOOL ;	//Toggle bit for timer check
+  s_Done : BOOL ;	//Only First Cycle or when DB is downloaded again
+END_VAR
+VAR_TEMP
+  t_CHECK_Toggle_Bit : BOOL ;	//Check Toggle bit of timer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:Refresh data
+//Each period of "i_CFG_Refresh_Period" in second, the output "o_Ratio_Induct_X" 
+//and o_Range_Induct_X are updated.
+      L     #i_CFG_Refresh_Period; 
+      L     0; 
+      ==I   ; 
+      JCN   AA01; 
+
+      SET   ; 
+      R     #s_Max_Time_Elapsed; 
+
+      JU    AA98; 
+
+AA01: NOP   0; 
+      A     #s_Max_Time_Elapsed; 
+      JCN   AA02; 
+//----- Preset the Timer ----------------
+
+      A     "M_Toggle_SecTimer"; 
+      =     #s_Next_Hour_Timer; 
+
+      L     "MW_Hour_Sec"; 
+      L     #i_CFG_Refresh_Period; 
+      +I    ; 
+      T     #s_CNT_Max_Time_Elapsed; 
+      L     L#3600; 
+      >I    ; 
+      JCN   AA02; 
+      L     #s_CNT_Max_Time_Elapsed; 
+      L     L#3600; 
+      -I    ; 
+      T     #s_CNT_Max_Time_Elapsed; 
+
+//If timer > max sec per hour, toggle bit
+      AN    "M_Toggle_SecTimer"; 
+      =     #s_Next_Hour_Timer; 
+
+AA02: NOP   0; 
+//---- Check Timer value ---------------
+
+      X     "M_Toggle_SecTimer"; // | Toggle | Next_Timer |
+      X     #s_Next_Hour_Timer; // |    0   |      0     | = 1 
+      =     #t_CHECK_Toggle_Bit; // |    1   |      0     | = 0
+      AN    #t_CHECK_Toggle_Bit; // |    0   |      1     | = 0
+      =     #t_CHECK_Toggle_Bit; // |    1   |      1     | = 1
+
+      L     "MW_Hour_Sec"; 
+      L     #s_CNT_Max_Time_Elapsed; 
+      >=I   ; 
+      A     #t_CHECK_Toggle_Bit; 
+      =     #s_Max_Time_Elapsed; 
+
+AA98: NOP   0; 
+
+      A     "M_First_Scan"; 
+      ON    #s_Done; 
+      O     #s_Max_Time_Elapsed; 
+      JCN   EA99; 
+
+      SET   ; 
+      =     #s_Done; 
+      =     #s_Max_Time_Elapsed; // Preset the trigger for the first cycle
+      NOP   0; 
+NETWORK
+TITLE =BA: Calculation availability
+//IF a flow is detected TOP>0 (Total Occupied Position) upstream the induct AND 
+//there is upstream no die back, then the line is available.
+      NOP   0; 
+// Availability induct 1
+      L     #i_TOP_Induct_1; 
+      L     0; 
+      >I    ; 
+      A     #i_Induct_1_OK; 
+      =     #s_Induct_1_Available; 
+
+// Availability induct 2
+      L     #i_TOP_Induct_2; 
+      L     0; 
+      >I    ; 
+      A     #i_Induct_2_OK; 
+      =     #s_Induct_2_Available; 
+
+// Availability induct 3
+      L     #i_TOP_Induct_3; 
+      L     0; 
+      >I    ; 
+      A     #i_Induct_3_OK; 
+      =     #s_Induct_3_Available; 
+
+// Availability induct 4
+      L     #i_TOP_Induct_4; 
+      L     0; 
+      >I    ; 
+      A     #i_Induct_4_OK; 
+      =     #s_Induct_4_Available; 
+
+// Availability induct X
+//      L     #i_TOP_Induct_X
+//      L     0
+//      >I    
+//      A     #i_Induct_X_OK
+//      =     #s_Induct_X_Available
+
+NETWORK
+TITLE =CA: Force ratio when exceptions
+//- Line not available
+//- TOP > Treshold
+      A     #s_Induct_1_Available; //IF the induct line is not available 
+      L     0; 
+      JCN   CA01; //THEN the ratio is forced to 0
+      L     #i_TOP_Induct_1; 
+      L     #i_CFG_Treshold_TOP_Ind_1; 
+      >I    ; //ELSE IF the TOP is bigger than the "TOP treshold"
+      L     #i_CFG_Ratio_Nom_Ind_1; 
+      JCN   CA01; 
+      L     #i_CFG_Ratio_Fact_Ind_1; 
+      +I    ; //THEN "ratio factor" is add to the ratio
+CA01: T     #s_Ratio_Nominal_Induct_1; // ELSE ratio nominal is used
+
+
+      A     #s_Induct_2_Available; //IF the induct line is not available 
+      L     0; 
+      JCN   CA02; //THEN the ratio is forced to 0
+      L     #i_TOP_Induct_2; 
+      L     #i_CFG_Treshold_TOP_Ind_2; 
+      >I    ; //ELSE IF the TOP is bigger than the "TOP treshold"
+      L     #i_CFG_Ratio_Nom_Ind_2; 
+      JCN   CA02; 
+      L     #i_CFG_Ratio_Fact_Ind_2; 
+      +I    ; //THEN "ratio factor" is add to the ratio
+CA02: T     #s_Ratio_Nominal_Induct_2; // ELSE ratio nominal is used
+
+
+      A     #s_Induct_3_Available; //IF the induct line is not available 
+      L     0; 
+      JCN   CA03; //THEN the ratio is forced to 0
+      L     #i_TOP_Induct_3; 
+      L     #i_CFG_Treshold_TOP_Ind_3; 
+      >I    ; //ELSE IF the TOP is bigger than the "TOP treshold"
+      L     #i_CFG_Ratio_Nom_Ind_3; 
+      JCN   CA03; 
+      L     #i_CFG_Ratio_Fact_Ind_3; 
+      +I    ; //THEN "ratio factor" is add to the ratio
+CA03: T     #s_Ratio_Nominal_Induct_3; // ELSE ratio nominal is used
+
+      A     #s_Induct_4_Available; //IF the induct line is not available 
+      L     0; 
+      JCN   CA04; //THEN the ratio is forced to 0
+      L     #i_TOP_Induct_4; 
+      L     #i_CFG_Treshold_TOP_Ind_4; 
+      >I    ; //ELSE IF the TOP is bigger than the "TOP treshold"
+      L     #i_CFG_Ratio_Nom_Ind_4; 
+      JCN   CA04; 
+      L     #i_CFG_Ratio_Fact_Ind_4; 
+      +I    ; //THEN "ratio factor" is add to the ratio
+CA04: T     #s_Ratio_Nominal_Induct_4; // ELSE ratio nominal is used
+
+
+//      A     #s_Induct_X_Available       //IF the induct line is not available 
+//      L     0
+//      JCN   CA05                        //THEN the ratio is forced to 0
+//      L     #i_TOP_Induct_X
+//      L     #i_CFG_Treshold_TOP_Ind_X
+//      >I                                //ELSE IF the TOP is bigger than the "TOP treshold"
+//      L     #i_CFG_Ratio_Nom_Ind_X
+//      JCN   CA05
+//      L     #i_CFG_Ratio_Fact_Ind_X
+//      +I                                //THEN "ratio factor" is add to the ratio
+//CA05: T     #s_Ratio_Nominal_Induct_X   // ELSE ratio nominal is used
+
+
+NETWORK
+TITLE =DA: Calculation range for each induct
+//Definition of range:
+//It is the number of of empty window that the induct have to wait before claiming
+//We are talking about a ratio "n" regarding a range "m": n/m
+//
+//Example:
+//if for an induct the ratio is 1 and the range is 4 (1/4), the induct have to 
+//let pass 3 empty window before claiming 1 window.
+// 
+//
+      NOP   0; 
+// Shortly the calculation of the range is the summary of the ratio of all
+// the downstream induct including the ratio ot concerned induct itself.
+// letters are used here to make the example generic
+
+// Calculation range induct-1
+//      A     #s_Induct_A_Available
+//      L     0
+//      JCN   DAXX
+//      L     #s_Ratio_Nominal_Induct_A
+//      L     #s_Ratio_Nominal_Induct_B
+//      +I    
+//      L     #s_Ratio_Nominal_Induct_C
+//      +I    
+//      L     #s_Ratio_Nominal_Induct_D
+//      +I    
+
+//DAXX: T     #o_Range_Induct_A
+
+
+
+// Calculation range induct1
+
+      A     #s_Induct_1_Available; 
+      L     0; 
+      JCN   DA01; 
+      L     #s_Ratio_Nominal_Induct_1; 
+      L     #s_Ratio_Nominal_Induct_2; 
+      +I    ; 
+      L     #s_Ratio_Nominal_Induct_3; 
+      +I    ; 
+      L     #s_Ratio_Nominal_Induct_4; 
+      +I    ; 
+
+DA01: T     #o_Range_Induct_1; 
+
+// Calculation range induct2
+      A     #s_Induct_2_Available; 
+      L     0; 
+      JCN   DA02; 
+      L     #s_Ratio_Nominal_Induct_2; 
+      L     #s_Ratio_Nominal_Induct_3; 
+      +I    ; 
+      L     #s_Ratio_Nominal_Induct_4; 
+      +I    ; 
+DA02: T     #o_Range_Induct_2; 
+
+// Calculation range induct3
+      A     #s_Induct_3_Available; 
+      L     0; 
+      JCN   DA03; 
+      L     #s_Ratio_Nominal_Induct_3; 
+      L     #s_Ratio_Nominal_Induct_4; 
+      +I    ; 
+DA03: T     #o_Range_Induct_3; 
+
+// Calculation range induct4
+      A     #s_Induct_4_Available; 
+      L     0; 
+      JCN   DA04; 
+
+      L     #s_Ratio_Nominal_Induct_4; 
+DA04: T     #o_Range_Induct_4; 
+NETWORK
+TITLE =EA: Update outputs ratio
+
+      L     #s_Ratio_Nominal_Induct_1; 
+      T     #o_Ratio_Induct_1; 
+
+      L     #s_Ratio_Nominal_Induct_2; 
+      T     #o_Ratio_Induct_2; 
+
+      L     #s_Ratio_Nominal_Induct_3; 
+      T     #o_Ratio_Induct_3; 
+
+      L     #s_Ratio_Nominal_Induct_4; 
+      T     #o_Ratio_Induct_4; 
+
+//      L     #s_Ratio_Nominal_Induct_X
+//      T     #o_Ratio_Induct_X
+EA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

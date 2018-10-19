@@ -1,0 +1,39 @@
+TYPE "UDT_LIC_Status"
+TITLE =%version: 0.03 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:48:27 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//Initial ECS-P version                                   nlLvdg  22-03-12  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Scanresult : STRUCT 	//Data from Scanner
+    LPC1 : ARRAY  [1 .. 10 ] OF //License Plate code 1
+    CHAR ;	
+    LPC2 : ARRAY  [1 .. 10 ] OF //License Plate code 2
+    CHAR ;	
+    LPC3 : ARRAY  [1 .. 10 ] OF //License Plate code 3
+    CHAR ;	
+   END_STRUCT ;	
+   Product_Length : INT ;	//[mm] Product length
+   Product_Width : INT ;	//[mm] Product width
+   Product_Height : INT ;	//[mm] Product height
+   Cross_Position : INT ;	//[mm] Out off centre position product   
+   Supply_Angle : INT ;	// Angle product on belt in length direction [-90...+90]  
+   Framework_Length : INT ;	//[mm] Product length in transport direction
+   Framework_Width : INT ;	//[mm] Product width in transport direction
+   Product_Weight : INT ;	//[unit] Product weight [1 unit = 0,1 kg]
+  END_STRUCT ;	
+END_TYPE
+

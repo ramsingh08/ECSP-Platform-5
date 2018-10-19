@@ -1,0 +1,35 @@
+TYPE "UDT_IF_HMI_SSM"
+TITLE =%version: 0.05 % CN: 11
+//History:
+//This version  %created_by: nlhhop %
+//              %date_created: Wednesday, July 12, 2017 1:48:06 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23858: Added commands for degraded mode            nlHHop   12-07-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//Update because of HMI update                          nlMRe    21-09-10   0.02
+//Initial Version                                       insamhi  10-06-10   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Mark_Code : STRING  [6 ];	//Engineer: VI Markcode, Format = MMMMMM ['A'..'ZZZZZZ'] 
+   ID : DWORD ;	//Engineer: ID of the component in HEX AAAZZSS
+   Start_Address_Status : INT ;	//Engineer: Start Address of the status for SSM in DB_Status
+   Command : STRUCT 	//Commands from HMI
+    Start : BOOL ;	//HMI Start request
+    Stop : BOOL ;	//HMI Stop request 
+    Reset : BOOL ;	//HMI Reset request 
+    Degraded_Mode_On : BOOL ;	//HMI degraded mode on request
+    Degraded_Mode_Off : BOOL ;	//HMI degraded mode off request
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

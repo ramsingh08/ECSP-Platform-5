@@ -1,0 +1,58 @@
+TYPE "UDT_Msg_TrackingRep"
+TITLE =%version: 0.07 % CN: 12
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:54:16 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.07
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.06
+//15824: CN number of messages UDT change to 12         nlHdL    30-09-13   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.03 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Body : STRUCT 	
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 201;	//Message ID: TrackingReport
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    LIC : INT ;	
+    Status : INT ;	//1 = OK, 2 = No Destination, 3 = No routing table entry
+    RoutingTableType : INT ;	//1 = Default, 2 = System, 3 = System Priority
+    Routing_Records : "UDT_Routing_Records";	
+    SuccessDirection : STRUCT 	
+     DirectionTaken : INT ;	
+     DirectionFrom : INT ;	
+     DecisionLevel : INT ;	
+     Destination : INT ;	
+    END_STRUCT ;	
+    FailedDirection1 : STRUCT 	
+     Direction : INT ;	
+     DecisionLevel : INT ;	
+     Destination : INT ;	
+     FailedReason : INT ;	
+     DetailedCode : INT ;	
+    END_STRUCT ;	
+    FailedDirection2 : STRUCT 	
+     Direction : INT ;	
+     DecisionLevel : INT ;	
+     Destination : INT ;	
+     FailedReason : INT ;	
+     DetailedCode : INT ;	
+    END_STRUCT ;	
+    BIR : "UDT_BIR";	//Bag Information Record
+    TIR : "UDT_TIR";	//Transport Information Record
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

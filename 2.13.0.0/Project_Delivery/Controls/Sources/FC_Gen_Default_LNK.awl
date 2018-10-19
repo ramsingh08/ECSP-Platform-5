@@ -1,0 +1,188 @@
+FUNCTION "FC_Gen_Default_LNK" : VOID
+TITLE =%version: 0.03 % CN: 32
+//Function:
+//Generates default LNK number if i_LNK = 0.
+//
+//History:                                                                        
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:07:00 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//24310: LNK record not ok when default LNK is modified nlHdL    15-06-15   0.03
+//20124: Wrong block end BEC changed to BEU             nlHdL    05-08-14   0.02
+//init version                                          nlHdL    09-01-14   0.01 
+//
+//Description:
+//Generated from the default record (LNK) the requested list items.
+//Requested list items have default number > 0. This default for the List DB.
+//is the copied to the new created list number.
+//(i_Default_Record).
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LNK : INT ;	//LNK number to create the Link to, 0 = New LNK
+  i_Default_Record : INT ;	//Number of default record to be used to create link.
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_LNK : INT ;	//Output LNK number
+END_VAR
+VAR_TEMP
+  t_LNK_Nr : INT ;	//Temp LNK number
+  t_Record_Length : INT ;	//Temp length of used record
+  t_Adres_List_DB : INT ;	//Temp Adres to List DB  
+  t_Default_LNK_DB : INT ;	//Temp DB Number of default LNK DB
+  t_Default_Record : INT ;	//Temp Default record from LNK list
+  t_DB_List : INT ;	//Temp DB number of List DB
+  t_Header_Length : INT ;	//Temp Header length
+  t_LNK_Nr_Out : INT ;	//Temp LNK number output
+  t_Offset_Default_Act : INT ;	//Offset to active default record
+  t_Int_NOT_Used : INT ;	//Temp return value not used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Generate LNK and copy the default records
+
+      L     #i_LNK; 
+      T     #t_LNK_Nr; 
+      T     #o_LNK; 
+
+//Retreive the record length
+      OPN   "DB_LNK_List"; 
+      L     DBW    2; 
+      T     #t_Record_Length; 
+
+      L     DBW    0; 
+      T     #t_Header_Length; 
+      L     DBW    2; 
+      -I    ; 
+      T     #t_Adres_List_DB; 
+
+//Retreive the default LNK
+      L     DBW    8; 
+      T     #t_Default_LNK_DB; 
+      L     0; 
+      ==I   ; 
+      JCN   AA01; 
+
+      CALL "FC_Write_Event" (//Tracking Data: No default LNK DB present
+           i_Message_ID             := 3206,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Int_NOT_Used);
+
+      BEU   ; 
+
+AA01: OPN   DB [#t_Default_LNK_DB]; 
+      L     DBLG; 
+      L     #t_Record_Length; 
+      /I    ; 
+      L     1; 
+      -I    ; 
+      L     #i_Default_Record; 
+      <I    ; 
+      JCN   AA02; 
+
+      CALL "FC_Write_Event" (//Tracking Data: default record LNK is out of range
+           i_Message_ID             := 3207,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Int_NOT_Used);
+
+      BEU   ; 
+//End block if default_record > present records
+
+AA02: L     #i_Default_Record; 
+      L     #t_Record_Length; 
+      *I    ; 
+      T     #t_Offset_Default_Act; 
+      SLD   3; 
+      LAR1  ; 
+
+AA03: L     DBW [AR1,P#0.0]; 
+      T     #t_Default_Record; 
+      L     0; 
+      >I    ; 
+      JCN   AA05; 
+
+//Default List found
+//Retreive the list DB number form LNK header
+      OPN   "DB_LNK_List"; 
+      L     #t_Adres_List_DB; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     0; 
+      L     DBW [AR1,P#0.0]; 
+      <I    ; 
+      JCN   AA99; 
+      T     #t_DB_List; 
+
+//check if DB_List already has record assigned
+      L     #t_LNK_Nr; // Calcultaion address to record attribute
+      L     #t_Record_Length; // = (LNK * Record length) + (Adress_DB + record length)
+      *D    ; 
+      L     #t_Adres_List_DB; 
+      +D    ; 
+      L     #t_Record_Length; 
+      +D    ; 
+      SLD   3; 
+      LAR1  ; 
+
+      L     0; 
+      L     DBW [AR1,P#0.0]; 
+      ==I   ; 
+      JCN   AA05; 
+
+//Skip if within LNK record number is already present
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #t_LNK_Nr,
+           i_DB_List                := #t_DB_List,
+           i_Default_Record         := #t_Default_Record,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_LNK                    := #t_LNK_Nr_Out);
+
+      L     0; 
+      L     #t_LNK_Nr_Out; 
+      <I    ; 
+      JCN   AA05; 
+      T     #t_LNK_Nr; 
+
+AA05: NOP   0; 
+//goto next record in default lnk
+      L     #t_Adres_List_DB; 
+      L     2; 
+      +I    ; 
+      T     #t_Adres_List_DB; 
+      L     #t_Header_Length; // Limit on header length
+      <I    ; 
+      JCN   AA99; 
+
+//Restore open Default LNK DB
+      OPN   DB [#t_Default_LNK_DB]; 
+      L     #t_Offset_Default_Act; 
+      L     2; 
+      +D    ; 
+      T     #t_Offset_Default_Act; 
+      SLD   3; 
+      LAR1  ; 
+      JU    AA03; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Write output
+
+      L     #t_LNK_Nr; 
+      T     #o_LNK; 
+
+END_FUNCTION
+

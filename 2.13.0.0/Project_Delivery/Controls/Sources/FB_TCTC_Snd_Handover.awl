@@ -1,0 +1,361 @@
+FUNCTION_BLOCK "FB_TCTC_Snd_Handover"
+TITLE =%version: 1.13 % CN: 40
+//Function: 
+//This block handles the handover signals for the sending side of a TCTC 
+//interface.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Tuesday, March 20, 2018 8:18:03 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9798: IHO bit before TIP is active                nlHdL    20-03-18   1.13
+//ra#24569: Wrong dwnstr PLT used by send handover      nlHdL    01-02-18   1.12
+//ina#8691: changed item length detection               nlHdL    23-11-17   1.11
+//ra#12091: Add 50% rule to TC-TC                       nlHdL    26-01-17   1.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.09
+//8673: Reset:Restart for errors via  PNPN interface    nlHdL    29-10-15   1.09
+//7632: Add blocks for platform 4. PNPN Coupler         nlHdL    30-07-15   1.08
+//24166: IHO active when no displacement, Mess on IHO   nlHdL    26-06-15   1.08
+//23824: Change condition IHO                           nlMlaut  29-04-15   1.07
+//22704: HOO TIP and item at handover status seperated  nlHdL    12-03-15   1.06
+//21687: PNPN Flowcon add Mess on TIP No RTR while wait nlHdL    21-01-15   1.05
+//20843: Add type in messageID for data to record       nlHdL    30-10-14   1.04
+//14210: Flank Negative corrected                       nlHdL    26-09-13   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//PR14161 Update violation coding convention 9          nlple    26-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.01 of PLT version 0
+//
+//Description:
+//This block creates all required handover signals that will be send to the 
+//receiving side of the TCTC interface.
+//
+// --------------------+     RTS     +------+            +--------------------
+//                     | ----------> |      |            |                    
+//                     |     IHO     |      |            |                    
+//                     | ----------> |      |    RTR     |                    
+//   Sending Module    |     TIP     |      | <--------- |   Receiving Module 
+//                     | ----------> |      |            |                    
+//                     | Reset Esave |      |            |                    
+//                     | ----------> |      |            |                    
+// --------------------+             +------+            +--------------------
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 	
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_CFG_Run_Out_Distance : INT ;	//CFG: [cm] Run out distance for the section
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Snd_Started : BOOL ;	//Sending: Conveyor is started
+  i_Snd_Reset_E_Saving : BOOL ;	//Sending: Reset E Saving
+  i_Rcv_RTR : BOOL ;	//Reveiving: Ready-To-Reveive
+  i_Eqp_Operational_On : BOOL ;	//Handover object is operational on
+END_VAR
+VAR_OUTPUT
+  o_Snd_RTS : BOOL ;	//Sending: Ready-To-Send
+  o_Snd_IHO : BOOL ;	//Sending: Item HandOver
+  o_Snd_TIP : BOOL ;	//Sending: Transfer-In-Progress
+  o_Snd_ResetRestart : BOOL ;	//Sending: Reset Restart to receiving
+  o_Reset_E_Saving : BOOL ;	//Reset Energy Saving
+  o_Req_Halt : BOOL ;	//TIP true RTS false
+  o_Snd_Item_Length : INT ;	//Sending: [mm] Item length
+END_VAR
+VAR
+  s_HandOver_Delay_Counter : INT ;	//Counter: Delay time to next HandOver
+  s_TIP_Delay_Counter : INT ;	//Counter: Minimum TIP signal length
+  s_Delay_ResetRestart : INT ;	//Counter: Minimum ResetRestart signal length
+  s_Section_Run : BOOL ;	//Section Run Signal sending transporter
+  s_Item_at_Handover : BOOL ;	//Sending: Ready-To-Send
+  s_New_HandOver_Allowed : BOOL ;	//New handover can be started, required delay time between HandOver elapsed
+  s_RTR : BOOL ;	//Ready To Receive
+  s_RTS : BOOL ;	//Request To Send
+  s_IHO : BOOL ;	//Item HandOver
+  s_TIP : BOOL ;	//Transfer In Progress
+  s_FN_TIP : BOOL ;	//Copy Flank negative of transfer in progress
+END_VAR
+VAR_TEMP
+  t_DB_Num_PLT : INT ;	//Number of PLT DB
+  t_NOT_Used_INT : INT ;	//Not used integer
+  t_Num_Items_Found : INT ;	//Number of items found 
+  t_Position_Edge : INT ;	//Position of found edge
+  t_Displacement : INT ;	//Displacement
+  t_DB_Num_PLT_Dwn : INT ;	//Number of PLT DB Downstream
+  t_DB_Event_Num : INT ;	//DB number of the event DB
+  t_Minimum_TIP_Elapsed : BOOL ;	//Minimum TIP signale has elapsed
+  t_Reset_IHO : BOOL ;	//Reset IHO bit and clear PLT DB PNPN
+  t_ResetRestart_Snd : BOOL ;	//Reset Restart to receiving
+  t_OS_FN_TIP : BOOL ;	//Flank Negative of transfer in progress signal
+  t_IHO : BOOL ;	//Item in Hand Over
+  t_Item_Length : INT ;	//Item Length of item in handover
+  t_Position_start : INT ;	//Start position for Item Length	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB.
+      OPN   #i_DB_PLT; // Open PLT DB
+      L     DBNO; 
+      T     #t_DB_Num_PLT; // Determine PLT block DB number
+
+      A     DBX   10.1; // Copy Section_Run Sending transporter
+      =     #s_Section_Run; 
+
+      A     DBX   10.6; 
+      =     #s_Item_at_Handover; 
+
+      L     DBW    2; 
+      T     #t_Displacement; 
+
+      OPN   #i_DB_PLT_DwnStr; // Open PLT DB Downstream
+      L     DBNO; 
+      T     #t_DB_Num_PLT_Dwn; 
+
+      OPN   #i_Event_DB; 
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Create Request To Send signal
+//Because the receiver must be able to handle each item separately (be able to 
+//index the items) each individual item must have its own TIP during handover. 
+//Between 2 items the TIP must be dropped for at least 100 milli seconds. With 
+//this time period it is guaranteed that the receiver recognizes the 2 different 
+//items. 
+      NOP   0; 
+// Handle ready to receive signal
+      A     #i_Rcv_RTR; 
+      A     #i_Eqp_Operational_On; // TCTC interface is enabled
+      A     #i_Available_IO; 
+      =     #s_RTR; 
+
+//Create falling trigger of TIP
+      A     #s_TIP; 
+      FN    #s_FN_TIP; 
+      =     #t_OS_FN_TIP; 
+
+// Reset new item allowed when negative edge of TIP is detected
+      A     #t_OS_FN_TIP; 
+      R     #s_New_HandOver_Allowed; 
+      JCN   BA01; 
+
+      L     0; // When new TIP was set the delay counter shall be reset
+      T     #s_HandOver_Delay_Counter; 
+
+// Run counter for 100 milli seconds after negative edge of TIP 
+BA01: AN    #s_TIP; 
+      AN    #s_New_HandOver_Allowed; 
+      JCN   BA02; 
+      L     #s_HandOver_Delay_Counter; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_HandOver_Delay_Counter; 
+
+// When 100 milli seconds after negative edge of TIP have passed next handover is allowed
+BA02: L     #s_HandOver_Delay_Counter; 
+      L     100; // The TIP delay time
+      >=I   ; 
+      S     #s_New_HandOver_Allowed; 
+
+
+// Handle request to send signal                     
+      A     #s_Item_at_Handover; 
+      A     #i_Snd_Started; // Section is started
+      A     #i_Eqp_Operational_On; // TCTC interface is enabled
+      S     #s_RTS; 
+
+      AN    #s_Item_at_Handover; 
+      O(    ; 
+      A     #s_TIP; 
+      AN    #i_Snd_Started; // Section is started
+      )     ; 
+      ON    #s_New_HandOver_Allowed; // When a new handover is not allowed
+      ON    #i_Eqp_Operational_On; 
+      R     #s_RTS; 
+
+NETWORK
+TITLE =CA: Create Tranfer In Progres signal
+//The sender shall indicate that the item is being transferred by means of the 
+//'Transfer In Progress' signal. The signal is set when the Sender report RTS and 
+//receiver is RTR. TIP shall be reset by the sender when the handover process is 
+//finished
+      NOP   0; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #s_TIP,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_TIP_Delay_Counter,
+           o_Setpoint               := #s_TIP_Delay_Counter,
+           o_Timer_Elapsed          := #t_Minimum_TIP_Elapsed);
+
+// Create transfer in progres signal
+      A     #s_RTR; 
+      A     #s_RTS; 
+      A     #s_Section_Run; 
+      O(    ; 
+      A     #s_Item_at_Handover; 
+      A     #s_TIP; 
+      )     ; 
+      O(    ; 
+      A     #s_TIP; 
+      AN    #t_Minimum_TIP_Elapsed; 
+      )     ; 
+      =     #s_TIP; 
+
+NETWORK
+TITLE =DA: Create Item HandOver signal
+//The Sender report that the baggage item is at the handover position via the IHO 
+//signal. This signal is used by the receiving side to determine the position and 
+//the length of the send item.
+      L     #t_DB_Num_PLT_Dwn; 
+      L     1; 
+      >I    ; //Check if PLT DB number is valid else skip network
+      JCN   DA99; 
+
+      OPN   DB [#t_DB_Num_PLT_Dwn]; 
+      A     DBX   10.0; 
+      JCN   DA99; //End network if PLT not Done
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT_Dwn,
+           i_Position               := DBW   14,
+           i_Info_Physical          := -3,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      L     DBW   18; //Entry[1].Info_physical
+      L     2; 
+      ==I   ; 
+      =     #t_Reset_IHO; 
+
+      A     #t_Reset_IHO; 
+      R     #s_IHO; 
+
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := #t_Reset_IHO,
+           i_DB_PLT_Num             := #t_DB_Num_PLT_Dwn,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+//Check if Item_In_Handover is cleared
+      A     #s_IHO; 
+      AN    #s_Item_at_Handover; 
+      JCN   DA01; 
+
+// Search for trailing edge and count down to zero to reset IHO
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT,
+           i_Position               := #i_CFG_Run_Out_Distance,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Edge,
+           o_Info                   := #t_NOT_Used_INT,
+           o_LNK                    := #t_NOT_Used_INT,
+           o_DB_PLT_Num             := #t_NOT_Used_INT,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     0; 
+      L     #t_Position_Edge; 
+      ==I   ; 
+      JCN   DA99; 
+      R     #s_IHO; 
+
+DA01: L     DBW   18; //Entry[1].Info_physical
+      L     1; 
+      ==I   ; 
+      AN    DBX   11.1; // Section not stopped (LMS-v)
+      A     #s_TIP; //Item at handover is only allowed when transfer in progress is active
+      =     #t_IHO; 
+      S     #s_IHO; 
+
+//Load position retrieved from PLT to variable 
+      L     DBW   14; 
+      T     #t_Position_start; 
+
+      A     #t_IHO; 
+      JCN   DA02; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_Num_PLT_Dwn,
+           i_Position               := #t_Position_start,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_NOT_Used_INT,
+           o_Info                   := #t_NOT_Used_INT,
+           o_LNK                    := #t_NOT_Used_INT,
+           o_DB_PLT_Num             := #t_NOT_Used_INT,
+           o_Number_Items_Found     := #t_NOT_Used_INT,
+           o_Length_Diff            := #t_Item_Length);
+
+      L     #t_Item_Length; 
+      L     10; 
+      *I    ; 
+      T     #o_Snd_Item_Length; 
+
+DA02: CALL "FC_PLT_Shft_DB" (
+           i_OS_Operational         := FALSE,
+           i_DB_PLT_Num             := #t_DB_Num_PLT_Dwn,
+           i_Displacement           := DBW    2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      AN    #s_IHO; 
+      JCN   DA99; 
+
+      L     0; 
+      T     #o_Snd_Item_Length; //Clear item length
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Handle reset energy saving and request halt signal
+
+      NOP   0; 
+// Output reset energy saving
+      A     #i_Snd_Reset_E_Saving; 
+      O     #s_RTS; 
+      A     #i_Eqp_Operational_On; 
+      =     #o_Reset_E_Saving; 
+
+// Output request halt
+      AN    #i_Eqp_Operational_On; 
+      A     #s_TIP; 
+      =     #o_Req_Halt; 
+
+NETWORK
+TITLE =FA: Created the Reset Restart
+
+      A     #i_Eqp_Operational_On; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #i_Eqp_Operational_On,
+           i_CFG_Timer_Value        := 100,
+           i_Setpoint               := #s_Delay_ResetRestart,
+           o_Setpoint               := #s_Delay_ResetRestart,
+           o_Timer_Elapsed          := #t_ResetRestart_Snd);
+
+NETWORK
+TITLE =GA: Copy to output
+//Copy statics to outputs.
+      NOP   0; 
+// Output request to send
+      A     #s_RTS; 
+      =     #o_Snd_RTS; 
+
+// Output item handover
+      A     #s_IHO; 
+      =     #o_Snd_IHO; 
+
+// Output transfer in progres
+      A     #s_TIP; 
+      =     #o_Snd_TIP; 
+
+// Output ResetRestart
+      A     #i_Eqp_Operational_On; 
+      AN    #t_ResetRestart_Snd; 
+      =     #o_Snd_ResetRestart; 
+END_FUNCTION_BLOCK
+

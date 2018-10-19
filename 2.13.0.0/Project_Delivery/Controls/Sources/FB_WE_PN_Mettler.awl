@@ -1,0 +1,162 @@
+FUNCTION_BLOCK "FB_WE_PN_Mettler"
+TITLE =%version: 0.04 % CN: 40 
+//Function:
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, February 20, 2018 7:57:28 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9428: Error supressing added to FB_WE_PN_Mettler  nlHdL    20-02-18   0.04
+//ra#24701: Byte swap at Mettler Toledo weighing scale  nlHdL    27-09-17   0.03
+//ra#18416: FB_WE_PN_Mettler Operational On not correct nlHdL    04-11-16   0.02
+//Init version                                          nlHdL    20-10-16    0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_CFG_ADDR_In : INT ;	//CFG: Start address of input range of the PN device
+  i_CFG_ADDR_Out : INT ;	//CFG: Start address of Output range of the PN device
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Comm_Error : BOOL ;	//ST: communication error
+  o_ST_No_Data_Recv : BOOL ;	//ST: No-data was received
+  o_Weight : INT ;	//[0.1] kg measured weight
+END_VAR
+VAR
+  s_WE_PI_Data : "UDT_WE_PI_DATA";	//Input data from unit
+  s_WE_PO_Data : "UDT_WE_PO_DATA";	//Input data from unit
+  s_Operational_On : BOOL ;	//Operational on signal of this Object
+END_VAR
+VAR_TEMP
+  t_LADDR : WORD ;	//LADDR adres
+  t_RET_VAL : INT ;	//Return value function call read/write
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Preset and Handle Errors
+
+      NOP   0; 
+//Clear weight as perdefined value
+      L     0; 
+      T     #o_Weight; 
+
+//Reset Fieldbus Errors
+      O     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; 
+      R     #o_ST_FieldB_Error; 
+      R     #o_ST_FieldB_NotPrsnt; 
+      R     #o_ST_Comm_Error; 
+      R     #o_ST_No_Data_Recv; 
+
+// Fieldbus statuses
+      A     #i_FieldB_NotPrsnt; 
+      A     #i_Available_IO; 
+      S     #o_ST_FieldB_NotPrsnt; 
+
+      A     #i_FieldB_Error; 
+      A     #i_Available_IO; 
+      S     #o_ST_FieldB_Error; 
+
+NETWORK
+TITLE =BA: Read status from unit
+//Copy data from peripheral IO to Receive Buffer
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      JCN   BA01; 
+
+      L     #i_CFG_ADDR_In; 
+      T     #t_LADDR; 
+
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_LADDR,
+           RET_VAL                  := #t_RET_VAL,
+           RECORD                   := #s_WE_PI_Data);
+
+      L     #t_RET_VAL; 
+      L     0; 
+      <>I   ; 
+      A     #i_Available_IO; 
+      S     #o_ST_Comm_Error; 
+
+      AN    #s_WE_PI_Data.PI2_Status.Data_OK; 
+      O     #s_WE_PI_Data.PI2_Status.Update_In_Progress; 
+      S     #o_ST_No_Data_Recv; 
+
+BA01: NOP   0; 
+NETWORK
+TITLE =CA: Determine the weight if data ok
+
+      A     #s_WE_PI_Data.PI2_Status.Data_OK; 
+      AN    #s_WE_PI_Data.PI2_Status.Update_In_Progress; 
+      AN    #s_WE_PI_Data.PI2_Status.Motion; // Stable yes or no
+      JCN   CA01; 
+
+      L     #s_WE_PI_Data.PI1_Weight; 
+      CAW   ; //Byte swap function
+      T     #o_Weight; 
+
+CA01: NOP   0; 
+NETWORK
+TITLE =DA: Write command to unit
+
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      A     #i_CMD_Start; // nlHdL clear data no write function is needed
+      JCN   DA01; 
+
+      L     #i_CFG_ADDR_Out; 
+      T     #t_LADDR; 
+
+      CALL "DPWR_DAT" (
+           LADDR                    := #t_LADDR,
+           RECORD                   := #s_WE_PO_Data,
+           RET_VAL                  := #t_RET_VAL);
+
+      L     #t_RET_VAL; //IF s_RET_VAL_Read <> 0
+      L     0; 
+      <>I   ; 
+      S     #o_ST_Comm_Error; 
+
+DA01: NOP   0; 
+NETWORK
+TITLE =EA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      S     #s_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      O     #i_FieldB_NotPrsnt; 
+      O     #i_FieldB_Error; 
+      )     ; 
+      R     #s_Operational_On; 
+      NOP   0; 
+NETWORK
+TITLE =FA: Ready to restart indication 
+//LAD!
+      AN    #s_Operational_On; 
+      A     #i_Available_IO; 
+      A     #i_CMD_Enable; 
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      AN    #o_ST_Comm_Error; 
+      A     #i_Safety_OK; 
+      =     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

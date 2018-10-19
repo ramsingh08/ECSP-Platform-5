@@ -1,0 +1,335 @@
+FUNCTION_BLOCK "FB_Diagnose_DP"
+TITLE =%version: 0.03 % CN: 30
+//Function: 
+//Module for cyclic DP slave diagnose (not present and error)
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:00:29 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//Updated Rev.nr.                                        nlRSwi  01-09-10   0.02
+//Copied from SSS                                        nlRSwi  31-08-10   0.01
+//Based on FB_Diagnose_DP version 1.3 library BH  
+//
+//Description: 
+//With FC_Siemens_DP_Diag (FC125) a list with slave not present and error 
+//information is retrieved and copied to the DP slave not present and error 
+//bitmaps.                            
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Refresh_Rate : INT ;	//[sec] Refresh rate of the cyclic DP diagnosis
+  i_DP_Master_System_ID : INT ;	//DP Master System Identification Setting
+  i_External_DP_Interface : BOOL ;	//TRUE = External DP interface, FALSE = internal DP interface
+  i_DP_Not_Present_Bitmap : ANY ;	//ANY pointer to DP Not Present Bitmap
+  i_DP_Error_Bitmap : ANY ;	//ANY pointer to DP Error Bitmap
+END_VAR
+VAR
+  s_Lst_Slave_Not_Present : ARRAY  [1 .. 128 ] OF //Array List DP slaves not present
+  BOOL ;	
+  s_Lst_Slave_Error : ARRAY  [1 .. 128 ] OF //Array List DP slaves in error
+  BOOL ;	
+  s_FC125_Data_Field : ARRAY  [1 .. 50 ] OF //Data Field FC125 (fixed, not relevant for user)
+  BYTE ;	
+  s_timer_triggering : INT ;	//Timer triggering
+  s_FC125_busy : BOOL ;	//FC125 Evaluation busy
+  s_FC125_Check_Active : BOOL ;	//FC125 Check Active
+  s_Error : BOOL ;	//Error during execution
+  s_OS_Trigger : BOOL ;	//One-shot trigger diagnosis
+END_VAR
+VAR_TEMP
+  t_ret_val : INT ;	//Temp general (not used) return value
+  t_FC125_ret_val : INT ;	//Temp return value FC125
+  t_FC125_Sum_Slaves_Diag : INT ;	//Temp sum of slaves being diagnosed by FC125
+  t_SFC20_ret_val : INT ;	//Temp return value SFC20
+  t_Any_byte_0_3 : DWORD ;	//Temp used for copy ANY Pointers
+  t_DB_Num : WORD ;	//Temp used for copy ANY Pointers
+  t_Pointer : DWORD ;	//Temp used for copy ANY Pointers
+  t_DP_Not_Present_Bitmap : ANY ;	//Temp ANY Pointer to DP Not present bitmap
+  t_DP_Error_Bitmap : ANY ;	//Temp ANY Pointer to DP Error bitmap
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+NETWORK
+TITLE =AB: Diagnosis triggering
+// Pre-set triggering timer
+      A     #s_OS_Trigger; 
+      JCN   AB10; 
+      L     0; // IF input refresh rate > 0:
+      L     #i_Refresh_Rate; // Timer triggering = input refresh rate
+      <I    ; 
+      JCN   AB11; 
+      JU    AB12; 
+AB11: L     10; // IF input refresh rate = 0:
+AB12: T     #s_timer_triggering; // Timer triggering = 10
+
+// Reset one-shot trigger
+AB10: SET   ; 
+      R     #s_OS_Trigger; 
+
+// Countdown of the triggering timer (each second)
+      A     "M_OS_/1.0_sec."; 
+      JCN   AB01; 
+      L     #s_timer_triggering; 
+      L     1; 
+      -I    ; 
+      JPZ   AB02; 
+      L     0; // Keep on zero
+AB02: T     #s_timer_triggering; 
+
+// Evaluation of triggering timer 
+AB01: L     #s_timer_triggering; // IF timer triggering <= 0 
+      L     0; 
+      <=I   ; 
+      S     #s_OS_Trigger; // SET one-shot triggering
+
+NETWORK
+TITLE =BA: Start of function and reset matching global merker
+//On a one shot trigger, FC125 is started and the Global Merker belonging to 
+//the Diag Interrupt of the Master System ID (input) is RESET.
+      A     #s_OS_Trigger; // IF one shot trigger..
+      JCN   BA99; 
+      S     #s_FC125_Check_Active; // ..SET start bit FC125
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 1..
+      L     1; 
+      ==I   ; 
+      R     "M_DP1_Diag_Interrupt"; // ..RESET Merker M_DP1_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 2..
+      L     2; 
+      ==I   ; 
+      R     "M_DP2_Diag_Interrupt"; // ..RESET Merker M_DP2_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 3..
+      L     3; 
+      ==I   ; 
+      R     "M_DP3_Diag_Interrupt"; // ..RESET Merker M_DP3_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 4..
+      L     4; 
+      ==I   ; 
+      R     "M_DP4_Diag_Interrupt"; // ..RESET Merker M_DP4_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 5..
+      L     5; 
+      ==I   ; 
+      R     "M_DP5_Diag_Interrupt"; // ..RESET Merker M_DP5_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 6..
+      L     6; 
+      ==I   ; 
+      R     "M_DP6_Diag_Interrupt"; // ..RESET Merker M_DP6_Diag_interrupt
+
+      L     #i_DP_Master_System_ID; // ..IF DP master syst. ID = 7..
+      L     7; 
+      ==I   ; 
+      R     "M_DP7_Diag_Interrupt"; // ..RESET Merker M_DP7_Diag_interrupt
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Profibus DP Slave status (FC125)
+//FC125 (FC_Siemens_DP_Diag) recovers the list of DP slaves not present and the 
+//list of DP slaves in error. These lists are kept in the arrays 
+//s_Lst_Slave_Not_Present and s_Lst_Slave_Error. If FC125 is ready wihtout 
+//errors the function continues, otherwise it ends with error.
+      A     #s_FC125_busy; // IF FC125 evaluation active..
+      S     #s_FC125_Check_Active; // ..SET start bit FC125
+
+      CALL "FC_Siemens_DP_Diag" (
+           CHECK_ACTIV              := #s_FC125_Check_Active,
+           EXTERNAL_DP_INTERFACE    := #i_External_DP_Interface,
+           DP_MASTERSYSTEM          := #i_DP_Master_System_ID,
+           DATA_FIELD               := #s_FC125_Data_Field,
+           SUM_SLAVES_DIAG          := #t_FC125_Sum_Slaves_Diag,
+           LIST_SLAVES_NOT_PRESENT  := #s_Lst_Slave_Not_Present,
+           LIST_SLAVES_ERROR        := #s_Lst_Slave_Error,
+           RETVAL                   := #t_FC125_ret_val,
+           BUSY                     := #s_FC125_busy);
+
+      O     #s_FC125_busy; // IF FC125 evaluation busy
+      ON    #s_FC125_Check_Active; // OR NOT start bit FC125..
+      BEC   ; // ..THEN end function 
+      R     #s_FC125_Check_Active; // ..ELSE RESET start bit FC125
+
+// ************** TODO: Error handling **************
+      L     #t_FC125_ret_val; // ..ELSE IF error FC125..
+      L     0; 
+      <>I   ; 
+      JCN   DA01; 
+      S     #s_Error; // ..SET error
+      BEU   ; // ..End function   
+NETWORK
+TITLE =DA: Disable alarm interrupts
+//Before evaluating the Merkers and copying the lists the Processing of Higher 
+//Priority Interrupts and Asynchronous Errors will be delayed (SFC41)
+DA01: CALL "DIS_AIRT" (
+           RET_VAL                  := #t_ret_val);
+
+NETWORK
+TITLE =EA: Check status of matching global merker
+//The Global Merker belonging to the Diag Interrupt of the Master System ID 
+//(input) is evaluated. If this Merker is TRUE (Interrupt occured during 
+//execution of FC125) the information of FC125 has become obsolete and is no 
+//longer valid. The function ends without copy action to the bitmaps. If this 
+//Merker is FALSE the copy action can be executed.
+      A     "M_DP1_Diag_Interrupt"; // IF Merker M_DP1_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 1..
+      L     1; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP2_Diag_Interrupt"; // IF Merker M_DP2_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 2..
+      L     2; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP3_Diag_Interrupt"; // IF Merker M_DP3_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 3..
+      L     3; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP4_Diag_Interrupt"; // IF Merker M_DP4_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 4..
+      L     4; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP5_Diag_Interrupt"; // IF Merker M_DP5_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 5..
+      L     5; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP6_Diag_Interrupt"; // IF Merker M_DP6_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 6..
+      L     6; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)
+
+      A     "M_DP7_Diag_Interrupt"; // IF Merker M_DP7_Diag_interrupt
+      A(    ; 
+      L     #i_DP_Master_System_ID; // AND DP master syst. ID = 7..
+      L     7; 
+      ==I   ; 
+      )     ; 
+      JC    GA01; // ..End function (No error)  
+NETWORK
+TITLE =FA: Copy lists to DP Slave status bitmap
+//Copy s_Lst_Slave_Not_Present to Slave Not Present Bitmap
+//Copy s_Lst_Slave_Error to Slave Error Bitmap
+// Copy input ANY Pointer i_DP_Not_Present_Bitmap to 
+// temp ANY Pointer t_DP_Not_Present_Bitmap (for blockmove) 
+      L     P##i_DP_Not_Present_Bitmap; // Load ANY pointer to input DP Not Present bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#0.0]; // Load first 4 bytes of ANY Pointer
+      T     #t_Any_byte_0_3; // Transfer to temp Any_Byte_0_3
+      L     W [AR1,P#4.0]; // Load DB number DP Not Present bitmap
+      T     #t_DB_Num; // Transfer to temp DB_num
+      L     D [AR1,P#6.0]; // Load Pointer to start of DP Not Present bitmap in DB
+      T     #t_Pointer; // Transfer to temp Pointer
+
+      L     P##t_DP_Not_Present_Bitmap; // Load ANY Pointer to temp DP Not Present Bitmap 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+      L     #t_Any_byte_0_3; // Load temp Any_Byte_0_3
+      T     LD [AR1,P#0.0]; // Transfer to first 4 bytes of ANY Pointer 
+      L     #t_DB_Num; // Load temp DB_num
+      T     LW [AR1,P#4.0]; // Transfer to DB number DP Not Present bitmap
+      L     #t_Pointer; // Load temp Pointer
+      T     LD [AR1,P#6.0]; // Transfer to start of DP Not Present bitmap in DB
+
+// Copy input ANY Pointer i_DP_Error_Bitmap to 
+// temp ANY Pointer t_DP_Error_Bitmap (for blockmove) 
+
+      L     P##i_DP_Error_Bitmap; // Load ANY pointer to input DP Error bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#0.0]; // Load first 4 bytes of ANY Pointer
+      T     #t_Any_byte_0_3; // Transfer to temp Any_Byte_0_3
+      L     W [AR1,P#4.0]; // Load DB number DP Error bitmap
+      T     #t_DB_Num; // Transfer to temp DB_num
+      L     D [AR1,P#6.0]; // Load Pointer to start of DP Error bitmap in DB
+      T     #t_Pointer; // Transfer to temp Pointer
+
+      L     P##t_DP_Error_Bitmap; // Load ANY Pointer to temp DP Error Bitmap 
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+      L     #t_Any_byte_0_3; // Load temp Any_Byte_0_3
+      T     LD [AR1,P#0.0]; // Transfer to first 4 bytes of ANY Pointer 
+      L     #t_DB_Num; // Load temp DB_num
+      T     LW [AR1,P#4.0]; // Transfer to DB number DP Error bitmap
+      L     #t_Pointer; // Load temp Pointer
+      T     LD [AR1,P#6.0]; // Transfer to start of DP Error bitmap in DB
+
+// Blockmove: Copy s_Lst_Slave_Not_Present to t_DP_Not_Present_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave_Not_Present,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_DP_Not_Present_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      S     #s_Error; 
+
+// Blockmove: Copy s_Lst_Slave_Error to t_DP_Error_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave_Error,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_DP_Error_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      S     #s_Error; 
+NETWORK
+TITLE =GA: Enable alarm interrupts
+//Enable the Processing of Higher Priority Interrupts and Asynchronous Errors 
+//again (SFC 42)
+GA01: CALL "EN_AIRT" (
+           RET_VAL                  := #t_ret_val);
+
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,28 @@
+DATA_BLOCK "DB_SrtCtrlTabIndex_T"
+TITLE =%version: 0.04 % CN: 20
+//History:
+//This version  %created_by: nlsdw %
+//              %date_created: Monday, June 19, 2017 5:03:47 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#51993: Added comments for manual addition          nlSdW    19-06-17   0.04
+//ra#51993: Added insert key to generate the DB         nlSdW    13-04-17   0.03
+//ra#19599: Update Sort Control message stack height    nlJMol   31-01-17   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.01
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision                                      nlHdL    26-02-14   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;	//Example MMM_ZZ_SS : "UDT_SrtCtrlTabIndex"	
+BEGIN
+END_DATA_BLOCK
+

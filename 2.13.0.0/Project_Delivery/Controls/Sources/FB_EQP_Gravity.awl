@@ -1,0 +1,295 @@
+FUNCTION_BLOCK "FB_EQP_Gravity"
+TITLE =%version: 1.01 % CN: 50 
+//Function:
+//Module for gravity control. Chute or Gravity roller.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, February 13, 2017 10:33:28 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Init version based on version 1.09 of EQP Lean       nlHdL    13-02-17   1.01
+//
+//Description:
+//
+//!!This block is in LAD!!
+//
+//The transport function that can be executed by this module, are:
+//- Time displacement
+//- PLT
+//- Handover
+//
+//Explanation of the parameters:
+//  Parameter prefixes:
+//    HW: field IO
+//    SET: setting
+//    CFG: configuration
+//    CMD: command
+//    ST: Status
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Section : DWORD ;	//ID of Section ID Record HEX AAAA - ZZSS.
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_Basic_Offset_Time : INT ;	//CFG: [0.1 sec] travel time item over gravity
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Clr_PLT_Data : BOOL ;	//Clear PLT Data when LMS is not automatic
+END_VAR
+VAR_OUTPUT
+  o_ST_Items : BOOL ;	//ST: Items present on section
+  o_ST_Running : BOOL ;	//ST: Section is running
+  o_ST_Started : BOOL ;	//ST: Started
+  o_ST_Request_Halt : BOOL ;	//ST: Request Halt
+  o_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+END_VAR
+VAR
+  s_FB_Manage_PLT : "FB_Manage_PLT";	//Multi Instance block call
+  s_FB_HandOver : "FB_Handover";	//Multi Instance block call
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_DB_Num_PLT_Downstream : INT ;	//Number ot hte PLT DB downstream section
+  s_Stop_Motor : BOOL ;	//Request to stop the motor
+  s_Handover_Run_OK : BOOL ;	//Indicating that for the handover function its ok to run the section
+  s_Item_In_Handover_Area : BOOL ;	//Indicating an item is in the handover area
+  s_Section_Run_Downstream : BOOL  := TRUE;	//Section Run Signal Downstream
+  s_Section_Available : BOOL ;	//Section Available Upstream
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_DB_PLT_Num_Downstream : INT ;	//Number of the downstream PLT DB
+  t_number_items_found : INT ;	//Number of items found in search
+  t_DB_Num_Event : INT ;	//Number of the Event DB
+  t_Length_Section : INT ;	//[cm] Length of this section.
+  t_Displacement : INT ;	//[cm] Displacement of the section
+  t_Leading_Edge_Found : BOOL ;	//Leading edge found in PLT
+  t_Trailing_Edge_Found : BOOL ;	//Trailing edge found in PLT
+  t_Section_Run : BOOL ;	//PLT: Indication if the section is running
+  t_Cascade_Downstream : BOOL ;	//PLT: Cascade Downstream
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_DB_Num_Event; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; 
+
+      L     DBW   12; 
+      T     #t_Length_Section; 
+
+      L     DBW    8; // Read downstream PLT DB number from PLT DB.
+      T     #t_DB_PLT_Num_Downstream; // The input i_DB_PLT_DwnStr cannot be used because the DB can be swapped (in reverse mode)
+
+      OPN   #i_DB_PLT_DwnStr; // Open downstream PLT DB block
+      L     DBNO; 
+      T     #s_DB_Num_PLT_Downstream; // Determine PLT block DB number for FB_Manage_PLT (needed only in the first scan or if done bit in PLT is FALSE)
+
+      L     #t_DB_PLT_Num_Downstream; // Check if downstream PLT DB is connected
+      L     1; 
+      >I    ; 
+      JCN   AA99; 
+
+      SET   ; 
+      R     #t_Cascade_Downstream; 
+
+      OPN   DB [#t_DB_PLT_Num_Downstream]; 
+
+      A     DBX   10.1; 
+      =     #s_Section_Run_Downstream; 
+
+      A     DBX   10.3; 
+      =     #t_Cascade_Downstream; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Call smart blocks
+// 
+//--- Timebased displacement -----
+      L     0; 
+      A     "M_OS_/0.1_sec."; 
+      A     #t_Section_Run; 
+      JCN   BA01; 
+      L     1; 
+BA01: T     #t_Displacement; 
+
+      CALL #s_FB_Manage_PLT (
+           i_ID                     := #i_ID_Section,
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_PLT_Num_DwnStr      := #s_DB_Num_PLT_Downstream,
+           i_DB_Event_Num           := #t_DB_Num_Event,
+           i_Basic_Offset           := #i_Basic_Offset_Time,
+           i_Dwnstr_PLT_Pos         := 0,
+           i_Displacement           := #t_Displacement,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Section_Run            := #t_Section_Run);
+
+      CALL #s_FB_HandOver (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #t_DB_Num_Event,
+           i_Position_HO            := 1,
+           i_PEC_Offset             := 0,
+           i_Section_Run_Downstream := #s_Section_Run_Downstream,
+           i_OS_Direction_Change    := FALSE,
+           o_Handover_Run_OK        := #s_Handover_Run_OK,
+           o_Item_In_HandOver_Area  := #s_Item_In_Handover_Area);
+
+NETWORK
+TITLE =CA: Determine 'Operational_ON' status (Started)
+//LAD!
+      A     #i_CMD_Start; 
+      S     #o_ST_Started; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #i_Ext_Req_Stop; 
+      ON    #i_Safety_OK; 
+      )     ; 
+      R     #o_ST_Started; 
+NETWORK
+TITLE =DA: Stop Motor
+//LAD!
+      ON    #o_ST_Started; 
+      ON    #i_Safety_OK; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_Stop_Motor; 
+NETWORK
+TITLE =EA: Clear PLT
+
+      A     #i_Clr_PLT_Data; 
+      JCN   EA01; 
+
+//Clear PLT 
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := #i_Clr_PLT_Data,
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #t_DB_Num_Event);
+
+EA01: NOP   0; 
+NETWORK
+TITLE =FA: Motor Control
+//LAD!
+      A     #i_Safety_OK; 
+      AN    #s_Stop_Motor; 
+      A     #s_Handover_Run_OK; 
+      AN    #i_Ext_Req_Halt; 
+      =     #t_Section_Run; 
+NETWORK
+TITLE =GA: Status Items Present
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_number_items_found);
+
+      L     #t_number_items_found; 
+      L     0; 
+      >I    ; 
+      =     #t_Leading_Edge_Found; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_number_items_found);
+
+      L     #t_number_items_found; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge_Found; 
+
+      A     #t_Leading_Edge_Found; 
+      O     #t_Trailing_Edge_Found; 
+      O     #s_Item_In_Handover_Area; 
+      =     #o_ST_Items; 
+NETWORK
+TITLE =HA: Write Statussen
+
+      A     #t_Section_Run; 
+      =     #o_ST_Running; 
+
+      A     #o_ST_Started; 
+      AN    #s_Stop_Motor; 
+      =     #o_ST_Started; 
+
+      A     #i_Ext_Req_Halt; 
+      =     #o_ST_Request_Halt; 
+
+      A     #i_Ext_Req_Stop; 
+      =     #o_ST_Request_Stop; 
+
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      =     #o_ST_External_Stop; 
+
+NETWORK
+TITLE =IA: Ready to restart indication to Equipment Control
+//LAD!
+      AN    #o_ST_Started; 
+      A     #i_CMD_Enable; 
+      AN    #i_Ext_Req_Stop; 
+      A     #i_Safety_OK; 
+      A     #i_Available_IO; 
+      =     #o_Ready_To_Restart; 
+NETWORK
+TITLE =JA: Section Available
+//LAD!
+      A     #o_ST_Started; 
+      AN    #o_ST_Request_Halt; 
+      AN    #o_ST_Request_Stop; 
+      =     #s_Section_Available; 
+NETWORK
+TITLE =KA: Write outputs
+
+      OPN   #i_DB_PLT; 
+
+      A     #t_Section_Run; // Write section run signal
+      =     DBX   10.1; 
+      =     DBX   10.2; 
+
+      A     #t_Cascade_Downstream; 
+      =     DBX   10.3; 
+
+      A     #s_Section_Available; // Write section available to recieve
+      =     DBX   10.4; 
+
+      A     #o_ST_Started; // Write section operational
+      =     DBX   10.5; 
+
+      A     #s_Item_In_Handover_Area; //Write Item is at Handover
+      =     DBX   10.6; 
+
+      AN    #t_Section_Run; //Write Motor Stopped
+      =     DBX   11.1; 
+END_FUNCTION_BLOCK
+

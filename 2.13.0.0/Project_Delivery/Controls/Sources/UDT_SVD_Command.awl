@@ -1,0 +1,41 @@
+TYPE "UDT_SVD_Command"
+TITLE =%version: 0.04 % CN: 10 
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Tuesday, November 29, 2016 2:04:45 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18563: Aligned for HMI                             inajos   23-11-16   0.04
+//ra#16024: Update the SVD according MCFV decomposition nlHdL    25-07-16   0.03
+//ra#16024: Update the SVD according MCFV decomposition nlHdL    25-07-16   0.03
+//ra#16024: Update the SVD according MCFV decomposition nlHdL    25-07-16   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      nlmvk    22-09-10   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Auto
+   Fixed_Up : BOOL ;	//Semi automatic fixed Up
+   Fixed_Down : BOOL ;	//Semi automatic fixed Down
+   Manual : BOOL ;	//Manual
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

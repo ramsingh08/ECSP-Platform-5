@@ -1,0 +1,43 @@
+TYPE "UDT_Overall_Status"
+TITLE =%version: 0.07 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:50:26 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//15797: Keyword release added                          nlwwij   26-09-13   0.07
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.06
+//PR12611 Add Items & Ready_to_Restart DB Overall stat  nlHdL    24-01-13   0.05
+//Added Halted status                                   nlHdL    04-04-12   0.04
+//Compile number changed from 100 -> 10 (duuuuuuh)      nlMRe    16-09-10   0.03
+//Rearranged statusses for overall layout               nlMRe    15-09-10   0.02
+//Initial revision                                      nlRSwi   03-09-10   1
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Semi_Automatic : BOOL ;	//component is operating in Semi_Automatic mode	
+   Disabled : BOOL ;	//component is operating in Local mode
+   Safety_Stop : BOOL ;	//component is stopped because of safety reasons
+   Error : BOOL ;	//component has detected a fault with high severity
+   Warning : BOOL ;	//component has detected a fault with a low severity
+   Stopped : BOOL ;	//component is not fulfilling its automatic functions but is ready to start
+   Stopping : BOOL ;	//stop request is active, but not all stop conditions are fulfilled
+   Starting : BOOL ;	//start request is given and the component is not yet reporting started
+   Full : BOOL ;	//component is completely occupied with items
+   Halted : BOOL ;	//component is halted because the destination of an item (bag) is not acceptable	
+   Die_Back : BOOL ;	//component has an item in dieback position and downstream is not running.
+   Energy_Saving : BOOL ;	//component is halted because no items have been handled for a configurable time
+   Started : BOOL ;	//component is fulfilling its automatic or semiautomatic functions
+   Items : BOOL ;	//component is stopped with items 
+   Ready_to_Restart : BOOL ;	//component is stopped and ready to restart
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+END_TYPE
+

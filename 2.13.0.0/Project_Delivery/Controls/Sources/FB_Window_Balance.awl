@@ -1,0 +1,85 @@
+FUNCTION_BLOCK "FB_Window_Balance"
+TITLE =%version: 0.01 % CN: 30
+//Function:
+//Balances the empty windows over multiple PLC's
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, December 05, 2016 3:58:55 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version copy from Project Kiev                nlHdL    05-12-16  0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Reservation : BLOCK_DB ;	//DB used as reservation FIFO
+  i_CFG_Num_Downstr_Areas : INT ;	//CFG: Number of downstream areas
+END_VAR
+VAR
+  s_Current_Area_Number : INT ;	//Next area to generate empty window for
+  s_New_Emtpy_Window_Code : INT ;	//Last empty windwo code written
+END_VAR
+VAR_TEMP
+  t_DB_Num_Reservation : INT ;	//DB number of the reservation DB
+  t_Entries_Used : INT ;	//Number of used entries
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Balancing
+
+      OPN   #i_DB_Reservation; 
+      L     DBNO; // Copy DB_Number
+      T     #t_DB_Num_Reservation; 
+
+      L     DBW    0; // Copy Number entries present
+      T     #t_Entries_Used; 
+
+      SET   ; // SET Request windows
+      =     DBX   12.0; 
+
+      L     #t_Entries_Used; // Add new empty window when less than two entries
+      L     2; 
+      <=I   ; 
+      JCN   AA99; 
+
+      L     -100; 
+      L     #s_Current_Area_Number; // Add next area to -100
+      +I    ; 
+      T     #s_New_Emtpy_Window_Code; // New empty window code is -100 or -99 or -98 etc..
+
+      L     #s_Current_Area_Number; // Go to the next area
+      L     1; 
+      -I    ; 
+      T     #s_Current_Area_Number; 
+
+      L     0; // If no areas are left, go back to begin
+      <I    ; 
+      JCN   AA01; 
+
+      L     #i_CFG_Num_Downstr_Areas; 
+      T     #s_Current_Area_Number; 
+
+AA01: L     #t_Entries_Used; // Write empty window code in DB_Reservation
+      L     2; 
+      *I    ; 
+      L     14; 
+      +I    ; 
+      SLW   3; 
+      LAR1  ; 
+
+      L     #s_New_Emtpy_Window_Code; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Entries_Used; // Increase number of entries
+      L     1; 
+      +I    ; 
+      T     DBW    0; 
+
+AA99: NOP   0; 
+END_FUNCTION_BLOCK
+

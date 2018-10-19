@@ -1,0 +1,197 @@
+FUNCTION "FC_Spd_Adopt_Select" : VOID
+TITLE =%version: 0.08 % CN: 31
+//Function:
+//Select the speed receiving on spd1 handover on spd2 (Send or receive)
+//
+//History:
+//
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, March 16, 2018 09:36:24 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27658: Remove handover_down str speed change       nlHdL    16-03-18   0.08
+//ra#27658: No change speed while item is still in HO   nlrkooi  02-07-18   0.07
+//ra#20055: FC_Spd_Adopt_Select wrong family updated    nlHdL    02-02-17   0.06
+//ra#20055: FC_Spd_Adopt_Select wrong family updated    nlHdL    02-02-17   0.06
+//ra#20055: Add upstream receive included motor run     nlHdL    27-01-17   0.05
+//ra#19563: reduce speed on time when receiving an item nlHdL    13-01-17   0.04
+//ra#19548: Item receive upstream on speed 1            nlHdL    06-01-17   0.03
+//ra#18291: FC_Spd_Adopt_Select has wrong CN number     nlHdL    31-10-16   0.02
+//Initial version                                       nlHdL    27-10-16  0.01
+//
+//Description:
+//In this function is selecting the speed based on the handover.
+//If i_CFG_Recv_Item = False then item to handover is selecting the speed.
+//   Item is received on speed 1 (Transport High handover Dwn on Low speed)
+//   Item is handedover to downstream on speed 2 (Low speed)
+//   (default) Speed 1 = high, Speed 2 = low
+//If i_CFG_Recv_Item = TRUE then item receiving item is selecting the speed.
+//   No Item receiving on speed 2 (Transport in high speed)
+//   Item is handedover from upstream on speed 1 (receive item in low speed)
+//   (default) Speed 2 = high, Speed 1 = low
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance from nominal speed
+  i_CFG_Recv_Item : BOOL ;	//CFG: Receive Item on Speed 1 IF false Send item on Speed 2
+END_VAR
+VAR_OUTPUT
+  o_Selected_Speed : INT ;	//[1..4] Selected speed for the Motor to run. only 2 speeds are present.
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//PLT DB Number
+  t_PLT_DB_Num_Upst : INT ;	//Upstream PLT DB number
+  t_HandOver_Rcv : BOOL ;	//HandOver for receiving item
+  t_MotorRun_Rcv : BOOL ;	//Motor running signal
+  t_HandOver : BOOL ;	//Hand Over for sending item
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Item_Found : INT ;	//Number of items found in search
+  t_Info : INT ;	//Info from PLT search
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive info from PLT DB
+// Preset output
+      L     1; 
+      A     #i_CFG_Recv_Item; 
+      JCN   AA01; 
+      L     2; 
+AA01: T     #o_Selected_Speed; 
+
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; // Open PLT DB
+
+//End block if PLT DB is not Done (Init)
+      AN    DBX   10.0; 
+      BEC   ; 
+
+      A     DBX   10.6; 
+      =     #t_HandOver; 
+
+      L     DBW    6; 
+      T     #t_PLT_DB_Num_Upst; 
+      L     0; 
+      <=I   ; 
+      BEC   ; 
+
+      OPN   DB [#t_PLT_DB_Num_Upst]; // Open PLT DB
+
+      A     DBX   10.1; 
+      =     #t_MotorRun_Rcv; 
+
+      A     DBX   10.6; 
+      A     #t_MotorRun_Rcv; 
+      =     #t_HandOver_Rcv; 
+
+      NOP   0; 
+NETWORK
+TITLE =BA: Select speed 2 if item is in handover
+//The speed is switched from (default) high (1) to low (2) when item is in the  
+//handover (the leading edge has entered runout)
+//            UpStr                                DwnStr           
+//       --|-------------|----------------------|-------------| 
+//         |             | |----------|<------->|             |
+//         |             | |  Item    | RunOut  |             |         
+//         |             | |          |         |             |   
+//         |             | |----------|         |             |               
+//      ---|-------------|----------------------|-------------|
+//            Speed 1       Speed 1->2             Speed 2  
+//                                                
+//The speed remains low until trailing edge leaves the is is the upstream runout. 
+//            UpStr                               DwnStr                          
+//       --|-------------|----------------------|-------------| 
+//         |             |                      |----------|  |
+//         |             |                      |  Item    |  |         
+//         |             |                      |          |  |   
+//         |             |                      |----------|  |               
+//      ---|-------------|----------------------|-------------|
+//            Speed 1       Speed 2->1             Speed 2  
+      AN    #i_CFG_Recv_Item; 
+      JCN   BA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #i_CFG_Run_Out_Distance,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Item_Found);
+
+// If item in handover, or trailing edge in runout, then select second speed
+      L     #t_Item_Found; 
+      L     0; 
+      >I    ; 
+      S     #t_HandOver; 
+
+      A     #t_HandOver; 
+      JCN   BA99; 
+
+      L     2; 
+      T     #o_Selected_Speed; 
+
+      BE    ; // End Block
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Select speed 1 if receiving an item
+//The speed is switched from (default) high (2) to low (1) when item is in the 
+//upstream handover (the leading edge has entered upstream runout)                
+//         
+//            UpStr                              DwnStr                           
+//       --|-------------|----------------------|-------------|
+//       ------|<------->|                      |             |
+//       Item  | RunOut  |                      |             |         
+//             |         |                      |             |   
+//       ------|         |                      |             |   
+//       ---|------------|----------------------|-------------|
+//            Speed 1       Speed 2->1           Speed 2  
+//                 
+//The speed remains low until trailing edge leaves the is is the upstream runout. 
+//            UpStr                               DwnStr                          
+// 
+//       --|-------------|----------------------|-------------|
+//         |             |----------|           |             |
+//         |             |  Item    |           |             |         
+//         |             |          |           |             |   
+//         |             |----------|           |             |           
+//      ---|-------------|----------------------|-------------|
+//            Speed 1       Speed 1->2            Speed 2  
+//
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_DB_Num_Upst,
+           i_Position               := #i_CFG_Run_Out_Distance,
+           i_Window                 := #i_CFG_Run_Out_Distance,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Item_Found);
+
+// If leading edge in upstream runout or item 
+// in upstream handover found, then select first speed
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      A     #t_MotorRun_Rcv; 
+      S     #t_HandOver_Rcv; 
+
+// Do not change speed while item is still in handover
+      A     #t_HandOver_Rcv; 
+      JCN   CA99; 
+
+      L     1; 
+      T     #o_Selected_Speed; 
+
+CA99: NOP   0; 
+END_FUNCTION
+

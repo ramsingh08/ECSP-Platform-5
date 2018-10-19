@@ -1,0 +1,2044 @@
+FUNCTION_BLOCK "FB_CIO_SICK"
+TITLE =%version: 0.11 % CN: 50 
+//Function:
+//When there is a new data available in " DB_Data_Sick", evaluate the data & 
+//according to the Mode & action table it will handle the LPN and Volume data. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, March 08, 2018 9:10:44 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24856: Error invalid data if invalid fallback tag  nlHdL    08-03-18   0.11
+//ina#9617: Handle only one fallback tag                nlHdL    06-03-18   0.10
+//ina#8291  Updated code for ready to restart           inajos   14-11-17   0.09
+//ra#24923: BSO and CIO remove input Degraded mode      nlHdL    12-10-17   0.08
+//ra#25323: Add advanced die back to CIO                nlHdL    04-10-17   0.07
+//ina#7375: fallback tag checked on airline =000        nlHdL    13-09-17   0.06
+//ra#23571: Invalid VSO result reported to HLC          nlHdL    03-07-17   0.05
+//ina#5989: Added DB Event for volume report            nlSdW    09-06-17   0.04
+//ra#21266: Fallbacktag clear destination2-5            nlHdL    19-05-17   0.03
+//ra#21266: CIO handle Fallback tags                    nlHdL    17-05-17   0.02
+//Initial Version based on BSO version 1.08             nlHdL    22-12-16   0.01
+//
+//Description:
+//Via the interface DB "DB_Scanner_Datax" the scanner data from the sick scanner 
+//is retreived.
+//For each new message (available within new message in DB) the data is evaluate 
+//the reported.
+//Barcode data is reported by the scan report with LPN data.
+//The volume is written into the BIR and reported by a volume report.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CIO_Data_DB : BLOCK_DB ;	//Data Structure: Interface Data Block SICK Scanner
+  i_TRS1_PLT_DB : BLOCK_DB ;	//Data Structure: Position Data Block 
+  i_TRS2_PLT_DB : BLOCK_DB ;	//Data Structure: Position Data Block 
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_DB_Event_Volume : BLOCK_DB ;	//Data Structure: Event DB (For volume scan)
+  i_Setting : "UDT_BSO_Sett";	//Data Structure: Setting Record
+  i_CFG_Num_No_Read_Error : INT  := 3;	//CFG: [Num] Value of consecutive no-reads before a no-read error is set
+  i_CFG_Num_No_Data_Err : INT  := 3;	//CFG: [Num] Value of consecutive no-data situations before a no-data error is se
+  i_CFG_Num_Unexp_Data_Err : INT  := 3;	//CFG: [Num] Value of consecutive unexpected-data before an unexpected-data error
+  i_CFG_Heartbeat_Interval : INT  := 60;	//CFG: [sec]The time between heartbeat signals from the scanner
+  i_CFG_Airport_No : INT ;	//CFG: Airport Number(Only 4 Numeric value Max 9999)
+  i_CFG_LM : BOOL ;	//HLC message for LM or SAC. LM No messages LPN equal
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Field bus or IO error)
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+END_VAR
+VAR_OUTPUT
+  o_ST_BSO_Scanner_Warning : BOOL ;	//ST: Barcode Scanner warning
+  o_ST_VSO_Scanner_Warning : BOOL ;	//ST: Volume Scanner warning
+  o_ST_BSO_Scanner_Error : BOOL ;	//ST: Barcode Scanner error
+  o_ST_VSO_Scanner_Error : BOOL ;	//ST: Volume Scanner error
+  o_ST_No_Data_Rcv : BOOL ;	//ST: No-data was received
+  o_ST_Unex_Data_Rcv : BOOL ;	//ST: WR: Unexpected data has been received
+  o_ST_Succ_No_Data_Rcv : BOOL ;	//ST: Too many successive no-data situations have occured
+  o_ST_Succ_Unex_Data_Rcv : BOOL ;	//ST: Too many successive unexpected-data situations have occured
+  o_ST_BSO_Err_No_Read : BOOL ;	//ST: Too many successive no-reads barcode situations have occured
+  o_ST_VSO_Err_No_Read : BOOL ;	//ST: Too many successive no-reads volume situations have occured
+  o_ST_BSO_Inva_Data_Rcv : BOOL ;	//ST: Invalid-data was received
+  o_ST_VSO_Inva_Data_Rcv : BOOL ;	//ST: Invalid-data was received
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Communication_Error : BOOL ;	//ST: Communication error with scanner
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Scanner_Trigger : BOOL ;	//Trigger Signal to SICK Scanner 
+  o_TRS_Disable_Send : BOOL ;	//Disable send to the transport section
+END_VAR
+VAR
+  s_ScannerData : "UDT_Raw_CIO_Data";	//Raw data copied from DB_SICK_DATA
+  s_LPN1_Status : STRUCT 	//Recieved LPN-1 status
+   Valid_Data : BOOL ;	//Valid data in LPN1
+   Invalid_data : BOOL ;	//InValid data in LPN1
+   No_Read : BOOL ;	//No Read in LPN1
+   Valid_Fallback_tag : BOOL ;	//Valid Fallback tag in LPN1
+  END_STRUCT ;	
+  s_LPN2_Status : STRUCT 	//Recieved LPN-2 status
+   Valid_Data : BOOL ;	//Valid data in LPN2
+   Invalid_data : BOOL ;	//InValid data in LPN2
+   No_Read : BOOL ;	//No Read in LPN2
+   Valid_Fallback_tag : BOOL ;	//Valid Fallback tag in LPN2
+  END_STRUCT ;	
+  s_LPN3_Status : STRUCT 	//Recieved LPN-3 status
+   Valid_Data : BOOL ;	//Valid data in LPN3
+   Invalid_data : BOOL ;	//InValid data in LPN3
+   No_Read : BOOL ;	//No Read in LPN3
+   Valid_Fallback_tag : BOOL ;	//Valid Fallback tag in LPN3
+  END_STRUCT ;	
+  s_Succ_Error_Counters : STRUCT 	//Coutner for consecutive errors
+   No_Read_BSO : INT ;	//Counter for successive no-reads
+   No_Data : INT ;	//Counter for successive no-data situations
+   Unexpected_Data : INT ;	//Counter for successive unexpected-data situations
+   No_Read_VSO : INT ;	//Counter for successive no-reads
+  END_STRUCT ;	
+  s_LPN_from_LIC : ARRAY  [1 .. 10 ] OF //LPN cpoied from LIC.BIR.LPN
+  CHAR ;	
+  s_VFBTA_LPN : ARRAY  [1 .. 10 ] OF //Valid Fallback tag for this Airport
+  CHAR ;	
+  s_Base_Address : DWORD ;	//Relative address of instance-DB
+  s_Cnt_New_Data : INT ;	//Communication error counting new data
+  s_LPN_Length_Counter : INT ;	//Barcode length in bytes used for determining valid data
+  s_LPN_Length_Counter_2 : INT ;	//Barcode length in bytes used for determing Empty data
+  s_Scan_Raw_Data_Length : INT ;	//Raw data length in bytes copied from DB_Sick_data
+  s_Start_Address_Raw_Data : INT ;	//Raw data start adress in bytes copied from DB_Sick_data
+  s_DBno_Sick_Data : INT ;	//DB number of Sick Data DB
+  s_LPN_Data_Length : INT ;	//Length of the barcode from the scanner
+  s_Previous_LNK_Data_Prov : INT ;	//Memory of LNK for which data Recieved
+  s_LNK_Data_Prov_Position : INT ;	//The LNK number of the item for which scanner data is expected
+  s_Data_Provid_Pos_Offset : INT ;	//Data provider position offset calculation
+  s_Track_DB_Num_Sec_1 : INT ;	//DB_number of Section-1
+  s_Track_DB_Num_Sec_2 : INT ;	//DB_number of Section-2
+  s_DB_Num_Event : INT ;	//Number of the Event DB
+  s_DB_Num_Event_Volume : INT ;	//Number of the Event DB for volume scan report
+  s_STAT_Good_Read_BSO : INT ;	//STAT: Number of times that a correct scan has taken place
+  s_STAT_No_Read_BSO : INT ;	//STAT: Number of times that the received data indicated a no-read
+  s_STAT_Invalid_BSO : INT ;	//STAT: Number of times that the data that was received was invalid
+  s_STAT_Good_Read_VSO : INT ;	//STAT: Number of times that a correct scan has taken place
+  s_STAT_No_Read_VSO : INT ;	//STAT: Number of times that the received data indicated a no-read
+  s_STAT_Invalid_VSO : INT ;	//STAT: Number of times that the data that was received was invalid
+  s_STAT_No_Data : INT ;	//STAT: Number of times that no data was received
+  s_STAT_Unexpected_Data : INT ;	//STAT: Number of times that data was received when it was not expected
+  s_STAT_Multiple_Read_BSO : INT ;	//STAT: Number of times that the data that was received was a multiple read
+  s_Data_For_LM_LIC : INT ;	//The LIC number of the item for which scanner data is expected
+  s_Cnt_Max_bag_length : INT ;	//Counter maximum baggage length
+  s_Done : BOOL ;	//First scan done memory bit
+  s_No_Read_BSO : BOOL ;	//A no read has occured form BSO
+  s_Multiple_Read : BOOL ;	//More than one LPN was scanned by  the LPN Scanner
+  s_Invalid_Data_BSO : BOOL ;	//Invalid data was receveid form BSO
+  s_Heartbeat : BOOL ;	//The data received is a heartbeat
+  s_New_Barcode_Present : BOOL ;	//New data is present that is not a heartbeat
+  s_LIC_Contains_NoLPN : BOOL ;	//LIC record contains no LPN
+  s_Comp_LPN_Equal : BOOL ;	//Comparison b/n Recieved LPN-1 & LNK-BIR
+  s_Fallback_Tag_Detect : BOOL ;	//Valid fallback tag for this airport is detected
+  s_FP_New_Data_Received : BOOL ;	//+ve edge of New data Recieved
+  s_FP_New_Data_Is_Invalid : BOOL ;	//+ve edge of In Valid Recieved
+  s_OS_Store_Data : BOOL ;	//Data from the scanner should be stored
+  s_OS_Unexpected_Data : BOOL ;	//Data was received when no item was in the trigger window
+  s_OS_No_Data : BOOL ;	//No data was received for the item with LIC o_LIC
+  s_Scanner_Trigger : BOOL ;	//Trigger Signal to SICK Scanner 
+  s_Operational_On : BOOL ;	//Operational on signal of this Object
+  s_Motor_Running : BOOL ;	//Both section 1 OR section 2 Running
+  s_Start_Cnt_Max_Bag : BOOL ;	//Start counter baggage maximum lenght
+  s_FP_Strt_Cnt_Max : BOOL ;	//Leading detect.leading edge start counter baggage maximum lenght
+  s_No_Read_VSO : BOOL ;	//A no read has occured from VSO
+  s_Invalid_Data_VSO : BOOL ;	//Invalid data was receveid form VSO
+  s_Adv_Die_Back : BOOL ;	//Advanced die back on 2e TRS downstream
+END_VAR
+VAR_TEMP
+  t_Airport_Char : ARRAY  [1 .. 4 ] OF //Unquie Airport Character
+  CHAR ;	
+  t_ANY_Scanner_Data : ANY ;	//Any pointer to Raw scanner data
+  t_AR1_LPN_Data : DWORD ;	//Pointer to LPN data
+  t_RET_VAL_Blkmov : INT ;	//Result of BLKMOV
+  t_Ret_Val_CompBlocks : INT ;	//Result of Comparison
+  t_Not_Used_Int : INT ;	//Dummy Not used
+  t_Data : INT ;	//Data
+  t_Info : INT ;	//Info
+  t_DBno_Sick_Data : INT ;	//DB-Number of SICK data
+  t_Track_DB_Num_Sec_1 : INT ;	//DB_number of Section-1
+  t_Track_DB_Num_Sec_2 : INT ;	//DB_number of Section-2
+  t_WR_Event_Return_Value : INT ;	//HLC send block return value
+  t_Length_Sec_1 : INT ;	//Starting position of the section-1
+  t_New_Data_Present : BOOL ;	//New data present
+  t_Good_Read_BSO : BOOL ;	//The BSO scan was good
+  t_FP_New_Data_Received : BOOL ;	//Positive flank of 'New Data Received' input
+  t_FP_New_Data_Is_Invalid : BOOL ;	//Positive flank of 'New data is invalid' input
+  t_Comp_VFBTA_Equal : BOOL ;	//Comparison b/n Recieved LPN-1 & LNK-BIR
+  t_Section_1_Motor : BOOL ;	//Section 1 of IDZ conveyor running signal
+  t_Section_2_Motor : BOOL ;	//Section 2 of IDZ conveyor running signal
+  t_Good_Read_VSO : BOOL ;	//The VSO scan was good
+  t_Product_Length : INT ;	//Product_length within volume message
+  t_Product_Width : INT ;	//Product width within volume message
+  t_Product_Height : INT ;	//Product height within volume message
+  t_Product_Volume_Dint : DINT ;	//Product volume within volume message
+  t_Product_Volume : INT ;	//Product volume [dm3] from volume message
+  t_LPN_Number_Ctr : INT ;	//Number of LPNs used for determining Fallback Tag
+  t_Displacement : INT ;	//Displacement of the section 1
+  t_OS_Start_Cnt_Max_Bag : BOOL ;	//One shot leading edge start counter baggage maximum lenght
+  t_PID : DINT ;	//PID from LIC
+  t_PID_Present : BOOL ;	//PID is present
+  t_Destination : INT ;	//Fallback tag destination
+  t_CHAR3 : CHAR ;	//CHAR
+  t_CHAR4 : CHAR ;	//CHAR
+  t_LPN_Number_Ctr_1 : INT ;	//Number of LPNs used for determining Fallback Tag
+  t_ECS : INT ;	//ECS record number
+  t_Available_IO : BOOL ;	//Check for grouped IO Available
+  t_PLT_DB_Dwn : INT ;	//Downstream PLT DB Number
+  t_Section_run : BOOL ;	//Section run from PLT
+  t_Section_Available : BOOL ;	//Section available from PLT
+  t_Section_Item_Handover : BOOL ;	//Section Item in Handover from PLT
+  t_Window : INT ;	//Window length search function
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+//
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #s_Base_Address; // 'relative address'
+
+      SET   ; // Set bit to indicate that this network has been called
+      =     #s_Done; 
+
+// Raw data length
+      L     84; 
+      T     #s_Scan_Raw_Data_Length; 
+
+//Raw data start adress
+      L     38; 
+      T     #s_Start_Address_Raw_Data; 
+
+//LPN data length
+      L     10; 
+      T     #s_LPN_Data_Length; 
+
+// Store the Datablock number
+      OPN   #i_CIO_Data_DB; 
+      L     DBNO; 
+      T     #s_DBno_Sick_Data; 
+
+//Store the DB Number of section1
+      OPN   #i_TRS1_PLT_DB; // Open tracking DB
+      L     DBNO; 
+      T     #s_Track_DB_Num_Sec_1; 
+
+//Store the DB Number of section2
+      OPN   #i_TRS2_PLT_DB; // Open tracking DB
+      L     DBNO; 
+      T     #s_Track_DB_Num_Sec_2; 
+
+//Initial Time setting for the Communication Error
+      L     #i_CFG_Heartbeat_Interval; //and present the counter for this error
+      T     #s_Cnt_New_Data; 
+AA99: NOP   0; 
+NETWORK
+TITLE =AB: Create grouped IO available signal
+
+      A     #i_Available_IO; 
+      A     #i_Safety_OK; 
+      AN    #i_FieldB_NotPrsnt; 
+      AN    #i_FieldB_Error; 
+      =     #t_Available_IO; 
+NETWORK
+TITLE =BA: Generating Trigger Signal to SICK Scanner 
+//When the Front edge of the bag is detected at the Trigger start position it 
+//will 'SET' the Trigger bit & 
+//when the back edge of the bag is detected at the Offset of the Trigger position 
+//then it will be 'RESET' the Trigger bit.
+//#o_Scanner_Trigger bit will be active only when Trigger Bit & Motor Running 
+//signal are True.
+      OPN   #i_TRS1_PLT_DB; 
+      L     DBW    2; // Take the displacement out of the PLT DB.
+      T     #t_Displacement; 
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+      OPN   #i_DB_Event_Volume; 
+      L     DBNO; 
+      T     #s_DB_Num_Event_Volume; 
+
+//----------------------Determine Motor-RUN Status--------------------------//
+//Load DB Number to Temperory variable to open
+      L     #s_Track_DB_Num_Sec_1; 
+      T     #t_Track_DB_Num_Sec_1; 
+
+      L     #s_Track_DB_Num_Sec_2; 
+      T     #t_Track_DB_Num_Sec_2; 
+
+//--- Opening Datablock of Section 1
+      OPN   DB [#t_Track_DB_Num_Sec_1]; 
+      A     DBX   10.1; //Motor on speed signal 
+      =     #t_Section_1_Motor; 
+
+      L     DBW   12; 
+      T     #t_Length_Sec_1; 
+
+//--- Opening Datablock of Section 1
+      OPN   DB [#t_Track_DB_Num_Sec_2]; 
+      A     DBX   10.1; //Motor on speed signal 
+      =     #t_Section_2_Motor; 
+
+//--- Generating Motor Run signal
+      A     #t_Section_1_Motor; 
+      O     #t_Section_2_Motor; 
+      =     #s_Motor_Running; 
+
+//--- Start Trigger at Scanner Trigger position
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_Track_DB_Num_Sec_1,
+           i_Position               := #i_Setting.Scanner_Trigger_Position,
+           i_Window                 := 0,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+//--- Handling the Start Trigger
+//--When the Leading edge & Data found in the Trigger position then enable the Scanner Trigger 
+      A(    ; 
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Data; 
+      L     0; 
+      <>I   ; 
+      )     ; 
+      JCN   BA02; 
+      S     #s_Scanner_Trigger; // Start the Trigger 
+      =     #s_Start_Cnt_Max_Bag; // Start counting maximum baggage length
+BA02: NOP   0; 
+//-------------Stop Trigger at Offset of the Trigger Position-----------------//
+//--- Handling the Stop trigger  
+//When the trigger is active and a trailing edge is found reset the trigger.
+//Exception handling. Reset also the trigger bit after the maximum baggage length incase no trailing edge is found.
+
+      A     #s_Scanner_Trigger; 
+      JCN   BA06; 
+
+      A     #s_Start_Cnt_Max_Bag; 
+      FP    #s_FP_Strt_Cnt_Max; 
+      =     #t_OS_Start_Cnt_Max_Bag; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_Track_DB_Num_Sec_1,
+           i_Position               := #i_Setting.Scanner_Trigger_Position,
+           i_Window                 := 0,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      R     #s_Scanner_Trigger; 
+      CLR   ; 
+      =     #s_Start_Cnt_Max_Bag; 
+
+      A     #t_OS_Start_Cnt_Max_Bag; 
+      JCN   BA04; 
+      L     120; 
+      T     #s_Cnt_Max_bag_length; 
+BA04: L     #s_Cnt_Max_bag_length; // Load actual value delay counter
+      L     #t_Displacement; // Load displacement of previous scan cycle
+      -I    ; // THEN delay counter := delay counter - previous 'Scan_Time'
+      JPZ   BA05; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+BA05: T     #s_Cnt_Max_bag_length; 
+
+// IF delay-counter is elapsed
+      L     #s_Cnt_Max_bag_length; 
+      L     0; 
+      <=I   ; 
+      JCN   BA06; 
+      R     #s_Scanner_Trigger; //--Stop the Trigger
+      CLR   ; 
+      =     #s_Start_Cnt_Max_Bag; 
+BA06: NOP   0; 
+//---------------Making the Trigger output high when motor run signal is active ---------//
+
+      A     #s_Scanner_Trigger; 
+      =     #o_Scanner_Trigger; 
+NETWORK
+TITLE =CA: Check the new data is present in DB_SICK_DATA
+//
+//
+      L     #s_DBno_Sick_Data; 
+      T     #t_DBno_Sick_Data; 
+
+//--- Opening Datablock
+      OPN   DB [#t_DBno_Sick_Data]; 
+      A     DBX    0.0; // First bit in DB_Sick_Data_x is OS_New_Data_Received
+      =     #t_New_Data_Present; 
+      JCN   CA99; 
+
+//--- Prepraing the any pointer for DB_Sick_Data
+      LAR1  P##t_ANY_Scanner_Data; //  address Destination
+
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; // Standard S7 code
+
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; // Data type 2=byte
+
+      L     #s_Scan_Raw_Data_Length; // 36 bytes
+      T     LW [AR1,P#2.0]; // Number of bytes can be copied
+
+      L     #t_DBno_Sick_Data; 
+      T     LW [AR1,P#4.0]; // Byte4..5=DB number 
+
+      L     #s_Start_Address_Raw_Data; //Pointing to the Raw data 
+      SLW   3; 
+      L     DW#16#84000000; 
+      OD    ; 
+      T     LD [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Scanner_Data,
+           RET_VAL                  := #t_RET_VAL_Blkmov,
+           DSTBLK                   := #s_ScannerData);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Determine if a received data is valid
+//The received data must be within '0' to '9' or No-read '?' if this criteria not 
+//matching then it is Invalid data.
+      A     #t_New_Data_Present; 
+      JCN   DA99; 
+
+      SET   ; 
+      R     #s_Invalid_Data_BSO; 
+      R     #s_LPN1_Status.Invalid_data; 
+      R     #s_LPN2_Status.Invalid_data; 
+      R     #s_LPN3_Status.Invalid_data; 
+
+//--- Make pointer to Received LPN data
+      L     P##s_ScannerData; // Load the ANY Pointer from the destination block
+      L     #s_Base_Address; // Relative address of instance-DB
+      +D    ; 
+      LAR1  ; // in adres reg. 1
+      +AR1  P#2.0; // LPN data starts at the second byte
+      TAR1  #t_AR1_LPN_Data; // Store poiter to Received LPN data
+
+//----------------determing Received LPN-1 data is valid-------------------//  
+
+      L     #s_LPN_Data_Length; //10
+DA01: T     #s_LPN_Length_Counter; 
+      NOP   0; 
+//---Determine good barcode range
+// Lower limit
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      <I    ; 
+      )     ; 
+// Upper limit
+      O(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      >I    ; 
+      )     ; 
+      JCN   DA02; 
+//--- "No Read"    ASCII code '?'
+      L     DIB [AR1,P#0.0]; 
+      L     '?'; //  ascii code for '?'
+      <>I   ; 
+      JCN   DA02; 
+//--- Heartbeat Character ASCII code 'H'
+      L     DIB [AR1,P#0.0]; 
+      L     'H'; //  ascii code for 'H'
+      <>I   ; 
+      JCN   DA02; 
+
+//--- if outside range then set wrong code error 
+      SET   ; 
+      =     #s_LPN1_Status.Invalid_data; 
+      JU    DA03; 
+
+//--- increase pointer for the next character
+DA02: TAR1  ; 
+      L     P#1.0; 
+      +D    ; 
+      LAR1  ; 
+//--- Loop counter
+      L     #s_LPN_Length_Counter; 
+      LOOP  DA01; 
+
+//----------------determing Received LPN-2 data is valid------------------------//
+//---Load the pointer to acess the received LPN data
+DA03: LAR1  #t_AR1_LPN_Data; //Restore pointer to received LPN data
+      +AR1  P#10.0; // Pointing to LPN-2
+
+      L     #s_LPN_Data_Length; //10
+DA04: T     #s_LPN_Length_Counter; 
+      NOP   0; 
+//--- Determine good barcode range
+// Lower limit
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      <I    ; 
+      )     ; 
+// Upper limit
+      O(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      >I    ; 
+      )     ; 
+      JCN   DA05; 
+//--- "No Read"    ASCII code '?'
+      L     DIB [AR1,P#0.0]; 
+      L     '?'; //  ascii code for '?'
+      <>I   ; 
+      JCN   DA05; 
+//--- Heartbeat Character ASCII code 'H' 
+      L     DIB [AR1,P#0.0]; 
+      L     'H'; //  ascii code for 'H'
+      <>I   ; 
+      JCN   DA05; 
+
+//--- if outside range then set wrong code error 
+      SET   ; 
+      =     #s_LPN2_Status.Invalid_data; 
+      JU    DA06; 
+
+//--- increase pointer for the next character
+DA05: TAR1  ; 
+      L     P#1.0; 
+      +D    ; 
+      LAR1  ; 
+//--- Loop counter
+      L     #s_LPN_Length_Counter; 
+      LOOP  DA04; 
+
+//----------------determing Received LPN-3 data is valid------------------------//
+//---Load the pointer to acess the received LPN data
+DA06: LAR1  #t_AR1_LPN_Data; // Restore pointer to received LPN data
+      +AR1  P#20.0; // Pointing to LPN-2
+
+      L     #s_LPN_Data_Length; //10
+DA07: T     #s_LPN_Length_Counter; 
+      NOP   0; 
+//--- Determine good barcode range
+// Lower limit
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      <I    ; 
+      )     ; 
+// Upper limit
+      O(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      >I    ; 
+      )     ; 
+      JCN   DA08; 
+//--- "No Read"    ASCII code '?'
+      L     DIB [AR1,P#0.0]; 
+      L     '?'; //  ascii code for '?'
+      <>I   ; 
+      JCN   DA08; 
+//--- Heartbeat Character ASCII code 'H' 
+      L     DIB [AR1,P#0.0]; 
+      L     'H'; //  ascii code for 'H'
+      <>I   ; 
+      JCN   DA08; 
+
+//--- if outside range then set wrong code error 
+      SET   ; 
+      =     #s_LPN3_Status.Invalid_data; 
+      JU    DA09; 
+
+//--- increase pointer for the next character
+DA08: TAR1  ; 
+      L     P#1.0; 
+      +D    ; 
+      LAR1  ; 
+//--- Loop counter
+      L     #s_LPN_Length_Counter; 
+      LOOP  DA07; 
+
+//------------------------Evaluating the data------------------------------//
+DA09: A     #s_LPN1_Status.Invalid_data; 
+      O     #s_LPN2_Status.Invalid_data; 
+      O     #s_LPN3_Status.Invalid_data; 
+      =     #s_Invalid_Data_BSO; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Determine if received data is a 'no read' message
+//If the first character of the first barcode is a '?' then we have a no-read 
+//situation.
+      A     #t_New_Data_Present; 
+      JCN   EA99; 
+
+      SET   ; 
+      R     #s_No_Read_BSO; 
+      R     #s_LPN1_Status.No_Read; 
+      R     #s_LPN2_Status.No_Read; 
+      R     #s_LPN3_Status.No_Read; 
+
+//--- Load the pointer to acess the received LPN data
+      LAR1  #t_AR1_LPN_Data; // Restore pointer to received LPN data
+
+//--- Checking LPN-1 for a NO-read
+      L     DIB [AR1,P#0.0]; 
+      L     '?'; //ASCII code for '?'
+      ==I   ; 
+      JCN   EA01; 
+      SET   ; 
+      =     #s_LPN1_Status.No_Read; 
+
+//--- Checking LPN-2 for a NO-read
+EA01: L     DIB [AR1,P#10.0]; 
+      L     '?'; //ASCII code for '?'
+      ==I   ; 
+      JCN   EA02; 
+      SET   ; 
+      =     #s_LPN2_Status.No_Read; 
+
+//--- Checking LPN-3 for a NO-read
+EA02: L     DIB [AR1,P#20.0]; 
+      L     '?'; //ASCII code for '?'
+      ==I   ; 
+      JCN   EA03; 
+      SET   ; 
+      =     #s_LPN3_Status.No_Read; 
+
+//---------------------Evaluating the No-Read-------------------------//
+EA03: A     #s_LPN1_Status.No_Read; 
+      A     #s_LPN2_Status.No_Read; 
+      A     #s_LPN3_Status.No_Read; 
+      =     #s_No_Read_BSO; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Determine Number of valid LPN received & Multiple read
+//LPN:- Licence Plate number (10-Digit barcode details)
+//
+//Determining 1-LPN data received:-
+//If LPN-1 1st character contains between ranges from '0' to '9' & LPN-2 1st 
+//character contains '?' & LPN-3 1st character contains '?' then confirmed as 1 
+//LPN data received.
+//
+//Determining 2-LPN data received:-
+//If LPN-1 1st character contains between ranges from '0' to '9' & LPN-2 1st 
+//character contains between ranges from '0' to '9' & LPN-3 1st character 
+//contains '?' then confirmed as 2 LPN data received & Multiple read.
+//
+//Determining 3-LPN data received:-
+//If LPN-1 1st character contains between ranges from '0' to '9' & LPN-2 1st 
+//character contains between ranges from '0' to '9' & LPN-3 1st character 
+//contains between ranges from '0' to '9' then confirmed as 3 LPN data received  
+//& Multiple read.
+//
+//
+      A     #t_New_Data_Present; 
+      JCN   FA99; 
+
+      SET   ; 
+      R     #s_Multiple_Read; 
+      R     #s_LPN1_Status.Valid_Data; 
+      R     #s_LPN2_Status.Valid_Data; 
+      R     #s_LPN3_Status.Valid_Data; 
+
+//----Load the pointer to acess the received LPN data
+      LAR1  #t_AR1_LPN_Data; // Restore pointer to received LPN data
+
+//------------- Verifying If 1-LPN received-------------------//
+// Check LPN-1 contains between '0' to '9'
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+//--- Check LPN-2 contains ascii code for '?'
+      A(    ; 
+      L     DIB [AR1,P#10.0]; 
+      L     '?'; //  ascii code for '?'
+      >=I   ; 
+      )     ; 
+//--- Check LPN-3 contains ascii code for '?'
+      A(    ; 
+      L     DIB [AR1,P#20.0]; 
+      L     '?'; //  ascii code for '?'
+      ==I   ; 
+      )     ; 
+      JCN   FA01; 
+      SET   ; 
+      =     #s_LPN1_Status.Valid_Data; 
+      JU    FA99; 
+
+//------------ Verifying If 2-LPN received----------------------//
+// Check LPN-1 contains between '0' to '9'
+FA01: A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //   ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+//--- Check LPN-2 contains between '0' to '9'
+      A(    ; 
+      L     DIB [AR1,P#10.0]; 
+      L     '0'; //   Lower limitascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#10.0]; 
+      L     '9'; //  Upper limit ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+//--- Check LPN-3 contains ascii code for '?'
+      A(    ; 
+      L     DIB [AR1,P#20.0]; 
+      L     '?'; //  ascii code for '?'
+      ==I   ; 
+      )     ; 
+      JCN   FA02; 
+      SET   ; 
+      =     #s_LPN1_Status.Valid_Data; 
+      =     #s_LPN2_Status.Valid_Data; 
+      =     #s_Multiple_Read; 
+      JU    FA99; 
+
+//----------Verifying If 3-LPN received-----------------//
+//--- Check LPN-1 contains between '0' to '9'
+FA02: A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#0.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+//--- Check LPN-2 contains between '0' to '9'
+      A(    ; 
+      L     DIB [AR1,P#10.0]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#10.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+//--- Check LPN-3 contains between '0' to '9'
+      A(    ; 
+      L     DIB [AR1,P#20.0]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#20.0]; 
+      L     '9'; //  ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+      JCN   FA99; 
+      SET   ; 
+      =     #s_LPN1_Status.Valid_Data; 
+      =     #s_LPN2_Status.Valid_Data; 
+      =     #s_LPN3_Status.Valid_Data; 
+      =     #s_Multiple_Read; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Determine if received data is a heartbeat
+//If the first character of the first barcode is a 'H' then the new data is a 
+//heartbeat.
+      A     #t_New_Data_Present; 
+      JCN   GA99; 
+
+      SET   ; 
+      R     #s_Heartbeat; 
+
+//--- Load the pointer to acess the received LPN data
+      LAR1  #t_AR1_LPN_Data; // Restore pointer to received LPN data
+
+      L     DIB [AR1,P#0.0]; 
+      L     'H'; ////ASCII code for 'H'
+      ==I   ; 
+      JCN   GA99; 
+      =     #s_Heartbeat; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: New barcode detection
+//A new barcode is detected when data has been received that is not a 
+//heartbeat.
+//Note: 'no read' is classified as being a barcode.
+      A     #t_New_Data_Present; 
+      AN    #s_Heartbeat; 
+      =     #s_New_Barcode_Present; //New data is present that is not a heartbeat
+NETWORK
+TITLE =IA: Trigger window
+//When there is new data notification then it will search for the product & 
+//corresponding LNK number in the Data provider position window.
+//
+//Determining Good read:-
+//When there is New data notification & LNK number is found in Data provider 
+//position window then it will trigger to store data with LNK number.
+//
+//Determining Un-Expected Data:-
+//When there is New data notification & if LNK number is not-found in Data 
+//provider position window then it will trigger Un-Expected Data.
+//
+//Determining No-data :-
+//When there is No-New data notification entire Data provider position window & 
+//when LNK number is found in Data provider position window then it will trigger 
+//No-data Data.
+      SET   ; 
+      R     #s_OS_Store_Data; 
+      R     #s_OS_Unexpected_Data; 
+      R     #s_OS_No_Data; 
+//------------------Initilisation----------------//
+
+      A     #s_New_Barcode_Present; //New data Notification
+      FP    #s_FP_New_Data_Received; 
+      =     #t_FP_New_Data_Received; 
+
+      A     #s_Invalid_Data_BSO; //Invaild data Notification
+      FP    #s_FP_New_Data_Is_Invalid; 
+      =     #t_FP_New_Data_Is_Invalid; 
+
+      A     #s_Operational_On; 
+      JCN   IA99; 
+
+//---- Making the data provider position offset
+      L     #i_Setting.Data_Provider_Position; 
+      L     #i_Setting.Data_Provid_Posit_Offset; 
+      -I    ; 
+      T     #s_Data_Provid_Pos_Offset; 
+
+      L     #s_Data_Provid_Pos_Offset; 
+      L     1; 
+      <I    ; 
+      JCN   IA01; 
+      L     1; 
+      T     #s_Data_Provid_Pos_Offset; 
+
+
+//----When there is new data notification, search LNK number in the Data provider position window-------//
+IA01: A     #t_FP_New_Data_Received; 
+      AN    #t_FP_New_Data_Is_Invalid; 
+      JCN   IA03; 
+
+//------------------Searching the LNK in the Data provider position Window ----------------------------//
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_Track_DB_Num_Sec_2,
+           i_Position               := #i_Setting.Data_Provider_Position,
+           i_Window                 := #i_Setting.Data_Provid_Posit_Offset,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Data,//-----------LNK N0
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+//---Handling the Valid LNK number
+      L     #t_Data; 
+      L     0; 
+      <>I   ; 
+      JCN   IA02; 
+      =     #s_OS_Store_Data; 
+      L     #t_Data; 
+      T     #s_LNK_Data_Prov_Position; //LNK found in the Data provider position window-- Monitor
+      T     #s_Previous_LNK_Data_Prov; //Memory of LNK for which data Received
+
+//--Handling the Un-Expected Data
+IA02: L     #t_Data; 
+      L     0; 
+      ==I   ; 
+      JCN   IA03; 
+      =     #s_OS_Unexpected_Data; 
+
+//--------------Checking Data at Data provider position offset to verify data is received --------------//
+IA03: CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_Track_DB_Num_Sec_2,
+           i_Position               := #s_Data_Provid_Pos_Offset,
+           i_Window                 := 0,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+// Handling No-data Received
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      JCN   IA99; 
+      L     #t_Data; 
+      L     #s_Previous_LNK_Data_Prov; //Memory of LNK for which data Received
+      <>I   ; 
+      JCN   IA99; 
+      L     #t_Data; 
+      T     #s_Previous_LNK_Data_Prov; //Memory of LNK for which data Received
+      =     #s_OS_No_Data; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA:Determining LIC contain Empty LPN 
+//The LNK number found in the Data provider position window determining 
+//corresponding LIC number & determining its BIR in "DB_LIC_List" is Empty.
+      A     #s_OS_Store_Data; 
+      A     #s_New_Barcode_Present; 
+      AN    #s_Invalid_Data_BSO; 
+      JCN   JA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK_Data_Prov_Position,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #s_Data_For_LM_LIC);//For a found LNK number corresponding LIC number -- Monitor
+
+//-----Retreive PID present from LIC number-------------------------------
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_DINT                   := #t_PID);
+
+      L     #t_PID; 
+      L     0; 
+      >D    ; 
+      =     #t_PID_Present; 
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := #s_LPN_from_LIC,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CLR   ; 
+      =     #s_LIC_Contains_NoLPN; 
+
+//--- Read pointer to barcode UDT
+      L     P##s_LPN_from_LIC; // Load the ANY Pointer from the destination block
+      L     #s_Base_Address; // Relative address of instance-DB
+      +D    ; 
+      LAR1  ; // in adres reg. 1
+
+      L     #s_LPN_Data_Length; //--10-- Standard LPN Lenth in LNK
+JA01: T     #s_LPN_Length_Counter_2; 
+
+//--- Check if the LPN in BIR is empty
+      L     DIB [AR1,P#0.0]; 
+      L     ' '; // Empty LPN Char
+      ==I   ; 
+      JCN   JA99; //Not empty jump to label
+
+//--- increase pointer for the next character
+      TAR1  ; 
+      L     P#1.0; 
+      +D    ; 
+      LAR1  ; 
+
+//--- Loop counter
+      L     #s_LPN_Length_Counter_2; 
+      LOOP  JA01; 
+
+//--- LPN in BIR contains no code 
+      SET   ; 
+      =     #s_LIC_Contains_NoLPN; //Empty in BIR
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Compare the Received data LPN1 to LIC->LPN are Identical
+//Determining the Received LPN & LPN in LIC number found in Data provider 
+//position 
+//window are identical.
+      A     #s_OS_Store_Data; 
+      A     #s_New_Barcode_Present; 
+      AN    #s_Invalid_Data_BSO; 
+      AN    #s_LIC_Contains_NoLPN; 
+      JCN   KA99; 
+
+      CLR   ; 
+      =     #s_Comp_LPN_Equal; 
+
+//----------Compare the Received LPN1 to LPN in LIC--------------//
+      CALL "FC_Compare_Blocks" (
+           i_ANY_Block_1            := #s_LPN_from_LIC,
+           i_ANY_Block_2            := #s_ScannerData.Body.Scanresult.BSO.Scanresult.LPN1,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_RET_VAL_Compare        := #t_Ret_Val_CompBlocks);
+
+      L     #t_Ret_Val_CompBlocks; 
+      L     1; 
+      ==I   ; 
+      =     #s_Comp_LPN_Equal; //LIC & Received LPN-1 are Identical
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Fallback tag detection
+//In a degraded mode the received LPN must be check for the Fallback tag that is 
+//determined by 1st Character of the LPN must be '1'. 
+//To determine the valid fall back tag for the corresponding airport, can be 
+//verified by unique airport number found in the LPN. 
+//The ten digit barcode number shall be composed as follows:-
+//Digit 11 for Fall back tag
+//Digit 2-4 Three-digit Airline code (000 for non-airline handling agents) 
+//Digit 5-8 Four-digit "Unique airport number"
+//Digit 9-10Chute/Lateral indication
+//
+//Example: - 
+//Fallback tag number 1160195387 
+//
+//1 :Fall back tag
+//160 : Airline CX (Cathay Pacific)
+//1953: Airport HKG (Hong Kong)
+//87:Destination/Chute Address
+//
+      A     #s_OS_Store_Data; 
+      A     #s_New_Barcode_Present; 
+      AN    #t_PID_Present; 
+      AN    #s_Invalid_Data_BSO; 
+      JCN   LA99; 
+
+      SET   ; 
+      R     #s_Fallback_Tag_Detect; 
+      R     #s_LPN1_Status.Valid_Fallback_tag; 
+      R     #s_LPN2_Status.Valid_Fallback_tag; 
+      R     #s_LPN3_Status.Valid_Fallback_tag; 
+      S     #s_Invalid_Data_BSO; 
+
+//----Determening the Scanner Data is it contain Fall-back tag--------   
+
+//--- Load the pointer to acess the received LPN data
+      LAR1  #t_AR1_LPN_Data; // Restore pointer to received LPN data  
+
+//Number of LPN'
+      L     3; 
+LA01: T     #t_LPN_Number_Ctr; 
+
+//--- Detecting fall back tag
+      L     DIB [AR1,P#0.0]; //Fallbag tag always 1st char will contain '1'
+      L     '1'; //  ascii code More than '1'
+      ==I   ; 
+      JCN   LA05; //IF_NOT check other LPN   
+
+//--- Check Airline = '000' 
+      A(    ; 
+      L     DIB [AR1,P#1.0]; //Airline char 1,2,3 = '000'
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#2.0]; //Airline char 1,2,3 = '000'
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+
+      A(    ; 
+      L     DIB [AR1,P#3.0]; //Airline char 1,2,3 = '000'
+      L     '0'; 
+      ==I   ; 
+      )     ; 
+      JCN   LA05; //IF_NOT check other LPN   
+
+//--- Identify the Unique Airport Number  
+      CALL "FC_INT_To_4_CHARs" (
+           i_INT                    := #i_CFG_Airport_No,
+           o_CHAR_1                 := #t_Airport_Char[1],
+           o_CHAR_2                 := #t_Airport_Char[2],
+           o_CHAR_3                 := #t_Airport_Char[3],
+           o_CHAR_4                 := #t_Airport_Char[4]);
+
+      A(    ; 
+      L     DIB [AR1,P#4.0]; 
+      L     #t_Airport_Char[1]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#5.0]; 
+      L     #t_Airport_Char[2]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#6.0]; 
+      L     #t_Airport_Char[3]; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR1,P#7.0]; 
+      L     #t_Airport_Char[4]; 
+      ==I   ; 
+      )     ; 
+      JCN   LA05; 
+
+//--- Check if destination of fallback is valid--
+      L     DIB [AR1,P#8.0]; 
+      T     #t_CHAR3; 
+      L     DIB [AR1,P#9.0]; 
+      T     #t_CHAR4; 
+
+      CALL "FC_4_CHARs_To_INT" (
+           i_CHAR_1                 := '0',
+           i_CHAR_2                 := '0',
+           i_CHAR_3                 := #t_CHAR3,
+           i_CHAR_4                 := #t_CHAR4,
+           o_INT                    := #t_Destination);
+
+      L     #t_Destination; 
+      L     0; 
+      >I    ; 
+      JCN   LA05; 
+
+//--- verify & copy the Received valid fallback LPN-1 to Static VFBTA(Valid fallback tag for this airport)
+      L     #t_LPN_Number_Ctr; 
+      L     3; 
+      ==I   ; 
+      JCN   LA06; 
+
+//--- copy the LPN1 to Static variable s_VFBTA_LPN
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_ScannerData.Body.Scanresult.BSO.Scanresult.LPN1,//Received LPN-1
+           RET_VAL                  := #t_RET_VAL_Blkmov,
+           DSTBLK                   := #s_VFBTA_LPN);//Static  VFBTA(Valid fallback tag for this airport)
+
+      SET   ; 
+      =     #s_LPN1_Status.Valid_Fallback_tag; 
+      R     #s_Invalid_Data_BSO; 
+      JU    LA08; 
+
+//---Verify & copy the Received valid fallback LPN-1 to Static VFBTA(Valid fallback tag for this airport)
+LA06: L     #t_LPN_Number_Ctr; 
+      L     2; 
+      ==I   ; 
+      JCN   LA07; 
+
+//--- Move the LPN2 to Static variable s_VFBTA_LPN
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_ScannerData.Body.Scanresult.BSO.Scanresult.LPN2,//Received LPN-2
+           RET_VAL                  := #t_RET_VAL_Blkmov,
+           DSTBLK                   := #s_VFBTA_LPN);//Static  VFBTA(Valid fallback tag for this airport)
+
+      SET   ; 
+      =     #s_LPN2_Status.Valid_Fallback_tag; 
+      R     #s_Invalid_Data_BSO; 
+      JU    LA08; 
+
+//---Verify & copy the Received valid fallback LPN-1 to Static VFBTA(Valid fallback tag for this airport)
+LA07: L     #t_LPN_Number_Ctr; 
+      L     1; 
+      ==I   ; 
+      JCN   LA08; 
+
+//--- Move the LPN1 to Static variable s_VFBTA_LPN
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_ScannerData.Body.Scanresult.BSO.Scanresult.LPN3,//Received LPN-2
+           RET_VAL                  := #t_RET_VAL_Blkmov,
+           DSTBLK                   := #s_VFBTA_LPN);//Static  VFBTA(Valid fallback tag for this airport)
+
+      SET   ; 
+      =     #s_LPN3_Status.Valid_Fallback_tag; 
+      R     #s_Invalid_Data_BSO; 
+      JU    LA08; 
+
+//--- increase pointer for the next character
+LA05: TAR1  ; 
+      L     P#10.0; 
+      +D    ; 
+      LAR1  ; 
+      L     #t_LPN_Number_Ctr; 
+      LOOP  LA01; 
+
+//----------------------Evaluating the Fallback tag--------------------------------//
+LA08: A     #s_LPN1_Status.Valid_Fallback_tag; //If only LPN1 has valid fallback tag
+      AN    #s_LPN2_Status.Valid_Fallback_tag; 
+      AN    #s_LPN3_Status.Valid_Fallback_tag; 
+      O(    ; 
+      AN    #s_LPN1_Status.Valid_Fallback_tag; 
+      A     #s_LPN2_Status.Valid_Fallback_tag; //If only LPN2 has valid fallback tag
+      AN    #s_LPN3_Status.Valid_Fallback_tag; 
+      )     ; 
+      O(    ; 
+      AN    #s_LPN1_Status.Valid_Fallback_tag; 
+      AN    #s_LPN2_Status.Valid_Fallback_tag; 
+      A     #s_LPN3_Status.Valid_Fallback_tag; //If only LPN3 has valid fallback tag
+      )     ; 
+      =     #s_Fallback_Tag_Detect; // Accept Fallback tag
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Handle scannend LPN in System Mode
+//// Get LPN from BIR of the correct LIC record.
+//// Destination request to SAC
+      AN    "M_Comm_Degraded"; 
+      A     #s_OS_Store_Data; 
+      A     #s_New_Barcode_Present; 
+      AN    #s_Invalid_Data_BSO; 
+      AN    #s_OS_Unexpected_Data; 
+      JCN   MA99; 
+      R     #s_Invalid_Data_VSO; 
+
+//------------------------------According to the action table------------------------//
+      A     #s_LIC_Contains_NoLPN; //IF There is NO-LPN in LIC
+      O(    ; 
+      AN    #s_LIC_Contains_NoLPN; //IF LPN is present and
+      A     #s_Comp_LPN_Equal; // LPN is equal between scanned and BIR
+      AN    #i_CFG_LM; // No message to LM, with SAC send message
+      )     ; 
+      O     #s_Multiple_Read; //IF Multiple read 
+      JCN   MA99; //THEN (NO-Action) Jump to end of the Network  
+
+//--- Copy the Received all LPN data to DB_LIC_List 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".Status.Scanresult,
+           i_ANY_Data               := #s_ScannerData.Body.Scanresult,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+//This Block will copy the LIC number & Message-ID to DB_PLC_FIFO
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1209,
+           i_Event_value            := #s_LNK_Data_Prov_Position,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//----------------- Volume -------------------
+      L     #s_ScannerData.Body.Scanresult.VSO.Product_Length[1]; 
+      L     '?'; 
+      ==I   ; 
+      =     #s_No_Read_VSO; 
+
+      AN    #s_No_Read_VSO; 
+      JCN   MA99; 
+
+      CALL "FC_4_CHARs_To_INT" (
+           i_CHAR_1                 := #s_ScannerData.Body.Scanresult.VSO.Product_Length[1],
+           i_CHAR_2                 := #s_ScannerData.Body.Scanresult.VSO.Product_Length[2],
+           i_CHAR_3                 := #s_ScannerData.Body.Scanresult.VSO.Product_Length[3],
+           i_CHAR_4                 := #s_ScannerData.Body.Scanresult.VSO.Product_Length[4],
+           o_INT                    := #t_Product_Length);
+
+      L     #t_Product_Length; 
+      L     0; 
+      <=I   ; 
+      S     #s_Invalid_Data_VSO; 
+      JC    MA01; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Length,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Product_Length,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume);
+
+MA01: CALL "FC_4_CHARs_To_INT" (
+           i_CHAR_1                 := #s_ScannerData.Body.Scanresult.VSO.Product_Width[1],
+           i_CHAR_2                 := #s_ScannerData.Body.Scanresult.VSO.Product_Width[2],
+           i_CHAR_3                 := #s_ScannerData.Body.Scanresult.VSO.Product_Width[3],
+           i_CHAR_4                 := #s_ScannerData.Body.Scanresult.VSO.Product_Width[4],
+           o_INT                    := #t_Product_Width);
+
+      L     #t_Product_Width; 
+      L     0; 
+      <=I   ; 
+      S     #s_Invalid_Data_VSO; 
+      JC    MA02; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Width,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Product_Width,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume);
+
+MA02: CALL "FC_4_CHARs_To_INT" (
+           i_CHAR_1                 := #s_ScannerData.Body.Scanresult.VSO.Product_Height[1],
+           i_CHAR_2                 := #s_ScannerData.Body.Scanresult.VSO.Product_Height[2],
+           i_CHAR_3                 := #s_ScannerData.Body.Scanresult.VSO.Product_Height[3],
+           i_CHAR_4                 := #s_ScannerData.Body.Scanresult.VSO.Product_Height[4],
+           o_INT                    := #t_Product_Height);
+
+      L     #t_Product_Height; 
+      L     0; 
+      <=I   ; 
+      S     #s_Invalid_Data_VSO; 
+      JC    MA03; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Height,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Product_Height,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume);
+
+MA03: CALL "FC_Any_ASCII_To_DInt" (
+           i_ANY_ASCII              := #s_ScannerData.Body.Scanresult.VSO.Real_Volume,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume,
+           o_DINT                   := #t_Product_Volume_Dint);
+
+      L     #t_Product_Volume_Dint; // [cm3] within message
+      L     100; 
+      /D    ; 
+      T     #t_Product_Volume; // [0.1 dm3] within BIR
+
+      L     #t_Product_Volume; 
+      L     0; 
+      <=I   ; 
+      S     #s_Invalid_Data_VSO; 
+      JC    MA04; 
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Volume,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Product_Volume,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume);
+
+MA04: CALL "FC_Write_Event" (// Package volume scan result
+           i_Message_ID             := 1212,
+           i_Event_value            := #s_LNK_Data_Prov_Position,
+           i_DB_Event_Num           := #s_DB_Num_Event_Volume,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Handle scanned LPN in Degraded Mode
+
+      A     #s_OS_Store_Data; 
+      A     #s_New_Barcode_Present; 
+      AN    #s_Invalid_Data_BSO; 
+      AN    #t_PID_Present; 
+      JCN   NA99; 
+
+//------------------------------Condition according to the action table ------------------------ //
+      A     #s_LIC_Contains_NoLPN; //If LNK contain NO-LPN
+      A     #s_Fallback_Tag_Detect; //IF There is a Valid Fallback tag detected in received LPN
+      O     ; 
+      AN    #s_LIC_Contains_NoLPN; //If LNK contain NO-LPN
+      AN    #s_Multiple_Read; //If_NOT Multiple read 
+      A     #s_Fallback_Tag_Detect; //IF There is a Valid Fallback tag detected in received LPN
+      JCN   NA02; //IF_NOT jump to Label
+
+//--- Writing the Valid Fallback tag to the LIC record
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := #s_VFBTA_LPN,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Write_Byte_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_P_BYTE_Record          := "DB_UDT_LIC_Record".BIR.Assignment_Reason,
+           i_DB                     := "DB_LIC_List",
+           i_BYTE                   := B#16#14,//Dec = 20 = Fallback tag
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK_Data_Prov_Position,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.FallBackTag,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      JU    NA99; 
+
+//-------according to action table IF Fallback Tag is not-detected then copy the recieved scanner data LPN1[1..10] data  to LIC.LPN-------//
+
+NA02: A     #s_LIC_Contains_NoLPN; //IF There is No-LPN in LIC
+      AN    #s_No_Read_BSO; //NOT NO-Read 
+      O     ; 
+      AN    #s_LIC_Contains_NoLPN; //IF There is LPN in LIC
+      AN    #s_No_Read_BSO; //NOT No-read
+      AN    #s_Comp_LPN_Equal; //NOT LPN in LIC & Received LPN1 tag are Identical 
+      AN    #s_Multiple_Read; //NOT Multiple read
+      JCN   NA99; 
+
+      A     "M_Comm_Degraded"; 
+      AN    #s_Fallback_Tag_Detect; //NOT Fallback tag detected
+      JCN   NA99; 
+
+//--- Writing the received LPN1 to the LIC record
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_Data_For_LM_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.LPN,
+           i_ANY_Data               := #s_ScannerData.Body.Scanresult.BSO.Scanresult.LPN1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Good read detection
+//If the package is find within the trigger window and the received data is not a 
+//'no read' then there is a good read.
+      A     #s_OS_Store_Data; 
+      AN    #s_Invalid_Data_BSO; 
+      AN    #s_No_Read_BSO; 
+      =     #t_Good_Read_BSO; 
+
+      A     #s_OS_Store_Data; 
+      AN    #s_Invalid_Data_VSO; 
+      AN    #s_No_Read_VSO; 
+      =     #t_Good_Read_VSO; 
+NETWORK
+TITLE =PA: communication time-out
+//Check the time between messages. If the time between two messages is longer 
+//than the configured time(i_CFG_Heartbeat_Interval), a no- communication error 
+//is generated.
+      A     #t_New_Data_Present; //IF new data is received
+      ON    #t_Available_IO; 
+      JCN   PA01; 
+
+      R     #o_ST_Communication_Error; //THEN reset the no-communication error
+
+      L     #i_CFG_Heartbeat_Interval; //and present the counter for this error
+      T     #s_Cnt_New_Data; 
+      JU    PA99; 
+
+PA01: L     #s_Cnt_New_Data; //IF the counter has elapsed
+      L     0; 
+      <=I   ; 
+      A     #t_Available_IO; //AND IO is OK
+      S     #o_ST_Communication_Error; //THEN the no-communication error is set
+      JC    PA99; 
+
+      A     "M_OS_/1.0_sec."; //Count down the error counter on 1 second one-shots
+      AN    #o_ST_Communication_Error; //or when the error is active
+      JCN   PA99; 
+
+      L     #s_Cnt_New_Data; 
+      +     -1; 
+      T     #s_Cnt_New_Data; 
+
+PA99: NOP   0; 
+NETWORK
+TITLE =QA: Errors and warnings
+//The no-read, no-data and unexpected-data errors are set when a no-read, no-data 
+//or unexpected-data situation has happened a preset number of times in a row. 
+//For example, a no-read error is set when a no-read situations has occured a 
+//preset number of times. These errors are reset on a reset command.
+//
+//An invalid data error is set as soon as invalid data has been received. The 
+//invalid data error is reset when a good scan has taken place. It is reset when 
+//a reset command is given.
+//
+//The unexpected-data warning is set when unexpected data has been received. The 
+//no-data warning is set when no data has been received. A no-read warning is set 
+//when a no-read has occured. These warnings are reset when a good scan occures 
+//or when the matching error is set.
+      A     #s_Operational_On; 
+      A     #t_New_Data_Present; //IF new data is received
+      A     #s_No_Read_BSO; 
+      AN    #o_ST_BSO_Err_No_Read; 
+      JCN   QA01; 
+//---------------------Handling No-read error
+
+      L     #s_Succ_Error_Counters.No_Read_BSO; 
+      +     1; 
+      T     #s_Succ_Error_Counters.No_Read_BSO; 
+
+QA01: L     #s_Succ_Error_Counters.No_Read_BSO; 
+      L     #i_CFG_Num_No_Read_Error; // Number of consecutive no-reads before a no-read error is set
+      >=I   ; 
+      S     #o_ST_BSO_Err_No_Read; 
+
+      A     #s_New_Barcode_Present; //If a new barcode is received
+      AN    #s_No_Read_BSO; //that is not a no-read
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      A     #o_ST_BSO_Err_No_Read; //while the no-read error is active
+      )     ; 
+      JCN   QA02; //THEN
+      L     0; //reset the error counter for the no-read
+      T     #s_Succ_Error_Counters.No_Read_BSO; 
+
+QA02: A     #t_Good_Read_BSO; 
+      R     #o_ST_BSO_Err_No_Read; 
+      R     #s_No_Read_BSO; 
+
+      A     #s_Operational_On; 
+      A     #t_New_Data_Present; //IF new data is received
+      A     #s_No_Read_VSO; 
+      AN    #o_ST_VSO_Err_No_Read; 
+      JCN   QA03; 
+//---------------------Handling No-read error
+
+      L     #s_Succ_Error_Counters.No_Read_VSO; 
+      +     1; 
+      T     #s_Succ_Error_Counters.No_Read_VSO; 
+
+QA03: L     #s_Succ_Error_Counters.No_Read_VSO; 
+      L     #i_CFG_Num_No_Read_Error; // Number of consecutive no-reads before a no-read error is set
+      >=I   ; 
+      S     #o_ST_VSO_Err_No_Read; 
+
+      A     #s_New_Barcode_Present; //If a new barcode is received
+      AN    #s_No_Read_VSO; //that is not a no-read
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      A     #o_ST_VSO_Err_No_Read; //while the no-read error is active
+      )     ; 
+      JCN   QA04; //THEN
+      L     0; //reset the error counter for the no-read
+      T     #s_Succ_Error_Counters.No_Read_VSO; 
+
+QA04: A     #t_Good_Read_VSO; 
+      R     #o_ST_VSO_Err_No_Read; 
+      R     #s_No_Read_VSO; 
+
+//----------------------------Handling No-data error
+      A     #s_Operational_On; 
+      A     #s_OS_No_Data; 
+      AN    #o_ST_Succ_No_Data_Rcv; 
+      JCN   QA05; 
+
+      L     #s_Succ_Error_Counters.No_Data; 
+      +     1; 
+      T     #s_Succ_Error_Counters.No_Data; 
+
+QA05: L     #s_Succ_Error_Counters.No_Data; 
+      L     #i_CFG_Num_No_Data_Err; 
+      >=I   ; 
+      S     #o_ST_Succ_No_Data_Rcv; 
+
+      A     #s_New_Barcode_Present; //When a new barcode is received
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      A     #o_ST_Succ_No_Data_Rcv; //while the no-data error is active
+      )     ; 
+      JCN   QA06; //THEN
+      L     0; //reset the no-data error counter
+      T     #s_Succ_Error_Counters.No_Data; 
+
+QA06: A     #i_CMD_Reset; 
+      R     #o_ST_Succ_No_Data_Rcv; 
+
+//------------------------------Unexpected-data error
+      A     #s_Operational_On; 
+      A     #t_New_Data_Present; //IF new data is received
+      A     #s_OS_Unexpected_Data; 
+      AN    #o_ST_Succ_Unex_Data_Rcv; 
+      JCN   QA07; 
+
+      L     #s_Succ_Error_Counters.Unexpected_Data; 
+      +     1; 
+      T     #s_Succ_Error_Counters.Unexpected_Data; 
+
+QA07: L     #s_Succ_Error_Counters.Unexpected_Data; 
+      L     #i_CFG_Num_Unexp_Data_Err; 
+      >=I   ; 
+      S     #o_ST_Succ_Unex_Data_Rcv; 
+
+      A     #s_New_Barcode_Present; //If a new barcode is received
+      AN    #s_OS_Unexpected_Data; //that is not a no-read
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      A     #o_ST_Succ_Unex_Data_Rcv; //while the unexpected-data error is active
+      )     ; 
+      JCN   QA08; //THEN
+      L     0; //reset the unexpected-data error counter
+      T     #s_Succ_Error_Counters.Unexpected_Data; 
+
+QA08: A     #i_CMD_Reset; 
+      R     #o_ST_Succ_Unex_Data_Rcv; 
+
+//-------------------------------Invalid data error
+      A     #s_Invalid_Data_BSO; 
+      A     #s_Operational_On; 
+      S     #o_ST_BSO_Inva_Data_Rcv; // Error
+
+      A     #s_Invalid_Data_VSO; 
+      A     #s_Operational_On; 
+      S     #o_ST_VSO_Inva_Data_Rcv; // Error
+
+      O     #i_CMD_Reset; 
+      R     #o_ST_BSO_Inva_Data_Rcv; 
+      R     #o_ST_VSO_Inva_Data_Rcv; 
+      R     #s_Invalid_Data_BSO; 
+      R     #s_Invalid_Data_VSO; 
+
+//---------------------------------Unexpected data warning (set & reset)
+      A     #s_OS_Unexpected_Data; 
+      A     #s_Operational_On; 
+      S     #o_ST_Unex_Data_Rcv; // Warning
+
+      O     #t_Good_Read_BSO; 
+      O     #o_ST_Succ_Unex_Data_Rcv; 
+      R     #o_ST_Unex_Data_Rcv; 
+
+//-----------------------------------No data warning (set & reset)
+      A     #s_OS_No_Data; 
+      A     #s_Operational_On; 
+      AN    #s_Invalid_Data_BSO; 
+      S     #o_ST_No_Data_Rcv; // Warning
+
+      O     #t_Good_Read_BSO; 
+      O     #o_ST_Succ_No_Data_Rcv; 
+      R     #o_ST_No_Data_Rcv; 
+
+NETWORK
+TITLE =RA: Retrieve status from SICK controller for Scanner
+
+      NOP   0; 
+      A     #i_CMD_Reset; // Reset errors
+      ON    #t_Available_IO; 
+      R     #o_ST_BSO_Scanner_Error; 
+      R     #o_ST_BSO_Scanner_Warning; 
+      R     #o_ST_VSO_Scanner_Error; 
+      R     #o_ST_VSO_Scanner_Warning; 
+
+      A     #t_New_Data_Present; 
+      JCN   RA99; 
+
+//--- Copy to DB number to temperory variable for opening the datablock
+      L     #s_DBno_Sick_Data; 
+      T     #t_DBno_Sick_Data; 
+
+      OPN   DB [#t_DBno_Sick_Data]; 
+
+      A     DBX  119.3; // Bit 4 = Error
+      O     DBX  119.1; // Bit 2 = Disabled
+      A     #i_Available_IO; 
+      S     #o_ST_BSO_Scanner_Error; 
+
+      A     DBX  119.4; // Bit 5 = Warning
+      A     #i_Available_IO; 
+      S     #o_ST_BSO_Scanner_Warning; 
+
+      A     DBX  119.5; // Bit 6 = Error
+      O     DBX  119.1; // Bit 2 = Disabled
+      A     #i_Available_IO; 
+      S     #o_ST_VSO_Scanner_Error; 
+
+      A     DBX  119.6; // Bit 7 = Warning
+      A     #i_Available_IO; 
+      S     #o_ST_VSO_Scanner_Warning; 
+
+// Bit 2 = Disabled
+
+// Bit 13 = Started
+
+RA99: NOP   0; 
+NETWORK
+TITLE =SA: Handle hardware Error 
+
+      A     #i_CMD_Reset; // Reset errors
+      ON    #i_Available_IO; 
+      R     #o_ST_FieldB_NotPrsnt; 
+      R     #o_ST_FieldB_Error; 
+
+      A     #i_Available_IO; 
+      A     #i_FieldB_NotPrsnt; 
+      S     #o_ST_FieldB_NotPrsnt; // Fieldbus Slave not present
+
+      A     #i_Available_IO; 
+      A     #i_FieldB_Error; 
+      S     #o_ST_FieldB_Error; // Fieldbus Slave error
+
+NETWORK
+TITLE =TA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      A     #t_Available_IO; 
+      S     #s_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #t_Available_IO; 
+      )     ; 
+      R     #s_Operational_On; 
+      NOP   0; 
+NETWORK
+TITLE =UA: Ready to restart indication 
+//LAD!
+      AN    #s_Operational_On; 
+      A     #i_CMD_Enable; 
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      =     #o_Ready_To_Restart; 
+NETWORK
+TITLE =VA: Advanced Dieback detection
+
+      CLR   ; 
+      =     #o_TRS_Disable_Send; 
+
+      OPN   #i_TRS2_PLT_DB; 
+      L     DBW    8; 
+      T     #t_PLT_DB_Dwn; 
+      L     0; 
+      >I    ; 
+      JCN   VA99; 
+
+      OPN   DB [#t_PLT_DB_Dwn]; 
+      A     DBX   10.1; 
+      =     #t_Section_run; 
+
+      ON    DBX   10.4; 
+      ON    DBX   10.5; 
+      S     #o_TRS_Disable_Send; 
+
+      A     DBX   10.6; 
+      =     #t_Section_Item_Handover; 
+
+// Determine section dieback
+      A     #t_Section_Item_Handover; 
+      AN    #t_Section_run; 
+      S     #o_TRS_Disable_Send; 
+
+//TRS 2 Downstream
+      L     DBW    8; 
+      T     #t_PLT_DB_Dwn; // second TRS downstream
+      L     0; 
+      >I    ; 
+      JCN   VA99; 
+
+//Check if IDZ has item
+      OPN   DB [#t_Track_DB_Num_Sec_2]; 
+
+      L     DBW   12; 
+      L     #t_Length_Sec_1; 
+      +I    ; 
+      T     #t_Window; 
+
+      AN    #s_Adv_Die_Back; 
+      JCN   VA01; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_Track_DB_Num_Sec_1,
+           i_Position               := #t_Length_Sec_1,
+           i_Window                 := #t_Window,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     0; 
+      >I    ; 
+      JCN   VA99; //IF no item TRS2 down no check
+
+      OPN   DB [#t_PLT_DB_Dwn]; 
+
+      ON    DBX   10.4; 
+      ON    DBX   10.5; 
+      S     #o_TRS_Disable_Send; 
+
+VA01: OPN   DB [#t_PLT_DB_Dwn]; 
+      A     DBX   10.1; 
+      =     #t_Section_run; 
+
+      A     DBX   10.6; 
+      =     #t_Section_Item_Handover; 
+
+// Determine section dieback
+      A     #t_Section_Item_Handover; 
+      AN    #t_Section_run; 
+      O     #s_Adv_Die_Back; 
+      S     #o_TRS_Disable_Send; 
+      S     #s_Adv_Die_Back; 
+
+      A     #t_Section_run; 
+      R     #s_Adv_Die_Back; 
+
+VA99: NOP   0; 
+NETWORK
+TITLE =WA: Statistical Data
+//Statistical counters are implemented to count the number of times that a good 
+//read, no-read, no-data, unexpected-data or invalid-data situations occures. The 
+//statistical counters are cleared when s_clear_statisticals is set.
+      A     #s_Operational_On; 
+      JCN   WA06; 
+
+//--- Good read counter
+      A     #t_Good_Read_BSO; 
+      AN    #s_Multiple_Read; 
+      JCN   WA01; 
+
+      L     #s_STAT_Good_Read_BSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA01; 
+
+      L     #s_STAT_Good_Read_BSO; 
+      +     1; 
+      T     #s_STAT_Good_Read_BSO; 
+
+//--- No-read counter
+
+WA01: A     #t_New_Data_Present; //IF new data is received
+      A     #s_No_Read_BSO; 
+      JCN   WA02; 
+
+      L     #s_STAT_No_Read_BSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA02; 
+
+      L     #s_STAT_No_Read_BSO; 
+      +     1; 
+      T     #s_STAT_No_Read_BSO; 
+
+//--- No-data counter
+
+WA02: A     #s_OS_No_Data; 
+      AN    #s_Invalid_Data_BSO; 
+      JCN   WA03; 
+
+      L     #s_STAT_No_Data; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA03; 
+
+      L     #s_STAT_No_Data; 
+      +     1; 
+      T     #s_STAT_No_Data; 
+
+//--- Unexpected-data counter
+
+WA03: A     #s_OS_Unexpected_Data; 
+      JCN   WA04; 
+
+      L     #s_STAT_Unexpected_Data; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA04; 
+
+      L     #s_STAT_Unexpected_Data; 
+      +     1; 
+      T     #s_STAT_Unexpected_Data; 
+
+//--- Invalid-data counter
+WA04: A     #t_New_Data_Present; //IF new data is received
+      A     #s_Invalid_Data_BSO; 
+      JCN   WA05; 
+
+      L     #s_STAT_Invalid_BSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA05; 
+
+      L     #s_STAT_Invalid_BSO; 
+      +     1; 
+      T     #s_STAT_Invalid_BSO; 
+
+//--- Multiple read
+WA05: A     #t_New_Data_Present; //IF new data is received
+      A     #s_Multiple_Read; 
+      JCN   WA06; 
+
+      L     #s_STAT_Multiple_Read_BSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA06; 
+
+      L     #s_STAT_Multiple_Read_BSO; 
+      +     1; 
+      T     #s_STAT_Multiple_Read_BSO; 
+
+//--- Good read counter  VSO
+WA06: A     #t_Good_Read_VSO; 
+      JCN   WA07; 
+
+      L     #s_STAT_Good_Read_VSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA07; 
+
+      L     #s_STAT_Good_Read_VSO; 
+      +     1; 
+      T     #s_STAT_Good_Read_VSO; 
+
+WA07: A     #s_New_Barcode_Present; //IF new data is received
+      A     #s_No_Read_VSO; 
+      JCN   WA08; 
+
+      L     #s_STAT_No_Read_VSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA08; 
+
+      L     #s_STAT_No_Read_VSO; 
+      +     1; 
+      T     #s_STAT_No_Read_VSO; 
+
+WA08: A     #s_New_Barcode_Present; //IF new data is received
+      A     #s_Invalid_Data_VSO; 
+      JCN   WA09; 
+
+      L     #s_STAT_Invalid_VSO; 
+      L     32767; 
+      <>I   ; 
+      JCN   WA09; 
+
+      L     #s_STAT_Invalid_VSO; 
+      +     1; 
+      T     #s_STAT_Invalid_VSO; 
+
+WA09: NOP   0; 
+
+//--- Clearing the Statistics
+      A     #i_CMD_Send_Stat; // IF Command send statisticals
+      JCN   WA99; 
+
+//--write the "Good read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_STAT_Good_Read_BSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--write the "No Read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_STAT_No_Read_BSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--write the "No Data" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2003,
+           i_Event_value            := #s_STAT_No_Data,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--write the "Unexpected Data" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2004,
+           i_Event_value            := #s_STAT_Unexpected_Data,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--write the "Invalid Data" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2005,
+           i_Event_value            := #s_STAT_Invalid_BSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--write the "Multiple Read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2006,
+           i_Event_value            := #s_STAT_Multiple_Read_BSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2007,
+           i_Event_value            := #s_STAT_Good_Read_VSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2008,
+           i_Event_value            := #s_STAT_No_Read_VSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2009,
+           i_Event_value            := #s_STAT_Invalid_VSO,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_WR_Event_Return_Value);
+
+//--Clear the statistical
+      L     0; // THEN preset counters to zero
+      T     #s_STAT_Good_Read_BSO; 
+      T     #s_STAT_No_Read_BSO; 
+      T     #s_STAT_Invalid_BSO; 
+      T     #s_STAT_No_Data; 
+      T     #s_STAT_Unexpected_Data; 
+      T     #s_STAT_Multiple_Read_BSO; 
+      T     #s_STAT_Good_Read_VSO; 
+      T     #s_STAT_No_Read_VSO; 
+      T     #s_STAT_Invalid_VSO; 
+
+WA99: NOP   0; 
+END_FUNCTION_BLOCK
+

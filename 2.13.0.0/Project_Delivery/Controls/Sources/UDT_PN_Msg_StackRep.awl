@@ -1,0 +1,34 @@
+TYPE "UDT_PN_Msg_StackRep"
+TITLE =%version: 0.01 % CN: 11
+//History:
+//This version  %created_by:  nlrob %
+//              %date_created:  Friday, April 21, 2017 12:33:50 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version                                        nlrob   21-04-17   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Header : STRUCT 	//Telegram Header
+    EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+    Message_Type : INT ;	//100 = Handover message, 102 = Stack handover message, 200 = lifesign request, 2
+    Message_Identifier : DINT ;	//Message indentifier SSSTLLLL (SSS = Sequence number T = Type LLLL = LIC number)
+   END_STRUCT ;	
+   TIR_1 : "UDT_TIR";	
+   TIR_2 : "UDT_TIR";	
+   TIR_3 : "UDT_TIR";	
+   TIR_4 : "UDT_TIR";	
+   TIR_5 : "UDT_TIR";	
+   TIR_6 : "UDT_TIR";	
+   TIR_7 : "UDT_TIR";	
+   TIR_8 : "UDT_TIR";	
+   TIR_9 : "UDT_TIR";	
+   TIR_10 : "UDT_TIR";	
+   Filler : ARRAY  [1 .. 84 ] OF BYTE ;	
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,261 @@
+FUNCTION_BLOCK "FB_Rcv_ScreenUpd"
+TITLE =%version: 0.06 % CN: 32
+//Function:
+//This function handles the receiving of a Screening Update Message.
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Tuesday, October 31, 2017 11:51:12 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History    :                              By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Remove unneeded jump                        nldy     31-10-17  0.06
+//ra#24941: Screening pending updates                   nldy     25-10-17  0.05
+//ra#21133: Screening pending update                    inajos   18-09-17  0.04
+//ra#22220: Match new UDT_HBS_Record structure          nldy     22-05-17  0.03
+//ra#18904 : Block updated                              inajos   13-12-16  0.02
+//Initial version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16  0.01
+//
+//Description:
+//If a valid TRA_LIC is received then the process information is evaluated.
+//LIC record will be updated based on the screening update message received
+//Bag status on HBS record will be updated as well based on the message received
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Send_FIFO_Pend : BLOCK_DB ;	//Data Block: Send FIFO Pending DB to upstream area
+  i_DB_Event : BLOCK_DB ;	//Data Block: for writing events
+END_VAR
+VAR_IN_OUT
+  io_PNPN_Received_Message : "UDT_PN_Msg_Rcv_Body";	//Structure PNPN Received message
+END_VAR
+VAR
+  s_ScreeningUpd_Msg : "UDT_Msg_ScreenUpdate";	//Message structure of Screening Update
+  s_HBS_Record : "UDT_HBS_Record";	
+  s_HBS : INT ;	//Local HBS Number number
+  s_LNK : INT ;	//LNK number of the TRA_LIC
+  s_Reached_Screen_Lvl : INT ;	//Received Reached screening level from sending area
+  s_Failed_Screen_Lvl : INT ;	//Received Failed screening level from sending area
+  s_ScreeningUpd_End : BOOL ;	//End message structure indicator
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Base address
+  t_DB_Event_Num : INT ;	//Event DB number
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_RET_VAL_INT : INT ;	//Return value function call (INT)
+  t_PNPN_Rec_Msg : ANY ;	//Pointer to receveid message data
+  t_DB_Event_Pend_Num : INT ;	//Event DB Number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      OPN   #i_DB_Event; // DB number Event
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+      OPN   "DB_Event_Pending"; 
+      L     DBNO; 
+      T     #t_DB_Event_Pend_Num; 
+
+// Check IF the received message is 10 (Screening Update Message)
+// END Block when the message is not Screening Update type
+      L     #io_PNPN_Received_Message.Message_Type; 
+      L     10; 
+      <>I   ; 
+      BEC   ; 
+
+NETWORK
+TITLE =BA: Copy received message for handling and logging
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      LAR1  P##io_PNPN_Received_Message; 
+      L     #t_Base_Address; 
+      +AR1  ; 
+      LAR2  P##t_PNPN_Rec_Msg; 
+
+      L     B#16#10; // Copy pointer
+      T     LB [AR2,P#0.0]; //  Byte0=$10 (for S7)
+      L     B#16#2; // Load data type "Bytes" (02 = Byte)
+      T     LB [AR2,P#1.0]; // Byte1=data type
+      L     P##s_ScreeningUpd_End; 
+      L     P##s_ScreeningUpd_Msg; 
+      -D    ; 
+      SRD   3; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#0.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#2.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+
+// Copy received message for handling and logging
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_PNPN_Rec_Msg,//PNPN_Received_Message
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #s_ScreeningUpd_Msg);
+
+NETWORK
+TITLE =CA: Handle received message and update LIC record
+
+      AN    "DB_HBS_List".s_Pending_Items_Allowed; 
+      BEC   ; 
+
+//Treating this as Link number based on New Philosophy
+// Check if received LNK is still active on this area
+      L     #s_ScreeningUpd_Msg.TRA_LIC; 
+      T     #s_LNK; 
+
+// When bag is lost in tracking (No LNK assigned) end block otherwise copy BIR
+// so that the contents of BIR can be updated with the received message
+      L     #s_LNK; 
+      L     0; 
+      ==I   ; 
+      JCN   CA01; 
+
+      BEU   ; 
+
+CA01: NOP   0; 
+//Update bag status on the HBS Record
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_HBS);
+
+// Update Bag Status on the HBS Record
+      L     #s_HBS; 
+      L     0; 
+      ==I   ; 
+      JCN   CA02; 
+
+      BEU   ; 
+
+CA02: CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process_1,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+
+NETWORK
+TITLE =DA: Set reached and failed level Process 1
+//Set reached (accepted) and failed screening levels based on the data received
+//from the ScreeningUpdate message
+//
+//      
+      NOP   0; // Hold comments
+
+      L     #s_ScreeningUpd_Msg.ScreeningProcessID; 
+      L     1; 
+      ==I   ; 
+      JCN   DA99; 
+
+      A(    ; 
+      L     #s_ScreeningUpd_Msg.HBA_LNK; 
+      L     #s_HBS_Record.HBS_Process_1.HBA_LNK; 
+      ==I   ; 
+      )     ; 
+      A     #s_HBS_Record.HBS_Process_1.Received_From_Upstream; 
+      JCN   DA99; 
+
+// Copy reached and failed result to the static
+      L     #s_ScreeningUpd_Msg.Reached_Screen_Lev; 
+      T     #s_Reached_Screen_Lvl; 
+
+      L     #s_ScreeningUpd_Msg.Failed_Screen_Lev; 
+      T     #s_Failed_Screen_Lvl; 
+
+      L     #s_Reached_Screen_Lvl; 
+      L     1; 
+      ==I   ; 
+      JCN   DA01; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Screen_Result.Reached_Screen_Level_1; 
+
+      JU    DA02; 
+
+DA01: L     #s_Reached_Screen_Lvl; 
+      L     2; 
+      ==I   ; 
+      JCN   DA02; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Screen_Result.Reached_Screen_Level_2; 
+
+DA02: L     #s_Failed_Screen_Lvl; 
+      L     1; 
+      ==I   ; 
+      JCN   DA03; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Screen_Result.Failed_Screen_Level_1; 
+
+DA03: L     #s_Failed_Screen_Lvl; 
+      L     2; 
+      ==I   ; 
+      JCN   DA04; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Screen_Result.Failed_Screen_Level_2; 
+
+DA04: L     #s_ScreeningUpd_Msg.Result; 
+      T     #s_HBS_Record.HBS_Process_1.Bag_Status; 
+
+      CLR   ; 
+      =     #s_HBS_Record.HBS_Process_1.Result_Pending; 
+
+      A     #s_HBS_Record.HBS_Process_1.Screen_Result.Reached_Screen_Level_1; 
+      O     #s_HBS_Record.HBS_Process_1.Screen_Result.Failed_Screen_Level_1; 
+      JCN   DA05; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Machine_Result_Rcvd; 
+
+
+DA05: A     #s_HBS_Record.HBS_Process_1.Screen_Result.Reached_Screen_Level_2; 
+      O     #s_HBS_Record.HBS_Process_1.Screen_Result.Failed_Screen_Level_2; 
+      JCN   DA06; 
+
+      SET   ; 
+      =     #s_HBS_Record.HBS_Process_1.Operator_Result_Rcvd; 
+
+DA06: CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_HBS,
+           i_ANY_Data_Record        := "DB_UDT_HBS_Record".HBS_Process_1,
+           i_ANY_Data               := #s_HBS_Record.HBS_Process_1,
+           i_DB                     := "DB_HBS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Event" (// Send Event1
+           i_Message_ID             := 1,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Pend_Num,
+           o_Return_Value           := #t_RET_VAL_INT);
+
+DA99: NOP   0; 
+
+
+END_FUNCTION_BLOCK
+

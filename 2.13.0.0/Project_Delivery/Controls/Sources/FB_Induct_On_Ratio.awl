@@ -1,0 +1,670 @@
+FUNCTION_BLOCK "FB_Induct_On_Ratio"
+TITLE =%version:  1.03 % CN: 42
+//Function:
+//This FB controls the induct on Ratio for an item. 
+//Induct on N out of M available empty windows.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, November 14, 2017 1:40:34 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26328: Initiate cascade start-up in induct         nlHdL    14-11-17   1.03
+//ina#7555: Induct PLT 3 entries to prevent log 3101    nlHdL    27-09-17   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.05 of PLT version 0
+//
+//Description:
+//This FB controls the induct on Ratio for an item. 
+//When induct on ratio is used, the merge zone shall generate empty windows 
+//without reservation.
+//The induct shall be allowed to induct on N out of M available windows.
+//Whereby N is a configurable ratio active per induct, and M is a range of 
+//windows 
+//over which the ratio is maintained (Ratio Loop)
+//In case of induct with junction the PLT of the junction belt as to be connected 
+//to the input i_DB_PLT_Junction.
+//
+//Win gen         Induct
+//Position       Position
+//   |              |
+//   V              V             
+//----------------------------------------
+//                       ------> Merge Section
+//----------------------------------------
+//                  |         | 
+//               |>-|---------|-| 
+//                  |junction | 
+//                  |         | 
+//                  -----------
+//                    |-----|
+//                    | Ind | Ratio 2/5
+//                    |-----|
+//                  -----------
+//                  |  _____  |
+//               |>-|-|_____|-|-|
+//                  |         |
+//
+//                                                             
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_InductRatio_Sett";	//Data structure: Setting Record
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_Merge : BLOCK_DB ;	//Data structure: Position DataBlock Merge conveyor
+  i_DB_PLT_Junction : BLOCK_DB ;	//Data structure: Position DataBlock Junction conveyor
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_PEC_Offset : INT ;	//CFG: [cm] PEC Offset before this induct
+  i_CFG_Induct_Range : INT ;	//CFG: Range of windows = m (n:m)
+  i_CFG_Induct_Ratio : INT ;	//CFG: Ratio of windows = n (n:m)
+END_VAR
+VAR
+  s_Induct_Position : INT ;	//Induct position for internal use
+  s_Info_Induct_ForWin : INT ;	//Info founded at the induct belt
+  s_Data_Induct_ForWin : INT ;	//Data founded at the induct belt
+  s_Position_Readed : INT ;	//Position on merge conveyor where info founded for induct
+  s_Range_CNT_Loop : INT ;	//Loop counter for total range
+  s_Ratio_CNT_Loop : INT ;	//Loop counter for ratio active
+  s_Window_Length : INT ;	//[cm] Length of the generated window
+  s_Leading_Edge : INT ;	//Leading edge info to write
+  s_Trailing_Edge : INT ;	//Trailing edge info to write
+  s_Previous_CFG_Ratio : INT ;	//Previous configured ratio
+  s_Previous_CFG_Range : INT ;	//Previous configured range
+  s_Start_Induct : BOOL ;	//Release Induct on Window
+  s_Ratio_Active : BOOL ;	//Ratio is active
+  s_Found_Empty_Win : BOOL ;	//Empty window found
+  s_HandOver : BOOL ;	//Hand Over data from induct to merge
+  s_Induct_Section_Run : BOOL ;	//PLT: Indication if the section is running
+  s_Section_Merge_Run : BOOL ;	//Section Run Signal Downstream
+  s_Item_At_Handover_Pos : BOOL ;	//Item present at handover position (Item to induct)
+  s_Trailing_Edge_Written : BOOL ;	//Trailing edge is found and written in merge
+  s_FP_CNT_Ratio_Loop : BOOL ;	//Flank Positive for Ratio loop counter
+  s_PLT_Ups_Junc_Used : BOOL ;	//PLT Upstream of Junction is used
+  s_Section_Junction_Run : BOOL ;	//Section Run Signal Downstream
+END_VAR
+VAR_TEMP
+  t_Position : INT ;	//Position where data is in tracking  
+  t_Info : INT ;	//Info found in sorted tracking list
+  t_Data : INT ;	//Data found in sorted tracking list
+  t_Int_Not_Used : INT ;	//Not used integer
+  t_DB_PLT_Num_Upstream : INT ;	//Extracted number of upstream PLT-DB
+  t_DB_PLT_Num_Induct : INT ;	//Number of the PLT DB
+  t_DB_PLT_Num_Merge : INT ;	//Number of the PLT DB merge section
+  t_DB_PLT_Num_Res_Found : INT ;	//Number of the PLT DB where the reservations is founded
+  t_Event_DB_Num : INT ;	//Number of the Event DB
+  t_Pos_empty_win : INT ;	//Position where empty window is found
+  t_Pos_Trailing_On_Merge : INT ;	//Position of trailing edge on Upstream
+  t_Number_Items_Found : INT ;	//Number of found items from search function
+  t_Length_Merge_Section : INT ;	//Length of the merge section
+  t_DB_PLT_Num_Junction : INT ;	//Number of the PLT DB junction section
+  t_DB_PLT_Num_Upst_Junc : INT ;	//DB PLT number of the upstream
+  t_Junction_Used : BOOL ;	//Junction conveyor is used
+  t_Length_Junction : INT ;	// Length of Junction section
+  t_Upst_Junc_Operational : BOOL ;	//Section upstream of junction is operational
+  t_Num_Items_Found_Junc : INT ;	//Number of -3 items found in junction PLT DB
+  t_Position_induct : INT ;	//Position of item before induct PLT
+  t_Junct_cascade_start_up : BOOL ;	//Junction cascade start-up bit
+  t_Pos_Trailing : INT ;	//Position of trailing edge on Upstream
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Determine Initial variables
+
+      NOP   0; 
+
+// Read number of local event db
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+// Read shared data from DB_PLT Induct
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Induct; // Determine PLT block DB number
+
+// Only in the first scan write the PLT DB numbers.
+      A     "M_First_Scan"; 
+      BEC   ; 
+
+      L     DBW    6; // Is upstream induct section is present
+      T     #t_DB_PLT_Num_Upstream; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   DB [#t_DB_PLT_Num_Upstream]; 
+
+      A     DBX   10.1; // Get signal upstram section is running
+      =     #s_Induct_Section_Run; 
+
+      A     DBX   10.6; // Read item at handover from PLT DB
+      =     #s_Item_At_Handover_Pos; 
+
+// Read shared data from PLT merge conveyor
+AA01: OPN   #i_DB_PLT_Merge; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Merge; 
+
+      A     DBX   10.1; // Get signal merge conveyor is running
+      =     #s_Section_Merge_Run; 
+
+      L     DBW   12; // Get length of the merge conveyor
+      T     #t_Length_Merge_Section; 
+
+      L     20; 
+      T     #s_Window_Length; 
+
+//Calculated the induct position
+      L     #i_CFG_PEC_Offset; //Load previous offset
+      L     #i_Setting.Offset; //.. Add own offset
+      +I    ; 
+      T     #s_Induct_Position; // For internal use
+
+// Read data from PLT junction conveyor
+      OPN   #i_DB_PLT_Junction; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Junction; 
+      L     1; 
+      >I    ; 
+      JCN   AA03; 
+      L     -1; 
+      T     #s_Leading_Edge; 
+      L     -2; 
+      T     #s_Trailing_Edge; 
+
+      A     DBX   10.1; // Get signal junction conveyor is running
+      =     #s_Section_Junction_Run; 
+
+      A     DBX   10.3; // Get signal cascade start up
+      =     #t_Junct_cascade_start_up; 
+
+//If junction used check merge and junction
+      AN    #s_Section_Junction_Run; 
+      R     #s_Section_Merge_Run; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Num_Upst_Junc; // Get PLT number of upstream junction conveyor
+      L     1; 
+      >I    ; 
+      =     #s_PLT_Ups_Junc_Used; 
+
+      L     DBW   12; 
+      T     #t_Length_Junction; 
+
+      A     #s_PLT_Ups_Junc_Used; 
+      JCN   AA02; 
+
+      OPN   DB [#t_DB_PLT_Num_Upst_Junc]; 
+      A     DBX   10.5; // Get signal junction conveyor is operational
+      =     #t_Upst_Junc_Operational; 
+
+AA02: SET   ; 
+      S     #t_Junction_Used; 
+      JU    AA99; 
+
+AA03: L     1; 
+      T     #s_Leading_Edge; 
+      L     2; 
+      T     #s_Trailing_Edge; 
+
+      SET   ; 
+      R     #t_Junction_Used; 
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Section stopped before induct
+//To prevent the induct of an item before the section was stopped. Reset the 
+//handover signal which starts the induct, untill the item is found on the stop 
+//position of the section.
+      NOP   0; 
+//If item in handover and no start then check item is stopped
+      A     #s_Item_At_Handover_Pos; 
+      AN    #s_Start_Induct; 
+      JCN   BA99; 
+
+//If item is stopped there is a leading edge on posiiton 0 or 1
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 1,
+           i_Window                 := 2,
+           i_Info                   := 1,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+//If no item found on stop position reset item in handover
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_Item_At_Handover_Pos; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Handle PLT Induct
+
+      OPN   DB [#t_DB_PLT_Num_Induct]; 
+
+//Skip if init is done
+      AN    DBX   10.0; 
+      JCN   CA01; 
+
+//Set length of induct to 1
+      L     1; 
+      T     DBW   12; 
+//Set entries present to 3
+      L     3; 
+      T     DBW    4; 
+//Set dummy displacement
+      L     10; 
+      T     DBW    2; 
+
+      SET   ; 
+      =     DBX   10.0; 
+      =     DBX   10.3; //Cascade Bit
+
+CA01: CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+NETWORK
+TITLE =DA: Handle PLT Merge and PLT Junction (if used)
+
+      A     #t_Junction_Used; 
+      JCN   DA01; 
+
+      OPN   DB [#t_DB_PLT_Num_Junction]; 
+
+      L     #t_DB_PLT_Num_Upstream; 
+      T     DBW    6; 
+DA01: NOP   0; 
+
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_Position               := 0,
+           i_Window                 := 50,
+           i_Info                   := 1,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      O     #s_Item_At_Handover_Pos; // IF item present 
+      JCN   DA99; // THEN rest enrgy saving 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := 0,
+           i_Window                 := #t_Length_Merge_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_DB_PLT_Num_Res_Found);
+
+      L     #t_DB_PLT_Num_Res_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   DA02; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Length_Merge_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Reset energy saving of Junction (only if junction is used)
+DA02: A     #t_Junction_Used; // IF Junction is used
+      JCN   DA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := 0,
+           i_Window                 := #t_Length_Junction,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found_Junc);
+
+      L     #t_Num_Items_Found_Junc; 
+      L     0; 
+      ==I   ; 
+      A     #t_Upst_Junc_Operational; // AND section upstream of junction section is operational
+      AN    #s_Section_Junction_Run; // AND junction conveyor is NOT running
+      JCN   DA99; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Determine Range counter with empty windows on Merge
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := 0,
+           o_Position               := #s_Position_Readed,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     -100; 
+      L     #t_Info; 
+      ==I   ; 
+      A     #s_Section_Merge_Run; 
+      =     #s_Found_Empty_Win; 
+
+      A     #s_Found_Empty_Win; 
+      FP    #s_FP_CNT_Ratio_Loop; 
+      JCN   EA99; 
+
+      L     #s_Range_CNT_Loop; 
+      L     1; 
+      -I    ; 
+      T     #s_Range_CNT_Loop; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Determine if Ratio active 
+
+      NOP   0; 
+// Preset counters if changing CFG or counter is elapsed
+      O(    ; 
+      L     #i_CFG_Induct_Range; 
+      L     #s_Previous_CFG_Range; 
+      <>I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_CFG_Induct_Ratio; 
+      L     #s_Previous_CFG_Ratio; 
+      <>I   ; 
+      )     ; 
+      O(    ; 
+      L     #s_Range_CNT_Loop; 
+      L     0; 
+      <=I   ; 
+      )     ; 
+      JCN   FA01; 
+
+      L     #i_CFG_Induct_Range; 
+      T     #s_Range_CNT_Loop; 
+
+      L     #i_CFG_Induct_Ratio; 
+      T     #s_Ratio_CNT_Loop; 
+
+FA01: L     #s_Ratio_CNT_Loop; 
+      L     0; 
+      >I    ; 
+      A     #s_Item_At_Handover_Pos; 
+      =     #s_Ratio_Active; 
+
+// Update memorisation previous CFG
+      L     #i_CFG_Induct_Range; 
+      T     #s_Previous_CFG_Range; 
+
+      L     #i_CFG_Induct_Ratio; 
+      T     #s_Previous_CFG_Ratio; 
+NETWORK
+TITLE =GA: Start induct
+
+      A     #s_Ratio_Active; 
+      A     #s_Found_Empty_Win; 
+      S     #s_Start_Induct; 
+
+      A     #s_Start_Induct; 
+      A     #s_Induct_Section_Run; 
+      =     #s_HandOver; 
+
+      AN    #s_Item_At_Handover_Pos; 
+      R     #s_Start_Induct; 
+      R     #s_Trailing_Edge_Written; 
+
+// If Start_induct is active and No window (mist window) stop the induct
+      A     #s_Start_Induct; 
+      AN    #s_Found_Empty_Win; 
+      AN    #s_Induct_Section_Run; 
+      R     #s_Start_Induct; 
+
+NETWORK
+TITLE =HA: Write entries from induct into Merge and Junction (if used)
+
+      A     #s_Item_At_Handover_Pos; 
+      JCN   HA02; 
+
+//Retreive the data infront off the induct
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_Position               := -1,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position_induct,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     1; 
+      L     #t_Info; 
+      ==I   ; 
+      JCN   HA02; 
+
+      L     #t_Data; 
+      T     #s_Data_Induct_ForWin; 
+
+HA02: A     #s_HandOver; 
+      JCN   HA99; 
+
+// Leading edge
+// Search for Empty window to induct item
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := -100,
+           o_Position               := #t_Pos_empty_win,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   HA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_empty_win,
+           i_Info_Physical          := -100,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_empty_win,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #s_Leading_Edge,
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+
+      A     #t_Junction_Used; 
+      JCN   HA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Delete Leading edge before induct
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+
+// Trailing edge
+HA01: AN    #s_Trailing_Edge_Written; 
+      JCN   HA99; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #s_Window_Length,
+           i_Window                 := 0,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      JCN   HA99; 
+
+// Calculation position trailing on Merge 
+      L     #s_Induct_Position; 
+      L     #t_Position; 
+      +I    ; 
+      T     #t_Pos_Trailing_On_Merge; 
+
+// Write trailing edge of the inducted baggage in the PLT of the merge conveyor
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_Trailing_On_Merge,
+           i_Info_Physical          := #s_Trailing_Edge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_Trailing_On_Merge,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #s_Trailing_Edge,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      A     #t_Junction_Used; 
+      JCN   HA10; 
+
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Pos_Trailing,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Pos_Trailing; 
+      L     #t_Position_induct; 
+      -I    ; 
+      T     #t_Position; 
+      L     0; 
+      >I    ; 
+      JCN   HA10; 
+
+      L     #t_Length_Junction; 
+      L     #t_Position; 
+      +I    ; 
+      T     #t_Length_Junction; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+HA10: SET   ; 
+      S     #s_Trailing_Edge_Written; 
+
+      L     #s_Ratio_CNT_Loop; 
+      L     1; 
+      -I    ; 
+      T     #s_Ratio_CNT_Loop; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Write signals to induct PLT
+
+      NOP   0; 
+// Update section run for induct
+      OPN   #i_DB_PLT; 
+
+      AN    #s_Start_Induct; 
+      =     DBX   11.0; 
+
+// In case of junction present update PLT induct
+      A     #t_Junction_Used; 
+      JCN   IA01; 
+
+      A     #s_Section_Junction_Run; 
+      =     DBX   10.1; 
+
+      A     #t_Junct_cascade_start_up; 
+      =     DBX   10.3; 
+
+      JU    IA99; 
+
+IA01: A     #s_Section_Merge_Run; 
+      =     DBX   10.1; 
+
+IA99: NOP   0; 
+END_FUNCTION_BLOCK
+

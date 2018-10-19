@@ -1,0 +1,197 @@
+FUNCTION "FC_Crt_PackScanned" : VOID
+TITLE =%version: 0.20 % CN: 32
+//Function:
+//Prepare and send message 'PackageReport' - ATR result
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 30, 2016 2:23:48 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#14076: Package Instruct and report with pseudoID   nlHdL    14-06-16   0.20
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.19
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.19
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.19
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.19
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.18
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.09
+//20055: Changed PIC to LIC in network EA title         nltny    20-08-14   0.08
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.07
+//19017: Wrong PID copied in FC_Crt_PackScanned         nlHdL    29-04-14   0.06
+//18032: package instr & package rep update             nlHdL    14-02-14   0.05
+//17270: Check PID <> 0 when message to HLC             nlHdL    13-12-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.10 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Prepare and send message 'PackageReport' - ATR result
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Data : INT ;	//Data needed to send the message
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_LIC : INT ;	//The LIC record used to create the message and send to SAC
+  t_TIC_Number : INT ;	//TIC number
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".PackageReport_Scan.body.EventTime);
+
+NETWORK
+TITLE =BA: Handle LNK code
+
+      CALL "FC_Read_Int_Record" (// Read the LIC number from the Link list
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR.PID,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport_Scan.body.BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =CA: Write messageID
+
+      AN    "M_Comm_Degraded"; // When in degraded mode
+      JCN   CA01; 
+
+      L     209; // When NOT in degraded mode
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.MessageID; 
+
+      JU    CA99; 
+
+CA01: L     1209; // When in degraded mode
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.MessageID; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.EquipmentID; // Transfer to outgoing messages
+NETWORK
+TITLE =EA: Handle LIC code
+
+      L     #t_LIC; // Write LIC number in the message
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.LIC; 
+NETWORK
+TITLE =GA: Copy Information Record into message
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport_Scan.body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      L     "DB_Outgoing_Msgs".PackageReport_Scan.body.BIR.PID; 
+      L     0; 
+      ==D   ; 
+      JCN   GA01; 
+
+      L     2209; // When PID = 0 then send log messagePackageReport no pid
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.MessageID; 
+
+GA01: NOP   0; 
+      L     0; 
+      T     "DB_Outgoing_Msgs".PackageReport_Scan.body.TIR.ID; 
+
+      L     "DB_Setting".common.External_Log_Level; 
+      L     4; 
+      >I    ; 
+      JCN   GA02; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_TIC_Number);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_TIC_Number,
+           i_ANY_Data_Record        := "DB_UDT_TIC_Record".TIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport_Scan.body.TIR,
+           i_DB                     := "DB_TIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+GA02: NOP   0; 
+
+NETWORK
+TITLE =HA: Copy LPC's
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".Status.Scanresult,
+           i_ANY_Data               := "DB_Outgoing_Msgs".PackageReport_Scan.body.ScanResult,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+NETWORK
+TITLE =IA: Put message in buffer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".PackageReport_Scan,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =JA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

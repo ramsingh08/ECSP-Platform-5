@@ -1,0 +1,34 @@
+TYPE "UDT_MTZ_Int_Prog"
+TITLE =%version: 1.07 % CN: 10 
+//History:
+//This version  %created_by:   nldy %
+//              %date_created:   Thursday, October 20, 2016 11:06:06 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:      Rev:
+//---------------------------------------------------- -------  --------   -----
+//ra#18049: Add PEC_Latch + Esave signals               nlDY     20-10-16   1.07
+//ra#15680:Add "Num_DB_Event"                           nlJClo   18-07-16   1.06
+//ra#15680:relocate section marcode to start            nlJClo   14-07-16   1.05
+//ra#15522:Add request Halt and PLT DB number           nlJClo   08-07-16   1.04
+//ra#13938:Update according to coding standard          nlJClo   15-06-16   1.03
+//ra#13938: correct family name                         nljclo   06-06-16   1.02
+//ra#13938: Initial revision                            nljclo   24-05-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Error : BOOL ;	// Error status for zone	
+   TRS1_PEC_Latch : BOOL ;	//PEC latch signal (ESave PEC)
+   TRS1_Req_Halt : BOOL ;	// Request halt triplaner	
+   TRS1_Items_Present : BOOL ;	//Items present on carousel
+   TRS1_Disbl_E_Save : BOOL ;	//Disable energy saving
+   TRS2_PEC_Latch_HAC : BOOL ;	//PEC latch signal (HAC PEC)
+   TRS2_Num_DB_PLT : INT ;	// DB number from PLT DB TRS2
+   TRS3_Num_DB_PLT : INT ;	// DB number from PLT DB TRS3
+   TRS4_Num_DB_PLT : INT ;	// DB number from PLT DB TRS4
+   Num_DB_Event : INT ;	// DB number from Event DB 
+  END_STRUCT ;	
+END_TYPE
+

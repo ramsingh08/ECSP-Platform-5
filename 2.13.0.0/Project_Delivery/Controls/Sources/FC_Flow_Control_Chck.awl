@@ -1,0 +1,325 @@
+FUNCTION "FC_Flow_Control_Chck" : VOID
+TITLE =%version: 0.05 % CN: 33
+//Function:
+//Check for direction A and direction B if flow control can be activated
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 6:59:50 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.05
+//ina#2764: FC_Flow_Control_Chck contains in comment    nlHdL    02-11-16   0.04
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial Revision                                      nlHdL    02-04-13   0.01
+//
+//Description:
+//Check for direction A and direction B if flow control can be activated
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Direction_A : ANY ;	//ANY pointer to the Direction A messages
+  i_ANY_Direction_B : ANY ;	//ANY pointer to the Direction B messages
+  i_ANY_Direction_C : ANY ;	//ANY pointer to the Direction B messages
+  i_CFG_Dir_C : BOOL ;	//Included direction C
+END_VAR
+VAR_OUTPUT
+  o_Enable_Flow_Control : BOOL ;	//Flow Control is enabled
+END_VAR
+VAR_TEMP
+  t_Dir_A : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_B : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_C : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_A_Pref_1 : BOOL ;	
+  t_B_Pref_1 : BOOL ;	
+  t_C_Pref_1 : BOOL ;	
+  t_A_Pref_2 : BOOL ;	
+  t_B_Pref_2 : BOOL ;	
+  t_C_Pref_2 : BOOL ;	
+  t_Pref_Number : INT ;	//Preffered number to be checked 1 to 3
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear output
+
+      SET   ; 
+      R     #o_Enable_Flow_Control; 
+      L     1; 
+      T     #t_Pref_Number; 
+NETWORK
+TITLE =BA: Check Direction A from FB
+
+      L     P##i_ANY_Direction_A; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_A.t_Preference_A; 
+
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_A.t_Preference_B; 
+
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_A.t_FailedReason_A; 
+
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_A.t_FailedReason_B; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   BA01; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_A.t_Preference_C; 
+
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_A.t_FailedReason_C; 
+
+BA01: NOP   0; 
+NETWORK
+TITLE =CA: Check Direction B from FB
+
+      L     P##i_ANY_Direction_B; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_B.t_Preference_A; 
+
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_B.t_Preference_B; 
+
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_B.t_FailedReason_A; 
+
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_B.t_FailedReason_B; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   CA01; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_B.t_Preference_C; 
+
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_B.t_FailedReason_C; 
+
+CA01: NOP   0; 
+NETWORK
+TITLE =CB: Check Direction C from FB
+
+      A     #i_CFG_Dir_C; 
+      JCN   CB99; 
+
+      L     P##i_ANY_Direction_C; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_C.t_Preference_A; 
+
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_C.t_Preference_B; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_C.t_Preference_C; 
+
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_C.t_FailedReason_A; 
+
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_C.t_FailedReason_B; 
+
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_C.t_FailedReason_C; 
+
+CB99: NOP   0; 
+NETWORK
+TITLE =DA: Check Direction A
+
+DA00: L     #t_Dir_A.t_Preference_A; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      =     #t_A_Pref_1; 
+
+      L     #t_Dir_B.t_Preference_A; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_A_Pref_1; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   DA01; 
+
+      L     #t_Dir_C.t_Preference_A; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_A_Pref_1; 
+
+DA01: NOP   0; 
+NETWORK
+TITLE =EA: Check Direction B
+
+      A     #t_A_Pref_1; 
+      JCN   EA01; //If A not found skip check Dir B
+      L     #t_Dir_A.t_Preference_B; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      =     #t_B_Pref_1; 
+
+      L     #t_Dir_B.t_Preference_B; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_B_Pref_1; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   EA01; 
+
+      L     #t_Dir_C.t_Preference_B; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_B_Pref_1; 
+
+EA01: NOP   0; 
+NETWORK
+TITLE =FA: Check Direction C
+
+      A     #i_CFG_Dir_C; 
+      JCN   FA01; 
+
+      A     #t_A_Pref_1; 
+      A     #t_B_Pref_1; 
+      JCN   FA01; //If A or B not found skip check Dir C
+
+      L     #t_Dir_A.t_Preference_C; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      =     #t_C_Pref_1; 
+
+      L     #t_Dir_B.t_Preference_C; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_C_Pref_1; 
+
+      L     #t_Dir_C.t_Preference_C; 
+      L     #t_Pref_Number; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      S     #t_C_Pref_1; 
+
+FA01: NOP   0; 
+NETWORK
+TITLE =GA: Check the Preffered and loop next prefferens
+
+      A     #i_CFG_Dir_C; 
+      JCN   GA01; 
+
+      A     #t_A_Pref_1; 
+      A     #t_B_Pref_1; 
+      A     #t_C_Pref_1; 
+      =     #o_Enable_Flow_Control; 
+      JC    GA99; // If control is enable stop check
+      JU    GA02; 
+
+GA01: A     #t_A_Pref_1; 
+      A     #t_B_Pref_1; 
+      =     #o_Enable_Flow_Control; 
+      JC    GA99; // If control is enable stop check
+
+GA02: L     #t_Pref_Number; 
+      L     1; 
+      +I    ; 
+      T     #t_Pref_Number; 
+      L     4; 
+      <I    ; 
+      JCN   GA99; 
+
+      JU    DA00; 
+
+GA99: NOP   0; 
+END_FUNCTION
+

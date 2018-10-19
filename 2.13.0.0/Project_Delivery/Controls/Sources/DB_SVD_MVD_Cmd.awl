@@ -1,0 +1,29 @@
+DATA_BLOCK "DB_SVD_MVD_Cmd"
+TITLE =%version: 0.05 % CN: 20
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, August 04, 2016 4:17:31 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16170: DB interface SVD/MVD for TP HMI             nlHdL    04-08-16   0.05
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.04
+//ra#15888: Add interface blocks SVD MVD                nlHdL    19-07-16   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//21030: Markcode change SVZ MVZ to SVD MVD             nlHdL    24-09-14   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//PR6738 Rework interface with OP                       nlple    04-04-11  0.02
+//PR6738 Initial revision                               nlple    01-04-10  0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	//Insert point Code Generator
+//Command : "UDT_SVD_MVD_Cmd";	//Example
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

@@ -1,0 +1,302 @@
+FUNCTION_BLOCK "FB_HW_Shutter"
+TITLE =%version: 0.12 % CN: 40
+//Function:
+//Hardware driver for Shutter.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, May 19, 2017 9:45:42 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs#18878: suppress not healthy on ASI error          nlHdL    19-05-17   0.12
+//ra#12663: Saftey OK signal is missing in SHO HW block nlJClo   11-04-16   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//21940:  Change statistical ID don't send 0            nlHdL    27-11-14   0.10
+//20089: Asi slave 2 error no set, slave 1 double       nltny    27-08-14   0.09
+//16433: ASI errors should supress technical error      nlHdL    07-01-14   0.08
+//17325: Reset ASi slave error 2 not correct            nlHdL    07-01-14   0.07
+//15989: Block consistency update IO symbols            nlHdL    30-09-13   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//CR11702 Remove output request halt                    nlple    17-01-13   0.04
+//CR11547 Mofified init value Avaiable_IO & Safety_OK   nlHdL    01-11-12   0.03
+//CR8095 Comments input CFG changed                     nlple    06-01-12   0.02
+//Added version to Library                              nlHdL    14-12-10   0.01
+//Initial version                                       inpna    21-10-10   0.0x
+//
+//Description:                                
+//Generating the Detailed status.
+//Genrating Thermal Overload.
+//Generating ASI-Error & ASI-Not present
+//Genrating output to motor in Automatic & Manual mode.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Req_Shutter_Open : BOOL ;	//CMD: Run motor Open
+  i_CMD_Req_Shutter_Close : BOOL ;	//CMD: Run motor Close
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_CFG_Motor_Switch_Time : INT  := 300;	//CFG: [ms] Time before the motor is switched from direction
+  i_ASI_NotPrsnt : BOOL ;	//ASI is Not Present
+  i_ASI_Error : BOOL ;	//ASI has an Error
+  i_ASI_2_NotPrsnt : BOOL ;	//ASI 2 is Not Present
+  i_ASI_2_Error : BOOL ;	//ASI slave 2 has an error
+  i_IO_Shutter_Healthy : BOOL  := TRUE;	//HW: Used for Shutter is healthy (communication OK, stand by)
+  i_IO_Automatic_Mode : BOOL ;	//HW: Keyswitch on control box shutter in automatic mode
+  i_IO_No_Technical_Error : BOOL ;	//HW: No technical error from shutter (limit switches, thermal failure)
+END_VAR
+VAR_OUTPUT
+  o_IO_MTR_Open : BOOL ;	//HW: Run signal to motor of shutter to open
+  o_IO_MTR_Close : BOOL ;	//HW: Run signal to motor of shutter to close
+  o_ST_Not_Automatic : BOOL ;	//ST: Shutter Not in Automatic mode
+  o_ST_Technical_Error : BOOL ;	//ST: Technical Error
+  o_ST_Shutter_NOT_Healthy : BOOL ;	//ST: Shutter not healthy
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI2_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Slave_Error : BOOL ;	//ST: ASI slave has an Error
+  o_ST_ASI_Slave2_Error : BOOL ;	//ST: ASI slave has an Error
+END_VAR
+VAR
+  s_Switch_delay : INT ;	//Timer to count down the switch time remaining.
+  s_MTR_Pre_Switch_cnt : INT ;	//Timer since the conveyor stopped running.
+  s_Switch_In_Progress : BOOL ;	//Indicating that the motor is switching
+  s_FP_Switch : BOOL ;	//Positive edge of switching process
+  s_FN_Switch : BOOL ;	//Negative edge of switching process
+  s_Motor_Run : BOOL ;	//Motor run signal
+  s_Copy_FN_o_IO_MTR_XX : BOOL ;	//Flank Negative of MTR Signal
+  s_Statistical : STRUCT 	//Statisticals
+   Start_Stop_Cnt : INT ;	
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Return_Value_Int : INT ;	//Return Value
+  t_DB_Event_Num : INT ;	//Number of the local event DB
+  t_Available_IO : BOOL ;	//Temp Signal for indication IO is OK (no Fieldbus or IO error)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load DB Event Nr
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+NETWORK
+TITLE =BA: Handle Electrical Input statuses
+//Some errors and statuses are coming directly from electrical inputs.
+//If the IO becomes not available, those inputs must be ignored, to avoid 
+//(as consequence of) all kind of meaningless status changes, 
+//which are indicated to HMI.
+      NOP   0; 
+      CLR   ; 
+      =     #s_Switch_In_Progress; 
+
+      A     #i_Available_IO; 
+      AN    #i_ASI_NotPrsnt; 
+      AN    #i_ASI_Error; 
+      AN    #i_ASI_2_NotPrsnt; 
+      AN    #i_ASI_2_Error; 
+      =     #t_Available_IO; 
+
+//ASI-Slave Error & Not present
+      O     #i_CMD_Reset; // OR Reset
+      ON    #i_Available_IO; // OR IO not available
+      ON    #i_Safety_OK; // OR Safety not OK
+      R     #o_ST_ASI_NotPrsnt; // RESET Slave-1 not Present
+      R     #o_ST_ASI2_NotPrsnt; // RESET Slave-2 not Present
+      R     #o_ST_ASI_Slave_Error; // RESET Slave-1 Error
+      R     #o_ST_ASI_Slave2_Error; // RESET Slave-2 Error
+
+//--ASI-Slave Not present
+      A     #i_ASI_NotPrsnt; // ASI Slave-1 not present
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_NotPrsnt; // SET the Slave-1 not present
+
+      A     #i_ASI_2_NotPrsnt; // ASI Slave-2 not present
+      A     #i_Available_IO; // AND IO available
+      A     #i_Safety_OK; // AND Safety OK
+      S     #o_ST_ASI2_NotPrsnt; // SET the Slave-2 not present
+
+//--ASI-Slave error
+      A     #i_ASI_Error; // ASI Slave-2 Error
+      A     #i_Available_IO; // AND IO available
+      A     #i_Safety_OK; // AND Safety OK
+      S     #o_ST_ASI_Slave_Error; // SET the Slave-2 Error
+
+      A     #i_ASI_2_Error; // ASI Slave-2 Error
+      A     #i_Available_IO; // AND IO available
+      S     #o_ST_ASI_Slave2_Error; // SET the Slave-2 error
+
+//Shutter Healthy
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      O     #o_ST_ASI_NotPrsnt; 
+      O     #o_ST_ASI_Slave_Error; 
+      R     #o_ST_Shutter_NOT_Healthy; 
+
+      AN    #i_IO_Shutter_Healthy; 
+      A     #i_Available_IO; 
+      A     #i_Safety_OK; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Slave_Error; 
+      S     #o_ST_Shutter_NOT_Healthy; //Shutter Not healthy
+
+// Shutter Technical Error
+      O     #i_CMD_Reset; 
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      O     #o_ST_ASI_NotPrsnt; 
+      O     #o_ST_ASI_Slave_Error; 
+      R     #o_ST_Technical_Error; // Reset Thechnical error
+
+      AN    #i_IO_No_Technical_Error; 
+      A     #i_Available_IO; 
+      AN    #o_ST_ASI_NotPrsnt; 
+      AN    #o_ST_ASI_Slave_Error; 
+      S     #o_ST_Technical_Error; // Set Technical error
+
+//Shutter in Automatic Mode
+      AN    #i_IO_Automatic_Mode; // HW: Maintenance Switch of motor in 'ON' position (ON=TRUE)
+      A     #i_Available_IO; // AND IO available
+      AN    #o_ST_Technical_Error; // AND_NOT Thermal overload
+      AN    #o_ST_Shutter_NOT_Healthy; // AND Status Shutter not healthy
+      AN    #o_ST_ASI_NotPrsnt; // AND ASI-Slave-1 not present
+      AN    #o_ST_ASI2_NotPrsnt; // AND ASI-Slave-2 not present
+      AN    #o_ST_ASI_Slave_Error; // AND ASI-Slave-1 Error
+      AN    #o_ST_ASI_Slave2_Error; // AND ASI-Slave-2 Error
+      =     #o_ST_Not_Automatic; // THEN Maintenance Switch of motor in 'OFF' position 
+
+NETWORK
+TITLE =CA: MTR pre switch timer
+//IF the conveyor is already standing still for a longer time than the motor 
+//switch time, then there is no need for a switch time. The is the counter that 
+//checks how much time is already elapsed.
+      AN    #s_Motor_Run; // If the motor is running
+      JCN   CA02; // Then go to label DA02
+
+      L     #s_MTR_Pre_Switch_cnt; // If the motor was not running, then take the pre-switch counter
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; // .. And count down
+      JPZ   CA01; 
+      L     0; 
+CA01: T     #s_MTR_Pre_Switch_cnt; // ..Goes not below zero
+
+      JU    CA99; 
+
+CA02: L     #i_CFG_Motor_Switch_Time; // If the motor is running, then load
+      T     #s_MTR_Pre_Switch_cnt; // the setting time in the pre-counter
+
+CA99: NOP   0; 
+
+NETWORK
+TITLE =DA: Motor Switch delay
+
+      A     #i_CMD_Req_Shutter_Close; // If the motor gets a reverse command
+      FP    #s_FP_Switch; 
+      O(    ; 
+      A     #i_CMD_Req_Shutter_Close; // OR a forward command
+      FN    #s_FN_Switch; 
+      )     ; 
+      JCN   DA01; 
+
+      L     #s_MTR_Pre_Switch_cnt; // Then load the pre-counter in the switch counter.
+      T     #s_Switch_delay; 
+
+DA01: L     #s_Switch_delay; // Count down the switch delay
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   DA02; 
+      L     0; 
+DA02: T     #s_Switch_delay; // Go not below zero.
+
+      L     #s_Switch_delay; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+      SET   ; // IF the switch time is not elapsed yet,
+      =     #s_Switch_In_Progress; // ..Then indicate that it is busy.
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Motor run signal
+
+      A     #i_CMD_Req_Shutter_Open; // If the Shutter should open    
+      O     #i_CMD_Req_Shutter_Close; // If the Shutter should Close
+      AN    #s_Switch_In_Progress; // AND no switch is in progress
+      A     #i_Available_IO; // AND IO is available
+      AN    #o_ST_Not_Automatic; // AND Shutter is in auto
+      AN    #o_ST_Technical_Error; // AND no Technical Error
+      AN    #o_ST_Shutter_NOT_Healthy; // AND Status Shutter not healthy
+      AN    #o_ST_ASI_NotPrsnt; // AND ASI-Slave-1 not present
+      AN    #o_ST_ASI2_NotPrsnt; // AND ASI-Slave-2 not present
+      AN    #o_ST_ASI_Slave_Error; // AND ASI-Slave-1 Error
+      AN    #o_ST_ASI_Slave2_Error; // AND ASI-Slave-2 Error
+      =     #s_Motor_Run; // Then indicate that the motor is running
+
+      A     #i_CMD_Req_Shutter_Open; // If Req motor to open
+      AN    #i_CMD_Req_Shutter_Close; // If NOT Req motor to close
+      AN    #s_Switch_In_Progress; // ..AND no switch is in progress
+      A     #i_Available_IO; // ..AND the IO is available
+      AN    #o_ST_Not_Automatic; // AND-NOT maintenance switch is in auto
+      AN    #o_ST_Technical_Error; // AND-NOT no thermal overload
+      AN    #o_ST_Shutter_NOT_Healthy; // AND-NOT Status Shutter not healthy
+      AN    #o_ST_ASI_NotPrsnt; // AND-NOT ASI-Slave-1 not present
+      AN    #o_ST_ASI2_NotPrsnt; // AND-NOT ASI-Slave-2 not present
+      AN    #o_ST_ASI_Slave_Error; // AND-NOT ASI-Slave-1 Error
+      AN    #o_ST_ASI_Slave2_Error; // AND-NOT ASI-Slave-2 Error
+      =     #o_IO_MTR_Open; // Then give the run Open command
+
+
+      A     #i_CMD_Req_Shutter_Close; // IF Req Motor to Close
+      AN    #i_CMD_Req_Shutter_Open; // If NOT Req motor to open
+      AN    #s_Switch_In_Progress; // ..AND no switch is in progress
+      A     #i_Available_IO; // ..AND the IO is available
+      AN    #o_ST_Not_Automatic; // AND-NOT maintenance switch is in auto
+      AN    #o_ST_Technical_Error; // AND-NOT no thermal overload
+      AN    #o_ST_Shutter_NOT_Healthy; // AND-NOT Status Shutter not healthy
+      AN    #o_ST_ASI_NotPrsnt; // AND-NOT ASI-Slave-1 not present
+      AN    #o_ST_ASI2_NotPrsnt; // AND-NOT ASI-Slave-2 not present
+      AN    #o_ST_ASI_Slave_Error; // AND-NOT ASI-Slave-1 Error
+      AN    #o_ST_ASI_Slave2_Error; // AND-NOT ASI-Slave-2 Error
+      =     #o_IO_MTR_Close; // Then give the run Close command
+NETWORK
+TITLE =FA: BPI counter
+
+      A     #o_IO_MTR_Open; 
+      O     #o_IO_MTR_Close; 
+      FN    #s_Copy_FN_o_IO_MTR_XX; 
+      JCN   FA01; 
+
+      L     #s_Statistical.Start_Stop_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+FA01: NOP   0; 
+
+      A     #i_CMD_Send_Stat; 
+      JCN   FA99; 
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_Statistical.Start_Stop_Cnt,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+      L     0; 
+      T     #s_Statistical.Start_Stop_Cnt; 
+
+FA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

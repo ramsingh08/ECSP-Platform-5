@@ -1,0 +1,53 @@
+TYPE "UDT_VCZ_Status"
+TITLE =%version: 0.04 % CN: 10
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, June 11, 2018 1:14:56 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10296: Added LCC13 Statuses (ra#27753)            inajos   11-06-18   0.04
+//ra#26555:Align bits for Zone HMI                      inajos   01-12-17   0.03
+//ra#26555:Align bits for Zone HMI                      inajos   23-11-17   0.02
+//Initial version                                       inajos   06-10-17   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Spare_0_0 : BOOL ;	//Spare_0_0
+   Spare_0_1 : BOOL ;	//Spare_0_1
+   Manual : BOOL ;	//Manual mode activated
+   FieldB1_NotPrsnt : BOOL ;	//FieldBus slave not present(PN Switch)
+   FieldB1_Error : BOOL ;	//FieldBus slave error(PN Switch)
+   FieldB2_NotPrsnt : BOOL ;	//FieldBus slave not present(ASi Gateway)
+   FieldB2_Error : BOOL ;	//FieldBus slave error(ASi Gateway)
+   FieldB3_NotPrsnt : BOOL ;	//FieldBus slave not present(ET200SP)
+   FieldB3_Error : BOOL ;	//FieldBus slave error(ET200SP)
+   KS_Auto_Error : BOOL ;	//Key Switch Override Error
+   Gate1_Opened : BOOL ;	//Local safety gate 1 opened
+   Gate2_Opened : BOOL ;	//Local safety gate 2 opened
+   Local_Safety_Unlock : BOOL ;	//Local safety unlock
+   Local_Safety_Lock1 : BOOL ;	//Local safety lock 1
+   Local_Safety_Lock2 : BOOL ;	//Local safety lock 2
+   ASI1_NotPrsnt : BOOL ;	//ASI slave 1 is not present (PBB 98)
+   ASI1_Error : BOOL ;	//ASI slave 1 has an error (PBB 98)
+   ASI2_NotPrsnt : BOOL ;	//ASI slave 2 is not present (PBB 97)
+   ASI2_Error : BOOL ;	//ASI slave 2 has an error (PBB 97)
+   KS_Auto2_Error : BOOL ;	//Keyswitch not in Automatic(PBB 98)
+   KS_Auto3_Error : BOOL ;	//Keyswitch not in Automatic(PBB 97)
+   Mainswitch_OFF : BOOL ;	//Main switch off
+   CB1_Not_Hlthy : BOOL ;	//Circuit breaker 1 not healthy
+   CB2_Not_Hlthy : BOOL ;	//Circuit breaker 2 not healthy
+   CB_24V_Not_Hlthy : BOOL ;	//Circuit breaker of 24V supply not healthy
+   Movi_Drive_Not_Hthy : BOOL ;	//Movidrive not healthy
+   Local_Safety_Stop : BOOL ;	//Local safety stop
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

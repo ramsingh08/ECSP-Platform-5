@@ -1,0 +1,30 @@
+TYPE "UDT_DecisionP_Sett"
+TITLE =%version: 0.05 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:22:21 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//CR8095 Comments changed                               nlple    06-01-12   0.02  
+//Initial revision                                      nlHdL    03-10-11   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   TEP_Dir_A_Flow : INT ;	//Totale Empty Positions for direction A
+   TEP_Dir_B_Flow : INT ;	//Totale Empty Positions for direction B
+   TEP_Max_Time : INT ;	//Maximum time between TEP change to prevent standby screening machine
+   Number_Dir_A : INT ;	//Number of bags to direction A
+   Number_Dir_B : INT ;	//Number of bags to direction B
+  END_STRUCT ;	
+END_TYPE
+

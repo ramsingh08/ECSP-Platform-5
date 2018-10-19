@@ -1,0 +1,1281 @@
+FUNCTION_BLOCK "FB_LUZ01"
+TITLE =%version: 1.16 % CN: 60 
+//Function:
+//Luffer Zone (LUZ01)
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Wednesday, November 01, 2017 9:03:16 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24938: Wrong family for multiple RAW blocks        nlHdL    01-11-17   1.16
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   1.15
+//ra#19304: Removed input "i_CFG_Run_Out_Dist"          nlJClo   20-02-17   1.14
+//ra#19304: Removed input "DB_Event_Zone"               nlJClo   20-02-17   1.13 
+//ra#47812: Flow control configuration                  nlJClo   24-01-17   1.12
+//ra#18950: No route available code updated             inajos   22-12-16   1.11 
+//ra#16718: VBZ/SVD/LUZ/SCZ without tracking            nlHdL    14-12-16   1.10
+//ra#18817: Clear PLT function Update                   inajos   07-12-16   1.09
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   1.08
+//ra#18629: Add LSZ and LUZ to the RAW Library          nlHdL    17-11-16   1.08
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.08
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   1.08
+//18028: Modify HardWare block LMS for Eaton Siemens    nlHdL    08-05-14   1.07
+//12269: CFG_Record_Type removed. Default LNK           nlHdL    09-01-14   1.06
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.04
+//PR14161 rework jump label CA01                        nlple    27-06-13   1.03
+//PR14161 Update violation coding convention 9          nlple    25-06-13   1.02
+//14069: Added t_DB_Num_PLT_Dir_x for DP infeed         nlHdL    05-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.33 of PLT version 0
+//
+//Description:
+//Luffer Zone (LUZ01)
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Auto_Mode : BOOL ;	//CMD: Luffer is in automatic mode
+  i_CMD_Semi_Fixed_Up : BOOL ;	//CMD: Semi Auto fixed Up command (True = Active)
+  i_CMD_Semi_Fixed_Dwn : BOOL ;	//CMD: Semi Auto fixed Down command (True = Active)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CFG_PLC_No_Msg_To_Rout : BOOL ;	//CFG: Send No messages to Routing (If TRUE = No Messages are send to High Level)
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Setting : "UDT_LUZ_Sett";	//Data Structure: Setting Record
+  i_DB_PLT_DwnStr_Low : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section (Low)
+  i_DB_PLT_DwnStr_High : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section (High)
+  i_DB_Default_Route_Table : BLOCK_DB ;	//Data Structure: Default Routing Table
+  i_DB_System_Route_Table : BLOCK_DB ;	//Data Structure: System Routing Table
+  i_CFG_Switch_Area : INT ;	//CFG: [cm] Switch area 
+  i_CFG_PEC_Block_Lng_TRS : INT ;	//CFG: [cm] Delay for detecting a PEC blockage
+  i_CFG_PEC_Block_Lng_Clr : INT  := 200;	//CFG: [cm] Delay for detecting a PEC blockage for all sections in LUZ  
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link.
+  i_CFG_DieBack_Inf : INT  := 50;	//CFG: [cm] Die Back position before the end of the infeed conveyor.
+  i_CFG_Switch_Gap_Size : INT  := 80;	//CFG: [cm] Distance that bag will wait in front of Infeed, when switch is made
+  i_CFG_Dir_A_Preference : INT ;	//CFG: Preference for Direction A (0 = No Direction 1 = Preferred)
+  i_CFG_Dir_B_Preference : INT ;	//CFG: Preference for Direction B (0 = No Direction 1 = Preferred)
+  i_CFG_UnSecure_Not_Allow : INT ;	//CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)
+  i_CFG_Dimen_SC_Not_Allow : INT ;	//CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)
+  i_CFG_Local_Unsecure_Dir : INT ;	//CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)
+  i_CFG_Local_Dimensn_Dir : INT ;	//CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)
+  i_IO_NOT_PEC_Coll_Up : BOOL ;	//HW: Collision error moving Up signal of PEC(TRUE = No error)
+  i_IO_NOT_PEC_Coll_Down : BOOL ;	//HW: Collision error moving Down signal of PEC(TRUE = No error)
+  i_IO_NOT_PEC_Gap_Clear : BOOL  := TRUE;	//HW: Switch area clear signal of PEC (TRUE = No product)
+  i_IO_PS_Up : BOOL ;	//HW: Proximity switch SWM in Up position (TRUE =Upper position)
+  i_IO_PS_Down : BOOL ;	//HW: Proximity switch SWM in Down position (TRUE = Lower position)
+  i_ASI_NotPrsnt : BOOL ;	//ASI is Not Present
+  i_ASI_Error : BOOL ;	//ASI has an Error
+  i_TRS_Setting : "UDT_TRS_Trk1dir_Sett";	//Data structure: Setting Record
+  i_TRS_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock  
+  i_TRS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS_CFG_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_TRS_CFG_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_TRS_IO_NOT_PEC : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS_IO_PPI : BOOL ;	//HW: The PPI signal
+  i_TRS_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS_IO_LMS_Auto : BOOL  := TRUE;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS_IO_LMS_Healthy : BOOL  := TRUE;	//HW: "Healthy signal" of Local Motor Starter
+  i_SWS_Setting : "UDT_EQP_Switch_Sett";	//Data Structure: Setting Record SWS
+  i_SWS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_SWS_IO_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present SWS
+  i_SWS_IO_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_SWS_IO_LMS_Auto : BOOL  := TRUE;	//HW: switch of the motor equipment is in 'Automatic' position (Switch motor)
+  i_SWS_IO_LMS_Healthy : BOOL  := TRUE;	//HW: Healthy signal from motor equipment (Switch motor) 
+  i_DB_PLT_TRS2_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_PLT_TRS3_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+END_VAR
+VAR_OUTPUT
+  o_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error : BOOL ;	//ST: ASI slave has an error
+  o_ST_Collision_Jam : BOOL ;	//ST: Collision PEC activated
+  o_ST_Switch_Gap_NotClear : BOOL ;	//ST: Clear Switch Gap warning
+  o_ST_Up : BOOL ;	//ST: Luffer is at upper position (High)
+  o_ST_Down : BOOL ;	//ST: Luffer is at down position (low)
+  o_ST_PEC_Gap_Blockage : BOOL ;	//ST: PEC blockage on Gap Clear PEC (at end of infeed belt)
+  o_ST_Dir_Not_Allowed : BOOL ;	//ST: Direction not allowed (mode semi auto)
+  o_ST_No_Route_Available : BOOL ;	//ST: No route for the current destination available
+  o_ST_Fixed_Up : BOOL ;	//ST: Fixed up mode activated
+  o_ST_Fixed_Down : BOOL ;	//ST: Fixed down mode activated
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Action_Active : BOOL ;	//Action Active
+  o_Req_Dis_Send_Upstr : BOOL ;	//Disable the send of the upstream conveyor of the infeed to the LUZ
+  o_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS_ST_PPI_Err : BOOL ;	//ST: PPI Error
+  o_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS_ST_Running : BOOL ;	//ST: Section is running 
+  o_TRS_ST_Started : BOOL ;	//ST: Started
+  o_TRS_ST_Request_Halt : BOOL ;	//ST: Request Halt
+  o_TRS_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_TRS_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS_ST_Bad_Update : BOOL ;	//ST: Update Tracking Performance is below warning level
+  o_TRS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_TRS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS_EXT_Outputs : "UDT_External_Outputs";	//Section External Interface
+  o_SWS_ST_Started : BOOL ;	//ST: Started
+  o_SWS_ST_Running : BOOL ;	//ST: Section is running
+  o_SWS_ST_Move_Time_out : BOOL ;	//ST: Switch motor moving time out
+  o_SWS_ST_PS_Double : BOOL ;	//ST: Switch motor error double detection 
+  o_SWS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SWS_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_SWS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_SWS_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_SWS_IO_MTR_Up : BOOL ;	//HW: Run signal to motor up
+  o_SWS_IO_MTR_Down : BOOL ;	//HW: Run signal to motor down
+  o_SWS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+END_VAR
+VAR
+  s_TRS_PPI_Disp_mm : INT ;	//The PPI displacement in [mm]
+  s_TRS_LPOS : INT ;	//Real position of the bag for tracking layer
+  s_TRS_PEC_Position : INT ;	//CFG: [cm] position of the physical PEC
+  s_Length_Downstr_Section : INT ;	//Length of downstream section
+  s_LNK : INT ;	//LNK number
+  s_Num_Items : INT ;	//Number of item founded
+  s_Direction_DP : BYTE ;	//Direction given at the decision point
+  s_FB_EQP_SWITCH_SWS : "FB_EQP_Switch";	//Equipment switch 
+  s_FB_HW_MTR_2DIR_LMS_SWS : "FB_HW_MTR_2DIR_LMS";	//Hardware LMS 2 Direction 
+  s_PEC_Gap_Clear : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC_Trigger
+  s_FB_EQP_PEC_TRS : "FB_EQP_PEC";	//Equipment PEC conveyor
+  s_FB_EQP_PPI_TRS : "FB_EQP_PPI";	//Equipment PPI conveyor
+  s_FB_EQP_Basic_TRS : "FB_EQP_Basic";	//Bacis Equipment conveyor
+  s_FB_TRK_Track_TRS : "FB_TRK_Track";	//Track conveyor
+  s_FB_HW_MTR_LMS_TRS : "FB_HW_MTR_LMS";	//Hardware LMS conveyor
+  s_FB_DAT_LUZ : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_TRS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_SWS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_DecisionPoint : "FB_DecisionPoint";	//Block call static FB_DecisionPoint
+  s_DecisionPoint_inf : "FB_DecisionPoint";	//Block call static FB_DecisionPoint on infeed
+  s_LUZ_Error : BOOL ;	//Luffer has error
+  s_SWS_Error : BOOL ;	//Switch Motor section has error (S1)
+  s_TRS_Error : BOOL ;	//Conveyor section has error (S2)
+  s_LUZ_Error_Collision_UP : BOOL ;	//Error Upper collision PEC activated 
+  s_LUZ_Error_Collision_DN : BOOL ;	//Error Lower collision PEC activated 
+  s_Mode_Semi_Up : BOOL ;	//Semi-Automatic mode up active
+  s_Mode_Semi_Down : BOOL ;	//Semi_Automatic mode down active
+  s_CMD_MTR_Run : BOOL ;	//Switch equipment motor run command 
+  s_CMD_MTR_Reverse : BOOL ;	//Switch equipment motor reverse command
+  s_SWS_Req_Stop : BOOL ;	//Request stop for the switch motor
+  s_SWS_Req_Halt : BOOL ;	//Request halt for switch motor
+  s_SWS_Ready_To_Restart : BOOL ;	//Switch motor ready to restart for system control
+  s_TRS_Ready_to_Restart : BOOL ;	//Conveyor ready to restart for system control
+  s_TRS_Ext_Req_Stop : BOOL ;	//Stop request for the conveyor
+  s_TRS_Ext_Req_Halt : BOOL ;	//Halt request to the conveyor
+  s_SWS_HW_MTR_2DIR_Halt : BOOL ;	//Halt request from the hardware layrer to the conveyor
+  s_Motor_Run : BOOL ;	//Command motor run from equipment control
+  s_LUZ_Not_Automatic : BOOL ;	//LUZ zone not in automatic mode
+  s_IO_Upper : BOOL ;	//SWM in Up position (TRUE = in upper position)
+  s_IO_Lower : BOOL ;	//SWM in Down position (TRUE = in lower position)
+  s_Clear_PLT_Switch_Gap : BOOL ;	//Positive Switch Gap clear
+  s_Switch_Gap_Not_CLear : BOOL ;	//Status Clear Switch Gap warning
+  s_PEC_Gap_Clear_Latch : BOOL ;	//Filtered PEC signal of Switch Gap
+  s_ST_ASI_Not_Present : BOOL ;	//Status ASI slave is not present (Hardware)
+  s_ST_ASI_Error : BOOL ;	//Status ASI slave has an error (Hardware)
+  s_ST_Error_Coll_Jam : BOOL ;	//Detailed Status collision PEC activated (Error)
+  s_ST_Up : BOOL ;	//Status Luffer is at upper position (High)
+  s_ST_Down : BOOL ;	//Status Luffer is at down position (Low)
+  s_ST_PEC_Gap_Not_Clear : BOOL ;	//Status Gap Clear PEC is triggered
+  s_TRS_ST_PEC_Blockage : BOOL ;	//Status PEC Blockage
+  s_TRS_ST_PPI_Error : BOOL ;	//Status PPI Error
+  s_TRS_ST_Items : BOOL ;	//Status Items present on the section (Conveyor)
+  s_TRS_ST_Running : BOOL ;	//Status Section is running 
+  s_TRS_ST_Started : BOOL ;	//Started
+  s_TRS_ST_Request_Halt : BOOL ;	//Status Request Halt
+  s_TRS_ST_Request_Stop : BOOL ;	//Status Request stop
+  s_TRS_ST_PEC_Missings : BOOL ;	//Status Indicates "n" successive missings at the PEC
+  s_TRS_ST_Bad_Update : BOOL ;	//Status Warning: Update Tracking Performance is below warning level
+  s_TRS_ST_LMS_ASI_Not_Pre : BOOL ;	//Status LMS ASI slave is not present (Conveyor)
+  s_TRS_ST_LMS_ASI_Error : BOOL ;	//Status LMS ASI slave has an error (Conveyor)
+  s_TRS_ST_LMS_Not_Auto : BOOL ;	//Status The motor is reporting not Automatic (Conveyor)
+  s_TRS_ST_LMS_Not_Healthy : BOOL ;	//Status The motor is reporting not Healthy (Conveyor)
+  s_SWS_ST_Started : BOOL ;	//Status Started (Switch Motor)
+  s_SWS_ST_Running : BOOL ;	//Status Section is running (Switch Motor)
+  s_SWS_ST_Move_Time_out : BOOL ;	//Status Switch motor moving time out
+  s_SWS_ST_PS_Double : BOOL ;	//Status Switch motor error double detection 
+  s_SWS_ST_LMS_ASI_Not_Prs : BOOL ;	//Status LMS ASI slave is not present (Switch motor)
+  s_SWS_ST_LMS_ASI_Error : BOOL ;	//Status LMS ASI slave has an error (Switch motor)
+  s_SWS_ST_LMS_Not_Auto : BOOL ;	//Status The motor is reporting not Automatic (Switch motor)
+  s_SWS_ST_LMS_Not_Healthy : BOOL ;	//Status The motor is reporting not Healthy (Switch motor)
+  s_Die_Back : BOOL ;	//Halt (Die-Back) section on position xx
+  s_Dest_Not_Allowed : BOOL ;	//Destination not allowed for current item
+  s_Apply_Switch_Gap : BOOL ;	//Bag in front of infeed shouls wait before entering the infeed
+  s_Make_Switch_Gap : BOOL ;	//Switch is required
+  s_Sort_Up : BOOL ;	//Request switch motor up [0 = motor down]
+  s_FP_Upper : BOOL ;	//Positive flank Upper Position
+  s_FP_lower : BOOL ;	//Positive flank Lower Position
+  s_No_Route_Available : BOOL ;	//No route for the destination available
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_DB_PLT_Downstream : INT ;	//Number of the downstream PLT DB
+  t_DB_PLT_Nr : INT ;	//DB Number of the PLT DB
+  t_Update_performance : INT ;	//STAT: [%] Ratio between succesful updates and missings
+  t_Info : INT ;	//Info in PLT
+  t_DB_Num_Event_Zone : INT ;	//Number of the Event DB
+  t_DB_Event_Section : INT ;	//Event DB Number
+  t_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_Data_Last_Updated : INT ;	//Data Last updated
+  t_Position_Last_Update : INT ;	//Position Last updated
+  t_Deviation_Last_Update : INT ;	//Deviation Last update
+  t_Displacement_TRS : INT ;	//Displacement of the conveyor
+  t_Num_Items_Section_Down : INT ;	//Number of items on section downstream
+  t_Position_2_Switch : INT ;	//Position for search trailing edge during switch gap
+  t_DB_PLT_Link_Down : INT ;	//DB number downstream depending on position
+  t_DieBack_Position : INT ;	//Die-Back position on section
+  t_Run_Out_infeed : INT ;	//Run out of infeed
+  t_Data : INT ;	//Data from search
+  t_DB_PLT_Nr_Down_Low : INT ;	//DB Number of the Downstream PLT data block ( in Low position) 
+  t_DB_PLT_Nr_Down_High : INT ;	//DB Number of the Downstream PLT data block ( in High position) 
+  t_DB_Num_PLT_Dir_A : INT ;	//PLT DB number for dir 1 (UP)
+  t_DB_Num_PLT_Dir_B : INT ;	//PLT DB number for dir 2 (DOWN)
+  t_Num_Lead_Items : INT ;	//Number of found items with leading edge
+  t_Num_Items : INT ;	//Number of found items
+  t_ECS : INT ;	//LIC number of the LNK
+  t_RoutResult_ECS : INT ;	//Succes direction from routing decision
+  t_Length_Section : INT ;	//Length section downstream
+  t_Num_Items_Found_Down : INT ;	//Number of -3 items found in PLT DB downstream
+  t_OS_Data_Updated : BOOL ;	//Data at the outputs has been updated
+  t_IO_Available_ASI : BOOL ;	//Calculated bir IO available for element connected to extra ASI slave
+  t_ST_PEC_Gap_Blockage : BOOL ;	//Gap Blockage of switch gap PEC
+  t_Halt_Switch_On_PEC_Gap : BOOL ;	//Halt switch movement when PEC gap clear is covered
+  t_Section_Run_Down : BOOL ;	//Section Run of downstream section (High or Low)
+  t_Item_at_DieBack_Pos : BOOL ;	//Item at die back position on the section
+  t_DecPoint_Wait : BOOL ;	//Wait signal from decision point
+  t_SWS_Pos : BOOL ;	//Direction B required
+  t_No_Route_Available : BOOL ;	//No route for the destination available
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB numbers
+
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #t_DB_Num_Event_Zone; 
+
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #t_DB_Event_Section; 
+
+      OPN   #i_TRS_DB_PLT; // Open PLT DB
+      L     DBNO; 
+      T     #t_DB_PLT_Nr; // PLT DB block number
+
+      L     DBW    2; // Get displacement of the section
+      T     #t_Displacement_TRS; 
+
+      L     DBW   12; // Length section downtream High
+      T     #t_Length_Section; 
+
+      OPN   #i_DB_PLT_DwnStr_Low; // Open PLT DB downstream (in low position)
+      L     DBNO; 
+      T     #t_DB_PLT_Nr_Down_Low; // PLT DB block number
+
+      OPN   #i_DB_PLT_DwnStr_High; // Open PLT DB downstream (in high position)
+      L     DBNO; 
+      T     #t_DB_PLT_Nr_Down_High; // PLT DB block number
+
+
+NETWORK
+TITLE =BA: Inversion limit switch signals from NC to NO
+//Inversion limit switch upper
+      AN    #i_IO_PS_Up; 
+      =     #s_IO_Upper; 
+
+//Inversion limit switch lower
+      AN    #i_IO_PS_Down; 
+      =     #s_IO_Lower; 
+NETWORK
+TITLE =CA: Update the PLT DB data
+
+      A     #s_IO_Upper; // Luffer in upper position
+      JCN   CA01; 
+
+      OPN   #i_TRS_DB_PLT; // Open PLT DB
+      L     #t_DB_PLT_Nr_Down_High; // Load the DB No. downstream ( high) 
+      T     DBW    8; // Put as downstream PLT DB. 
+
+      OPN   #i_DB_PLT_DwnStr_Low; // Open PLT DB Down stream (Low)
+      L     0; // Load  zero the DB PLT 
+      T     DBW    6; // Put as upstream DB
+
+      OPN   #i_DB_PLT_DwnStr_High; // Open PLT DB Down stream (Low)
+      L     #t_DB_PLT_Nr; // Load the DB PLT 
+      T     DBW    6; // Put as upstream DB
+
+CA01: A     #s_IO_Lower; 
+      JCN   CA99; 
+
+      OPN   #i_TRS_DB_PLT; // Open PLT DB
+      L     #t_DB_PLT_Nr_Down_Low; // Load the DB No. downstream ( high) 
+      T     DBW    8; // Put as downstream PLT DB. 
+
+
+      OPN   #i_DB_PLT_DwnStr_Low; // Open PLT DB Down stream (Low)
+      L     #t_DB_PLT_Nr; // Load DB PLT 
+      T     DBW    6; // Put as upstream DB
+
+      OPN   #i_DB_PLT_DwnStr_High; // Open PLT DB Down stream (Low)
+      L     0; // Load zero the DB PLT 
+      T     DBW    6; // Put as upstream DB
+CA99: NOP   0; 
+
+NETWORK
+TITLE =DA: prepare IO available
+
+      A     #i_Available_IO; 
+      AN    #i_ASI_NotPrsnt; 
+      AN    #i_ASI_Error; 
+      =     #t_IO_Available_ASI; 
+NETWORK
+TITLE =EA : Error Detection 
+
+      NOP   0; 
+//HW Asi not present
+      A     #i_CMD_Reset; // IF reset command
+      ON    #i_Available_IO; // OR not Available_IO
+      R     #s_ST_ASI_Not_Present; // Reset Asi not present
+
+      A     #i_ASI_NotPrsnt; // IF ASi not present
+      A     #i_Available_IO; // AND Available_IO 
+      S     #s_ST_ASI_Not_Present; // SET  error
+
+//HW Asi not present
+      A     #i_CMD_Reset; // IF reset command
+      ON    #i_Available_IO; // OR not Available_IO
+      R     #s_ST_ASI_Error; // Reset Asi error
+
+      A     #i_ASI_Error; // IF ASi error
+      A     #i_Available_IO; // AND Available_IO 
+      S     #s_ST_ASI_Error; // SET  error
+
+// Collision PEC upper Error
+      A     #i_CMD_Reset; // IF reset command
+      ON    #t_IO_Available_ASI; // OR not Available_IO
+      R     #s_LUZ_Error_Collision_UP; // Error Collision PEC upper
+
+      A(    ; // IF
+      O     #o_SWS_IO_MTR_Down; // OR moving up
+      O     #o_SWS_IO_MTR_Up; // Or moving down
+      )     ; 
+      AN    #i_IO_NOT_PEC_Coll_Up; // AND collision PEC upper Activated
+      A     #t_IO_Available_ASI; // AND Available_IO 
+      S     #s_LUZ_Error_Collision_UP; // SET error
+
+// Collision PEC lower error
+      A     #i_CMD_Reset; // IF reset command
+      ON    #t_IO_Available_ASI; // OR not Available_IO
+      R     #s_LUZ_Error_Collision_DN; // Error Collision PEC upper
+
+      A(    ; // IF
+      O     #o_SWS_IO_MTR_Down; // OR moving up
+      O     #o_SWS_IO_MTR_Up; // Or moving down
+      )     ; 
+      AN    #i_IO_NOT_PEC_Coll_Down; // IF collision PEC lower Activated
+      A     #t_IO_Available_ASI; // AND Available_IO 
+      S     #s_LUZ_Error_Collision_DN; // SET  error
+
+//Generate error if switch is made while PEC gap is not clear
+      A     #i_CMD_Reset; // Reset errors
+      A     #i_IO_NOT_PEC_Gap_Clear; 
+      ON    #t_IO_Available_ASI; // OR IO not available
+      R     #s_ST_PEC_Gap_Not_Clear; 
+
+// Halt switch movement when PEC gap clear is covered
+      O     #s_Mode_Semi_Up; 
+      O     #s_Mode_Semi_Down; 
+      A     #s_PEC_Gap_Clear_Latch; 
+      A     #i_SWS_IO_LMS_Auto; 
+      =     #t_Halt_Switch_On_PEC_Gap; 
+
+// Error generated when TRS is not running (die back)
+      A     #t_Halt_Switch_On_PEC_Gap; 
+      AN    #o_TRS_IO_MTR_Fwd; 
+      S     #s_ST_PEC_Gap_Not_Clear; 
+NETWORK
+TITLE =FA: Luffer Up/Down status
+
+      A     #s_IO_Upper; // IF position Upper
+      A     #i_Available_IO; // AND IO available
+      =     #s_ST_Up; // Status Up 
+
+      A     #s_IO_Lower; // IF position Upper
+      A     #i_Available_IO; // AND IO available
+      =     #s_ST_Down; // Status Down
+
+NETWORK
+TITLE =GA: Handle semi auto up and down commands
+// Semi-Automatic mode up
+      A     #i_CMD_Semi_Fixed_Dwn; 
+      O     #i_CMD_Auto_Mode; 
+      R     #s_Mode_Semi_Up; 
+
+      A     #i_CMD_Semi_Fixed_Up; 
+      S     #s_Mode_Semi_Up; 
+      R     #s_Mode_Semi_Down; 
+
+// Semi_Automatic mode down
+      A     #i_CMD_Semi_Fixed_Up; 
+      O     #i_CMD_Auto_Mode; 
+      R     #s_Mode_Semi_Down; 
+
+      A     #i_CMD_Semi_Fixed_Dwn; 
+      S     #s_Mode_Semi_Down; 
+      R     #s_Mode_Semi_Up; 
+
+NETWORK
+TITLE =HA: Search for LNK number on TRS and handle decision point
+
+      SET   ; 
+      R     #s_Dest_Not_Allowed; 
+      R     #s_No_Route_Available; 
+
+      L     #i_TRS_CFG_Run_Out_Dist; 
+      L     10; 
+      +I    ; 
+      T     #t_Run_Out_infeed; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #t_Run_Out_infeed,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     0; 
+      L     #t_Info; 
+      <I    ; 
+      JCN   HA99; 
+
+      L     #t_Data; 
+      T     #s_LNK; 
+
+      OPN   #i_DB_PLT_TRS2_DwnStr; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT_Dir_A; 
+
+      OPN   #i_DB_PLT_TRS3_DwnStr; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT_Dir_B; 
+
+      CALL #s_DecisionPoint (
+           i_LNK                    := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Num_Event_Zone,
+           i_DB_Default_Route_Table := #i_DB_Default_Route_Table,
+           i_DB_System_Route_Table  := #i_DB_System_Route_Table,
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_Fixed_Mode_Dir_A       := #s_Mode_Semi_Up,
+           i_Fixed_Mode_Dir_B       := #s_Mode_Semi_Down,
+           i_Dir_A_Failure          := FALSE,
+           i_Dir_A_Full             := FALSE,
+           i_Dir_B_Failure          := FALSE,
+           i_Dir_B_Full             := FALSE,
+           i_DB_PLT_Num_Dir_A       := #t_DB_Num_PLT_Dir_A,
+           i_DB_PLT_Num_Dir_B       := #t_DB_Num_PLT_Dir_B,
+           i_TEP_Dir_A              := 2,
+           i_TEP_Dir_B              := 2,
+           i_CFG_Dir_A_Preference   := #i_CFG_Dir_A_Preference,
+           i_CFG_Dir_B_Preference   := #i_CFG_Dir_B_Preference,
+           i_CFG_Transport_Default  := 0,
+           i_CFG_UnSecure_Not_Allow := #i_CFG_UnSecure_Not_Allow,
+           i_CFG_Dimen_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_CFG_Local_Unsecure_Dir := #i_CFG_Local_Unsecure_Dir,
+           i_CFG_Local_Dimensn_Dir  := #i_CFG_Local_Dimensn_Dir,
+           i_DP_Settings            := #i_Setting.Decision_Point,
+           o_Direction              := #s_Direction_DP,
+           o_Wait                   := #t_DecPoint_Wait,
+           o_No_Route_Available     := #t_No_Route_Available);
+
+//Check if switch gap needs to be added
+
+      O(    ; 
+      L     #s_Direction_DP; 
+      L     1; 
+      ==I   ; 
+      A     #s_IO_Lower; 
+      )     ; 
+      O(    ; 
+      L     #s_Direction_DP; 
+      L     2; 
+      ==I   ; 
+      A     #s_IO_Upper; 
+      )     ; 
+      O(    ; 
+      AN    #s_IO_Upper; 
+      AN    #s_IO_Lower; 
+      )     ; //IF Vertisorter should switch
+      S     #s_Apply_Switch_Gap; //THEN set apply switch gap on infeed
+
+//Check if bag needs to wait in front of infeed conveyor
+      A     #t_DecPoint_Wait; 
+      =     #s_Dest_Not_Allowed; 
+
+      A     #t_No_Route_Available; 
+      S     #s_No_Route_Available; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Apply Switch Gap by disable conveyor upstream the LUZ
+
+      A     #s_Apply_Switch_Gap; 
+      JCN   IA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #i_CFG_Switch_Gap_Size,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #i_CFG_Switch_Gap_Size,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Lead_Items);
+
+//IF items found > 0 then Disable infeed to LUZ
+      L     #t_Num_Items; 
+      L     0; 
+      >I    ; 
+      O(    ; 
+      L     #t_Num_Lead_Items; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      =     #s_Make_Switch_Gap; 
+
+      AN    #s_Make_Switch_Gap; 
+      R     #s_Apply_Switch_Gap; //THEN set apply switch gap
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Retreive decision for last bag on TRS
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := 0,
+           i_Window                 := #t_Length_Section,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Data,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     0; 
+      L     #t_Info; 
+      <I    ; 
+      JCN   JA99; 
+
+      OPN   #i_DB_PLT_TRS2_DwnStr; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT_Dir_A; 
+
+      OPN   #i_DB_PLT_TRS3_DwnStr; 
+      L     DBNO; 
+      T     #t_DB_Num_PLT_Dir_B; 
+
+      CALL #s_DecisionPoint_inf (
+           i_LNK                    := #t_Data,
+           i_DB_Event_Num           := #t_DB_Num_Event_Zone,
+           i_DB_Default_Route_Table := #i_DB_Default_Route_Table,
+           i_DB_System_Route_Table  := #i_DB_System_Route_Table,
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_Fixed_Mode_Dir_A       := #s_Mode_Semi_Up,
+           i_Fixed_Mode_Dir_B       := #s_Mode_Semi_Down,
+           i_Dir_A_Failure          := FALSE,
+           i_Dir_A_Full             := FALSE,
+           i_Dir_B_Failure          := FALSE,
+           i_Dir_B_Full             := FALSE,
+           i_DB_PLT_Num_Dir_A       := #t_DB_Num_PLT_Dir_A,
+           i_DB_PLT_Num_Dir_B       := #t_DB_Num_PLT_Dir_B,
+           i_TEP_Dir_A              := 2,
+           i_TEP_Dir_B              := 2,
+           i_CFG_Dir_A_Preference   := #i_CFG_Dir_A_Preference,
+           i_CFG_Dir_B_Preference   := #i_CFG_Dir_B_Preference,
+           i_CFG_Transport_Default  := 0,
+           i_CFG_UnSecure_Not_Allow := #i_CFG_UnSecure_Not_Allow,
+           i_CFG_Dimen_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_CFG_Local_Unsecure_Dir := #i_CFG_Local_Unsecure_Dir,
+           i_CFG_Local_Dimensn_Dir  := #i_CFG_Local_Dimensn_Dir,
+           i_DP_Settings            := #i_Setting.Decision_Point,
+           o_Direction              := #s_Direction_DP,
+           o_Wait                   := #t_DecPoint_Wait,
+           o_No_Route_Available     := #t_No_Route_Available);
+
+      A     #t_DecPoint_Wait; 
+      =     #s_Dest_Not_Allowed; 
+
+      A     #t_No_Route_Available; 
+      S     #s_No_Route_Available; 
+
+
+//Determine the ECS number of the LNK
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Num_Event_Zone,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".Routing_Result.SuccesDirTaken,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Num_Event_Zone,
+           o_INT                    := #t_RoutResult_ECS);
+
+      L     #t_RoutResult_ECS; 
+      L     1; 
+      ==I   ; 
+      =     #s_Sort_Up; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Halt Upstream section LUZ
+
+      A     #o_ST_Dir_Not_Allowed; 
+      JCN   KA01; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := #t_Length_Section,
+           i_Window                 := #i_CFG_Switch_Gap_Size,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #s_Num_Items);
+
+KA01: NOP   0; 
+
+      O(    ; 
+      A     #s_Sort_Up; 
+      A     #s_Mode_Semi_Down; 
+      )     ; 
+      O(    ; 
+      AN    #s_Sort_Up; 
+      A     #s_Mode_Semi_Up; 
+      )     ; 
+      A(    ; 
+      L     #s_Num_Items; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      O     #s_Dest_Not_Allowed; 
+      =     #o_ST_Dir_Not_Allowed; 
+
+      A     #s_Dest_Not_Allowed; 
+      O     #s_Make_Switch_Gap; 
+      =     #o_Req_Dis_Send_Upstr; 
+NETWORK
+TITLE =LA: Halt transport section (Die-Back) before end of section
+
+      L     #i_TRS_CFG_Run_Out_Dist; 
+      L     #i_CFG_DieBack_Inf; 
+      +I    ; 
+      T     #t_DieBack_Position; 
+
+      OPN   #i_TRS_DB_PLT; 
+      L     DBW    8; 
+      T     #t_DB_PLT_Link_Down; 
+      L     1; 
+      >I    ; 
+      JCN   LA01; 
+
+      OPN   DB [#t_DB_PLT_Link_Down]; 
+      A     DBX   10.1; 
+LA01: =     #t_Section_Run_Down; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #t_Item_at_DieBack_Pos; 
+
+      AN    #t_Section_Run_Down; 
+      A     #t_Item_at_DieBack_Pos; 
+      S     #s_Die_Back; 
+
+      A     #t_Section_Run_Down; 
+      R     #s_Die_Back; 
+
+NETWORK
+TITLE =MA: Switch area check 
+//If switch area is not cleared the switch motor is halted. (No switch possible)
+//Check if Switch Area is clear
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Nr,
+           i_Position               := 5,
+           i_Window                 := #i_CFG_Switch_Area,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_Section_Down);
+
+      L     #t_Num_Items_Section_Down; 
+      L     0; 
+      >I    ; 
+      S     #s_Switch_Gap_Not_CLear; 
+
+      A     #s_Switch_Gap_Not_CLear; 
+      JCN   MA99; 
+//Check for trailing edge when Switch area is active
+
+      L     #t_DB_PLT_Link_Down; 
+      L     1; 
+      >I    ; 
+      JCN   MA99; 
+
+      L     #s_Length_Downstr_Section; 
+      L     #i_CFG_Switch_Area; 
+      -I    ; 
+      T     #t_Position_2_Switch; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Link_Down,
+           i_Position               := #t_Position_2_Switch,
+           i_Window                 := #i_CFG_Switch_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_Section_Down);
+
+      L     #t_Num_Items_Section_Down; 
+      L     0; 
+      >I    ; 
+      R     #s_Switch_Gap_Not_CLear; 
+
+      OPN   DB [#t_DB_PLT_Link_Down]; 
+      L     DBW    0; 
+      L     0; 
+      ==I   ; 
+      R     #s_Switch_Gap_Not_CLear; 
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA:Switch Gap detection
+
+      CALL #s_PEC_Gap_Clear (
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Lng_Clr,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Reset_Block_PEC_Oc := TRUE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_IO_NOT_PEC_Gap_Clear,
+           i_Eqp_Available_IO       := #t_IO_Available_ASI,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_Displacement_TRS,
+           o_ST_PEC_Blk             := #t_ST_PEC_Gap_Blockage,
+           o_PEC_Flap_Filter        := #s_PEC_Gap_Clear_Latch);
+
+NETWORK
+TITLE =OA :Detailed status and LUZ error
+// Detailed status
+      O     #s_LUZ_Error_Collision_UP; // IF error collision PEC Up
+      O     #s_LUZ_Error_Collision_DN; // OR error collision PEC Down
+      =     #s_ST_Error_Coll_Jam; // Set error
+      =     #s_LUZ_Error; // LUZ error
+
+NETWORK
+TITLE =PA :Call Switch Control
+
+      NOP   0; // Hold comments
+// Request Stop to the switch motor
+      A     #s_LUZ_Error; // OR LUZ error 
+      O     #s_TRS_Error; // OR Conveyor section Error
+      O     #s_SWS_ST_LMS_ASI_Not_Prs; // OR SWS LMS not present 
+      O     #s_SWS_ST_LMS_ASI_Error; // OR SWS LMS error
+      O     #s_SWS_ST_LMS_Not_Healthy; // OR SWS not healthy
+      O     #s_SWS_ST_LMS_Not_Auto; // OR SWS LMS not in automatic mode
+      O     #t_ST_PEC_Gap_Blockage; // OR PEC Gap clear blockage
+      =     #s_SWS_Req_Stop; // THEN Stop Request
+
+// Request halt to the Switch Motor
+      A     #s_SWS_HW_MTR_2DIR_Halt; // IF halt from LMS Hardware 
+      O     #t_Halt_Switch_On_PEC_Gap; // OR PEC Gap clear covered
+      O     #s_Switch_Gap_Not_CLear; // OR Area switch gap is not clear
+      O     #s_ST_PEC_Gap_Not_Clear; 
+      =     #s_SWS_Req_Halt; // THEN Halt Request
+
+// PS A = lower PS
+// PS B = Upper PS
+
+      O(    ; 
+      A     #s_Sort_Up; 
+      AN(   ; 
+      O     #s_Mode_Semi_Up; 
+      O     #s_Mode_Semi_Down; 
+      )     ; 
+      )     ; 
+      O     #s_Mode_Semi_Up; 
+      =     #t_SWS_Pos; 
+
+// Call Equipment Switch
+      CALL #s_FB_EQP_SWITCH_SWS (
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_IO_PS_A                := #s_IO_Lower,
+           i_IO_PS_B                := #s_IO_Upper,
+           i_Ext_Req_Stop           := #s_SWS_Req_Stop,
+           i_Ext_Req_Halt           := #s_SWS_Req_Halt,
+           i_Req_Dir_B              := #t_SWS_Pos,
+           i_Timeout_Dir            := #i_SWS_Setting.Timeout_Dir,
+           o_CMD_MTR_Run            := #s_CMD_MTR_Run,
+           o_CMD_MTR_Reverse        := #s_CMD_MTR_Reverse,
+           o_ST_Running             := #s_SWS_ST_Running,
+           o_ST_Started             := #s_SWS_ST_Started,
+           o_ST_Movement_Time_out   := #s_SWS_ST_Move_Time_out,
+           o_ST_PS_Double           := #s_SWS_ST_PS_Double,
+           o_Ready_To_Restart       := #s_SWS_Ready_To_Restart);
+
+// Call Hardware Switch motor
+      CALL #s_FB_HW_MTR_2DIR_LMS_SWS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_SWS_IO_LMS_NotPrsnt,
+           i_LMS_Error              := #i_SWS_IO_LMS_Error,
+           i_IO_LMS_Auto            := #i_SWS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_SWS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #s_CMD_MTR_Run,
+           i_CMD_Req_Motor_Reverse  := #s_CMD_MTR_Reverse,
+           o_IO_MTR_Fwd             := #o_SWS_IO_MTR_Down,
+           o_IO_MTR_Rev             := #o_SWS_IO_MTR_Up,
+           o_IO_MTR_Dis_Quick_Stop  := #o_SWS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #s_SWS_ST_LMS_ASI_Not_Prs,
+           o_ST_ASI_Err             := #s_SWS_ST_LMS_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_SWS_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #s_SWS_ST_LMS_Not_Healthy,
+           o_Req_Halt               := #s_SWS_HW_MTR_2DIR_Halt);
+
+//Collect SWS errors
+      A     #s_SWS_ST_LMS_ASI_Not_Prs; // AND SWS LMS not present 
+      O     #s_SWS_ST_LMS_ASI_Error; // OR SWS LMS error
+      O     #s_SWS_ST_Move_Time_out; // OR Move timeout
+      O     #s_SWS_ST_PS_Double; // OR Error PS double
+      O(    ; 
+      A     #s_SWS_ST_LMS_Not_Auto; 
+      AN    #s_ST_Up; 
+      AN    #s_ST_Down; 
+      )     ; 
+      =     #s_SWS_Error; 
+
+      CALL #s_FB_DAT_SWS (
+           i_ID_Section             := #i_SWS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =QA : Conveyor Control 
+
+      NOP   0; // Hold comments
+// Call  Equipment PEC 
+      CALL #s_FB_EQP_PEC_TRS (
+           i_Setting                := #i_TRS_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Lng_TRS,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #s_Clear_PLT_Switch_Gap,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := TRUE,
+           i_IO_NOT_PEC             := #i_TRS_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #i_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS_LPOS,
+           o_PEC_Position           := #s_TRS_PEC_Position,
+           o_ST_PEC_Blk             := #s_TRS_ST_PEC_Blockage);
+
+// Call Equipment PPI
+      CALL #s_FB_EQP_PPI_TRS (
+           i_CFG_PPI_Resolution     := 50,
+           i_CFG_Time_Out_Error     := 300,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_IO_PPI                 := #i_TRS_IO_PPI,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_PPI_Displacement_mm    := #s_TRS_PPI_Disp_mm,
+           o_ST_PPI_Err             := #s_TRS_ST_PPI_Error);
+
+// Request stop for basic equipment
+      A     #s_LUZ_Error; // IF LUZ Error
+      O     #s_SWS_Error; // OR Switch Section Error       
+      O     #s_TRS_ST_PEC_Blockage; // OR PEC blockage
+      O     #s_TRS_ST_PPI_Error; // OR PPI Error
+      O     #s_TRS_ST_LMS_ASI_Not_Pre; // OR LMS ASI not present
+      O     #s_TRS_ST_LMS_ASI_Error; // OR LMS ASI Erro
+      O     #s_TRS_ST_LMS_Not_Healthy; // OR LMS not healthy
+      O     #s_TRS_ST_PEC_Missings; //#o_TRS_ST_PEC_Miss      // OR PEC missing
+      O     #s_TRS_ST_LMS_Not_Auto; // OR in automatic mode
+      O     #s_ST_PEC_Gap_Not_Clear; // OR PEC Gap error
+      =     #s_TRS_Ext_Req_Stop; // Request Stop
+
+// Request Halt to the conveyor                      
+
+      O     #s_Die_Back; 
+      O     ; 
+      A     #s_Mode_Semi_Up; 
+      A     #t_Item_at_DieBack_Pos; 
+      AN    #s_IO_Upper; 
+      O     ; 
+      A     #s_Mode_Semi_Down; 
+      A     #t_Item_at_DieBack_Pos; 
+      AN    #s_IO_Lower; 
+      O     ; 
+      AN    #s_IO_Upper; 
+      AN    #s_IO_Lower; 
+      =     #s_TRS_Ext_Req_Halt; // Halt request
+
+// Call Equipment Basic
+      CALL #s_FB_EQP_Basic_TRS (
+           i_ID_Section             := #i_TRS_ID,
+           i_Basic_Offset           := #i_TRS_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_DB_PLT_DwnStr_Low,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #i_TRS_CFG_Start_Up_Dist,
+           i_Minimum_Gap            := 30,
+           i_Add_Gap_Stop           := 0,
+           i_Minimum_H2H            := 0,
+           i_Add_H2H_Stop           := 0,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := #s_TRS_PPI_Disp_mm,
+           i_Dwnstr_PLT_Pos         := #s_TRS_PEC_Position,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := TRUE,
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS_Ext_Req_Stop,
+           i_Ext_Req_Halt           := #s_TRS_Ext_Req_Halt,
+           i_Ext_Req_Dis_Send       := FALSE,
+           i_Ext_Req_Rst_ESave      := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #s_Clear_PLT_Switch_Gap,
+           o_External               := #o_TRS_EXT_Outputs,
+           o_Motor_Run              := #s_Motor_Run,
+           o_ST_Items               := #s_TRS_ST_Items,
+           o_ST_Running             := #s_TRS_ST_Running,
+           o_ST_Started             := #s_TRS_ST_Started,
+           o_ST_Request_Halt        := #s_TRS_ST_Request_Halt,
+           o_ST_Request_Stop        := #s_TRS_ST_Request_Stop,
+           o_Ready_To_Restart       := #s_TRS_Ready_to_Restart);
+
+// Call Tracking 
+      CALL #s_FB_TRK_Track_TRS (
+           i_Setting                := #i_TRS_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS_PEC_Position,
+           i_LPOS                   := #s_TRS_LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_CFG_Default_Record,
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #s_Clear_PLT_Switch_Gap,
+           o_ST_PEC_Miss            := #s_TRS_ST_PEC_Missings,
+           o_ST_PEC_BadTrack        := #s_TRS_ST_Bad_Update,
+           o_Update_Performance     := #t_Update_performance,
+           o_Average_Slip           := #t_Average_Slip,
+           o_Number_Of_Items        := #t_Number_Of_Items,
+           o_OS_Data_Updated        := #t_OS_Data_Updated,
+           o_Data_Last_Update       := #t_Data_Last_Updated,
+           o_Position_Last_Update   := #t_Position_Last_Update,
+           o_Deviation_Last_Update  := #t_Deviation_Last_Update);
+
+// Call Hardware Layer
+      CALL #s_FB_HW_MTR_LMS_TRS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_Motor_Run,
+           o_IO_MTR_Fwd             := #o_TRS_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_TRS_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #s_TRS_ST_LMS_ASI_Not_Pre,
+           o_ST_ASI_Err             := #s_TRS_ST_LMS_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_TRS_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #s_TRS_ST_LMS_Not_Healthy);
+
+      CALL #s_FB_DAT_TRS (
+           i_ID_Section             := #i_TRS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+//Collect the TRS errors
+      A     #s_TRS_ST_PEC_Blockage; // OR PEC blockage
+      O     #s_TRS_ST_PPI_Error; // OR PPI Error
+      O     #s_TRS_ST_LMS_ASI_Not_Pre; // OR LMS ASI not present
+      O     #s_TRS_ST_LMS_ASI_Error; // OR LMS ASI Erro
+      O     #s_TRS_ST_LMS_Not_Healthy; // OR LMS not healthy
+      O     #s_TRS_ST_PEC_Missings; // OR PEC missing
+      O     #s_TRS_ST_LMS_Not_Auto; // OR in automatic mode
+      =     #s_TRS_Error; // Conveyor section Error
+NETWORK
+TITLE =RA : Clear DB PLT 
+//IF the switch area clear warning is present.The operator should put luz in 
+//manual and removes the bag .With the manual mode activated .The PLT DB is 
+//cleared.
+//PLT DB is cleared in Equipment basic layer
+      A     #s_Switch_Gap_Not_CLear; // IF Clear switch Gap warning 
+      A     #s_LUZ_Not_Automatic; // AND Luffer is not in automatic mode
+      =     #s_Clear_PLT_Switch_Gap; // Clear DB PLT
+
+
+NETWORK
+TITLE =SA: Data Layer of LUZ
+
+      CALL #s_FB_DAT_LUZ (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =TA: Reset energy save for downstream section
+
+      OPN   #i_TRS_DB_PLT; // Open DB PLT
+      L     DBW    8; 
+      T     #t_DB_PLT_Downstream; // Load downstream PLT DB
+
+      L     #t_DB_PLT_Downstream; // Check Downstream DB
+      L     2; 
+      >I    ; 
+      JCN   TA99; 
+
+      OPN   DB [#t_DB_PLT_Downstream]; // Load the section length
+      L     DBW   12; 
+      T     #s_Length_Downstr_Section; 
+
+
+// Change of Luffer position reset the energy save for Downstream
+//Reset energy saving of Merge
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Downstr_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_Found_Down);
+
+
+      L     #t_Num_Items_Found_Down; 
+      L     0; 
+      ==I   ; 
+      A(    ; 
+      A     #s_IO_Upper; 
+      FP    #s_FP_Upper; // Postion edge of Upper postion
+      O     ; 
+      A     #s_IO_Lower; // Postion edge of Upper postion
+      FP    #s_FP_lower; 
+      )     ; 
+      JCN   TA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Downstream,
+           i_Position               := #s_Length_Downstr_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Num_Event_Zone);
+
+TA99: NOP   0; 
+
+NETWORK
+TITLE =UA: Ready To Restart & Action Active
+
+      O     #s_SWS_Ready_To_Restart; // IF Ready to start switch motor(SWS)
+      O     #s_TRS_Ready_to_Restart; // OR Ready to start Conveyor
+      =     #o_Ready_To_Restart; // Ready to restart
+
+      A     #s_SWS_ST_Running; //Switch motor running 
+      =     #o_Action_Active; //Action active signal 
+NETWORK
+TITLE =VA: SWS and transport section error
+
+      A     #s_SWS_ST_LMS_Not_Auto; // IF SWS not in auto mode
+      O     #s_TRS_ST_LMS_Not_Auto; // OR Section not in auto mode
+      =     #s_LUZ_Not_Automatic; // THEN Zone not in auto mode
+
+//Write Error to the outputs
+      NOP   0; 
+      A     #s_ST_ASI_Not_Present; 
+      =     #o_ST_ASI_NotPrsnt; 
+
+      A     #s_ST_ASI_Error; 
+      =     #o_ST_ASI_Error; 
+
+      A     #s_ST_Error_Coll_Jam; 
+      =     #o_ST_Collision_Jam; 
+
+      A     #s_ST_PEC_Gap_Not_Clear; 
+      =     #o_ST_Switch_Gap_NotClear; 
+
+      A     #s_ST_Up; 
+      =     #o_ST_Up; 
+
+      A     #s_ST_Down; 
+      =     #o_ST_Down; 
+
+      A     #s_Mode_Semi_Up; 
+      =     #o_ST_Fixed_Up; 
+
+      A     #s_Mode_Semi_Down; 
+      =     #o_ST_Fixed_Down; 
+
+      A     #t_ST_PEC_Gap_Blockage; 
+      =     #o_ST_PEC_Gap_Blockage; 
+
+      A     #s_TRS_ST_PEC_Blockage; 
+      =     #o_ST_PEC_Blk; 
+
+      A     #s_TRS_ST_PPI_Error; 
+      =     #o_TRS_ST_PPI_Err; 
+
+      A     #s_TRS_ST_Items; 
+      =     #o_ST_Items; 
+
+      A     #s_TRS_ST_Running; 
+      =     #o_TRS_ST_Running; 
+
+      A     #s_TRS_ST_Started; 
+      =     #o_TRS_ST_Started; 
+
+      A     #s_TRS_ST_Request_Halt; 
+      =     #o_TRS_ST_Request_Halt; 
+
+      A     #s_TRS_ST_Request_Stop; 
+      =     #o_TRS_ST_Request_Stop; 
+
+      A     #s_TRS_ST_PEC_Missings; 
+      =     #o_TRS_ST_PEC_Miss; 
+
+      A     #s_TRS_ST_Bad_Update; 
+      =     #o_TRS_ST_Bad_Update; 
+
+      A     #s_TRS_ST_LMS_ASI_Not_Pre; 
+      =     #o_TRS_ST_ASI_NotPrsnt; 
+
+      A     #s_TRS_ST_LMS_ASI_Error; 
+      =     #o_TRS_ST_ASI_Err; 
+
+      A     #s_TRS_ST_LMS_Not_Auto; 
+      =     #o_TRS_ST_LMS_Not_Auto; 
+
+      A     #s_TRS_ST_LMS_Not_Healthy; 
+      =     #o_TRS_ST_LMS_Not_Hthy; 
+
+      A     #s_SWS_ST_Started; 
+      =     #o_SWS_ST_Started; 
+
+      A     #s_SWS_ST_Running; 
+      =     #o_SWS_ST_Running; 
+
+      A     #s_SWS_ST_Move_Time_out; 
+      =     #o_SWS_ST_Move_Time_out; 
+
+      A     #s_SWS_ST_PS_Double; 
+      =     #o_SWS_ST_PS_Double; 
+
+      A     #s_SWS_ST_LMS_ASI_Not_Prs; 
+      =     #o_SWS_ST_ASI_NotPrsnt; 
+
+      A     #s_SWS_ST_LMS_ASI_Error; 
+      =     #o_SWS_ST_ASI_Err; 
+
+      A     #s_SWS_ST_LMS_Not_Auto; 
+      =     #o_SWS_ST_LMS_Not_Auto; 
+
+      A     #s_SWS_ST_LMS_Not_Healthy; 
+      =     #o_SWS_ST_LMS_Not_Hthy; 
+
+      A     #s_No_Route_Available; 
+      =     #o_ST_No_Route_Available; 
+
+END_FUNCTION_BLOCK
+

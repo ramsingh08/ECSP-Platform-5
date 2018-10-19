@@ -1,0 +1,2352 @@
+FUNCTION_BLOCK "FB_Induct"
+TITLE =%version: 2.24 % CN: 42
+//Function:
+//This FB controls the induct of an item. default it does induct on gap and 
+//If reserevation is active (DB_Res) then induct on reservation
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, April 16, 2018 1:05:24 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9979: merge not on speed compensate start-up      nlHdL    16-04-18   2.24
+//bhs_plf#5230: Induct not started when item < run out  nlHdL    10-01-18   2.23
+//ra#26880: Freeze Delay on/off when induct disabled    nlHdL    15-12-17   2.22
+//ina#8852: Keeps on claiming windows, time out fault   nlHdL    08-12-17   2.21
+//ina#8580: Induct on gap in dead-lock with handover    nlHdL    27-11-17   2.20
+//ina#7555: Induct PLT 3 entries to prevent log 3101    nlHdL    27-09-17   2.19
+//bhs_plf#3032: induct on gap with delay not working    nlHdL    24-08-17   2.18
+//ra#24196: Item Hand Over remains TRUE after inducting nlHdL    03-08-17   2.17
+//ina#5785: Modified IHO bit in gap mode                nlHdL    19-06-17   2.16
+//ra#22701: Claim Gap after removing the claim          nlHdL    22-05-17   2.15
+//ra#22701: Correction condition writing -4             nlrkooi  10-05-17   2.14
+//ra#22117: Action active recheck baglength on induct   nlHdL    25-04-17   2.13
+//ra#21066: activated Request windows in window mode    nlHdL    14-03-17   2.12
+//ra#20504: Check entries present when make reservation nlHdL    08-02-17   2.11
+//ra#19854: Add function for additional reservation     nlHdL    18-01-17   2.10
+//ra#18109: MGZ Esave reset while junct not operational nlDY     26-10-16   2.09
+//ra#18109: MGZ Esave reset while IFZ not operational   nlDY     26-10-16   2.08
+//ra#12341: FB_Induct included start-up                 nlHdL    04-10-16   2.07
+//ra#16445: Action active not cleared and mode preset   nlHdL    14-09-16   2.06
+//ra#12344: Add E-save function to Induct               nlHdL    03-05-16   2.05
+//ra#12348: Dis_Induct halt mode counter                nlHdL    03-05-16   2.04
+//ra#12346: Correct item on induct onto the merge pos   nlHdL    03-05-16   2.03
+//ra#12662: Item before induct search too small         nlJClo   14-04-16   2.02
+//ra#12662: Gap mode changed to H2H search              nlJClo   14-04-16   2.01
+//ra#12662: Induct report DirectionTaken                nlJClo   14-04-16   1.15
+//ra#12662: MGZ remains in window mode                  nlJClo   14-04-16   1.14
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.13
+//ra#9916: No PID clear rep_route from tracking report  nlHdL    11-12-15   1.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.12
+//ra#9661: Gap released before induct start             nlHdL    27-11-15   1.12
+//ra#9661: Induct with junction not working             nlHdL    27-11-15   1.11
+//8123: Wrong bag length for induct on gap              nlHdL    17-09-15   1.10
+//8123: Bag length default on trailing edge             nlHdL    07-09-15   1.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.08
+//24439: No Tracking report if no LNK present           nlHdL    30-06-15   1.08
+//24281: missing induct tracking report                 nlHdL    10-06-15   1.07
+//22701: FB_Induct Bag length calculation is not corre  nlHdL    03-02-15   1.06
+//20023: Added Actions Active during induct             nlHdL    29-09-14   1.05
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   1.04
+//17128: Induct to handling 2e lnk during induct actio  nlHdL    04-12-13   1.03
+//CR11826 Added input external disable induct           nlple    18-09-13   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.49 of PLT version 0
+//
+//Description:
+//
+//If the infeed has a request for inducting an item, this module will search 
+//upstream in tracking of the merge conveyor for a gap, starting at the 
+//induct position - window length and ending at induct position + window length. 
+//When a reliable gap is found, the induct will be released. The item Data-number 
+//out of the induct FIF will be written in the PLT of the merge conveyor at the 
+//Induct Position.
+//If the start search position is > than the length of the merge conveyor it has 
+//to begin in the upstream PLT.
+//A search down function is used, this funtion is able to search in several PLT.
+//
+//When an item is waiting for a gap longer than the configured 
+//Delay_On_Window_Mode time the induct will request for empty windows from the 
+//window generator and switch over to induct on reserved window mode.
+//If the setting Delay_On_Window_Mode = 0 then the induct will always work with 
+//the induct on window functionality  
+//
+//Reserve and induct on window functionality 
+//On request it searches upstream from the induct-position 
+//till the window generator position for the first empty window. When found this 
+//window is reserved by overwriting the empty window code with the reservation 
+//code, else the code is written into the reservation FIFO. When the reservation 
+//is placed the induct bit is SET. This functionality is added in case off that 
+//the induct "trigger" position is for a PEC and the actual induct position of 
+//the baggage item is after a PEC.
+//A downstream induct can claim a not used upstream reservation, in this case the 
+//reservation made for downstream induct should be canceled.
+//Note: The canceling of reservation is only made in the local DB's tracking and 
+//reservation.
+//
+//Win gen         Induct
+//Position       Position
+//   |              |
+//   V              V             
+//----------------------------------------
+//                       ------> Take-away
+//----------------------------------------
+//              |  _____  |
+//           |>-|-|_____|-|-|
+//              |         |
+//
+//                                                             
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_Induct_Sett";	//Data structure: Setting Record
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_Merge : BLOCK_DB ;	//Data structure: Position DataBlock Merge conveyor
+  i_DB_PLT_Junction : BLOCK_DB ;	//Data structure: Position DataBlock Junction conveyor
+  i_DB_Reservation : BLOCK_DB ;	//Data Structure: reservation DataBlock (assign when induct on windows)
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_PEC_Offset : INT ;	//CFG: [cm] PEC Offset before this induct
+  i_CFG_Search_Window : INT  := 300;	//CFG: [cm]Search window for induct on gap (Used when no reservation DB assigned)
+  i_CFG_Gap_Length : INT ;	//CFG: [cm] Gap Length for induct on gap (0 = function disabled)
+  i_CFG_Induct_Number_FWD : INT ;	//CFG: Induct reference number in forward
+  i_CFG_Induct_Number_REV : INT ;	//CFG: Induct reference number in reverse
+  i_CFG_Run_Out_Dist_Ind : INT  := 20;	//CFG: [cm] Run out distance from nominal speed of induct section
+  i_CFG_Start_Up_Dist_Ind : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed of induct section
+  i_CFG_Conveyor_Speed : INT  := 1000;	//CFG: [mm/sec] Conveyor Speed (Used for E-save)
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Ext_Req_Dis_Induct : BOOL ;	//Request signal from external disable induct products
+  i_CFG_Straight_Induct : BOOL ;	//CFG: Straight or side induct for tracking report
+END_VAR
+VAR_OUTPUT
+  o_Start_Induct : BOOL ;	//Start inducting
+  o_Action_Active : BOOL ;	//Action Active
+END_VAR
+VAR
+  s_Induct_Position : INT ;	//Induct position for internal use
+  s_Cnt_Time_Out_Reserve : DINT ;	//[cm] Reservation time-out counter
+  s_Cnt_Delay_Induct : INT ;	//[msec] Delay counter to stop every item first.
+  s_Reservation_Code : INT ;	//Reservation-code = - (Induct-number  * 100)
+  s_FIFO_DB_Number : INT ;	//Extracted DB number of i_DB_reservation
+  s_Offset_FIFO_Data : INT ;	//Offset to fifo record in reservation DB
+  s_Cnt_Window_Mode_Delay : INT ;	//Counter delay to change induct mode Gap/Window
+  s_Gap_Free : INT ;	//Counter window available
+  s_Info_Induct_ForGap : INT ;	//Info founded at the induct belt
+  s_Info_Induct_ForWin : INT ;	//Info founded at the induct belt
+  s_Data_Induct_ForGap : INT ;	//Data founded at the induct belt
+  s_Data_Induct_ForWin : INT ;	//Data founded at the induct belt
+  s_Position_Readed : INT ;	//Position on merge conveyor where info founded for induct
+  s_Item_Founded_Gap : INT ;	//Item founded in the gap
+  s_Displacement_Merge : INT ;	//Displacement of sorted tracking list
+  s_Number_FIFO_Entries : INT ;	//Actual number of reservation queue entries used
+  s_Shift_Pointer : INT ;	//Pointer to shift records
+  s_FIFO_Last_Record : INT ;	//FIFO address of last used record
+  s_Window_Length : INT ;	//[cm] Length of the generated window
+  s_Win_Gen_Position : INT ;	//[cm] Window generator position
+  s_Window_Position_In : INT ;	//Position where read for detection free window
+  s_PLT_DB_Num_Read : INT ;	//DB PLT number where tracking has to be read for remove code
+  s_Length_Merge_Section : INT ;	//Length of the merge section
+  s_Displacmnt_PLT_Induct : INT ;	//Displacement of the induct belt
+  s_Len_To_Most_Upstr_WGen : INT ;	//[cm] Length from induct position to most upstream window generator
+  s_Position_Cancel : INT ;	//Position where the reservation has to be canceled
+  s_Calculated_Bag_Length : INT ;	//Calculated bag length at upstream conveyor
+  s_Search_Limit_PLT_DB : INT ;	//PLT DB where search has to end (till window generator pos)
+  s_Length_Section_Up : INT ;	//Length of Section
+  s_Act_Start_Up_Distance : INT ;	//Actual calculated start-up distance
+  s_Reservation_FIFO_Used : BOOL ;	//Number of DB used as reservation FIFO.
+  s_DB_PLT_Upstr_Not_Used : BOOL ;	//PLT available at upstream conveyor 
+  s_DB_PLT_Downstream_Used : BOOL ;	//PLT available at downstream conveyor
+  s_Window_Gen_Active : BOOL ;	//Window generator is active
+  s_Merge_In_Reverse : BOOL ;	//Merge area is running reversed
+  s_OS_Delete_Reserv_Code : BOOL ;	//One-shot delete reservation code 
+  s_PLT_Ups_Merge_Used : BOOL ;	//PLT Upstream of merge is used
+  s_Downstream_Section_Run : BOOL ;	//The section downstream the induct is running
+  s_Reservation_Request : BOOL ;	//Induct made reservation request
+  s_Reservation_Made : BOOL ;	//Reservation is made
+  s_Release_Induct_Window : BOOL ;	//Release item on induct if reserved window is available 
+  s_Release_Induct_Gap : BOOL ;	//Release item on induct if required gap is available
+  s_Idle : BOOL  := TRUE;	//Induct idle
+  s_Induct_On_window_Mode : BOOL ;	//Current induct mode is "Induct on window" 
+  s_Induct_On_Gap_Mode : BOOL ;	//Current induct mode is "Induct on gap"
+  s_Induct_Section_Run : BOOL ;	//PLT: Indication if the section is running
+  s_Section_Merge_Run : BOOL ;	//Section Run Signal Downstream
+  s_Section_Merge_On_Speed : BOOL ;	//Section On Speed Signal Downstream
+  s_Section_Merge_Started : BOOL ;	//Section started from downstream
+  s_Section_Junction_Run : BOOL ;	//Section Run Signal Downstream
+  s_Release_Induct : BOOL ;	//Inducting takes place
+  s_FP_Item_HandoverPos : BOOL ;	//Flank positive of item at handover position
+  s_FN_Item_HandoverPos : BOOL ;	//Flank negative of item at handover position
+  s_Copy_FP_Item_HandovPos : BOOL ;	//Copy flag positive edge item at handover position
+  s_Copy_FN_Item_HandovPos : BOOL ;	//Copy flag negative edge item at handover position
+  s_Copy_FP_Merge_Reverse : BOOL ;	//Copy One Shot positive flank
+  s_OS_FP_Merge_Reverse : BOOL ;	//One Shot positive flank when merge conveyor reverse
+  s_Copy_FN_Merge_Reverse : BOOL ;	//Copy One Shot negative flank
+  s_OS_FN_Merge_Reverse : BOOL ;	//One Shot negative flank when merge conveyor reverse
+  s_Copy_FP_Del_Reservatio : BOOL ;	//Copy One Shot positive flank delete reservation
+  s_Item_At_Handover_Pos : BOOL ;	//Item present at handover position (Item to induct)
+  s_Start_Induct_Window : BOOL ;	//Release Induct on Window (Wait for induct to run)
+  s_Start_Induct_Gap : BOOL ;	//Release Induct on Gap (Wait for induct to run)
+  s_Item_before_Induct : BOOL ;	//Check if item is before induct when Gap mode active
+  s_Announce : BOOL ;	//Announce item to merge conveyor
+  s_Info_Gap_active : BOOL ;	//When induct on gap was to started -1 is active
+  s_Action_Active : BOOL ;	//Action active if induct is active
+  s_Reservation_ECS : BOOL ;	//Reservation is already made, retreived from ECS
+  s_Reservation_time_out : BOOL ;	//Time out on reservation
+  s_Request_Windows : BOOL ;	//Request windows
+  s_FB_Energy_Save : "FB_Energy_Save";	//Multi Instance block call
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//Relative address mask
+  t_Position : INT ;	//Position where data is in tracking  
+  t_Info : INT ;	//Info found in sorted tracking list
+  t_LNK : INT ;	//LNK data found in sorted tracking list
+  t_Int_Not_Used : INT ;	//Not used integer
+  t_DB_PLT_Num_Upstream : INT ;	//Extracted number of upstream PLT-DB
+  t_DB_PLT_Num_Downstream : INT ;	//Extracted number of downstream PLT-DB
+  t_DB_PLT_Num_Upst_Merge : INT ;	//DB PLT number of the upstream
+  t_DB_PLT_Num_Induct : INT ;	//Number of the PLT DB
+  t_DB_PLT_Num_Junction : INT ;	//Number of the PLT DB junction section
+  t_DB_PLT_Num_Merge : INT ;	//Number of the PLT DB merge section
+  t_DB_PLT_Num_Res_Found : INT ;	//Number of the PLT DB where the reservations is founded
+  t_Event_DB_Num : INT ;	//Number of the Event DB
+  t_Insert_Pos_Trailing : INT ;	//Position to insert trailing edge
+  t_Pos_reservation : INT ;	//Position of reservation
+  t_Length_Junction : INT ;	//Length of Junction section
+  t_Pos_Trailing : INT ;	//Position of trailing edge on Upstream
+  t_Number_Items_Found : INT ;	//Number of items found from search function
+  t_Position_induct : INT ;	//Position of item before induct PLT
+  t_Before_Run_Out_Dist : INT ;	//Distance Run out + extra to detect item before run out
+  t_DB_Found : INT ;	//DB number from search function
+  t_Data_ECS : INT ;	//Current LIC number
+  t_Info_State_Merge : WORD ;	//Info State to merge conveyor
+  t_InductSect_Operational : BOOL ;	//Section upstream of junction is operational
+  t_InductSect_Available : BOOL ;	//Induct section available
+  t_Junction_Used : BOOL ;	//Junction conveyor is used
+  t_Merge_Junc_Operational : BOOL ;	//Section merge and junction are operational
+  t_OS_Delete_Reservation : BOOL ;	//One Shot positive flank delete reservation
+  t_Return_Value : INT ;	//Return value of write int record
+  t_Item_Length : INT ;	//Length of Item from search function
+  t_Rep_Route_Record : INT ;	//Route record number
+  t_DB_No_Route : INT ;	//DB number of route list
+  t_LIC : INT ;	//LIC record number
+  t_DirectionTo : INT ;	//Direction to for tracking report
+  t_Search_window : INT ;	//Search window 
+  t_Position_StartUp : INT ;	//Position Start Up
+  t_LNK_ECS : INT ;	//LNK for ECS
+  t_Cnt_Time_Out : BOOL ;	//Counter time out
+  t_Item_At_Handover_Pos : BOOL ;	//Item present at handover position PLT (Item to induct)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Obtain relative address from AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register' 
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Determine Initial variables
+
+      NOP   0; 
+
+// Initialisation Offset and temporary variables
+      L     14; 
+      T     #s_Offset_FIFO_Data; // offset to fifo record in reservation DB
+
+      L     0; // Initialise 
+      T     #s_Number_FIFO_Entries; // number of FIFO entries
+      T     #t_Data_ECS; 
+
+// Read number of local event db
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+// Read shared data from DB_PLT Induct
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Induct; // Determine PLT block DB number
+
+      A     "M_First_Scan"; // Only in the first scan write the PLT DB numbers.
+      BEC   ; 
+
+      L     W#16#0; 
+      T     #t_Info_State_Merge; 
+
+      L     DBW    6; // Is upstream induct section is present
+      T     #t_DB_PLT_Num_Upstream; 
+      L     1; 
+      <=I   ; 
+      =     #s_DB_PLT_Upstr_Not_Used; 
+      R     #t_Item_At_Handover_Pos; 
+      R     #s_Item_At_Handover_Pos; 
+
+      AN    #s_DB_PLT_Upstr_Not_Used; 
+      JCN   BA04; 
+
+      OPN   DB [#t_DB_PLT_Num_Upstream]; 
+      L     DBW    2; // Get displacement PLT induct 
+      T     #s_Displacmnt_PLT_Induct; 
+
+      L     DBW   12; // Get length Section
+      T     #s_Length_Section_Up; 
+
+      A     DBX   10.1; // Get signal upstram section is running
+      =     #s_Induct_Section_Run; 
+
+      A     DBX   10.4; 
+      =     #t_InductSect_Available; 
+
+      A     DBX   10.5; 
+      =     #t_InductSect_Operational; //Induct section is operational
+
+      A     DBX   10.6; 
+      =     #t_Item_At_Handover_Pos; 
+      =     #s_Item_At_Handover_Pos; 
+
+      L     #i_CFG_Run_Out_Dist_Ind; 
+      L     5; // Extra distance before the run out position
+      +I    ; 
+      T     #t_Before_Run_Out_Dist; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Before_Run_Out_Dist,
+           i_Window                 := #t_Before_Run_Out_Dist,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_LNK_ECS,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      A     DBX   10.2; // Section on Speed
+      ON    #s_Section_Merge_On_Speed; // Or not merge section on speed
+      JCN   BA01; 
+      L     0; 
+      T     #s_Act_Start_Up_Distance; 
+      JC    BA03; // If Section on Speed no StartUp
+BA01: A     DBX   11.1; // Section_Stopped
+      JCN   BA02; 
+      L     #i_CFG_Start_Up_Dist_Ind; 
+      T     #s_Act_Start_Up_Distance; 
+      JU    BA03; // If Section Stopped StartUp = CFG
+BA02: L     #i_CFG_Run_Out_Dist_Ind; 
+      L     #t_Position; 
+      -I    ; 
+      JM    BA03; 
+      L     #i_CFG_Start_Up_Dist_Ind; // (CFG_Run_out - Act_Run_out / CFG_Run_Out ) * CFG_Start_up
+      *D    ; 
+      L     #i_CFG_Run_Out_Dist_Ind; 
+      /D    ; 
+      T     #s_Act_Start_Up_Distance; // The inverse Run out factor * start_up is the actuel factor
+BA03: L     #s_Act_Start_Up_Distance; 
+      T     #t_Position_StartUp; 
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      AN    #s_Window_Gen_Active; 
+      S     #s_Item_At_Handover_Pos; 
+
+BA04: OPN   #i_DB_PLT; 
+      L     DBW    8; // Is the downstream section present
+      T     #t_DB_PLT_Num_Downstream; 
+      L     1; 
+      >I    ; 
+      =     #s_DB_PLT_Downstream_Used; 
+      JCN   BA05; 
+
+      OPN   DB [#t_DB_PLT_Num_Downstream]; 
+      A     DBX   10.1; 
+      =     #s_Downstream_Section_Run; // Get signal downstream  section is running
+      JU    BA06; 
+
+BA05: SET   ; 
+      =     #s_Downstream_Section_Run; 
+
+// Read shared data from PLT merge conveyor
+BA06: OPN   #i_DB_PLT_Merge; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Merge; 
+
+      L     DBW    2; // Get displacement merge conveyor
+      T     #s_Displacement_Merge; 
+
+      L     DBW    6; 
+      T     #t_DB_PLT_Num_Upst_Merge; // Get PLT number of upstream merge conveyor
+      L     1; 
+      >I    ; 
+      =     #s_PLT_Ups_Merge_Used; 
+
+      A     DBX   10.1; // Get signal merge conveyor is running
+      =     #s_Section_Merge_Run; 
+
+      A     DBX   10.2; // Get signal merge conveyor is on speed
+      =     #s_Section_Merge_On_Speed; 
+
+      A     DBX   10.5; 
+      =     #s_Section_Merge_Started; 
+      =     #t_Merge_Junc_Operational; //Preset Upstream before check
+
+      L     DBW   12; // Get length of the merge conveyor
+      T     #s_Length_Merge_Section; 
+
+// Read shared data from PLT merge conveyor
+      OPN   #i_DB_PLT_Junction; 
+      L     DBNO; 
+      T     #t_DB_PLT_Num_Junction; 
+      L     1; 
+      >I    ; 
+      JCN   BA08; 
+
+      A     DBX   10.1; // Get signal junction conveyor is running
+      =     #s_Section_Junction_Run; 
+
+//If junction is not operation then stop induct
+      AN    DBX   10.5; 
+      R     #s_Section_Merge_Run; 
+      R     #t_Merge_Junc_Operational; 
+
+      L     DBW   12; 
+      T     #t_Length_Junction; 
+
+      SET   ; 
+      S     #t_Junction_Used; 
+
+      L     W#16#400; 
+      T     #t_Info_State_Merge; 
+
+      JU    BA09; 
+
+BA08: SET   ; 
+      R     #t_Junction_Used; 
+
+// Determine if DB_Reservation is used
+BA09: L     P##i_DB_Reservation; // Load pointer relative to start of instance,
+      L     #t_AR2_Mask; // load offset to instance
+      +D    ; // adding both
+      LAR1  ; // gives the absolute pointer
+      L     W [AR1,P#0.0]; // Load the DB_Block_number out of i_DB_FIFO  
+      T     #s_FIFO_DB_Number; // and store on a temp of the type INT
+      L     1; 
+      >I    ; // IF reservation DB-number > 1 (Siemens Default)
+      =     #s_Reservation_FIFO_Used; // THEN reservation DB is used
+      JCN   BA10; // THEN
+
+// Read shared data from DB_Reservation
+      OPN   #i_DB_Reservation; // Store information present for gap control from reservation DB on Temps 
+
+      L     DBW    0; 
+      T     #s_Number_FIFO_Entries; 
+
+      L     DBW    4; 
+      T     #s_Window_Length; // Get window length
+
+      L     DBW    6; 
+      T     #s_Search_Limit_PLT_DB; // Get PLT position of window generator
+
+      L     DBW    8; 
+      T     #s_Win_Gen_Position; // Get position window generator
+
+      L     DBW   10; 
+      T     #s_Len_To_Most_Upstr_WGen; // Get length to most upstream generator
+
+      A     DBX   12.1; 
+      =     #s_Window_Gen_Active; // Get signal window generator active
+
+      A     DBX   12.2; 
+      =     #s_Merge_In_Reverse; // Get signal when merge conveyor is running reversed
+
+BA10: AN    #s_Reservation_FIFO_Used; 
+      JCN   BA99; 
+
+      L     #i_CFG_Search_Window; // Preset window length when now window generator is used
+      T     #s_Window_Length; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Clear DB reservation when merge conveyor stops
+//When the merge conveyor stops a reservation from the DB can be cleared because 
+//otherwise this reservation will be made after the induct position in a other 
+//conveyor. When the conveyor starts running again the reservation will be made 
+//again for a new induct action.
+//When the merge conveyor changes from direction all reservated and 
+//non-reservated 
+//windows will be cleared. In this case a new reservation will be made for the 
+//induct action.
+      A     #s_Merge_In_Reverse; // Create one-shot on positive flank
+      FP    #s_Copy_FP_Merge_Reverse; 
+      =     #s_OS_FP_Merge_Reverse; 
+
+      A     #s_Merge_In_Reverse; // Create one-shot on negative flank
+      FN    #s_Copy_FN_Merge_Reverse; 
+      =     #s_OS_FN_Merge_Reverse; 
+
+      O     #s_OS_FP_Merge_Reverse; // IF on one-shot reverse change
+      O     #s_OS_FN_Merge_Reverse; 
+      A     #s_Reservation_Made; // AND when a reservation was made
+      R     #s_Reservation_Made; // RESET State Reservation Made
+      S     #s_Reservation_Request; // SET State Reservation Request
+
+      A     #s_Reservation_Made; // Create one-shot to delete the reservation
+      AN    #s_Section_Merge_Started; 
+      FP    #s_Copy_FP_Del_Reservatio; 
+      =     #t_OS_Delete_Reservation; 
+
+      A     #t_OS_Delete_Reservation; 
+      JCN   CA99; 
+
+// Search in reservation FIFO for reserved code
+      A     #s_Reservation_FIFO_Used; // ELSE IF Reservation FIFO used
+      JCN   CA99; // THEN Write reservation in FIFO
+
+      OPN   #i_DB_Reservation; 
+
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #s_Offset_FIFO_Data; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+
+CA03: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #s_Reservation_Code; // Load reservation code not found
+      <>I   ; // IF reservation code not found
+      JCN   CA04; 
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >I    ; // IF not last record
+      JCN   CA03; // THEN continue loop
+      JU    CA99; // ELSE reservation code not found and end loop
+
+// ELSE IF reservation code found
+
+CA04: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >=I   ; // IF not last record
+      JCN   CA04; // THEN continue loop
+
+      L     #s_FIFO_Last_Record; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      SET   ; 
+      R     #s_Reservation_Made; // RESET State Reservation Made
+      S     #s_Reservation_Request; // SET State Reservation Request
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO
+      JM    CA99; 
+      T     DBW    0; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Calculated the induct Position and reservation code
+
+      A     #s_Merge_In_Reverse; 
+      JCN   DA01; 
+
+// Induct position when running reversed 
+      L     #i_CFG_PEC_Offset; //Load previous offset
+      L     #i_Setting.Offset_REV; //.. Add own offset
+      +I    ; 
+      T     #s_Induct_Position; // For internal use
+
+      L     #i_CFG_Induct_Number_REV; 
+      L     -100; 
+      -I    ; 
+      NEGI  ; 
+      T     #s_Reservation_Code; // Reservation code := -(induct number+100)
+
+      JU    DA99; 
+
+// Induct position when running forward
+DA01: L     #i_CFG_PEC_Offset; //Load previous offset
+      L     #i_Setting.Offset_FWD; //.. Add own offset
+      +I    ; 
+      T     #s_Induct_Position; // For internal use
+
+      L     #i_CFG_Induct_Number_FWD; 
+      L     -100; 
+      -I    ; 
+      NEGI  ; 
+      T     #s_Reservation_Code; // Reservation code := -(induct number+100)
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Manage PLT reset energy saving merge and junction conveyor
+
+      NOP   0; 
+// Handling of the PLT induct
+
+      OPN   DB [#t_DB_PLT_Num_Induct]; 
+
+//Skip if init is done
+      AN    DBX   10.0; 
+      JCN   EA01; 
+
+//Set length of induct to 1
+      L     1; 
+      T     DBW   12; 
+//Set entries present to 3
+      L     3; 
+      T     DBW    4; 
+//Set dummy displacement
+      L     10; 
+      T     DBW    2; 
+
+      SET   ; 
+      =     DBX   10.0; //Done bit
+      =     DBX   10.3; //Cascade Bit
+
+      NOP   0; 
+//Check if LNK is available
+EA01: L     DBW   20; 
+      T     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   EA02; 
+
+//Write PLT number of merge in LNK record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+//Check if LNK is available
+EA02: OPN   DB [#t_DB_PLT_Num_Induct]; 
+      L     DBW   28; 
+      T     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   EA03; 
+
+//Write PLT number of merge in LNK record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+EA03: CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := TRUE,
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL #s_FB_Energy_Save (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           i_CFG_Conveyor_Speed     := #i_CFG_Conveyor_Speed,
+           i_CMD_Enable             := #t_InductSect_Operational,
+           i_CMD_Start              := #t_InductSect_Operational,//Used only for recalculation E-save distance
+           i_Ready_to_Restart       := FALSE,
+           i_Reset_E_Save           := FALSE,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Disbl_E_Save       := FALSE,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           o_Announce               := #s_Announce);
+
+      A     #s_Announce; // If item is announced to merge conveyor
+      O(    ; 
+      A     #s_Item_At_Handover_Pos; // IF item present 
+      AN    #i_Ext_Req_Dis_Induct; 
+      )     ; 
+      A     #t_InductSect_Operational; // AND induct section operational
+      A     #t_Merge_Junc_Operational; // AND junction operational
+      JCN   EA99; // THEN reset energy saving 
+
+//Reset energy saving of Merge
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Merge_Section,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   EA99; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Length_Merge_Section,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Induct Delay counter
+//Induct delay counter is build-in to stop every item first, to get for evey item 
+//same induct behavior. 
+//
+      AN    #s_Item_At_Handover_Pos; 
+      JCN   FA01; // THEN jump to decrement
+
+      L     #i_Setting.Delay_Induct; // ELSE Preset
+      T     #s_Cnt_Delay_Induct; // Delay counter
+
+      JU    FA02; 
+
+FA01: L     #s_Cnt_Delay_Induct; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; // Decrement delay counter
+      JMZ   FA02; // IF result >= 0 Preset Delay counter
+      T     #s_Cnt_Delay_Induct; 
+      R     #s_Item_At_Handover_Pos; 
+      JU    FA90; 
+
+FA02: AN    #s_Action_Active; 
+      A     #i_Ext_Req_Dis_Induct; 
+      R     #s_Item_At_Handover_Pos; 
+
+FA90: A     #t_Item_At_Handover_Pos; // Generate positive edge "Item at handover position" signal
+      FP    #s_Copy_FP_Item_HandovPos; 
+      =     #s_FP_Item_HandoverPos; 
+
+      A     #t_Item_At_Handover_Pos; //  Generate negative edge "Item at handover position signal
+      FN    #s_Copy_FN_Item_HandovPos; 
+      =     #s_FN_Item_HandoverPos; 
+NETWORK
+TITLE =GA: Delay on/off counter for window request
+
+      A     #s_Reservation_FIFO_Used; 
+      JCN   GA99; 
+
+      A     #s_Window_Gen_Active; 
+      =     #s_Induct_On_window_Mode; // THEN activate induct on window mode
+
+      L     #i_Setting.Delay_On_Window_Mode; // IF delay on setting = 0 disable induct on gap functionality 
+      L     0; 
+      ==I   ; 
+      JCN   GA01; 
+      =     #s_Request_Windows; 
+      JU    GA99; 
+
+GA01: A     #s_FP_Item_HandoverPos; // IF positive edge of product detection
+      JCN   GA02; 
+      L     #i_Setting.Delay_On_Window_Mode; // THEN pre-set counter Delay-On
+      T     #s_Cnt_Window_Mode_Delay; 
+
+GA02: A     #s_FN_Item_HandoverPos; // IF negative edge of product detection
+      AN    #t_Item_At_Handover_Pos; 
+      JCN   GA03; 
+      L     #i_Setting.Delay_Off_Window_Mode; 
+      T     #s_Cnt_Window_Mode_Delay; // THEN pre-set counter as Off-Delay 
+
+GA03: A     #s_Section_Merge_Run; // AND the motor isn't running
+      AN    #s_Action_Active; 
+      AN    #i_Ext_Req_Dis_Induct; // If induct this disabled no changing mode
+      JCN   GA99; // THEN ignore PEC status changes
+
+      A     "M_OS_/0.1_sec."; 
+      JCN   GA05; 
+      L     #s_Cnt_Window_Mode_Delay; 
+      L     1; 
+      -I    ; // THEN delay counter := delay counter - 1
+      JPZ   GA04; // IF result is positive THEN store it
+      L     0; // ELSE keep counter to zero (not negative)
+GA04: T     #s_Cnt_Window_Mode_Delay; 
+
+GA05: L     #s_Cnt_Window_Mode_Delay; 
+      L     0; 
+      <=I   ; 
+      JCN   GA99; // IF delay-counter is elapsed
+      A     #t_Item_At_Handover_Pos; 
+      =     #s_Request_Windows; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Determine Bag length for induct on gap
+
+      SET   ; 
+      R     #s_Induct_On_Gap_Mode; 
+
+//Only determine the bag length if action not active of previous induct
+      AN    #s_Action_Active; 
+      JCN   HA99; 
+
+      L     "DB_Setting".common.Max_Product_Length; //Default maximum bag length, in case of length could be calculated
+      T     #s_Calculated_Bag_Length; 
+
+//If no upstream is used skip network
+      AN    #s_DB_PLT_Upstr_Not_Used; 
+      JCN   HA99; 
+
+// Bag length calculation
+
+// Search for a leading edge present at the induct conveyor
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Section_Up,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Position,
+           i_Window                 := "DB_Setting".common.Max_Product_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found,
+           o_Length_Diff            := #t_Item_Length);
+
+// Detect if item is found for length calculation
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   HA01; 
+
+// Calculate bag length with position info
+      L     #t_Item_Length; 
+      T     #s_Calculated_Bag_Length; 
+
+// Conditions to use gap control based on bag length and gap setting
+HA01: A     #s_Item_At_Handover_Pos; // IF item present 
+      AN    #s_Window_Gen_Active; // THEN activate induct on window mode
+      S     #s_Induct_On_Gap_Mode; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =HB: Re-determine bag length
+//If displacement timer has run out, recalculate bag length
+//(there is no '2', or '2' after '1', or no '2' in the runoout), then 
+//recalculate bag length
+//
+      AN    #s_DB_PLT_Upstr_Not_Used; 
+      A     #s_Item_At_Handover_Pos; 
+      JCN   HB99; 
+
+//If displacement timer has run out and action active is true
+      L     #s_Calculated_Bag_Length; 
+      L     #i_CFG_Run_Out_Dist_Ind; 
+      -I    ; //Redetermine bag length on run out trailing edge
+      L     0; 
+      <=I   ; 
+      A     #s_Action_Active; 
+      JCN   HB99; 
+
+// Detemine if '2' in upstream 
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Section_Up,
+           i_Info                   := 2,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   HB99; // Else end 
+
+// Determine if there is no '1' after '2' (incase new item)
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #t_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      JCN   HB99; // Else end 
+
+// Update bag length
+      L     #t_Position; 
+      T     #s_Calculated_Bag_Length; 
+
+HB99: NOP   0; 
+NETWORK
+TITLE =IA : Search for gap and claim
+
+      AN    #s_Item_At_Handover_Pos; 
+      R     #s_Start_Induct_Gap; 
+      R     #s_Release_Induct_Gap; 
+
+      L     0; 
+      T     #t_Position_induct; 
+
+      AN    #s_Release_Induct_Window; 
+      JCN   IA01; 
+
+      L     #s_Induct_Position; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+//Check if item before induct by reading on induct posiiton
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Position,
+           i_Window                 := 0,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+//If info = 1 item is before induct
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      S     #s_Item_before_Induct; 
+
+//If info = 2 item paste induct
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      R     #s_Item_before_Induct; 
+
+//Check if item is found else reset item_before_induct
+      A     #s_Item_before_Induct; 
+      JCN   IA01; 
+
+      L     "DB_Setting".common.Max_Product_Length; 
+      L     2; 
+      *I    ; 
+      T     #t_Search_window; 
+
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := #t_Search_window,
+           i_Info                   := 2,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found,
+           o_Length_Diff            := #t_Int_Not_Used);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      R     #s_Item_before_Induct; 
+
+IA01: A     #s_Item_At_Handover_Pos; 
+      A     #s_Section_Merge_Run; 
+      AN    #s_Release_Induct_Gap; 
+      AN    #s_Release_Induct_Window; 
+      AN    #s_Reservation_Made; 
+      AN    #s_Induct_On_window_Mode; 
+      AN    #s_Window_Gen_Active; 
+      JCN   IA13; 
+
+// Determination with which gap length a gap must be detected.
+// - Gap with the bag length and the predefined gap length
+// - Gap with 2 times the window length
+
+      L     #i_CFG_Gap_Length; 
+      L     0; 
+      >I    ; 
+      JCN   IA04; 
+
+// If Start induct gap is active & section is not running clear request
+      A     #s_Start_Induct_Gap; 
+      AN    #s_Induct_Section_Run; 
+      R     #s_Start_Induct_Gap; 
+
+// Determination in which PLT DB start reading for a gap with gap length
+      L     #s_Induct_Position; 
+      L     #s_Length_Merge_Section; // IF position start reading is bigger than merge section
+      >I    ; 
+      JCN   IA03; 
+
+      L     #s_Induct_Position; 
+      L     #s_Calculated_Bag_Length; 
+      +I    ; 
+      L     #i_CFG_Gap_Length; 
+      +I    ; 
+      T     #s_Window_Position_In; 
+
+      A     #s_PLT_Ups_Merge_Used; 
+      JCN   IA03; 
+
+      L     #t_DB_PLT_Num_Upst_Merge; // THEN read in the upstream section DB PLT
+      T     #s_PLT_DB_Num_Read; 
+
+      L     #s_Window_Position_In; 
+      L     #s_Length_Merge_Section; 
+      -I    ; 
+      T     #s_Window_Position_In; 
+
+      JU    IA05; // Goto the search gap function
+
+IA03: L     #t_DB_PLT_Num_Merge; 
+      T     #s_PLT_DB_Num_Read; 
+
+      L     #i_CFG_Gap_Length; 
+      T     #s_Gap_Free; // Gap before induct position
+      L     #i_CFG_Gap_Length; 
+      L     #s_Calculated_Bag_Length; 
+      +I    ; 
+      T     #s_Window_Position_In; // Gap behind induct position 
+
+      AN    #s_Item_before_Induct; 
+      JCN   IA13; 
+
+      JU    IA05; 
+
+// Gap to be search is two windows length 1 window before and 1 window after
+IA04: L     #t_DB_PLT_Num_Merge; 
+      T     #s_PLT_DB_Num_Read; 
+
+      L     #s_Window_Length; 
+      T     #s_Window_Position_In; // Gap behind induct position
+      T     #s_Gap_Free; // Gap before induct position
+
+// Search for a leading edge present at the induct conveyor
+IA05: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_Position               := 0,
+           i_Window                 := #t_Before_Run_Out_Dist,
+           i_Info                   := 1,
+           o_Position               := #t_Position_induct,
+           o_Info                   := #s_Info_Induct_ForGap,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_DB_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+//If code written then no check for gap
+      A     #s_Info_Gap_active; 
+      JC    IA06; 
+
+      L     #s_Induct_Position; 
+      L     #t_Position_induct; 
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+// Search for the gap in the PLT of the merge conveyor
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Position,
+           i_Window                 := #s_Gap_Free,
+           i_Info                   := 1,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #s_Item_Founded_Gap);
+
+// -4 is uses as start induct gap to stop other inducts of claiming this gap
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Position,
+           i_Window                 := #s_Gap_Free,
+           i_Info                   := -4,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #s_Item_Founded_Gap; 
+      L     #t_Number_Items_Found; 
+      +I    ; 
+      T     #s_Item_Founded_Gap; 
+
+      CALL "FC_PLT_Srch_Win_Up" (// Search UP from Induct position
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Position,
+           i_Window                 := #s_Window_Position_In,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+//Check if gap is free
+      L     #s_Item_Founded_Gap; 
+      L     #t_Number_Items_Found; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      JCN   IA13; 
+
+//Check info of item before induct
+      L     #s_Info_Induct_ForGap; 
+      L     1; 
+      ==I   ; 
+      ON    #s_Induct_Section_Run; // If item in handover, Gap free, No LNK, Not Running, then start induct
+      AN    #s_Item_before_Induct; 
+      JCN   IA13; 
+      =     #s_Start_Induct_Gap; 
+
+      L     #t_LNK; 
+      T     #s_Data_Induct_ForGap; 
+
+// Check if induct is running before writing data
+IA06: A     #s_Induct_Section_Run; 
+      A     #o_Start_Induct; 
+      JCN   IA13; 
+
+      AN    #s_Release_Induct_Gap; 
+      JCN   IA11; 
+
+      L     #s_Data_Induct_ForGap; 
+      L     0; 
+      >I    ; 
+      JCN   IA09; 
+
+// Created and send tracking report
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+      L     #t_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   IA07; 
+
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_Data_Induct_ForGap,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_LNK                    := #t_Rep_Route_Record);
+
+IA07: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".lic,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".bir,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".successdirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection1,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection2,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      L     2; 
+      A     #i_CFG_Straight_Induct; 
+      JCN   IA08; 
+
+      L     1; 
+IA08: T     #t_DirectionTo; 
+
+// Write Direction From to the current ECS Record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_DirectionTo,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,// 5 = Transport Default
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Write tracking report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,
+           i_Event_value            := #s_Data_Induct_ForGap,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_Return_Value);
+
+// Write info and data in the PLT of the merge conveyor
+IA09: L     #s_Induct_Position; 
+      L     #t_Position_induct; 
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Position,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_Induct_ForGap,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+//Write PLT number of merge in LNK record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_Position               := 0,
+           i_Window                 := #t_Before_Run_Out_Dist,
+           i_Info                   := 1,
+           o_Position               := #t_Position_induct,
+           o_Info                   := #s_Info_Induct_ForGap,
+           o_LNK                    := #s_Data_Induct_ForGap,
+           o_DB_PLT_Num             := #t_DB_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      A     #t_Junction_Used; 
+      JCN   IA10; 
+
+      L     #t_Length_Junction; 
+      L     #t_Position_induct; 
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_Induct_ForGap,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Delete Leading edge before induct
+IA10: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+//Set Item in Handover on induct when leading edge is removed
+      OPN   DB [#t_DB_PLT_Num_Upstream]; 
+      S     DBX   10.6; 
+
+      SET   ; 
+      S     #s_Release_Induct_Gap; 
+
+      L     #s_Data_Induct_ForGap; 
+      L     0; 
+      >I    ; 
+      JCN   IA11; 
+
+//Determine the ECS number from the LNK number
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Data_ECS);
+
+//Write section ID as last location in the current ECS
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_ANY_Data_Record        := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_ANY_Data               := #i_ID,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForGap,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+IA11: L     #s_Calculated_Bag_Length; 
+      L     #s_Induct_Position; 
+      +I    ; 
+      L     #t_Position_induct; 
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Insert_Pos_Trailing; 
+
+      A     #t_Junction_Used; 
+      JCN   IA12; 
+
+// Write trailing edge of the inducte baggage in the PLT of the merge conveyor
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Insert_Pos_Trailing,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 2,
+           i_LNK                    := #s_Data_Induct_ForGap,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Search trailing edge on upstream PLT DB
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Pos_Trailing,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Length_Junction; 
+      L     #t_Position; 
+      +I    ; 
+      L     #s_Calculated_Bag_Length; 
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Length_Junction; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Length_Junction,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      JU    IA13; 
+
+IA12: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Insert_Pos_Trailing,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      JU    IA13; 
+
+IA13: A     #s_Info_Gap_active; 
+      JCN   IA14; 
+
+      SET   ; 
+      R     #s_Info_Gap_active; 
+
+      L     #s_Induct_Position; 
+      L     10; 
+      +I    ; 
+      T     #t_Position_induct; 
+
+// Clear virtual code before start gap
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Position_induct,
+           i_Window                 := 30,
+           i_Info                   := -4,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   IA14; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Position,
+           i_Info_Physical          := -4,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+IA14: AN    #s_Info_Gap_active; 
+      A     #s_Section_Merge_Run; 
+      A     #s_Item_At_Handover_Pos; 
+      AN    #s_Induct_On_window_Mode; 
+      A     #s_Start_Induct_Gap; 
+      AN    #o_Start_Induct; 
+      JCN   IA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Info_State             := W#16#800,
+           i_Info_Physical          := -4,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+//Write virtual code, and set signal to delete this code
+      SET   ; 
+      S     #s_Info_Gap_active; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Idle --> Reservation Request
+// 
+      A     #s_Idle; // IF State = IDLE
+      AN    #s_Release_Induct_Gap; // AND NOT Already release induct on gap started
+      A     #s_Reservation_FIFO_Used; // AND reservation DB is used
+      A     #s_Window_Gen_Active; // AND window generator is active
+      A     #s_Item_At_Handover_Pos; // AND Induct RTS
+      R     #s_Idle; // RESET State IDLE
+      S     #s_Reservation_Request; // SET State Reservation Request  
+NETWORK
+TITLE =KA: Check ECS if reservation is already made
+
+      A     #s_Item_At_Handover_Pos; 
+      JCN   KA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK_ECS,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Data_ECS);
+
+      L     #t_Data_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   KA99; 
+
+      A     #o_Start_Induct; 
+      O     #s_Reservation_time_out; 
+      JCN   KA01; 
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".cir.reservation_made,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+KA01: CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".cir.reservation_made,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_BOOL                   := #s_Reservation_ECS);
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Reservation Request --> Reservation Made
+//IF a reservation must be made then
+//1: Search for empty window in tracking and if found reserve
+//2: if no empty widow found then make reservation in FIFO 
+//3: Calculate time out pre set value according the following formula:
+//
+//Time-out := (Number_of_Entries * Window_Length) + induct_position 
+//            - Win_Gen_Position + Window-length.  
+      A     #s_Reservation_Request; // IF State = Reservation Request
+      A     #s_Section_Merge_Run; 
+      JCN   LA99; // THEN Search tracking
+
+// 0: If reservation is already made (ECS record) don't make a new reservation
+      AN    #s_Reservation_ECS; 
+      JCN   LA03; 
+
+// 1: Search free window in tracking and reserve if found 
+
+      CALL "FC_PLT_Srch_UpLimit" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := #s_Win_Gen_Position,
+           i_Info                   := -100,
+           i_DB_PLT_Limit_Num       := #s_Search_Limit_PLT_DB,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Info,
+           o_Link                   := #t_LNK,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     -100; 
+      L     #t_Info; 
+      ==I   ; 
+      JCN   LA02; // THEN
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           i_Position               := #t_Position,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#200,
+           i_Info_Physical          := #s_Reservation_Code,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      JU    LA03; // Finish reservation
+
+// 2: Make reservation in FIFO
+LA02: OPN   #i_DB_Reservation; 
+
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #s_Offset_FIFO_Data; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+LA04: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #s_Reservation_Code; // Load reservation code
+      <>I   ; // IF reservation has already been made
+      JCN   LA03; // skip reservation 
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >I    ; // IF not last record
+      JCN   LA04; // THEN continue loop
+
+// ELSE continue with reservation
+
+      L     DBW    2; // Maximum number of entries used in FIFO
+      L     DBW    0; // Number of entries used in FIFO
+      >I    ; // IF maximum of entries not reached
+      JCN   LA99; // THEN
+
+      L     DBW    0; // Number of entries
+      SLW   4; // Shift bytes to make pointer to last entry
+      L     #s_Offset_FIFO_Data; // Offset to fifo record in reservation DB
+      SLW   3; 
+      +D    ; // Add Header-length to jump over FIFO header
+      LAR1  ; // Pointer to last used entry in FIFO
+
+      L     #s_Reservation_Code; // Write reservation code in FIFO
+      T     DBW [AR1,P#0.0]; 
+
+      L     DBW    0; 
+      L     1; 
+      +I    ; // Increment Number of entries in FIFO
+      T     DBW    0; 
+      T     #s_Number_FIFO_Entries; 
+
+// 3: Calulate reservation timeout preset value
+LA03: SET   ; 
+      S     #s_Reservation_Made; // SET State Reservation Made
+      R     #s_Reservation_Request; // RESET State Reservation Request
+
+      L     #s_Number_FIFO_Entries; // Pre set time out reservation counter
+      L     #s_Window_Length; 
+      *I    ; // (Number of entries * Window-length)
+
+      L     #s_Len_To_Most_Upstr_WGen; 
+      +D    ; // + Lengte To Most Upstream Window Generator
+
+      L     #s_Induct_Position; 
+      ITD   ; // Convert integer to double, this must be done because the induct position can be negative 
+      -D    ; // - then induct position
+      L     #s_Window_Length; 
+      +D    ; // + Induct_position 
+      T     #s_Cnt_Time_Out_Reserve; // = Time-out reservation
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Reservation Made --> Release Induct (Window Claiming)
+// 
+      CLR   ; //Clear One-shot delete reservation code 
+      =     #s_OS_Delete_Reserv_Code; 
+
+      AN    #s_Start_Induct_Window; 
+      JCN   MA05; 
+
+      A     #s_Reservation_Made; // IF State = Reservation Made
+      A     #s_Item_At_Handover_Pos; // AND item to induct
+      A     #s_Section_Merge_Run; // AND downstream RTR
+      JCN   MA99; 
+
+      L     #s_Induct_Position; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      L     #s_Length_Merge_Section; 
+      >I    ; 
+      JCN   MA02; 
+
+      L     #s_Induct_Position; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      L     #s_Length_Merge_Section; 
+      -I    ; 
+      T     #t_Position; 
+
+      A     #s_PLT_Ups_Merge_Used; 
+      JCN   MA02; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upst_Merge,
+           i_Position               := #t_Position,
+           i_Window                 := 0,
+           o_Position               := #s_Position_Readed,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_DB_PLT_Num_Upst_Merge; 
+      T     #s_PLT_DB_Num_Read; 
+
+      JU    MA03; 
+
+MA02: L     #s_Induct_Position; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Position,
+           i_Window                 := 0,
+           o_Position               := #s_Position_Readed,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_DB_PLT_Num_Merge; 
+      T     #s_PLT_DB_Num_Read; 
+
+//Claim empty window code
+MA03: L     #t_Info; 
+      L     -100; 
+      ==I   ; 
+      JCN   MA04; 
+
+//Overwritten Empty window with Reservation code
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #s_Position_Readed,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #s_Position_Readed,
+           i_Info_State             := W#16#200,
+           i_Info_Physical          := #s_Reservation_Code,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := 0,
+           o_Position               := #s_Position_Readed,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+MA04: L     #s_Reservation_Code; 
+      L     #t_Info; 
+      ==I   ; //  AND window code == found data
+      JCN   MA99; 
+
+//Search for the position of the reservation
+MA05: L     #s_Induct_Position; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Position,
+           i_Window                 := 20,
+           i_Info                   := #s_Reservation_Code,
+           o_Position               := #t_Pos_reservation,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Pos_reservation; 
+      L     0; 
+      ==I   ; 
+      A     #s_Start_Induct_Window; 
+      JCN   MA06; 
+
+// When window not used remove reservation code and make empty window code
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := #s_Reservation_Code,
+           o_Position               := #t_Pos_reservation,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+// Check if reservation code is find in PLT DB nr
+      L     #s_PLT_DB_Num_Read; 
+      L     #t_DB_PLT_Num_Res_Found; 
+      ==I   ; 
+      JCN   MA06; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Pos_reservation,
+           i_Info_Physical          := #s_Reservation_Code,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Pos_reservation,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -100,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+MA06: L     #t_Pos_reservation; 
+      L     0; 
+      <>I   ; 
+      =     #s_Start_Induct_Window; 
+
+      A     #s_Start_Induct_Window; 
+      A     #s_Induct_Section_Run; 
+      JCN   MA99; 
+
+//Retreive the data infront off the induct
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Induct,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position_induct,
+           o_Info                   := #s_Info_Induct_ForWin,
+           o_LNK                    := #s_Data_Induct_ForWin,
+           o_DB_PLT_Num             := #t_DB_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_reservation,
+           i_Info_Physical          := #s_Reservation_Code,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #t_Pos_reservation,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+//Write PLT number of merge in LNK record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      L     1; 
+      L     #t_DB_Found; 
+      <I    ; 
+      JCN   MA07; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Found,
+           i_Position               := #t_Position_induct,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+MA07: NOP   0; 
+      A     #t_Junction_Used; 
+      JCN   MA08; 
+
+      L     #t_Length_Junction; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Delete Leading edge before induct
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Search trailing edge on upstream PLT DB
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Pos_Trailing,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Pos_Trailing; 
+      L     #t_Position; 
+      -I    ; 
+      T     #t_Position; 
+      L     0; 
+      <=I   ; 
+      JCN   MA09; 
+
+      L     "DB_Setting".common.Max_Product_Length; 
+      T     #t_Position; 
+
+MA09: L     #t_Length_Junction; 
+
+      L     #t_Position; // Product Length
+      +I    ; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Junction,
+           i_Position               := #t_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Delete Leading edge before induct
+MA08: CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := 0,
+           i_Window                 := #s_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Upstream,
+           i_Position               := #t_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      S     #s_Release_Induct_Window; // THEN SET release induct
+      R     #s_Reservation_Made; 
+      A     #s_Reservation_time_out; 
+      =     #s_OS_Delete_Reserv_Code; // THEN delete the already made reservation
+
+      L     #s_Data_Induct_ForWin; 
+      L     0; 
+      >I    ; 
+      JCN   MA12; 
+
+//Determine the ECS number from the LNK number
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Data_ECS);
+
+//Write section ID as last location in the current ECS
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Data_ECS,
+           i_ANY_Data_Record        := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_ANY_Data               := #i_ID,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_Num_Merge,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Created and send tracking report
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+      L     #t_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   MA10; 
+
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_LNK                    := #t_Rep_Route_Record);
+
+MA10: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_Data_Induct_ForWin,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".lic,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".bir,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".successdirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection1,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection2,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      L     2; 
+      A     #i_CFG_Straight_Induct; 
+      JCN   MA11; 
+
+      L     1; 
+MA11: T     #t_DirectionTo; 
+
+// Write Direction From to the current ECS Record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DirectionFrom,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := #t_DirectionTo,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,// 5 = Transport Default
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+// Write tracking report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,
+           i_Event_value            := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_Return_Value);
+
+MA12: L     #s_Calculated_Bag_Length; 
+      L     #s_Induct_Position; 
+      +I    ; 
+      T     #t_Insert_Pos_Trailing; 
+
+      A     #t_Junction_Used; 
+      JCN   MA13; 
+
+// Write trailing edge of the inducte baggage in the PLT of the merge conveyor
+      L     #t_Insert_Pos_Trailing; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Position,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 2,
+           i_LNK                    := #s_Data_Induct_ForWin,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      JU    MA99; 
+
+MA13: L     #t_Insert_Pos_Trailing; 
+      L     #t_Position_StartUp; 
+      +I    ; 
+      T     #t_Position; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Num_Read,
+           i_Position               := #t_Insert_Pos_Trailing,
+           i_Info_State             := #t_Info_State_Merge,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Delete Reservation code
+//IF a reservation must be deleted then:
+//
+//1: Search for reserved window in tracking and if found delete it
+//
+//2: if reservation code not found then check reservation code in FIFO, if 
+//found then delete it.
+//
+      A     #s_Reservation_FIFO_Used; 
+      A     #s_OS_Delete_Reserv_Code; // One-shot delete reservation code 
+      JCN   NA99; // THEN Search tracking
+
+      R     #s_Reservation_time_out; 
+
+// 1: Search for reserved window code in tracking and overwrite it with empty window code if found 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Merge,
+           i_Position               := #s_Induct_Position,
+           i_Window                 := #s_Len_To_Most_Upstr_WGen,
+           i_Info                   := #s_Reservation_Code,
+           o_Position               := #s_Position_Cancel,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_Info; // IF valid data found
+      L     0; 
+      <>I   ; 
+      JCN   NA02; // THEN
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           i_Position               := #s_Position_Cancel,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (// Overwrite empty window code in tracking
+           i_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           i_Position               := #s_Position_Cancel,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -100,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      JU    NA99; // Finish reservation
+
+// 2: Search in reservation FIFO for reserved code
+NA02: A     #s_Reservation_FIFO_Used; // ELSE IF Reservation FIFO used
+      JCN   NA99; // THEN Write reservation in FIFO
+
+      OPN   #i_DB_Reservation; 
+
+      L     DBW    0; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     #s_Offset_FIFO_Data; // Add offset to first FIFO record 
+      +I    ; 
+      L     2; // Min two bytes
+      -I    ; // for pointer to start of last record
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+
+NA03: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #s_Reservation_Code; // Load reservation code not found
+      <>I   ; // IF reservation code not found
+      JCN   NA04; 
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >I    ; // IF not last record
+      JCN   NA03; // THEN continue loop
+      JU    NA99; // ELSE reservation code not found and end loop
+
+// ELSE IF reservation code found
+
+NA04: L     #s_FIFO_Last_Record; 
+      L     #s_Shift_Pointer; // Start Loop
+      ==I   ; 
+      JC    NA05; // Only remove last entrie
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >=I   ; // IF not last record
+      JCN   NA04; // THEN continue loop
+
+NA05: L     #s_FIFO_Last_Record; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      L     DBW    0; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO
+      T     DBW    0; 
+
+      L     DBW    0; 
+      L     0; 
+      <I    ; 
+      JCN   NA99; 
+      L     0; 
+      T     DBW    0; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Reservation Made --> Reservation Request (Reserv. Time-out)
+//The input parameter i_DB_Reservation_FIFO is of the type BLOCK_DB. 
+//If the DB is not used the input parameter must not be filled in.
+//
+//The reservation time-out [cm] is calculated by using the displacement.
+//The time-out is calculated by the following formula:
+//
+//Time-out := (Number_of_Entries * Window_Length) + induct_position 
+//            - Win_Gen_Position + Window-length. 
+      A     #s_Reservation_Made; // IF Reservation made in tracking or FIFO
+      O     #s_Reservation_ECS; 
+      A     #s_Item_At_Handover_Pos; // AND item to induct
+      JCN   OA02; 
+
+      L     #s_Cnt_Time_Out_Reserve; 
+      L     #s_Displacement_Merge; 
+      -D    ; // THEN decrement Time-out counter
+      JPZ   OA01; // IF result >= 0 Preset Time-out counter
+      L     0; // ELSE Clear Time-out counter
+OA01: T     #s_Cnt_Time_Out_Reserve; 
+
+
+OA02: L     #s_Cnt_Time_Out_Reserve; 
+      L     0; 
+      <=D   ; // IF Time-out counter <= 0
+      =     #t_Cnt_Time_Out; 
+      R     #s_Reservation_Made; // RESET State Reservation Made
+      A     #t_Cnt_Time_Out; 
+      A     #s_Item_At_Handover_Pos; // AND item to induct
+      S     #s_Reservation_Request; // SET State Reservation Request
+      S     #s_Reservation_time_out; 
+NETWORK
+TITLE =PA: Release Induct --> Idle (Induct action finished)
+
+      A     #s_Release_Induct_Window; // IF State = Release Induct
+      AN    #s_Item_At_Handover_Pos; // AND item has been sent
+      R     #s_Release_Induct_Window; 
+      S     #s_Idle; // SET State Idle          
+NETWORK
+TITLE =QA: State Check
+
+      AN    #s_Idle; 
+      AN    #s_Reservation_Request; 
+      AN    #s_Reservation_Made; 
+      AN    #s_Release_Induct_Window; 
+      S     #s_Idle; 
+
+      AN    #s_Window_Gen_Active; // If window generator not longer active 
+      R     #s_Reservation_Request; // Clear reservation request, only induct on gap allowed 
+      R     #s_Reservation_Made; 
+      R     #s_Reservation_time_out; 
+NETWORK
+TITLE =RA: (De)assign FIF and Auxiliary signals
+
+      A     #s_Release_Induct_Window; // IF Release induct
+      O     #s_Start_Induct_Window; 
+      O     #s_Start_Induct_Gap; 
+      O     #s_Release_Induct_Gap; 
+      A     #s_Section_Merge_Run; // AND Motor sorter running
+      A     #s_Downstream_Section_Run; // AND junction Ready-To-Receive
+      =     #o_Start_Induct; // THEN Induct Ready-To-Receive
+NETWORK
+TITLE =SA: Action active
+
+      A     #o_Start_Induct; 
+      S     #s_Action_Active; 
+
+      A     #s_Action_Active; 
+      JCN   SA02; 
+
+      AN    #s_Item_At_Handover_Pos; 
+      JC    SA01; 
+
+      L     #s_Calculated_Bag_Length; 
+      L     #s_Displacmnt_PLT_Induct; 
+      -I    ; 
+      JMZ   SA01; 
+      T     #s_Calculated_Bag_Length; 
+
+      JU    SA02; 
+
+SA01: R     #s_Action_Active; 
+
+SA02: A     #s_Action_Active; 
+      =     #o_Action_Active; 
+NETWORK
+TITLE =TA: Write request windows in reservation DB for window generator
+// Update section run for induct
+      OPN   #i_DB_PLT; 
+
+      AN    #o_Start_Induct; 
+      =     DBX   11.0; 
+
+      A     #s_Section_Merge_Run; 
+      =     DBX   10.1; 
+
+      A     #t_InductSect_Available; 
+      =     DBX   10.4; 
+
+      A     #t_InductSect_Operational; 
+      =     DBX   10.5; 
+// Set request window bit for code generator (if used)
+      A     #s_Reservation_FIFO_Used; 
+      JCN   TA99; 
+
+      OPN   #i_DB_Reservation; 
+
+      A     #s_Request_Windows; 
+      S     DBX   12.0; 
+
+TA99: NOP   0; 
+END_FUNCTION_BLOCK
+

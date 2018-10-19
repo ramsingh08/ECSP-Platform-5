@@ -1,0 +1,32 @@
+TYPE "UDT_Msg_CapacityRep"
+TITLE =%version: 0.04 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:48:54 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.04
+//18060: Update messages ID's for Vibes 3.2             nlHdL    19-02-14   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version                                       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   body : STRUCT 	
+    EventTime : DATE_AND_TIME ;	
+    MessageID : INT  := 204;	//Mesasge ID
+    AreaID : INT ;	//Area ID number
+    ZoneID : INT ;	//Zone ID number
+    EquipmentID : INT ;	//Section/Object ID number
+    Capacity : INT ;	//Capacity
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

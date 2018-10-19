@@ -1,0 +1,34 @@
+TYPE "UDT_TRS_Int_Prog"
+TITLE =%version: 0.06 % CN: 10 
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Wednesday, September 20, 2017 2:11:53 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24940: To VI_GEN                                   nldy     20-09-17   0.06
+//ra#20850: Align UDT Int Prog of TRS                   nlHdL    29-03-17   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//15797: Keyword release added                          nlwwij   26-09-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.03
+//Added one shot dir change and HW req halt             nlJBax   04-04-11   0.02
+//Initial revision                                      nlMRe    21-10-10   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Motor_Run : BOOL ;	//CMD: Run motor
+   Local_Start_Request : BOOL ;	//Local Start Request
+   Local_Reset_Request : BOOL ;	//Local Reset Request
+   OS_Direction_Change : BOOL ;	//One Shot Direction change
+   HW_Request_Halt : BOOL ;	//Request Halt by Hardware Layer
+   PPI_Displacement : INT ;	//Displacement of PPI
+   PEC_Offset : INT ;	//Offset of PEC
+   LPOS : INT ;	//Leading and Trailing Position from EQP PEC
+  END_STRUCT ;	
+END_TYPE
+

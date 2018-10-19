@@ -1,0 +1,747 @@
+FUNCTION_BLOCK "FB_PNCAN_Slave_Cab"
+TITLE =%version: 0.05 % CN: 34
+//Function:
+//Handle the status of the cabinet and to send and receive all messages of the 
+//PN-CAN anybus converter through profinet by TCP/IP protocol.This block also 
+//handles the lifesign request and reply messages.
+//
+//History:
+//This version  %created_by: nltsil %
+//              %date_created: Wednesday, June 21, 2017 8:49:55 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#5605: Implemented changes after revision          nltsil   21-06-17   0.05
+//ina#5605: Implemented changes after testing           nltsil   16-06-17   0.04
+//ina#4610: Consider statuses of PN switch              inrjoi   20-03-17   0.03
+//ra#14324: HOO Bi-direction connecting 2 areas         nlHdL    06-12-16   0.02
+//Initial version                                       inrjoi   01-12-16   0.01
+//
+//Description:
+//When a cabinet with a ProfiNET to CAN coupler is used this block is 
+//required to handle the status of the cabinet and to send and receive all 
+//messages to and from the coupler. This block also handles the lifesign request 
+//and reply messages.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_ID_Connection_Send : WORD ;	//ID of the connection for sending the data
+  i_ID_Connection_Recv : WORD ;	//ID of the connection for receiving the data
+  i_IO_Available : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CFG_Send_Lifesign_Req : BOOL ;	//CFG: True = send lifesign request, false = send lifesign reply
+  i_CFG_Lifesign_Interval : INT ;	//CFG: [sec] Interval for sending a LifeSignRequest msg (0 = send no LifeSigns)
+  i_CFG_NumLifeSgnMiss_Err : INT  := 3;	//CFG: [Num] Number of Lifesign responses to be missed before an error is set
+  i_CFG_Suppress_LS_Error : BOOL ;	//CFG: Suppress lifesign error if PN handover data communication is not used
+  i_DB_Send_FIFO_PNCAN : BLOCK_DB ;	//Data Structure: TCTC DB send message FIFO for PN/CAN converter
+  i_DB_Recv_FIFO_PNCAN : BLOCK_DB ;	//Data Structure: TCTC DB receive message FIFO for PN/CAN converter
+  i_DB_Recv_HandOver_FIFO : BLOCK_DB ;	//Data Structure: TCTC DB receive Handover message FIFO
+  i_PN1_NotPrsnt : BOOL ;	//Profinet: Slave 1 is not present
+  i_PN1_Err : BOOL ;	//Profinet: Slave 1 has an error
+  i_PN2_NotPrsnt : BOOL ;	//Profinet: Slave 2 is not present
+  i_PN2_Err : BOOL ;	//Profinet: Slave 2 has an error
+END_VAR
+VAR_OUTPUT
+  o_ST_PN1_NotPrsnt : BOOL ;	//ST: PN slave 1 is not present
+  o_ST_PN1_Err : BOOL ;	//ST: PN slave 1 has an error
+  o_ST_PN2_NotPrsnt : BOOL ;	//ST: PN slave 2 is not present
+  o_ST_PN2_Err : BOOL ;	//ST: PN slave 2 has an error
+  o_Link_DataInterface_Err : BOOL ;	//Error in lifesign message handling of data interface
+  o_WN_Send_FIFO_PreFull : BOOL ;	//WN: Send FIFO is prefull or full (Messages can be missed)
+  o_WN_Recv_FIFO_PreFull : BOOL ;	//WN: Receive FIFO is prefull or full (Messages can be missed)
+END_VAR
+VAR
+  s_PN1_Not_Prsnt : BOOL ;	//PN slave 1 is not present
+  s_PN1_Err : BOOL ;	//PN slave 1 has an error
+  s_PN2_Not_Prsnt : BOOL ;	//PN slave 2 is not present
+  s_PN2_Err : BOOL ;	//PN slave 2 has an error
+  s_Lifesign_Error : BOOL ;	//Lifesign error to the parent
+  s_Busy_Rcv : BOOL ;	//The retrieving process is active - RDREC block call busy
+  s_Error_Rcv : BOOL ;	//Data receiving module report an error
+  s_Done_Snd : BOOL ;	//Bit to indicate that pointer calculation has been done	 		
+  s_Error_Snd_Monitor : BOOL ;	//Data receiving module report an error
+  s_Busy_Snd_Monitor : BOOL ;	//The sending process is active - WRREC block call busy
+  s_Error_Snd : BOOL ;	//Data receiving module report an error
+  s_Busy_Snd : BOOL ;	//The sending process is active - WRREC block call busy
+  s_Msg_Ready_To_Send : BOOL ;	//New Msg is prepared to be send
+  s_Send_New_Message : BOOL ;	//Send new message
+  s_ER_No_Connection_Snd : BOOL ;	//The TCP/IP connection is not available anymore.
+  s_ER_No_Connection_Rcv : BOOL ;	//The TCP/IP connection is not available anymore.
+  s_Message_Length_Fault : BOOL ;	//Wrong message length received
+  s_Header_Fault : BOOL ;	//Wrong header received (STX)
+  s_Footer_Fault : BOOL ;	//Wrong footer received (ETX)
+  s_Done_Rcv : BOOL ;	//Indicates if receive module has finished receiveing
+  s_Message_OK : BOOL ;	//Message layout is checked OK
+  s_OS_Message_Received : BOOL ;	//One-shot new message received
+  s_Received_Byte : BYTE ;	//Received byte used for resynchronisation of the receive buffer
+  s_Previous_Msg_Record : INT ;	//Previously used record in he DB_Snd_FIFO
+  s_Length_Of_Msg_Rec : INT ;	//Total length of the Message
+  s_FF_Counted : INT ;	//Counter for received byte is "FF"
+  s_Length_Rcv : INT ;	//Number of number of bytes received
+  s_Status_Snd : WORD ;	//The status of the sending/receiving module
+  s_Status_Rcv : WORD ;	//Status code of receive block
+  s_FB_PNPN_Handle_Msgs : "FB_PNPN_Handle_Msgs";	//Block call static FB_PNPN_Handle_Msgs
+  s_FB_PNPN_LifeSign_Msg : "FB_PNPN_LifeSign_Msg";	//Block call static FB_TCTC_LifeSign_Msg
+  s_Rcv_LifeSign_Msgs : "UDT_PN_Msg_Lifesign";	
+  s_FB_TSEND : "TSEND";	//Siemens TSend block
+  s_FB_TRCV : "TRCV";	//Siemens TRecv Receive block
+  s_Send_Msg_Body : STRUCT 	//Data structure of the send message body
+   Msg_Header : WORD ;	//Message Header
+   Msg : STRUCT 	//Message Body
+    Header : STRUCT 	
+     EventTime : DATE_AND_TIME ;	// Time stamp when message was send
+     Message_Type_ID : INT ;	// Msg Type ID defines what kind of the message it is
+     Message_Identifier : DINT ;	// Unique Number used in handover Message
+    END_STRUCT ;	
+    Body : ARRAY  [1 .. 150 ] OF BYTE ;	
+   END_STRUCT ;	
+   Msg_Footer : ARRAY  [1 .. 4 ] OF //Message Footer
+   BYTE ;	
+  END_STRUCT ;	
+  s_Recv_Msg_Body : STRUCT 	//Data structure of the receive message body
+   Msg_Header : WORD ;	//Message Header
+   Msg : STRUCT 	//Message Body
+    Header : STRUCT 	
+     EventTime : DATE_AND_TIME ;	// Time stamp when message was send
+     Message_Type_ID : INT ;	// Msg Type ID defines what kind of the message it is
+     Message_Identifier : DINT ;	// Unique Number used in handover Message
+    END_STRUCT ;	
+    Body : ARRAY  [1 .. 150 ] OF BYTE ;	
+   END_STRUCT ;	
+   Msg_Footer : ARRAY  [1 .. 4 ] OF //Message Footer
+   BYTE ;	
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Restart_Request_FIFO : BOOL ;	//Restart request from FIFO (PNPN_Send or PNPN Receive)
+  t_Base_Address : DWORD ;	//Relative address in the instance DB
+  t_AR2_Store_Restore : DWORD ;	//Backup address register AR2
+  t_Ret_Val_Word : WORD ;	//Return value
+  t_Current_Message_Record : INT ;	//Current message record number
+  t_Num_DB_Send_FIFO_PNCAN : INT ;	//Number of the DB_Snd_FIFO block
+  t_Num_DB_Recv_FIFO_PNCAN : INT ;	//Number of the DB_Rcv_FIFO block
+  t_No_IO_Available : BOOL ;	//IO not available
+  t_Done_Rcv : BOOL ;	//Done receive
+  t_Footer_Fault : BOOL ;	//Footer fault
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance DB
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+//
+      NOP   0; 
+// Determine base address
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      SET   ; 
+      R     #t_No_IO_Available; 
+      R     #t_Done_Rcv; 
+      R     #t_Footer_Fault; 
+
+NETWORK
+TITLE =BA: Reset and detect errors
+//Manage detailed statuses
+      SET   ; 
+      R     #t_Restart_Request_FIFO; 
+
+      OPN   #i_DB_Send_FIFO_PNCAN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   BA01; 
+
+      A     DBX    1.0; 
+      S     #t_Restart_Request_FIFO; 
+      R     DBX    1.0; 
+
+BA01: OPN   #i_DB_Recv_HandOver_FIFO; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   BA02; 
+
+      A     DBX    1.0; 
+      S     #t_Restart_Request_FIFO; 
+      R     DBX    1.0; 
+
+BA02: O     #i_CMD_Reset; 
+      O     #t_Restart_Request_FIFO; 
+      ON    #i_IO_Available; 
+      R     #s_PN1_Not_Prsnt; 
+      R     #s_PN1_Err; 
+      R     #s_PN2_Not_Prsnt; 
+      R     #s_PN2_Err; 
+
+// PN1 slave errors
+      A     #i_PN1_NotPrsnt; 
+      A     #i_IO_Available; 
+      S     #s_PN1_Not_Prsnt; 
+
+      A     #i_PN1_Err; 
+      A     #i_IO_Available; 
+      S     #s_PN1_Err; 
+
+// PN2 slave errors
+      A     #i_PN2_NotPrsnt; 
+      A     #i_IO_Available; 
+      S     #s_PN2_Not_Prsnt; 
+
+      A     #i_PN2_Err; 
+      A     #i_IO_Available; 
+      S     #s_PN2_Err; 
+NETWORK
+TITLE =CA: Handle incoming messages from PN/CAN coupler
+//This network handles the incoming messages from the PN/PN coupler. The messages
+//are checked and split-up into handover messages and lifesign messages. The 
+//handover messages will then be copied to the handover FIFO DB and the lifesign 
+//messages will be copied to the lifesign FIFO DB.
+      CALL #s_FB_PNPN_Handle_Msgs (
+           i_DB_Recv_FIFO_PNPN      := #i_DB_Recv_FIFO_PNCAN,
+           i_DB_Recv_HandOver_FIFO  := #i_DB_Recv_HandOver_FIFO,
+           i_Any_Recv_LifeSign_FIFO := #s_Rcv_LifeSign_Msgs);
+
+NETWORK
+TITLE =DA: Handle lifesign request and lifesign reply message
+//This network handles the lifesign messages to check if the message 
+//communication is working. Input "i_CFG_Send_Lifesign_Req" can be used to 
+//configure if this side of the PN/PN coupler will be used as server (send 
+//lifesign requests) or as client (respond to lifesign requests with a lifesign 
+//response).
+      CALL #s_FB_PNPN_LifeSign_Msg (
+           i_ID                     := #i_ID,
+           i_DB_Send_FIFO           := #i_DB_Send_FIFO_PNCAN,
+           i_Any_Recv_LifeSign_FIFO := #s_Rcv_LifeSign_Msgs,
+           i_CFG_Send_Lifesign_Req  := #i_CFG_Send_Lifesign_Req,
+           i_CFG_Lifesign_Interval  := #i_CFG_Lifesign_Interval,
+           i_CFG_NumLifeSgnMiss_Err := #i_CFG_NumLifeSgnMiss_Err,
+           i_CFG_Suppress_LS_Error  := #i_CFG_Suppress_LS_Error,
+           o_LifeSign_Err           := #s_Lifesign_Error);
+
+NETWORK
+TITLE =EA: Calculate the message length
+
+      AN    #s_Done_Snd; 
+      JCN   EA01; 
+
+// Retrieve the FIFO DBs numbers
+      OPN   #i_DB_Send_FIFO_PNCAN; 
+      L     DBNO; 
+      T     #t_Num_DB_Send_FIFO_PNCAN; 
+
+      OPN   #i_DB_Recv_FIFO_PNCAN; 
+      L     DBNO; 
+      T     #t_Num_DB_Recv_FIFO_PNCAN; 
+
+      L     P##s_Recv_Msg_Body; 
+      L     P##s_Send_Msg_Body; 
+      -D    ; 
+      SRD   3; 
+      T     #s_Length_Of_Msg_Rec; 
+
+      SET   ; 
+      =     #s_Done_Snd; 
+
+EA01: AN    #i_IO_Available; 
+      =     #t_No_IO_Available; 
+
+NETWORK
+TITLE =FA: Load FIFO DBs for internal use
+
+      AN    #t_No_IO_Available; 
+      JCN   FA99; 
+
+      OPN   #i_DB_Send_FIFO_PNCAN; 
+      L     DBNO; 
+      T     #t_Num_DB_Send_FIFO_PNCAN; 
+
+      OPN   #i_DB_Recv_FIFO_PNCAN; 
+      L     DBNO; 
+      T     #t_Num_DB_Recv_FIFO_PNCAN; 
+
+FA99: NOP   0; 
+
+NETWORK
+TITLE =GA: Monitor send done status
+
+      AN    #t_No_IO_Available; 
+      JCN   GA99; 
+
+      A     #s_Msg_Ready_To_Send; 
+      O     #s_ER_No_Connection_Snd; 
+      O     #s_Busy_Snd_Monitor; 
+      JCN   GA99; 
+
+      CALL #s_FB_TSEND (
+           REQ                      := FALSE,
+           ID                       := #i_ID_Connection_Send,
+           LEN                      := #s_Length_Of_Msg_Rec,
+           DONE                     := #s_Done_Snd,
+           BUSY                     := #s_Busy_Snd_Monitor,
+           ERROR                    := #s_Error_Snd_Monitor,
+           STATUS                   := #s_Status_Snd,
+           DATA                     := #s_Send_Msg_Body);
+
+      A     #s_Done_Snd; 
+      AN    #s_Error_Snd_Monitor; 
+      O(    ; 
+      AN    #s_Done_Snd; 
+      AN    #s_Busy_Snd_Monitor; 
+      AN    #s_Error_Snd_Monitor; 
+      )     ; 
+      A     #s_Msg_Ready_To_Send; 
+      R     #s_Msg_Ready_To_Send; 
+      R     #s_ER_No_Connection_Snd; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Check DB_Send_FIFO_PNCAN for new messages
+
+      AN    #t_No_IO_Available; 
+      JCN   HA99; 
+
+      AN    #s_Busy_Snd_Monitor; 
+      JCN   HA99; 
+
+// Check if the message is present in the FIFO DB
+      OPN   #i_DB_Send_FIFO_PNCAN; 
+
+// Check if the DB_Snd_FIFO_PNCAN is empty
+      L     DBW    6; 
+      L     0; 
+      >I    ; 
+      JCN   HA99; 
+
+// Check the first available message record number
+      L     DBW   12; 
+      T     #t_Current_Message_Record; 
+
+      L     #s_Previous_Msg_Record; 
+      L     #t_Current_Message_Record; 
+      <>I   ; 
+      JCN   HA99; 
+
+// Count the amount of clock cycles when the same record was found
+      L     #t_Current_Message_Record; 
+      T     #s_Previous_Msg_Record; 
+
+// Retrieve the message from DB_FIFO
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_Num_DB_Send_FIFO_PNCAN,
+           i_Mode                   := 'O',
+           i_ANY_Data               := #s_Send_Msg_Body.Msg,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+      SET   ; 
+      S     #s_Msg_Ready_To_Send; 
+      R     #s_Send_New_Message; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Send message
+
+      AN    #t_No_IO_Available; 
+      JCN   IA99; 
+
+      A     #s_Error_Snd; 
+      AN    #s_Send_New_Message; 
+      O     #s_Msg_Ready_To_Send; 
+      JCN   IA04; 
+
+      L     W#16#200; 
+      T     #s_Send_Msg_Body.Msg_Header; 
+
+//At the moment the message is being sent, implement the bytswap.
+//This is being done for the crane to detect a valid message type
+      A     #s_Msg_Ready_To_Send; 
+      JCN   IA02; 
+      L     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     200; 
+      ==I   ; 
+      JCN   IA01; 
+//Byte swap Sequence number when lifesign request is sent
+      L     #s_Send_Msg_Body.Msg.Body[1]; 
+      L     #s_Send_Msg_Body.Msg.Body[2]; 
+      T     #s_Send_Msg_Body.Msg.Body[1]; 
+      TAK   ; 
+      T     #s_Send_Msg_Body.Msg.Body[2]; 
+IA01: NOP   0; 
+//Byte swap Message identifier and message type
+      L     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      CAW   ; 
+      T     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     #s_Send_Msg_Body.Msg.Header.Message_Identifier; 
+      CAD   ; 
+      T     #s_Send_Msg_Body.Msg.Header.Message_Identifier; 
+IA02: NOP   0; 
+      L     W#16#FF; 
+      T     #s_Send_Msg_Body.Msg_Footer[1]; 
+      T     #s_Send_Msg_Body.Msg_Footer[2]; 
+      T     #s_Send_Msg_Body.Msg_Footer[3]; 
+      T     #s_Send_Msg_Body.Msg_Footer[4]; 
+
+      CALL #s_FB_TSEND (
+           REQ                      := TRUE,
+           ID                       := #i_ID_Connection_Send,
+           LEN                      := #s_Length_Of_Msg_Rec,
+           DONE                     := #s_Done_Snd,
+           BUSY                     := #s_Busy_Snd,
+           ERROR                    := #s_Error_Snd,
+           STATUS                   := #s_Status_Snd,
+           DATA                     := #s_Send_Msg_Body);
+
+      A     #s_Done_Snd; 
+      A     #s_Msg_Ready_To_Send; 
+      AN    #s_Error_Snd; 
+      S     #s_Send_New_Message; 
+      R     #s_Msg_Ready_To_Send; 
+      R     #s_ER_No_Connection_Snd; 
+
+      A     #s_Msg_Ready_To_Send; 
+      JCN   IA03; 
+
+//Change Sequence number/Message Type/Message identifier Back to original state after the send function 
+      L     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      CAW   ; 
+      T     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     #s_Send_Msg_Body.Msg.Header.Message_Identifier; 
+      CAD   ; 
+      T     #s_Send_Msg_Body.Msg.Header.Message_Identifier; 
+      L     #s_Send_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     200; 
+      ==I   ; 
+      JCN   IA03; 
+
+//Byte swap Sequence number when lifesign request is sent
+      L     #s_Send_Msg_Body.Msg.Body[1]; 
+      L     #s_Send_Msg_Body.Msg.Body[2]; 
+      T     #s_Send_Msg_Body.Msg.Body[1]; 
+      TAK   ; 
+      T     #s_Send_Msg_Body.Msg.Body[2]; 
+
+IA03: NOP   0; 
+// Detect and set No_connection_error
+      L     #s_Status_Snd; 
+      L     W#16#80A1; // Communications Error
+      ==I   ; 
+      O(    ; 
+      L     #s_Status_Snd; 
+      L     W#16#80C4; // Temporary Communications Error
+      ==I   ; 
+      )     ; 
+      =     #s_ER_No_Connection_Snd; 
+
+IA04: OPN   DB [#t_Num_DB_Send_FIFO_PNCAN]; 
+      A     DBX    0.1; 
+      O     DBX    0.2; 
+      =     #o_WN_Send_FIFO_PreFull; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Re-synchronization of the receive buffer
+//During a footer fault (e.g. last four bytes did not contain FF) the receive 
+//buffer is emptied byte for byte until four subsequent bytes, filled with FF, 
+//are found.
+//if footer fault jumps to last network
+      AN    #t_No_IO_Available; 
+      JCN   JA99; 
+
+      A     #s_Footer_Fault; 
+      JCN   JA99; 
+
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection_Recv,
+           LEN                      := 0,
+           NDR                      := #s_Done_Rcv,
+           BUSY                     := #s_Busy_Rcv,
+           ERROR                    := #s_Error_Rcv,
+           STATUS                   := #s_Status_Rcv,
+           RCVD_LEN                 := #s_Length_Rcv,
+           DATA                     := #s_Recv_Msg_Body);
+
+// If recieve action not finished then jumps to last network
+      A     #s_Done_Rcv; 
+      =     #t_Done_Rcv; 
+      JCN   JA99; 
+
+// If last byte contains FF then increase s_FF_Counted.
+// Else reset s_FF_Counted.
+      L     #s_Received_Byte; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   JA01; 
+
+      L     #s_FF_Counted; 
+      L     1; 
+      +I    ; 
+      T     #s_FF_Counted; 
+      JU    JA02; 
+JA01: L     0; 
+      T     #s_FF_Counted; 
+
+// If last four bytes contained FF then reset footer fault.
+JA02: L     4; 
+      L     #s_FF_Counted; 
+      <=I   ; 
+      R     #s_Footer_Fault; 
+      SET   ; 
+      S     #t_Footer_Fault; 
+
+JA99: NOP   0; 
+
+NETWORK
+TITLE =KA: Receive message
+
+      AN(   ; 
+      A     #t_No_IO_Available; 
+      O     #t_Footer_Fault; 
+      O     #t_Done_Rcv; 
+      )     ; 
+      JCN   KA99; 
+
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection_Recv,
+           LEN                      := #s_Length_Of_Msg_Rec,
+           NDR                      := #s_Done_Rcv,
+           BUSY                     := #s_Busy_Rcv,
+           ERROR                    := #s_Error_Rcv,
+           STATUS                   := #s_Status_Rcv,
+           RCVD_LEN                 := #s_Length_Rcv,
+           DATA                     := #s_Recv_Msg_Body);
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Receive new message
+
+      AN(   ; 
+      A     #t_No_IO_Available; 
+      O     #t_Footer_Fault; 
+      O     #t_Done_Rcv; 
+      )     ; 
+      JCN   LA99; 
+
+      A     #s_Done_Rcv; 
+      AN    #s_Error_Rcv; 
+      =     #s_OS_Message_Received; 
+      JCN   LA99; 
+
+// Check message length
+      L     #s_Length_Of_Msg_Rec; 
+      L     #s_Length_Rcv; 
+      <>I   ; 
+      =     #s_Message_Length_Fault; 
+
+//Check message header
+      L     #s_Recv_Msg_Body.Msg_Header; 
+      L     W#16#200; 
+      ==I   ; 
+      JCN   LA01; 
+
+      CLR   ; 
+      =     #s_Header_Fault; 
+      JU    LA02; 
+
+LA01: SET   ; 
+      =     #s_Header_Fault; 
+
+LA02: NOP   0; 
+
+//Check message footer; Should be four times "FF"
+      L     #s_Recv_Msg_Body.Msg_Footer[1]; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   LA03; 
+
+      L     #s_Recv_Msg_Body.Msg_Footer[2]; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   LA03; 
+
+      L     #s_Recv_Msg_Body.Msg_Footer[3]; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   LA03; 
+
+      L     #s_Recv_Msg_Body.Msg_Footer[4]; 
+      L     B#16#FF; 
+      ==I   ; 
+      JCN   LA03; 
+
+      CLR   ; 
+      =     #s_Footer_Fault; 
+
+      JU    LA04; 
+
+LA03: SET   ; 
+      =     #s_Footer_Fault; 
+
+//Is message OK?
+LA04: AN    #s_Message_Length_Fault; 
+      AN    #s_Header_Fault; 
+      AN    #s_Footer_Fault; 
+      =     #s_Message_OK; 
+
+//When the message is approved swap the bytes of the data received from the crane
+      A     #s_Message_OK; 
+      JCN   LA99; 
+
+//Byte Swap the received message identifier
+      L     #s_Recv_Msg_Body.Msg.Header.Message_Identifier; 
+      CAD   ; 
+      T     #s_Recv_Msg_Body.Msg.Header.Message_Identifier; 
+
+//Byte Swap the received Message Type
+      L     #s_Recv_Msg_Body.Msg.Header.Message_Type_ID; 
+      CAW   ; 
+      T     #s_Recv_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     #s_Recv_Msg_Body.Msg.Header.Message_Type_ID; 
+      L     201; 
+      ==I   ; 
+      JCN   LA99; 
+
+//Byte swap Sequence number when lifesign response is received
+      L     #s_Recv_Msg_Body.Msg.Body[1]; 
+      L     #s_Recv_Msg_Body.Msg.Body[2]; 
+      T     #s_Recv_Msg_Body.Msg.Body[1]; 
+      TAK   ; 
+      T     #s_Recv_Msg_Body.Msg.Body[2]; 
+
+LA99: NOP   0; 
+
+NETWORK
+TITLE =MA: Copy message to receive buffer
+
+      AN(   ; 
+      A     #t_No_IO_Available; 
+      O     #t_Footer_Fault; 
+      O     #t_Done_Rcv; 
+      )     ; 
+      JCN   MA99; 
+
+      A     #s_OS_Message_Received; // IF new message received
+      A     #s_Message_OK; // AND message layout checked OK
+      JCN   MA99; 
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #t_Num_DB_Recv_FIFO_PNCAN,
+           i_Mode                   := 'L',
+           i_ANY_Data               := #s_Recv_Msg_Body.Msg,
+           i_ID                     := "MD_DWORD_To_Do",
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Call TRCV
+//Make receive channel ready to receive the a new message.
+      AN(   ; 
+      A     #t_No_IO_Available; 
+      O     #t_Footer_Fault; 
+      O     #t_Done_Rcv; 
+      )     ; 
+      JCN   NA99; 
+
+      A     #s_OS_Message_Received; 
+      JCN   NA99; 
+
+      CALL #s_FB_TRCV (
+           EN_R                     := TRUE,
+           ID                       := #i_ID_Connection_Recv,
+           LEN                      := #s_Length_Of_Msg_Rec,
+           NDR                      := #s_Done_Rcv,
+           BUSY                     := #s_Busy_Rcv,
+           ERROR                    := #s_Error_Rcv,
+           STATUS                   := #s_Status_Rcv,
+           RCVD_LEN                 := #s_Length_Rcv,
+           DATA                     := #s_Recv_Msg_Body);
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Error handling for the receiving channel
+
+      AN(   ; 
+      A     #t_No_IO_Available; 
+      O     #t_Footer_Fault; 
+      O     #t_Done_Rcv; 
+      )     ; 
+      JCN   OA99; 
+
+      L     #s_Status_Rcv; 
+      L     W#16#80A1; // Communications Error
+      ==I   ; 
+      O(    ; 
+      L     #s_Status_Rcv; 
+      L     W#16#80C4; // Temporary Communications Error
+      ==I   ; 
+      )     ; 
+      =     #s_ER_No_Connection_Rcv; 
+
+      OPN   DB [#t_Num_DB_Recv_FIFO_PNCAN]; 
+      A     DBX    0.1; 
+      O     DBX    0.2; 
+      =     #o_WN_Recv_FIFO_PreFull; 
+
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Write to outputs
+
+      A     #s_PN1_Not_Prsnt; 
+      O     #s_PN1_Err; 
+      O     #s_PN2_Not_Prsnt; 
+      O     #s_PN2_Err; 
+      O     #s_Lifesign_Error; 
+      O     #s_ER_No_Connection_Snd; 
+      O     #s_ER_No_Connection_Rcv; 
+      =     #o_Link_DataInterface_Err; 
+
+      OPN   #i_DB_Send_FIFO_PNCAN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   PA02; 
+
+      A     #o_Link_DataInterface_Err; 
+      =     DBX    1.2; 
+
+PA02: OPN   #i_DB_Recv_FIFO_PNCAN; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   PA03; 
+
+      A     #o_Link_DataInterface_Err; 
+      =     DBX    1.2; 
+
+PA03: A     #s_PN1_Not_Prsnt; 
+      =     #o_ST_PN1_NotPrsnt; 
+
+      A     #s_PN1_Err; 
+      =     #o_ST_PN1_Err; 
+
+      A     #s_PN2_Not_Prsnt; 
+      =     #o_ST_PN2_NotPrsnt; 
+
+      A     #s_PN2_Err; 
+      =     #o_ST_PN2_Err; 
+
+END_FUNCTION_BLOCK
+

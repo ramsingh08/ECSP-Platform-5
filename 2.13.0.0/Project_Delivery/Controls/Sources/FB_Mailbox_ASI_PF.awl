@@ -1,0 +1,367 @@
+FUNCTION_BLOCK "FB_Mailbox_ASI_PF"
+TITLE =%version: 0.04 % CN: 31
+//Function:
+//The function of this block is to execute a Write (SCF15) and a Read (SFC14) 
+//command on request.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:48 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.04
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//Updated Rev.nr.                                        nlRSwi  01-09-10   0.02
+//Copied from SSS                                        nlRSwi  31-08-10   0.01
+//Based on FFB_Mailbox_ASI_PF version 1.6 library BH  
+//
+//Description:
+//These commands to retrieve datas (12 Bytes) from a DP Slave, in this case a 
+//Gateway PROFIBUS/ASI P&F type VBG-PB-K20-DMD
+//A request significate:
+//           - Writing a command to the Gateway to retrieve Datas
+//           - Reading the datas from the Gateway 
+//           - Check the status of the resultat (ECHO of the write function)
+//           - Update output datas with the outcome. 
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Command_Interface_In : INT ;	//Start address reading diagnostic module
+  i_Command_Interface_Out : INT ;	//Start address writing command diagnostic module
+  i_Command : BYTE ;	//Type of command (ASCII Code)
+  i_Circuit : BYTE ;	//Circuit 1 or cicuit 2
+  i_Start : BOOL ;	//Trigger of the command
+  i_Reset : BOOL ;	//Reset  function and error
+END_VAR
+VAR_OUTPUT
+  o_Complete : BOOL ;	//The command is completed
+  o_Command_Busy : BOOL ;	//The command is not yet completed
+  o_Error : BOOL ;	//An error happend during the execution of the command
+  o_Start : BOOL ;	//Trigger of the command
+  o_Status : WORD ;	//Status of the error SFC14 (-1), SFC15 (-2), Time out (-3) 
+  o_List : DWORD ;	//Datas required
+END_VAR
+VAR
+  s_Send_Buffer : "UDT_GatePF_Send";	//Buffer for data from Peripheral IO of Gateway P&F
+  s_Receive_Buffer : "UDT_GatePF_Recv";	//Buffer for data to Peripheral IO of Gateway P&F
+  s_Time_Out : BOOL ;	//Time out execution command
+  s_TogglebitEcho : BOOL ;	//Toggle bit when reading
+  s_TogglebitSend : BOOL ;	//Toggle bit when writing
+  s_StatusOK : BOOL ;	//Good execution of the command (write, read, update)
+  s_Start : BOOL ;	//Trigger of the command
+  s_FP_Reset : BOOL ;	//Flank Positive reset command
+  s_RET_VAL_SFC14 : INT ;	//Return Value of a Consistent Read (0 = OK)
+  s_RET_VAL_SFC15 : INT ;	//Return Value of a Consistent Write (0 = OK)
+  s_CurrentVal_Timer : INT ;	//Current value of the time out
+END_VAR
+VAR_TEMP
+  t_SFC14_Error : BOOL ;	//Error execution Siemens functionSFC14 (READ datas in a DP slave)
+  t_SFC15_Error : BOOL ;	//Error execution Siemens functionSFC15 (WRITE command in a DP slave)
+  t_Timeout_Error : BOOL ;	//Time too long execution command
+  t_Status_Error : BOOL ;	
+  t_LADDR_Read : WORD ;	//Format conversion INT/ WORD 
+  t_LADDR_Write : WORD ;	//Format conversion INT/ WORD 
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Reset status and errors
+
+      SET   ; 
+      R     #s_StatusOK; 
+      R     #t_SFC14_Error; 
+      R     #t_SFC15_Error; 
+      R     #t_Timeout_Error; 
+      R     #t_Status_Error; 
+
+      A     #i_Reset; 
+      FP    #s_FP_Reset; 
+      JCN   AA99; 
+      SET   ; 
+      R     #o_Complete; 
+      R     #o_Command_Busy; 
+      R     #o_Error; 
+      R     #s_Start; 
+      R     #s_Time_Out; 
+
+// End
+AA99: NOP   0; 
+NETWORK
+TITLE =AB: Reading function
+//This function read the consistent data of the Gateway
+      NOP   0; 
+// Reading
+      L     #i_Command_Interface_In; 
+      T     #t_LADDR_Read; 
+
+      CALL "DPRD_DAT" (
+           LADDR                    := #t_LADDR_Read,
+           RET_VAL                  := #s_RET_VAL_SFC14,
+           RECORD                   := #s_Receive_Buffer);
+
+// Handlig error
+      L     #s_RET_VAL_SFC14; 
+      L     0; 
+      ==I   ; 
+      JC    AB99; // Function not in error
+      SET   ; 
+      S     #t_SFC14_Error; 
+      JU    AO01; // Jump to errors 
+
+// End
+AB99: NOP   0; 
+NETWORK
+TITLE =Togglebit 
+//The state of bit 8 of the 2de byte in the receive buffer is memorise if one
+//This bit is the echo of the toggle bit of the Send function
+      L     #s_Receive_Buffer.Parameter_Toggle_Flag; 
+      L     B#16#80; 
+      AW    ; 
+      L     B#16#80; 
+      ==I   ; 
+      =     #s_TogglebitEcho; 
+NETWORK
+TITLE =AD: Status of the command
+//- The time to execute a command is check by a time out timer.
+//- The command is finished if the firts two bytes of send and receive buffer are 
+//  equal and also the two togglebit (bit 7 of the second byte)
+//- The return value of the second byte with the exception of the bit 7 
+//  (toggle it) must equal to zero when the command is good finished.
+      NOP   0; 
+// Command active
+      A     #o_Command_Busy; 
+      JCN   AD99; 
+
+// Time out command
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #s_Time_Out,
+           i_Enable_Dly             := #s_Time_Out,
+           i_Time_Value             := 10,
+           i_Current_Value          := #s_CurrentVal_Timer,
+           o_Status                 := #t_Timeout_Error,
+           o_Current_Value          := #s_CurrentVal_Timer);
+
+// Check first byte and toggle bit
+      L     #s_Receive_Buffer.Command_Code; 
+      L     #s_Send_Buffer.Command_Code; 
+      ==I   ; 
+      A(    ; 
+      A(    ; 
+      A     #s_TogglebitSend; 
+      A     #s_TogglebitEcho; 
+      )     ; 
+      O(    ; 
+      AN    #s_TogglebitSend; 
+      AN    #s_TogglebitEcho; 
+      )     ; 
+      )     ; 
+      JC    AD01; 
+
+// Is the time out done?
+      A     #t_Timeout_Error; 
+      JC    AO01; // Jump to errors 
+      S     #s_Time_Out; 
+      JU    AD99; 
+
+// Status of the good completion of the command
+AD01: L     #s_Receive_Buffer.Parameter_Toggle_Flag; 
+      L     B#16#7F; // Mask the toggle bit
+      AW    ; 
+      L     0; 
+      ==I   ; 
+      JC    AD02; 
+
+// Status error go to treatment
+      SET   ; 
+      S     #t_Status_Error; 
+      JU    AO01; // Jump to errors 
+
+// Status OK
+AD02: SET   ; 
+      S     #s_StatusOK; 
+
+// End
+AD99: NOP   0; 
+NETWORK
+TITLE =AG: Update datas when command complete
+//When the command is complete with a status ok the last status, errors, flags 
+//are 
+//reset and the datas are updated.
+      NOP   0; 
+// Command complete
+      A     #s_StatusOK; 
+      A     #o_Command_Busy; 
+      JCN   AG99; 
+
+// Reset errors, status, and flags
+      SET   ; 
+      R     #s_Time_Out; 
+      R     #o_Error; 
+      R     #o_Command_Busy; 
+      L     0; 
+      T     #o_Status; 
+
+// Update datas
+      L     #s_Receive_Buffer.Read_Data_Byte_1; 
+      SLD   8; 
+      L     #s_Receive_Buffer.Read_Data_Byte_2; 
+      OD    ; 
+      SLD   8; 
+      L     #s_Receive_Buffer.Read_Data_Byte_3; 
+      OD    ; 
+      SLD   8; 
+      L     #s_Receive_Buffer.Read_Data_Byte_4; 
+      OD    ; 
+      T     #o_List; 
+
+// Command is completed
+      S     #o_Complete; 
+AG99: NOP   0; 
+NETWORK
+TITLE =AJ: A new command is triggered
+//When a new is triggered the send buffer must be updated with the parameters of 
+//this new command:
+//          - Type of command, hexadecimal code (Byte 1)
+//          - Circuit 1 (ASI master 1) or circuit 2 (ASI master 2)
+//          - Toggle bit invert to inform the gateway that is a new request
+      NOP   0; 
+// Start new command
+      A     #i_Start; 
+      S     #s_Start; 
+
+      A     #s_Start; 
+      AN    #o_Command_Busy; 
+      JCN   AJ99; 
+
+// Type of command
+      L     #i_Command; 
+      T     #s_Send_Buffer.Command_Code; 
+
+// Which ASI master (1 or 2)
+      L     #i_Circuit; 
+      L     B#16#7F; 
+      AW    ; 
+      T     #s_Send_Buffer.Circuit_Toggle_Flag; 
+
+// Invert toggle bit
+      AN    #s_TogglebitEcho; 
+      =     #s_TogglebitSend; 
+
+// Copy toggle bit in the second byte of the send buffer
+      CLR   ; 
+      AN    #s_TogglebitSend; 
+      JC    AJ01; 
+      L     #s_Send_Buffer.Circuit_Toggle_Flag; 
+      L     B#16#80; 
+      OW    ; 
+      T     #s_Send_Buffer.Circuit_Toggle_Flag; 
+      JU    AJ02; 
+AJ01: L     #s_Send_Buffer.Circuit_Toggle_Flag; 
+      L     B#16#7F; 
+      AW    ; 
+      T     #s_Send_Buffer.Circuit_Toggle_Flag; 
+
+// The new command is now active but not yet complete
+AJ02: SET   ; 
+      R     #s_Start; 
+      R     #o_Complete; 
+      R     #o_Error; 
+      L     0; 
+      T     #o_Status; 
+      T     #o_List; 
+      S     #o_Command_Busy; 
+
+// End
+AJ99: NOP   0; 
+
+NETWORK
+TITLE =AM: Writing function
+
+      NOP   0; 
+// Writing
+      L     #i_Command_Interface_Out; 
+      T     #t_LADDR_Write; 
+
+      CALL "DPWR_DAT" (
+           LADDR                    := #t_LADDR_Write,//#Moduladresse
+           RECORD                   := #s_Send_Buffer,
+           RET_VAL                  := #s_RET_VAL_SFC15);
+
+// Handling error
+      L     #s_RET_VAL_SFC15; 
+      L     0; 
+      ==I   ; 
+      JC    AM90; 
+      SET   ; 
+      S     #t_SFC15_Error; 
+      JU    AO01; // Jump to errors 
+
+// End
+AM90: NOP   0; 
+      A     #s_Start; 
+      =     #o_Start; 
+      BEU   ; 
+
+NETWORK
+TITLE =AO: Errors
+//When a error occur three different negative code are writed in the output 
+//status 
+//of the block:
+//          - Result code if not zero
+//          - Error execution Reading (SFC14): -1
+//          - Error execution Writing (SFC15): -2
+//          - Time out command               : -3
+AO01: NOP   0; 
+// Position flags
+      SET   ; 
+      R     #s_Start; 
+      R     #o_Command_Busy; 
+      R     #s_Time_Out; 
+      S     #o_Complete; 
+      S     #o_Error; 
+
+      A     #s_Start; 
+      =     #o_Start; 
+
+// Result code if not zero
+      A     #t_Status_Error; 
+      JCN   AO02; 
+      L     #s_Receive_Buffer.Command_Code; 
+      L     W#16#7F; 
+      AW    ; 
+      T     #o_Status; 
+      BEU   ; 
+
+// Error reading SFC14
+AO02: A     #t_SFC14_Error; 
+      JCN   AO03; 
+      L     W#16#FFFF; // Code -1
+      T     #o_Status; 
+      BEU   ; 
+
+// Error writing SFC15
+AO03: A     #t_SFC15_Error; 
+      JCN   AO04; 
+      L     W#16#FFFE; // Code -2
+      T     #o_Status; 
+      BEU   ; 
+
+// Error time out
+AO04: A     #t_Timeout_Error; 
+      JCN   AO99; 
+      L     W#16#FFFD; // Code -3
+      T     #o_Status; 
+
+// End
+AO99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

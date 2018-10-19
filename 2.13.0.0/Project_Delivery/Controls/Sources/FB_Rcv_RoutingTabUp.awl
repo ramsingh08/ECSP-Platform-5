@@ -1,0 +1,226 @@
+FUNCTION_BLOCK "FB_Rcv_RoutingTabUp"
+TITLE =%version: 0.07 %  CN: 40
+//Function:
+//Handle received message 'RoutingTableUpdate'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, June 08, 2017 2:49:36 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22580: Check DB length for Msgs with tableindex    nlHdL    08-06-17   0.07
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.06
+//ra#12674: AAAAZZSS calcution in D instruction         nlJClo   08-04-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.01 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Handle received message 'RoutingTableUpdate'
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//ANY pointer to received message body
+END_VAR
+VAR
+  s_RoutingUpdate : "UDT_Msg_RoutingTabUp";	//"UDT_Rcv_Dest_Reply";  //Message Destination reply
+  s_Routing_DB_number : INT ;	//Entry number that belongs Area_Zone_Section_ID	
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_ANY_Rcv_Msg_Body : ANY ;	//ANY pointer to the received message body
+  t_Ret_Val_Int : INT ;	//Return Value (int)
+  t_DirPref_1 : WORD ;	//Direction_Preference_1: 0 = no dir., 1 = Copy to direction 1, 2 = Copy to direc
+  t_DirPref_2 : WORD ;	//Direction_Preference_2: 0 = Not allowed, 1 = Preferred, 2 = Alternative
+  t_DirPref_3 : WORD ;	//Direction_Preference_3: 0 = Not allowed, 1 = Preferred, 2 = Alternative
+  t_Allowed_Loop_Count : INT ;	//Preset value of 81 entries of maximum allowed received entries
+  t_Area_Zone_Section_ID : DINT ;	//Calculating Area_Zone_Section_ID
+  t_Loop_Counter : INT ;	//Number of entries in TableDB
+  t_Loop_Count : INT ;	
+  t_Destination : INT ;	
+  t_Routing_DB_number : INT ;	
+  t_RoutingTableType : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy Received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_RoutingUpdate.Body);
+NETWORK
+TITLE =CA: Get DB number of routing table
+
+      OPN   "DB_RoutingTableIndex"; 
+      L     DBLG; 
+      L     8; //one entry is 8 bytes long
+      /D    ; 
+      T     #t_Loop_Counter; 
+      L     0; 
+      ==I   ; 
+      BEC   ; // End if no entries present
+
+// Calculate Area_Zone_Section_ID                                     
+      L     #s_RoutingUpdate.Body.AreaID; 
+      L     L#10000; 
+      *D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+      L     #s_RoutingUpdate.Body.ZoneID; 
+      L     100; 
+      *D    ; 
+      L     #t_Area_Zone_Section_ID; 
+      +D    ; 
+      L     #s_RoutingUpdate.Body.EquipmentID; 
+      +D    ; 
+      T     #t_Area_Zone_Section_ID; 
+
+      L     #s_RoutingUpdate.Body.TableType; 
+      T     #t_RoutingTableType; 
+
+// Set a pointer to the first entry
+      L     P#DBX 0.0; 
+      LAR1  ; 
+      JU    CA02; 
+
+// Set the pointer to the next entry
+CA01: L     P#8.0; 
+      +AR1  ; 
+
+// Decrease the loop counter
+CA02: L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+
+// Load and compare Area_Zone_Section_ID
+      L     D [AR1,P#0.0]; 
+      L     #t_Area_Zone_Section_ID; 
+      ==D   ; 
+      JC    CA03; 
+
+// Check loop counter
+      L     #t_Loop_Counter; 
+      L     0; 
+      <=I   ; 
+      JCN   CA01; 
+      BE    ; //Block end if no DB found
+
+//Check if type = 2 System route DB
+CA03: L     #t_RoutingTableType; 
+      L     2; 
+      ==I   ; 
+      JCN   CA04; 
+      L     W [AR1,P#4.0]; 
+      T     #t_Routing_DB_number; 
+      T     #s_Routing_DB_number; 
+      JU    CA99; 
+
+//Check if type = 1 Degraded route DB
+CA04: L     #t_RoutingTableType; 
+      L     1; 
+      ==I   ; 
+      JCN   CA99; 
+      L     W [AR1,P#6.0]; 
+      T     #t_Routing_DB_number; 
+      T     #s_Routing_DB_number; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Prepare pointer to received entry
+
+      NOP   0; 
+
+
+// Preset the maximum number of allowed loops.
+// A message contains a maximum of 60 entries.
+      L     60; 
+      T     #t_Allowed_Loop_Count; 
+
+// Reset the loop counter
+      L     0; 
+      T     #t_Loop_Count; 
+
+// Determine the address of the first entry
+      L     P##s_RoutingUpdate; 
+      TAR2  ; // 'absolute address' Source
+
+      L     P#28.0; // Routing information starts at 28 bytes from start of message
+      JU    DA01; 
+
+LOOP: L     P#8.0; // Load the address to the next entry
+DA01: +AR2  ; 
+
+      L     #t_Loop_Count; // Increase loop counter
+      L     1; 
+      +I    ; 
+      T     #t_Loop_Count; 
+
+      L     DIW [AR2,P#0.0]; // Copy destination
+      T     #t_Destination; 
+
+      L     DIW [AR2,P#2.0]; // Copy Direction_Preference_1
+      T     #t_DirPref_1; 
+
+      L     DIW [AR2,P#4.0]; // Copy Direction_Preference_2
+      T     #t_DirPref_2; 
+
+      L     DIW [AR2,P#6.0]; // Copy Direction_Preference_3
+      T     #t_DirPref_3; 
+
+      CALL "FC_Writ_RoutingEntry" (
+           i_DB_Route_Num           := #t_Routing_DB_number,
+           i_Destination            := #t_Destination,
+           i_Direction_And_Pref_1   := #t_DirPref_1,
+           i_Direction_And_Pref_2   := #t_DirPref_2,
+           i_Direction_And_Pref_3   := #t_DirPref_3);
+
+// Only loop if the destination field of the next entry > 0
+// and loop counter has not reached the allowed number.
+      L     DIW [AR2,P#8.0]; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+      L     #t_Loop_Count; 
+      L     #t_Allowed_Loop_Count; 
+      <I    ; 
+      JC    LOOP; 
+
+DA99: NOP   0; 
+END_FUNCTION_BLOCK
+

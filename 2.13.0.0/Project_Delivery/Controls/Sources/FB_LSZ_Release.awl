@@ -1,0 +1,223 @@
+FUNCTION_BLOCK "FB_LSZ_Release"
+TITLE =%version: 0.01 % CN: 40
+//
+//Function:
+//This function controls the lane release one lane at a time based on 
+//Global DB & does the lane release as per command sequence.
+//                                                                
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Friday, June 16, 2017 2:17:11 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       inajos   16-06-17   0.01
+//
+//Description:
+//This function shall release only one lane at a time, 
+//i.e. if the SAC issues a command for 2 lanes the second lane shall start 
+//releasing as soon as the first lane is finished.
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Release_LSZ : BLOCK_DB ;	//Data structure: Global DB for Lane release interface
+  i_Release : BOOL ;	//CMD: Lane release command
+  i_Empty : BOOL ;	//ST: Lane empty status
+  i_Disable_Lane : BOOL ;	//Disable the existing command
+END_VAR
+VAR_OUTPUT
+  o_Release_CMD : BOOL ;	//Signal: Lane release command
+  o_ST_Request_In_Queue : BOOL ;	//Lane Release Request in Queue
+END_VAR
+VAR
+  s_DB_Num_Release_LSZ : INT ;	//DB number for DB Release LSZ
+  s_Lanes_Releasing : INT ;	//Lane release counter
+  s_Release_NR : INT ;	//Release number
+  s_Lane_Emptied_Cnt : INT ;	//No of time lane emptied
+  s_Releasing_Cnt : INT ;	//Releasing request count
+  s_OS_Empty : BOOL ;	//One-Shot lane empty
+  s_Copy_FP_Release : BOOL ;	//Positive Flank of lane release
+  s_Copy_FP_Empty_DB : BOOL ;	//Positive Flank of lane empty
+  s_Copy_FP_Emptying : BOOL ;	//Positive Flank of lane emptying
+  s_Empty : BOOL ;	//Lane Empty
+  s_OS_Release : BOOL ;	//One-Shot release command
+  s_OS_Empty_DB : BOOL ;	//One-Shot Lane Empty
+  s_OS_Emptying : BOOL ;	//One-Shot Lane Emptying
+  s_LaneBusy : BOOL ;	//Lane busy /Emptying
+  s_Release_Request : BOOL ;	//Lane Release Request
+  s_Make_OS_Empty_DB : BOOL ;	//Make OS Empty_DB
+  s_Make_Releasing_DB : BOOL ;	//Lane Releasing
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read DB and create One-Shots
+
+      OPN   #i_DB_Release_LSZ; // Open PLT DB
+      L     DBNO; 
+      T     #s_DB_Num_Release_LSZ; // Determine PLT block DB number
+
+      L     DBW    0; // Copy Releasing
+      T     #s_Lanes_Releasing; // Number of lanes which are releasing
+
+      A     DBX    2.0; // copy One Shot Lane empty trigger
+      =     #s_OS_Empty; // Empty
+
+      A     DBX    2.1; // Lane Emptying
+      =     #s_LaneBusy; // Busy
+
+      A     #i_Release; // Release 
+      FP    #s_Copy_FP_Release; // Copy Positive edge - Release
+      =     #s_OS_Release; // Create One shote on positive edge of i_release
+      S     #s_Release_Request; // SET Release request
+
+      A     #s_OS_Empty; // OS Emply
+      FP    #s_Copy_FP_Empty_DB; // Copy Positive edge - Release
+      =     #s_OS_Empty_DB; 
+
+      A     #i_Empty; // AND lane reports empty
+      A     #o_Release_CMD; // AND Lane is releasing
+      FP    #s_Copy_FP_Emptying; 
+      =     #s_OS_Emptying; // Create one shot on positive edge
+
+      A     #s_Release_Request; 
+      =     #o_ST_Request_In_Queue; 
+
+NETWORK
+TITLE =BA: Make One-Shot in Global DB 
+
+      NOP   0; 
+// If lane emptied then - decrement the lane release counter
+      A     #s_OS_Emptying; 
+      JCN   BA02; 
+      L     #s_Lanes_Releasing; 
+      L     1; 
+      -I    ; 
+      JPZ   BA01; 
+
+      L     0; 
+BA01: T     DBW    0; 
+
+
+
+BA02: NOP   0; 
+
+//Copy one-shot signal to Global DB 
+      A     DBX    2.0; 
+      A     #s_Make_OS_Empty_DB; 
+      R     DBX    2.0; 
+      R     #s_Make_OS_Empty_DB; 
+
+      A     #s_OS_Emptying; 
+      AN    #s_Make_OS_Empty_DB; 
+      S     DBX    2.0; 
+      S     #s_Make_OS_Empty_DB; 
+
+NETWORK
+TITLE =CA: Release Control
+
+      NOP   0; 
+
+      A     #s_Release_Request; // AND release request
+      A(    ; // AND Release NR is '0' (zero)
+      L     #s_Release_NR; 
+      L     0; 
+      ==I   ; 
+      )     ; // JUMP when release nr is not equal at '0'
+      JCN   CA01; // IF release NR = zero
+
+      L     #s_Lanes_Releasing; 
+      L     1; 
+      +I    ; 
+      T     #s_Release_NR; // Give lane release NR (Lanes_Releasing +1)
+      T     DBW    0; 
+
+      L     #s_Releasing_Cnt; // Increment releasing request
+      L     1; 
+      +I    ; 
+      T     #s_Releasing_Cnt; 
+
+CA01: NOP   0; 
+
+      A     #s_OS_Empty_DB; 
+      O     #s_Make_OS_Empty_DB; 
+      JCN   CA90; 
+
+      L     #s_Lane_Emptied_Cnt; 
+      L     1; 
+      +I    ; 
+      T     #s_Lane_Emptied_Cnt; 
+
+      L     #s_Release_NR; 
+      L     1; 
+      -I    ; 
+      JPZ   CA02; 
+
+      L     0; 
+CA02: T     #s_Release_NR; 
+
+CA90: NOP   0; 
+
+      L     #s_Release_NR; 
+      L     1; 
+      ==I   ; 
+      AN    #i_Disable_Lane; 
+      =     #o_Release_CMD; 
+      S     #s_Make_Releasing_DB; 
+      R     #s_Release_Request; 
+
+
+      A     #o_Release_CMD; 
+      S     DBX    2.1; 
+
+      AN    #o_Release_CMD; 
+      A     #s_Make_Releasing_DB; 
+      R     DBX    2.1; 
+      R     #s_Make_Releasing_DB; 
+
+NETWORK
+TITLE =DA: Exception Handling
+
+      NOP   0; 
+// If in case of no entries in global DB, clear #s_Release_NR value 
+      A(    ; 
+      L     #s_Release_NR; // AND Release NR is > '0' (zero)
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; // AND DBW 0 is '0' (zero)
+      L     DBW    0; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    DBX    2.0; // AND no empty
+      AN    DBX    2.1; // AND no emptying
+      JCN   DA01; 
+
+      L     0; 
+      T     #s_Release_NR; 
+
+DA01: NOP   0; 
+
+
+      A(    ; // AND DBW 0 is > '0' (zero)
+      L     DBW    0; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      AN    DBX    2.0; // AND no empty
+      AN    DBX    2.1; // AND no emptying
+      JCN   DA99; 
+
+      L     0; 
+      T     DBW    0; 
+
+DA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

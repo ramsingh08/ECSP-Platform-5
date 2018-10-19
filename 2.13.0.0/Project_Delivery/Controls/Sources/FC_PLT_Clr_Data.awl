@@ -1,0 +1,120 @@
+FUNCTION "FC_PLT_Clr_Data" : VOID
+TITLE =%version: 1.01 % CN: 32
+//Function:
+//This function clear the data layer of the entire PLT
+//The info layer is NOT cleared, leading and trailing edge stay in the PLT 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:07:11 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.04 of PLT version 0
+//
+//Description:
+//Clear data layer of the PLT DB.
+//This function clear the data layer of the entire PLT
+//The info layer is NOT cleared, leading and trailing edge code stay in the PLT 
+//with the position
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Enable_Clr : BOOL ;	//Enable the function to clear LNK data from the PLT DB
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+  t_Link : INT ;	//Read Link number 
+  t_Backup_AR1 : DWORD ;	//Backup of AR1 (needed because of internal FC Call)
+  t_Ret_Event : INT ;	//Return value for Write Event
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: If not enabled end block
+
+      AN    #i_Enable_Clr; 
+      BEC   ; 
+NETWORK
+TITLE =BA: Open PLT DB
+// 
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+NETWORK
+TITLE =CA: Check if entries are filled in PLT DB
+// 
+      L     DBW    0; 
+      L     0; // Number of entry,s used in PLT DB
+      <=I   ; 
+      BEC   ; // end function
+NETWORK
+TITLE =DA: Counter Entry used  
+// 
+      L     DBW    0; // Number of entries used in PLT DB
+      T     #t_Cnt_Entry; // Copy used entries
+NETWORK
+TITLE =EA: Delete entries.
+
+      LAR1  P#14.0; // Pointer to first entry (DBW14)
+      TAR1  ; 
+      T     #t_Backup_AR1; 
+
+EA01: L     DBW [AR1,P#6.0]; 
+      T     #t_Link; 
+
+      L     #t_Link; // IF data = (UFO)PIC
+      L     0; 
+      >I    ; 
+      JCN   EA02; 
+
+      CALL "FC_Write_Event" (// THEN report event 'Tracking: LNK data lost due to clear track'(3801)
+           i_Message_ID             := 3801,
+           i_Event_value            := #t_Link,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      CALL "FC_Write_Event" (// Report PLT DB number (3803)
+           i_Message_ID             := 3803,
+           i_Event_value            := #t_PLT_DB_Nr,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+//Restore AR1
+      L     #t_Backup_AR1; 
+      LAR1  ; 
+
+EA02: L     0; 
+      T     DBW [AR1,P#6.0]; 
+
+//Pointer to next entrie
+      L     #t_Backup_AR1; 
+      L     P#8.0; // 6 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#6.0
+      LAR1  ; // Store Entry pointer in address-register 
+      TAR1  ; 
+      T     #t_Backup_AR1; 
+
+//Loop to next entry
+      L     #t_Cnt_Entry; 
+      L     1; 
+      -I    ; 
+      T     #t_Cnt_Entry; 
+      JZ    EA99; 
+
+      JU    EA01; // GOTO START OF LOOP
+EA99: NOP   0; 
+
+END_FUNCTION
+

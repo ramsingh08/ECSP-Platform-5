@@ -1,0 +1,177 @@
+FUNCTION "FC_Write_TranslEntry" : VOID
+TITLE =%version: 0.03 %  CN: 30
+//Function:
+//Translation information into translation table
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:03:29 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version                                       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Translation information into translation table
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_TranslDB_Nr : INT ;	//DB number of routing table
+  i_Destination : INT ;	//[1..99]
+  i_Def_Dest_1 : INT ;	//First default destination
+  i_Def_Dest_2 : INT ;	//Second default destination
+  i_Def_Dest_3 : INT ;	//Third default destination
+  i_Def_Dest_4 : INT ;	//Fourth default destination
+  i_Def_Dest_5 : INT ;	//Fifth default destination
+END_VAR
+VAR_OUTPUT
+  o_Result : INT ;	//Result; 0 = No Fault, 10 = Destination, 11 = Def_Destination
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DWORD ;	//Backup of AR1 content
+  t_Transl_DB_Nr : INT ;	//DB number of routing table
+  t_ANY_Pointer : DWORD ;	//ANY pointer to the Destination
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check Destination value
+// 
+      NOP   0; 
+// i_Destination must be more than 1 and less then or equal to 99
+      L     10; 
+      T     #o_Result; 
+
+      L     1; 
+      L     #i_Destination; 
+      >I    ; 
+      BEC   ; 
+
+      L     99; 
+      L     #i_Destination; 
+      <I    ; 
+      BEC   ; 
+
+NETWORK
+TITLE =AA: Check default Destination values
+// 
+      NOP   0; 
+// i_Def_Dest_1 to must be more then or equal to 0 and less then or equal to 300
+      L     11; 
+      T     #o_Result; 
+
+      O(    ; 
+      L     0; 
+      L     #i_Def_Dest_1; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     0; 
+      L     #i_Def_Dest_2; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     0; 
+      L     #i_Def_Dest_3; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     0; 
+      L     #i_Def_Dest_4; 
+      >I    ; 
+      )     ; 
+      O(    ; 
+      L     0; 
+      L     #i_Def_Dest_5; 
+      >I    ; 
+      )     ; 
+      BEC   ; 
+
+      O(    ; 
+      L     300; 
+      L     #i_Def_Dest_1; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     300; 
+      L     #i_Def_Dest_2; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     300; 
+      L     #i_Def_Dest_3; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     300; 
+      L     #i_Def_Dest_4; 
+      <I    ; 
+      )     ; 
+      O(    ; 
+      L     300; 
+      L     #i_Def_Dest_5; 
+      <I    ; 
+      )     ; 
+      BEC   ; 
+
+NETWORK
+TITLE =CA: Save the contents of the address registers AR1 and AR2
+
+      TAR1  #t_AR1_Backup; 
+
+NETWORK
+TITLE =DA: calculate pointer to destination entry and write destination
+
+      L     #i_TranslDB_Nr; 
+      T     #t_Transl_DB_Nr; 
+      OPN   DB [#t_Transl_DB_Nr]; // Open Routing DB
+
+// Calculate pointer to destionation entry
+      L     #i_Destination; // Load destination number
+      L     1; 
+      -I    ; 
+      JMZ   DA01; 
+      L     10; // Each destination entry is 10 bytes long
+      *D    ; 
+
+DA01: SLD   3; // Conversion to pointer format
+      L     P#DBX 0.0; // Pointer to the start of the open DB
+      +D    ; 
+      T     #t_ANY_Pointer; 
+
+      LAR1  ; // Initialize address register 1 with pointer 
+
+      L     #i_Def_Dest_1; 
+      T     W [AR1,P#0.0]; 
+
+      L     #i_Def_Dest_2; 
+      T     W [AR1,P#2.0]; 
+
+      L     #i_Def_Dest_3; 
+      T     W [AR1,P#4.0]; 
+
+      L     #i_Def_Dest_4; 
+      T     W [AR1,P#6.0]; 
+
+      L     #i_Def_Dest_5; 
+      T     W [AR1,P#8.0]; 
+
+NETWORK
+TITLE =EA: Restore the contents of the address registers AR1 and AR2
+
+      LAR1  #t_AR1_Backup; 
+
+      L     0; 
+      T     #o_Result; 
+
+      NOP   0; 
+END_FUNCTION
+

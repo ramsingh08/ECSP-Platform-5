@@ -1,0 +1,297 @@
+FUNCTION_BLOCK "FB_Reservation_Add"
+TITLE =%version: 0.03 % CN: 33
+//Function:
+//Create additional reservation for induct on section before the induct section.
+//
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Monday, September 11, 2017 8:51:06 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#6312: Wrong CN number after update                nlHdL    11-09-17   0.03
+//ina#6312: SW_IND01 does not add priority to induct    nlHdL    08-09-17   0.02
+//Initial version                                       nlHdL    18-01-17   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Reservation : BLOCK_DB ;	//Data Structure: reservation DataBlock (assign when induct on windows)
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Time_DieBack : INT  := 2000;	//CFG: [ms] Timer value Item in DieBack before making reservation
+  i_CFG_Induct_Number : INT ;	//CFG: Induct reference number
+END_VAR
+VAR
+  s_Time_out : INT ;	//Time out waiting before making additional reservation
+  s_FP_Timer_Elapsed : BOOL ;	//Flank Positive Timer elapsed
+  s_Reservation_made : BOOL ;	//Reservation is made
+END_VAR
+VAR_TEMP
+  t_Item_in_HandOver : BOOL ;	//Item in Handover from PLT DB
+  t_Section_Run : BOOL ;	//Section run from PLT DB
+  t_Timer_Elapsed : BOOL ;	//Die Back timer before additional reservation
+  t_Start_Timer : BOOL ;	//Start DieBack timer
+  t_Window_Gen_Active : BOOL ;	//Window Generator Active from Reservation DB
+  t_PLT_DB_Num : INT ;	//PLT DB number
+  t_Section_Length : INT ;	//Section length from PLT
+  t_Offset_FIFO_DB : INT ;	//Offset to fifo record in reservation DB
+  t_LNK : INT ;	//LNK found in PLT
+  t_Not_Used : INT ;	//Temp not used
+  t_Info : INT ;	//First found info
+  t_Event_DB_Num : INT ;	//Number of the Event DB
+  t_OS_Timer_Elapsed : BOOL ;	//One Shot Timer Elapsed
+  t_PLT_Win_Gen : INT ;	//PLT DB of window generator
+  t_Window_Length : INT ;	//Window length from reservation
+  t_Pos_reservation : INT ;	//Position of reservation
+  t_Reservation : INT ;	//Reservation code
+  t_Win_Position : INT ;	//Position of window generator
+  t_Int_Not_Used : INT ;	//Temp int not used
+  t_DB_PLT_Num_Res_Found : INT ;	//PLT DB of search
+  t_Check_stop : BOOL ;	//Check when reservation is active if function needs to stop
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Preset offset and Retreive info from PLT DB
+
+      L     14; 
+      T     #t_Offset_FIFO_DB; // offset to first record in reservation DB
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      OPN   #i_DB_Reservation; 
+
+      A     DBX   12.1; 
+      =     #t_Window_Gen_Active; 
+
+      OPN   #i_DB_PLT; 
+      L     1; 
+      <=I   ; 
+      BEC   ; //Check if PLT is valid
+      L     DBNO; 
+      T     #t_PLT_DB_Num; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; 
+
+      A     DBX   10.6; 
+      =     #t_Item_in_HandOver; 
+
+      L     DBW   12; 
+      T     #t_Section_Length; 
+
+      L     -100; 
+      L     #i_CFG_Induct_Number; 
+      -I    ; 
+      T     #t_Reservation; 
+
+NETWORK
+TITLE =BA: Check item and ECS record before start timer
+
+      A     #t_Window_Gen_Active; 
+      A     #t_Item_in_HandOver; 
+      AN    #t_Section_Run; 
+      =     #t_Start_Timer; 
+
+      A     #t_Start_Timer; 
+      JCN   BA99; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_PLT_DB_Num,
+           i_Position               := -40,
+           i_Window                 := #t_Section_Length,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Info; 
+      L     1; 
+      <>I   ; 
+      BEC   ; 
+
+      L     #t_LNK; 
+      L     0; 
+      <=I   ; 
+      BEC   ; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: delete reservation
+
+      A     #s_Reservation_made; 
+      AN    #t_Start_Timer; 
+      JCN   CA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_DB_Num,
+           i_Position               := #t_Section_Length,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_DB_PLT_Num_Res_Found; 
+      L     0; 
+      ==I   ; 
+      =     #t_Check_stop; // If no Items then start the stop timer
+
+      A     #t_Check_stop; 
+      JCN   CA99; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #t_Check_stop,
+           i_CFG_Timer_Value        := #i_CFG_Time_DieBack,
+           i_Setpoint               := #s_Time_out,
+           o_Setpoint               := #s_Time_out,
+           o_Timer_Elapsed          := #t_Timer_Elapsed);
+
+      A     #t_Timer_Elapsed; 
+      JCN   CA98; 
+
+      OPN   #i_DB_Reservation; 
+      L     DBW    4; 
+      T     #t_Window_Length; 
+      L     DBW    6; 
+      T     #t_PLT_Win_Gen; 
+      L     DBW    8; 
+      T     #t_Win_Position; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Win_Position,
+           i_Window                 := #t_Window_Length,
+           i_Info                   := #t_Reservation,
+           o_Position               := #t_Pos_reservation,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_DB_PLT_Num_Res_Found; 
+      L     #t_PLT_Win_Gen; 
+      ==I   ; 
+      JCN   CA98; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Pos_reservation,
+           i_Info_Physical          := #t_Reservation,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Pos_reservation,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -100,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      R     #s_Reservation_made; 
+
+CA98: BE    ; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Timer item is waiting before additional reservation is made
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #t_Start_Timer,
+           i_CFG_Timer_Value        := #i_CFG_Time_DieBack,
+           i_Setpoint               := #s_Time_out,
+           o_Setpoint               := #s_Time_out,
+           o_Timer_Elapsed          := #t_Timer_Elapsed);
+
+      A     #t_Timer_Elapsed; 
+      FP    #s_FP_Timer_Elapsed; 
+      =     #t_OS_Timer_Elapsed; 
+
+      AN    #t_OS_Timer_Elapsed; 
+      BEC   ; 
+NETWORK
+TITLE =EA: Make additional reservation for the induct
+
+      OPN   #i_DB_Reservation; 
+      L     DBW    4; 
+      T     #t_Window_Length; 
+      L     DBW    6; 
+      T     #t_PLT_Win_Gen; 
+      L     DBW    8; 
+      T     #t_Win_Position; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Win_Position,
+           i_Window                 := #t_Window_Length,
+           i_Info                   := -100,
+           o_Position               := #t_Pos_reservation,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Num_Res_Found,
+           o_Number_Items_Found     := #t_Int_Not_Used);
+
+      L     #t_DB_PLT_Num_Res_Found; 
+      L     #t_PLT_Win_Gen; 
+      ==I   ; 
+      JCN   EA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Pos_reservation,
+           i_Info_Physical          := -100,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_PLT_Win_Gen,
+           i_Position               := #t_Pos_reservation,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #t_Reservation,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      SET   ; 
+      S     #s_Reservation_made; 
+
+      JU    EA99; 
+
+EA01: OPN   #i_DB_Reservation; 
+
+      L     DBW    0; // look for entry's
+      L     DBW    2; 
+      <I    ; 
+      JCN   EA99; 
+
+      L     DBW    0; // Number of entries used
+      SLW   1; // Each record 2 bytes multiple 2
+      L     #t_Offset_FIFO_DB; // Add offset to first record 
+      +I    ; 
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+
+//Add reservation
+      L     #t_Reservation; 
+      T     DBW [AR1,P#0.0]; 
+
+//Increase Number of entries in FIFO
+      L     DBW    0; 
+      L     1; 
+      +I    ; 
+      T     DBW    0; 
+
+      SET   ; 
+      S     #s_Reservation_made; 
+
+EA99: NOP   0; 
+END_FUNCTION_BLOCK
+

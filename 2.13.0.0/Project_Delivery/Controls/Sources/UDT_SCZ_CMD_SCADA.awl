@@ -1,0 +1,50 @@
+TYPE "UDT_SCZ_CMD_SCADA"
+TITLE =%version: 0.01 % CN: 10
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Tuesday, June 20, 2017 8:04:07 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version aligned with PF5                      inrjoi   20-06-17   0.01                                                                                                                          
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   SCADA_Auto : BOOL ;	//Automatic mode from SCADA
+   SCADA_Redun_Up : BOOL ;	//Auto redundant up from SCADA
+   SCADA_Redun_Dn : BOOL ;	//Auto redundant down from SCADA
+   Spare_0_3 : BOOL ;	//Spare_0_3
+   Spare_0_4 : BOOL ;	//Spare_0_4
+   Spare_0_5 : BOOL ;	//Spare_0_5
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   Spare_1_0 : BOOL ;	//Spare_1_0
+   Spare_1_1 : BOOL ;	//Spare_1_1
+   Spare_1_2 : BOOL ;	//Spare_1_2
+   Spare_1_3 : BOOL ;	//Spare_1_3
+   Spare_1_4 : BOOL ;	//Spare_1_4
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+   Spare_2_0 : BOOL ;	//Spare_2_0
+   Spare_2_1 : BOOL ;	//Spare_2_1
+   Spare_2_2 : BOOL ;	//Spare_2_2
+   Spare_2_3 : BOOL ;	//Spare_2_3
+   Spare_2_4 : BOOL ;	//Spare_2_4
+   Spare_2_5 : BOOL ;	//Spare_2_5
+   Spare_2_6 : BOOL ;	//Spare_2_6
+   Spare_2_7 : BOOL ;	//Spare_2_7
+   Spare_3_0 : BOOL ;	//Spare_3_0
+   Spare_3_1 : BOOL ;	//Spare_3_1
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Spare_3_3 : BOOL ;	//Spare_3_3
+   Spare_3_4 : BOOL ;	//Spare_3_4
+   Spare_3_5 : BOOL ;	//Spare_3_5
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,25 @@
+TYPE "UDT_Flight_Info"
+TITLE =%version: 0.03 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:23:08 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version                                       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   Airline_Number : ARRAY  [1 .. 8 ] OF CHAR ;	//Flight Airline - Number [AAANNNNN]
+   Day_Depart : ARRAY  [1 .. 2 ] OF CHAR ;	//Flight scheduled day of departure (day of the month)
+   Time_Depart : ARRAY  [1 .. 4 ] OF CHAR ;	//Flight scheduled time of departure
+  END_STRUCT ;	
+END_TYPE
+

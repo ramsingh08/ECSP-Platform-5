@@ -1,0 +1,118 @@
+FUNCTION "FC_Safety" : VOID
+TITLE =%version: 0.14 % CN: 40 
+//Function:
+//This function block handles the safety
+//
+//History:
+//This version  %created_by: nlhdl %
+//             %date_created: Thursday, September 28, 2017 9:05:51 AM %
+//             %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24385: FC_Safety_OK after FC_CCC in FB_System      nlHdL    28-09-17   0.14
+//ra#19212: Change Safety and Status manager            nlHdL    13-12-16   0.13
+//ra#15788: Safety with insert point and example        nlHdL    10-08-16   0.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.11
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.11
+//15797: Keyword release added                          nlwwij   26-09-13   0.11
+//CR13771 Adding code for safety stop SSM ntwk FA       nlple    18-06-13   0.10
+//CR6261 Text "DS" removed from status                  nlple    18-01-11   0.09 
+//PR6031 FC_Off_Dly_T_0.1s add to block call            nlHdL    11-01-11   0.08
+//Change VERSION number to 0.0                          nlMRe    22-09-10   0.07
+//Update according coding convention                    nlRSwi   15-09-10   0.06
+//Update according coding convention                    nlRSwi   15-09-10   0.05
+//Modified with new concept PR5108                      insmahi  09-06-10   0.04
+//Problem solved for the compilation                    insmahi  05-04-10   0.03
+//Added to synergy                                      insamhi  29-03-10   0.02
+//Initial revision                                      insmahi  25-03-10   0.01
+//
+//Description:
+//detects individual E-stops and makes the status.
+//Groups the E-stop sigals and interfaced with the individual objects/sections.
+//Generate the Reset signal to the safety circuit.
+//
+//NOTICE: This is a Template function . Safety signals and detailed status 
+//bits needs to be filled in by Engineer.
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE = #Insert# // Insertion point code generator
+//TITLE =AA: Collect Individual safety signals and Make detailed status
+//
+//      CALL  FB_Detect_Safety, DI_Estop_S120
+//       i_CMD_Reset    :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_Safety_OK    :="I_EM_Stop_OK_S120"
+//       o_ST_Safety    :="DB_Status".Safety_0001_00_97.Bit_0_0
+//
+//      CALL  FB_Detect_Safety, DI_Estop_S121
+//       i_CMD_Reset    :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_Safety_OK    :="I_EM_Stop_OK_S121"
+//       o_ST_Safety    :="DB_Status".Safety_0001_00_97.Bit_0_1
+//
+//      CALL  FB_Detect_Safety, DI_Estop_S122
+//       i_CMD_Reset    :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_Safety_OK    :="I_EM_Stop_OK_S122"
+//       o_ST_Safety    :="DB_Status".Safety_0001_00_97.Bit_0_2
+//
+//      CALL  FB_Detect_Safety, DI_Estop_S123
+//       i_CMD_Reset    :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_Safety_OK    :="I_EM_Stop_OK_S122"
+//       o_ST_Safety    :="DB_Status".Safety_0001_00_97.Bit_0_3
+//
+//      AN    "DB_Status".Safety_0001_00_97.Bit_0_0
+//      AN    "DB_Status".Safety_0001_00_97.Bit_0_1
+//      AN    "DB_Status".Safety_0001_00_97.Bit_0_2
+//      =     #s_Safety_Zone_1
+//
+//      AN    "DB_Status".Safety_0001_00_97.Bit_0_3
+//      =     #s_Safety_Zone_2
+//
+// Safety Zone-1
+//      CALL  FB_Zone_Safety, DI_Safety_Zone_1
+//       i_CFG_Delay_Time:=10
+//       i_CMD_Reset     :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_IO_Zone_Safety:=#s_Safety_Zone_1
+//       o_ST_Zone_Safety:="DB_Status".Safety_0001_00_97.Bit_1_6
+//       o_Zone_Safety_OK:=#s_Safety_OK_Zone_1
+//
+// Safety Zone-2
+//      CALL  FB_Zone_Safety, DI_Safety_Zone_2
+//       i_CFG_Delay_Time:=10
+//       i_CMD_Reset     :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_IO_Zone_Safety:=#s_Safety_Zone_2
+//       o_ST_Zone_Safety:="DB_Status".Safety_0001_00_97.Bit_1_7
+//       o_Zone_Safety_OK:=#s_Safety_OK_Zone_2
+//
+//NETWORK
+//TITLE =BA :Assign Zone safety to Section/objects
+//
+//      A     #s_Safety_OK_Zone_1
+//      =     "DB_System_Control".BF_0001_06_01.Safety_OK
+//      =     "DB_System_Control".BF_0001_08_01.Safety_OK
+//      =     "DB_System_Control".BF_0001_08_02.Safety_OK
+//
+//      A     #s_Safety_OK_Zone_2
+//      =     "DB_System_Control".BF_0001_16_01.Safety_OK
+//      =     "DB_System_Control".BF_0001_16_02.Safety_OK
+//
+//      AN    #s_Safety_OK_Zone_1
+//      ON    #s_Safety_OK_Zone_2
+//      =     "DB_Int_Programming".SSM_0001_00_99.Emergency_Stop
+//
+//NETWORK
+//TITLE =CA : Reset signal to Emergency circuit
+//
+//      CALL  "FC_Off_Dly_T_0.1s"
+//       i_Start         :="DB_System_Control".Safety_0001_00_97.OS_Reset
+//       i_Enable        :=TRUE
+//       i_Time_Value    :=1
+//       o_Status        :="Q_Reset_Safety_Relay"
+//       io_Current_Value:=#s_CV_delay_Reset
+//
+END_FUNCTION
+

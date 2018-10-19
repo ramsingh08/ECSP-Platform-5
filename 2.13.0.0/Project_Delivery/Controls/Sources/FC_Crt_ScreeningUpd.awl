@@ -1,0 +1,162 @@
+FUNCTION "FC_Crt_ScreeningUpd" : VOID
+TITLE =%version: 0.03 % CN: 32
+//Function:
+//Create Screening Update message for TCTC interface and copy complete message 
+//into the FIFO DB.
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Monday, September 18, 2017 9:49:40 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21133: Screening pending Update                    inajos   18-09-17   0.03
+//ra#18904 : Block updated                              inajos   13-12-16   0.02
+//Initial revision based on SIN_T1_CONV_COMPONENT       inajos   28-11-16   0.01
+//
+//Description:
+//The Screening Update message contains a message header and a message body like 
+//displayed below.
+//Message header:
+// -> Event time
+// -> Message type
+// -> Message identifier
+//Message body:
+// -> HBA_LNK
+// -> TRA_LIC
+// -> Screening Process ID
+// -> Reached Screening Level
+// -> Failed Screening Level
+// -> Screening Result
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_FIFO_TCTC_DB_num : INT ;	//Number of DB TCTC FIFO
+  i_MessageIdentifier : DWORD ;	//Message identifier (SSSTLLLL)
+  i_HBA_LNK : INT ;	//HBS area local identification code
+  i_TRA_LIC : INT ;	//Screening process Transport area local identification code
+  i_ScreeningProcessID : INT ;	//Screening process identification
+  i_Result : INT ;	//Screening, idicating why the level is reached or failed
+  i_Screen_Result : "UDT_Screen_Result";	//Screen result
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Create message header and copy to DB_PNPN_OutgoingMsgs
+//In this network the message header is created and copied into 
+//DB_PNPN_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+      NOP   0; 
+// Copy date and time into message header
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.EventTime);
+
+// Copy handover message type (20) into message header
+      L     10; // Screening Update Message
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.Message_Type; 
+
+// Copy correct message identifier into message header
+      L     #i_MessageIdentifier; 
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.Message_Identifier; 
+
+NETWORK
+TITLE =BA: Copy Screening update to outgoing messages DB
+
+      L     #i_HBA_LNK; 
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.HBA_LNK; 
+
+      L     #i_TRA_LIC; 
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.TRA_LIC; 
+
+      L     #i_ScreeningProcessID; 
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.ScreeningProcessID; 
+
+      L     #i_Result; 
+      T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.Result; 
+NETWORK
+TITLE =CA: Determine reached and failed levels
+
+
+      A     #i_Screen_Result.Reached_Screen_Level_5; 
+      JCN   CA01; 
+      L     5; 
+      JU    CA06; 
+CA01: A     #i_Screen_Result.Reached_Screen_Level_4; 
+      JCN   CA02; 
+      L     4; 
+      JU    CA06; 
+CA02: A     #i_Screen_Result.Reached_Screen_Level_3; 
+      JCN   CA03; 
+      L     3; 
+      JU    CA06; 
+CA03: A     #i_Screen_Result.Reached_Screen_Level_2; 
+      JCN   CA04; 
+      L     2; 
+      JU    CA06; 
+CA04: A     #i_Screen_Result.Reached_Screen_Level_1; 
+      JCN   CA05; 
+      L     1; 
+      JU    CA06; 
+CA05: L     0; 
+CA06: T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.Reached_Screen_Lev; 
+
+
+
+      A     #i_Screen_Result.Failed_Screen_Level_5; 
+      JCN   CA10; 
+      L     5; 
+      JU    CA15; 
+CA10: A     #i_Screen_Result.Failed_Screen_Level_4; 
+      JCN   CA11; 
+      L     4; 
+      JU    CA15; 
+CA11: A     #i_Screen_Result.Failed_Screen_Level_3; 
+      JCN   CA12; 
+      L     3; 
+      JU    CA15; 
+CA12: A     #i_Screen_Result.Failed_Screen_Level_2; 
+      JCN   CA13; 
+      L     2; 
+      JU    CA15; 
+CA13: A     #i_Screen_Result.Failed_Screen_Level_1; 
+      JCN   CA14; 
+      L     1; 
+      JU    CA15; 
+CA14: L     0; 
+CA15: T     "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message.Failed_Screen_Lev; 
+NETWORK
+TITLE =DA: Put message in buffer
+//Copy complete message into FIFO DB.
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_PNPN_OutgoingMsgs".ScreenUpdate_Message,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_PNPN_OutgoingMsgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_TCTC_DB_num,
+           i_Mode                   := 'I',
+           i_ANY_Data               := "DB_PNPN_OutgoingMsgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+
+END_FUNCTION
+

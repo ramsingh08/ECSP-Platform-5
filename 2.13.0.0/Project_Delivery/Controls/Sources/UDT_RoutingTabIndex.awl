@@ -1,0 +1,20 @@
+TYPE "UDT_RoutingTabIndex"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by:  nlsdw %
+//              %date_created:  Thursday, April 13, 2017 10:27:16 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version based                                 nlSdW    13-04-17   0.01
+//
+FAMILY : General
+
+  STRUCT 	
+   Area_Zone_Section_ID : DINT ;	//example: AreaID 123, ZoneID 45 and SectionID 67 -> 1234567
+   RoutTable_System_DB_Num : INT ;	//DB number of System RoutingTable for that belongs to Zone_Section_ID
+   RoutTable_Degraded_DB_Nm : INT ;	//DB number of Degraded RoutingTable for that belongs to Zone_Section_ID
+  END_STRUCT ;	
+END_TYPE
+

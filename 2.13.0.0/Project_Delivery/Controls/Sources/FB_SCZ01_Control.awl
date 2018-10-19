@@ -1,0 +1,1226 @@
+FUNCTION_BLOCK "FB_SCZ01_Control"
+TITLE =%version: 0.02 % CN: 32
+//Function:
+//Module to decide the direction of an item.
+//
+//History:
+//Original version  %created_by: inrjoi %
+//                  %date_created: Friday, July 21, 2017 11:18:01 AM %
+//                  %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+////Update switching after error recovery               inrjoi   21-07-17   0.02
+//Initial version for PF5                               inrjoi   20-06-17   0.01
+//
+//Description:
+//Module to control the direction of an item depending on the mode selected,
+//generate the switch request, and control the infeeds. 
+//
+//   TRS.AA.01.01  |             --------> Flow               |   TRS.AA.03.01
+//  _______________|__________________________________________|_________________
+//  Upper Upstream I TRS.AA.02.02  SWS.AA.02.01  TRS.AA.02.03 I Upper Downstream
+//   --->          I Upper Infeed     Up/Down   Upper Outfeed I --->
+//  ---------------I--------------              --------------I-----------------
+//  Lower Upstream I TRS.AA.02.04                TRS.AA.02.05 I Lower Downstream
+//   --->          I Lower Infeed               Lower Outfeed I --->
+//  ---------------I--------------              --------------I-----------------
+//  _______________I__________________________________________I_________________
+//                 |                                          |              
+//   TRS.AA.04.01  |                                          |   TRS.AA.05.01 
+//  <---Infeeds--->|<-----------Switching sections----------->|<---Outfeeds---->
+//
+//The verticross zone SCZ01 variant is used for redundancy in two modes. 
+//1 - Auto (redundant straight), up and down
+//2 - Semi-auto fixed straight, up and down
+//
+//**Auto Redundant Modes**
+//--------------------------------------------------------------------|
+//*Auto (Redundant Straight): The bags can flow straight through from,|
+//                            Upper Infeed --------> Upper Outfeed    |
+//                            Lower Infeed --------> Lower Outfeed    |
+//                                                                    |
+//*Auto Redundant Up        : The bags can flow Up from,              | 
+//                            Upper Infeed --------> Upper Outfeed    |
+//                            Lower Infeed --------> Upper Outfeed    | 
+//                                                                    |
+//*Auto Redundant Down      : The bags can flow Down from,            |
+//                            Upper Infeed --------> Lower Outfeed    |
+//                            Lower Infeed --------> Lower Outfeed    |
+//--------------------------------------------------------------------|
+//
+//**Semi-Auto Fixed Modes**
+//-------------------------------------------------------------------|
+//*Semi-Auto Fixed Straight: The bags can flow straight through from,|
+//                           Upper Infeed --------> Upper Outfeed    |
+//                           Lower Infeed --------> Lower Outfeed    |
+//                                                                   |
+//*Semi-Auto Fixed Up      : The bags can flow Up from,              | 
+//                           Upper Infeed Bags will stop.            |
+//                           Lower Infeed --------> Upper Outfeed    | 
+//                                                                   |
+//*Semi-Auto Fixed Down    : The bags can flow Down from,            |
+//                           Upper Infeed --------> Lower Outfeed    |
+//                           Lower Infeed Bags will stop.            |
+//-------------------------------------------------------------------|
+//
+//Manual Modes are for maintainence purpose.
+//Other functions implemented,
+//Gap control
+//Flow control
+//Initialization from manual to automatic mode
+//Control switch movement
+//
+//The SWS contains SEW movidrive which allows a complete switch 
+//action in 1.2 seconds. 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_SCZ_Setting : "UDT_SCZ_Settings";	//Data Structure: Setting Record
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Auto : BOOL ;	//CMD: Auto (redundant straight)  
+  i_CMD_Auto_Redun_Up : BOOL ;	//CMD: Auto redundant up
+  i_CMD_Auto_Redun_Dn : BOOL ;	//CMD: Auto redundant down
+  i_CMD_SemiAuto_Fix_St : BOOL ;	//CMD: Semi-auto fixed straight  
+  i_CMD_SemiAuto_Fix_Up : BOOL ;	//CMD: Semi-auto fixed up
+  i_CMD_SemiAuto_Fix_Dn : BOOL ;	//CMD: Semi-auto fixed down
+  i_CMD_Local : BOOL ;	//CMD: Local (manual) mode
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_CFG_DieBack_Pos_Infeed : INT  := 50;	//CFG: [cm] Die Back position before the end of the infeed conveyors
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS3_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS4_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_TRS5_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_SWS1_ST_Ready : BOOL ;	//ST: Switch section is ready to move
+  i_SWS1_ST_Up : BOOL ;	//ST: Switch section in up position
+  i_SWS1_ST_Straight : BOOL ;	//ST: Switch section in straight position
+  i_SWS1_ST_Down : BOOL ;	//ST: Switch section in down position  
+  i_TRS2_ST_Items : BOOL ;	//ST: Items present on section
+  i_TRS4_ST_Items : BOOL ;	//ST: Items present on section  
+END_VAR
+VAR_OUTPUT
+  o_SWS1_Req_Up : BOOL ;	//Request switch section up
+  o_SWS1_Req_Straight : BOOL ;	//Request switch section straight
+  o_SWS1_Req_Down : BOOL ;	//Request switch section down
+  o_SWS1_Enable_Rapid_Stop : BOOL ;	//Enable for rapid stop of the SEW drive
+  o_TRS2_Upstr_Req_Dis_Snd : BOOL ;	//Request to disable send item from TRS2 upstream
+  o_TRS4_Upstr_Req_Dis_Snd : BOOL ;	//Request to disable send item from TRS4 upstream
+  o_TRS2_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  o_TRS4_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  o_Req_Halt_Infeed : BOOL ;	//Request halt to infeed sections  
+END_VAR
+VAR
+  s_TRS2 : STRUCT 	//data of TRS2
+   Routing_Down : BOOL ;	//routing is Down
+   FP_Handover : BOOL ;	//Positive edge of item handover
+   OS_Handover : BOOL ;	//One shot of item handover
+   Flow_Active : BOOL ;	//Flow is active
+   FP_Flow_Active : BOOL ;	//Positive edge of flow active
+   Flow_Cnt_Expired : BOOL ;	//Flow count expired
+   FP_Flow_Timer : BOOL ;	//Positive edge of flow timer
+   Flow_TimeOut : BOOL ;	//Flow time out
+   Priority : BOOL ;	//Flow priority
+   Flow_Can_Stop : BOOL ;	//Flow can stop
+   Flow_Req : BOOL ;	//Request flow from this direction
+   Item_In_Handover : BOOL ;	//Item is in handover 
+   Routing_Straight : BOOL ;	//Routing for the item is straight
+   Item_Flow_Cnt : INT ;	//Item flow counter
+   Flow_Timeout_Time : INT ;	//Flow timeout time
+   DB_PLT_Num : INT ;	//Number of the PLT DB
+   Length_Section : INT ;	//Length of the section   
+  END_STRUCT ;	
+  s_TRS4 : STRUCT 	//data of TRS4
+   Routing_Straight : BOOL ;	//routing is straight
+   Routing_Up : BOOL ;	//routing is Down
+   FP_Handover : BOOL ;	//Positive edge of item handover
+   OS_Handover : BOOL ;	//One shot of item handover
+   Flow_Active : BOOL ;	//Positive edge of flow active
+   FP_Flow_Active : BOOL ;	//Positive edge of flow active
+   Flow_Cnt_Expired : BOOL ;	//Flow count expired
+   FP_Flow_Timer : BOOL ;	//Positive edge of flow timer
+   Flow_TimeOut : BOOL ;	//Flow time out
+   Priority : BOOL ;	//Flow priority
+   Flow_Can_Stop : BOOL ;	//Flow can stop
+   Flow_Req : BOOL ;	//Request flow from this direction
+   Item_In_Handover : BOOL ;	//Item is in handover    
+   Item_Flow_Cnt : INT ;	//Item flow counter
+   Flow_Timeout_Time : INT ;	//Flow timeout time
+   DB_PLT_Num : INT ;	//Number of the PLT DB
+   Length_Section : INT ;	//Length of the section
+  END_STRUCT ;	
+  s_TRS2_Upstr : STRUCT 	//Upstream of TRS
+   Item_In_Handover : BOOL ;	//Item present in handover area
+   DB_PLT_Num : INT ;	//Number of the PLT DB
+  END_STRUCT ;	
+  s_TRS4_Upstr : STRUCT 	//Upstream of TRS
+   Item_In_Handover : BOOL ;	//Item present in handover area
+   DB_PLT_Num : INT ;	//Number of the PLT DB
+  END_STRUCT ;	
+  s_SWS1_Brake_Rel_Cnt_TO : INT ;	//SWS brake release count time-out
+  s_FP_CMD_Local : BOOL ;	//Positive edge of local mode
+  s_FP_CMD_Auto : BOOL ;	//Positive edge of auto (redundant straight) command  
+  s_FP_CMD_Auto_Redun_Up : BOOL ;	//Positive edge of auto redundant up command
+  s_FP_CMD_Auto_Redun_Dn : BOOL ;	//Positive edge of auto redundant down command
+  s_FN_CMD_Auto : BOOL ;	//Negative edge of auto (redundant straight) command
+  s_FN_CMD_SemiAuto_Fix_Up : BOOL ;	//Negative edge of semi-auto fix up mode
+  s_FN_CMD_SemiAuto_Fix_Dn : BOOL ;	//Negative edge of semi-auto fix down mode
+  s_OS_CMD_Auto_Redun_Up : BOOL ;	//One shot of auto redundant up command
+  s_OS_CMD_Auto : BOOL ;	//One shot of auto (redundant straight) command 
+  s_OS_CMD_Auto_Redun_Dn : BOOL ;	//One shot of auto redundant down command
+  s_OS_FN_CMD_Auto : BOOL ;	//One shot of auto (redundant straight) command
+  s_OS_CMD_SemiAuto_Fix_Up : BOOL ;	//One shot of semi-auto fix up mode
+  s_OS_CMD_SemiAuto_Fix_Dn : BOOL ;	//One shot of semi-auto fix down mode
+  s_Infeed_Items_Gap_OK : BOOL ;	//Gap is OK for the items at the infeed
+  s_Flow_Ratio_Reached : BOOL ;	//Flow ratio for either of the infeeds is reached
+  s_SWS1_Req_Straight : BOOL ;	//Request SWS to switch straight
+  s_SWS1_Not_In_Req_Pos : BOOL ;	//SWS has not reached the requested position  
+  s_SWS1_Req_Brake_Release : BOOL ;	//Request to release the brake of SWS for rapid stop
+  s_TRS2_Not_Allowed_Upstr : BOOL ;	//Item upstream TRS2 not allowed
+  s_TRS4_Not_Allowed_Upstr : BOOL ;	//Item upstream TRS4 not allowed
+  s_TRS2_Upstr_Dis_Send : BOOL ;	//Disable send section upstream TRS2
+  s_TRS4_Upstr_Dis_Send : BOOL ;	//Disable send section upstream TRS4
+  s_TRS2_Req_Halt_Die_Back : BOOL ;	//Request halt die-back
+  s_TRS4_Req_Halt_Die_Back : BOOL ;	//Request halt die-back
+  s_TRS3_Running : BOOL ;	//Section is running  
+  s_TRS5_Running : BOOL ;	//Section is running
+  s_TRS2_Ratio_reached : BOOL ;	//Flow ratio reached
+  s_TRS4_Ratio_reached : BOOL ;	//Flow ratio reached
+END_VAR
+VAR_TEMP
+  t_Ratio_1_Up_1_Down : BOOL ;	//Ratio up = 1; down = 1
+  t_TRS2_Gap_Not_Ok : BOOL ;	//On TRS2 gap between two items is not big enough
+  t_TRS4_Gap_Not_Ok : BOOL ;	//On TRS4 gap between two items is not big enough
+  t_TRS3_Operational : BOOL ;	//Section is operational
+  t_TRS5_Operational : BOOL ;	//Section is operational
+  t_TRS2_Upstr_DB_PLT_Num : INT ;	//Upstream DB PLT number
+  t_TRS4_Upstr_DB_PLT_Num : INT ;	//Upstream DB PLT number
+  t_TRS2_Fnd_Item_Leading : INT ;	//Number of leading items found on TRS 2
+  t_TRS4_Fnd_Item_Leading : INT ;	//Number of leading items found on TRS 4
+  t_TRS2_Fnd_Item_Trailing : INT ;	//Number of trailing items found on TRS 2
+  t_TRS4_Fnd_Item_Trailing : INT ;	//Number of trailing items found on TRS 4
+  t_DieBack_Position : INT ;	//Die back position calculated
+  t_Item_Info : INT ;	//Info of an item from DB PLT
+  t_Not_Used_Int : INT ;	//Not used integer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read info from PLT DB
+
+      OPN   #i_TRS2_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS2.DB_PLT_Num; 
+
+      L     DBW    6; 
+      T     #s_TRS2_Upstr.DB_PLT_Num; 
+
+      A     DBX   10.6; 
+      =     #s_TRS2.Item_In_Handover; 
+
+      L     DBW   12; 
+      T     #s_TRS2.Length_Section; 
+
+      OPN   #i_TRS3_DB_PLT; 
+
+      A     DBX   10.1; 
+      =     #s_TRS3_Running; 
+
+      A     DBX   10.5; 
+      =     #t_TRS3_Operational; 
+
+      OPN   #i_TRS4_DB_PLT; 
+      L     DBNO; 
+      T     #s_TRS4.DB_PLT_Num; 
+
+      L     DBW    6; 
+      T     #s_TRS4_Upstr.DB_PLT_Num; 
+
+      A     DBX   10.6; 
+      =     #s_TRS4.Item_In_Handover; 
+
+      L     DBW   12; 
+      T     #s_TRS4.Length_Section; 
+
+      OPN   #i_TRS5_DB_PLT; 
+
+      A     DBX   10.1; 
+      =     #s_TRS5_Running; 
+
+      A     DBX   10.5; 
+      =     #t_TRS5_Operational; 
+
+// Upstream of TRS2
+      L     #s_TRS2_Upstr.DB_PLT_Num; 
+      T     #t_TRS2_Upstr_DB_PLT_Num; 
+
+      OPN   DB [#t_TRS2_Upstr_DB_PLT_Num]; 
+
+      A     DBX   10.6; // Item in hand over 
+      =     #s_TRS2_Upstr.Item_In_Handover; 
+
+// Upstream of TRS4
+      L     #s_TRS4_Upstr.DB_PLT_Num; 
+      T     #t_TRS4_Upstr_DB_PLT_Num; 
+
+      OPN   DB [#t_TRS4_Upstr_DB_PLT_Num]; 
+
+      A     DBX   10.6; // Item in hand over 
+      =     #s_TRS4_Upstr.Item_In_Handover; 
+
+// Negative Edge for the Auto Redundant Straight
+      A     #i_CMD_Auto; 
+      FN    #s_FN_CMD_Auto; 
+      =     #s_OS_FN_CMD_Auto; 
+
+      A     #i_CMD_SemiAuto_Fix_Up; 
+      FN    #s_FN_CMD_SemiAuto_Fix_Up; 
+      =     #s_OS_CMD_SemiAuto_Fix_Up; 
+
+      A     #i_CMD_SemiAuto_Fix_Dn; 
+      FN    #s_FN_CMD_SemiAuto_Fix_Dn; 
+      =     #s_OS_CMD_SemiAuto_Fix_Dn; 
+
+// Positive edge for Auto mode
+      A     #i_CMD_Auto; 
+      FP    #s_FP_CMD_Auto; 
+      =     #s_OS_CMD_Auto; 
+
+      A     #i_CMD_Auto_Redun_Up; 
+      FP    #s_FP_CMD_Auto_Redun_Up; 
+      =     #s_OS_CMD_Auto_Redun_Up; 
+
+      A     #i_CMD_Auto_Redun_Dn; 
+      FP    #s_FP_CMD_Auto_Redun_Dn; 
+      =     #s_OS_CMD_Auto_Redun_Dn; 
+
+// Inhibit receive in Semi Auto Fix Up 
+      A     #i_CMD_SemiAuto_Fix_Up; 
+      OPN   #i_TRS2_DB_PLT; // IF Flow from upper infeed can be disabled
+      =     DBX   11.0; // THEN set Inhibit_Receive_Item in PLT DB of TRS2 to disable flow from upper infeed
+
+// Inhibit receive in Semi Auto Fix down 
+      A     #i_CMD_SemiAuto_Fix_Dn; 
+      OPN   #i_TRS4_DB_PLT; // IF Flow from lower infeed can be disabled
+      =     DBX   11.0; // THEN set Inhibit_Receive_Item in PLT DB of TRS4 to disable flow from lower infeed
+NETWORK
+TITLE =BA: Determine Priority High or Low
+//Priority High infeed belt: (When the setting Flow_Ratio_Low = 0)
+//     The baggage from the High infeed belt gets priority over the Low infeed 
+//     belt. Baggage on the Low infeed belt first will be handled if no baggage 
+//     is present at the High infeed belt for a specific time.                    
+// 
+//Priority Low infeed belt: (When the setting Flow_Ratio_High = 0)
+//     The baggage from the Low infeed belt gets priority over the High infeed 
+//     belt. Baggage on the High infeed belt first will be handled if no baggage 
+//     is present at the Low infeed belt for a specific time. When both Priority 
+//     setting are zero, The high infeed will get the priority.
+      NOP   0; 
+
+// Set priority high infeed when the setting flow ratio low = 0
+      L     #i_SCZ_Setting.Flow_Ratio_Low; 
+      L     0; 
+      ==I   ; 
+      =     #s_TRS2.Priority; 
+
+// Set priority low infeed when the setting flow ratio high = 0
+      L     #i_SCZ_Setting.Flow_Ratio_High; 
+      L     0; 
+      ==I   ; 
+      AN    #s_TRS2.Priority; // AND NOT priority higher infeed
+      =     #s_TRS4.Priority; 
+NETWORK
+TITLE =CA: Detect parcel movements at upstream infeed high and low
+//Detect the negative flank of a parcel being transfered from the upstream 
+//sections onto the low and high infeed belts. Also detect the positive flank of 
+//a parcel being transferred from the upstream sections onto the low and high 
+//infeed belts.
+      NOP   0; 
+//Get positive flank of handover signal from TRS2
+      A     #s_TRS2.Item_In_Handover; 
+      FP    #s_TRS2.FP_Handover; 
+      =     #s_TRS2.OS_Handover; 
+
+//Get positive flank of handover signal from TRS4
+      A     #s_TRS4.Item_In_Handover; 
+      FP    #s_TRS4.FP_Handover; 
+      =     #s_TRS4.OS_Handover; 
+NETWORK
+TITLE =DA: Determine when flow high can Stop
+//1. First Come First Serve:
+//     A flow can stop if n parcels are handled or more then x has been expired   
+//     since the last parcel past the PEC. If parcels come on the other flow this 
+//     flow will be stopped if the conditions are met.
+//2. Priority High infeed belt: 
+//     The baggage from the High infeed belt gets priority over the Low infeed 
+//     belt. Baggage on the Low infeed belt first will be handled if no baggage 
+//     is present at the High infeed belt for a specific time. 
+//     The priority high is detected when the preset flow counter of the lower 
+//     infeed = 0 (Flow_Low_Parcel)
+//3. Priority Low infeed belt:
+//     The baggage from the Low infeed belt gets priority over the High infeed 
+//     belt. Baggage on the High infeed belt first will be handled if no baggage  
+//     is present at the Low infeed belt for a specific time. 
+//     The priority low is detected when the preset flow counter of the higher 
+//     infeed = 0 (Flow_High_Parcel)
+      NOP   0; 
+// load Merge ratio in counter if FP of flow actief load value
+      A     #s_TRS2.Flow_Active; 
+      FP    #s_TRS2.FP_Flow_Active; 
+      JCN   DA01; 
+      L     #i_SCZ_Setting.Flow_Ratio_High; 
+      T     #s_TRS2.Item_Flow_Cnt; 
+
+DA01: A(    ; 
+      L     #s_TRS2.Item_Flow_Cnt; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     #s_TRS2.Flow_Active; // IF Flow high active
+      A     #s_TRS2.OS_Handover; 
+      JCN   DA02; 
+
+      L     #s_TRS2.Item_Flow_Cnt; 
+      L     1; // Countdown
+      -I    ; 
+      T     #s_TRS2.Item_Flow_Cnt; 
+
+DA02: L     #s_TRS2.Item_Flow_Cnt; 
+      L     0; 
+      <=I   ; // When counter is elapsed
+      =     #s_TRS2.Flow_Cnt_Expired; // Counter higher flow is expired
+
+// Time-out counter higher flow
+      A     #s_TRS2.Flow_Active; 
+      FP    #s_TRS2.FP_Flow_Timer; 
+      O     #s_TRS2.Item_In_Handover; 
+      JCN   DA03; //Then Reset timer.
+      L     #i_SCZ_Setting.Ratio_TimeOut_Time; //Set the Time-out timer to default settings
+      T     #s_TRS2.Flow_Timeout_Time; 
+
+DA03: L     #s_TRS2.Flow_Timeout_Time; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   DA04; //If Negative then
+      L     0; //Keep counter to zero
+
+DA04: T     #s_TRS2.Flow_Timeout_Time; 
+      L     #i_SCZ_Setting.Ratio_TimeOut_Time; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_TRS2.Flow_Timeout_Time; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_TRS2.Flow_TimeOut; //.. And set Time_Out flow high
+      R     #s_TRS2_Upstr_Dis_Send; 
+
+      A     #s_TRS2.Flow_TimeOut; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      JCN   DA99; 
+      L     0; 
+      T     #s_TRS2.Item_Flow_Cnt; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Flow high can stop
+//LAD!
+      A(    ; 
+      AN    #s_TRS2.Priority; 
+      A     #s_TRS2.Flow_Cnt_Expired; 
+      O     #s_TRS2.Flow_TimeOut; 
+      O     ; 
+      A     #s_TRS4.Priority; 
+      A     #s_TRS4_Upstr.Item_In_Handover; 
+      )     ; 
+      A     #s_TRS2.Flow_Active; 
+      =     #s_TRS2.Flow_Can_Stop; 
+NETWORK
+TITLE =FA: Determine when flow low can Stop
+
+      NOP   0; 
+// load Merge ratio in counter
+// if FP of flow active load value
+      A     #s_TRS4.Flow_Active; 
+      FP    #s_TRS4.FP_Flow_Active; 
+      JCN   FA01; 
+      L     #i_SCZ_Setting.Flow_Ratio_Low; 
+      T     #s_TRS4.Item_Flow_Cnt; 
+
+FA01: A(    ; 
+      L     #s_TRS4.Item_Flow_Cnt; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A     #s_TRS4.Flow_Active; // IF Flow high active
+      A     #s_TRS4.OS_Handover; 
+      JCN   FA02; 
+
+      L     #s_TRS4.Item_Flow_Cnt; 
+      L     1; // Countdown
+      -I    ; 
+      T     #s_TRS4.Item_Flow_Cnt; 
+
+FA02: L     #s_TRS4.Item_Flow_Cnt; 
+      L     0; 
+      <=I   ; // When counter is elapsed
+      =     #s_TRS4.Flow_Cnt_Expired; // Counter lower flow is expired
+
+// Time-out counter lower flow
+      A     #s_TRS4.Flow_Active; 
+      FP    #s_TRS4.FP_Flow_Timer; 
+      O     #s_TRS4.Item_In_Handover; 
+      JCN   FA03; //Then Reset timer.
+      L     #i_SCZ_Setting.Ratio_TimeOut_Time; //Set the Time-out timer to default settings
+      T     #s_TRS4.Flow_Timeout_Time; 
+
+FA03: L     #s_TRS4.Flow_Timeout_Time; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   FA04; //If Negative then
+      L     0; //Keep counter to zero
+FA04: T     #s_TRS4.Flow_Timeout_Time; 
+      L     #i_SCZ_Setting.Ratio_TimeOut_Time; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_TRS4.Flow_Timeout_Time; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_TRS4.Flow_TimeOut; //.. And set Time_Out flow low
+      R     #s_TRS4_Upstr_Dis_Send; 
+
+      A     #s_TRS4.Flow_TimeOut; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      JCN   FA99; 
+      L     0; 
+      T     #s_TRS4.Item_Flow_Cnt; 
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Flow low can stop
+//LAD!
+      A(    ; 
+      AN    #s_TRS4.Priority; 
+      A     #s_TRS4.Flow_Cnt_Expired; 
+      O     #s_TRS4.Flow_TimeOut; 
+      O     ; 
+      A     #s_TRS2.Priority; 
+      A     #s_TRS2_Upstr.Item_In_Handover; 
+      )     ; 
+      A     #s_TRS4.Flow_Active; 
+      =     #s_TRS4.Flow_Can_Stop; 
+NETWORK
+TITLE =HA: Infeed flow control
+//Generate flow requests and enable the rapid stop for the SEW Movidrive only if 
+//the flow is active.
+      NOP   0; 
+// Determine ratio 1/1
+      A(    ; 
+      L     #i_SCZ_Setting.Flow_Ratio_High; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #i_SCZ_Setting.Flow_Ratio_Low; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      =     #t_Ratio_1_Up_1_Down; 
+
+// Flow request
+      A     #i_TRS2_ST_Items; 
+      O(    ; 
+      A     #s_TRS2_Upstr.Item_In_Handover; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      =     #s_TRS2.Flow_Req; // Flow high request flag
+
+      A     #i_TRS4_ST_Items; 
+      O(    ; 
+      A     #s_TRS4_Upstr.Item_In_Handover; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      =     #s_TRS4.Flow_Req; // Flow high request flag
+
+// Enable the rapid stop if in Manual/Entering Auto 
+      A     #i_CMD_Local; 
+      O     #s_OS_CMD_Auto; 
+      O     #s_OS_CMD_Auto_Redun_Up; 
+      O     #s_OS_CMD_Auto_Redun_Dn; 
+      R     #s_SWS1_Req_Brake_Release; 
+
+// Time-out flow request
+      A     #s_TRS2.Flow_Req; //Flow active from upstream
+      O     #s_TRS4.Flow_Req; //Flow active from downstream
+      O     #i_CMD_Local; 
+      O     #s_OS_CMD_Auto; 
+      O     #s_OS_CMD_Auto_Redun_Up; 
+      O     #s_OS_CMD_Auto_Redun_Dn; 
+      JCN   HA01; //Then Reset timer.
+
+      L     30000; //Set the fixed Time-out for 30 sec
+      T     #s_SWS1_Brake_Rel_Cnt_TO; 
+
+      AN    #i_CMD_Local; 
+      ON    #s_OS_CMD_Auto; 
+      ON    #s_OS_CMD_Auto_Redun_Up; 
+      ON    #s_OS_CMD_Auto_Redun_Dn; 
+      JCN   HA03; 
+
+HA01: L     #s_SWS1_Brake_Rel_Cnt_TO; 
+      L     "MW_Prev_Cycle_Time"; //Cycle time (ms) from previous PLC cycle
+      -I    ; 
+      JPZ   HA02; //If Negative then
+      L     0; //Keep counter to zero
+HA02: T     #s_SWS1_Brake_Rel_Cnt_TO; 
+      L     30000; //If pre-set value <> 0 Then time-out detection
+      L     0; //is enabled.
+      <>I   ; 
+      A(    ; 
+      L     #s_SWS1_Brake_Rel_Cnt_TO; //If the Time-out period elapsed
+      L     0; 
+      <=I   ; 
+      )     ; 
+      =     #s_SWS1_Req_Brake_Release; //Reset the enable for rapid stop in SEW Movidrive
+
+// Give the output
+HA03: A     #s_SWS1_Req_Brake_Release; 
+      AN    #i_CMD_Local; 
+      =     #o_SWS1_Enable_Rapid_Stop; 
+NETWORK
+TITLE =IA: Determine when flow high should be active
+
+      A(    ; 
+      ON    #s_TRS4.Flow_Active; 
+      O     #i_CMD_Auto; 
+      )     ; 
+      A     #s_TRS2.Flow_Req; 
+      S     #s_TRS2.Flow_Active; 
+
+      A     #s_TRS4.Flow_Req; 
+      A     #s_TRS2.Flow_Can_Stop; 
+      O     #s_OS_FN_CMD_Auto; 
+      O     #s_OS_CMD_SemiAuto_Fix_Dn; 
+      O(    ; 
+      A     #s_TRS2.Flow_Cnt_Expired; 
+      AN    #s_TRS2_Upstr.Item_In_Handover; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      AN    #s_TRS2.Priority; 
+      )     ; 
+      R     #s_TRS2.Flow_Active; 
+NETWORK
+TITLE =JA: Determine when flow low should be active
+
+      A(    ; 
+      ON    #s_TRS2.Flow_Active; 
+      O     #i_CMD_Auto; 
+      )     ; 
+      A     #s_TRS4.Flow_Req; 
+      S     #s_TRS4.Flow_Active; 
+
+      A     #s_TRS2.Flow_Req; 
+      A     #s_TRS4.Flow_Can_Stop; 
+      O     #s_OS_FN_CMD_Auto; 
+      O     #s_OS_CMD_SemiAuto_Fix_Up; 
+      O(    ; 
+      A     #s_TRS4.Flow_Cnt_Expired; 
+      AN    #s_TRS4_Upstr.Item_In_Handover; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      AN    #s_TRS4.Priority; 
+      )     ; 
+      R     #s_TRS4.Flow_Active; 
+NETWORK
+TITLE =KA: Gap OK
+
+      NOP   0; 
+
+// Search for item in search window on TRS2
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2.DB_PLT_Num,
+           i_Position               := #s_TRS2.Length_Section,
+           i_Window                 := 100,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS2_Fnd_Item_Leading);
+
+// Search for item in search window on TRS2
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2.DB_PLT_Num,
+           i_Position               := #s_TRS2.Length_Section,
+           i_Window                 := 105,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS2_Fnd_Item_Trailing);
+
+      A(    ; 
+      L     #t_TRS2_Fnd_Item_Leading; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      O     ; 
+      A     #i_TRS2_ST_Items; 
+      A(    ; 
+      L     #t_TRS2_Fnd_Item_Trailing; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      =     #t_TRS2_Gap_Not_Ok; 
+
+// Search for item in search window on TRS4
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS4.DB_PLT_Num,
+           i_Position               := #s_TRS4.Length_Section,
+           i_Window                 := 100,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS4_Fnd_Item_Leading);
+
+// Search for item in search window on TRS4
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS4.DB_PLT_Num,
+           i_Position               := #s_TRS4.Length_Section,
+           i_Window                 := 105,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS4_Fnd_Item_Trailing);
+
+      A(    ; 
+      L     #t_TRS4_Fnd_Item_Leading; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      O     ; 
+      A     #i_TRS4_ST_Items; 
+      A(    ; 
+      L     #t_TRS4_Fnd_Item_Trailing; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      =     #t_TRS4_Gap_Not_Ok; 
+
+// Both sections are ready to receive a new item
+      AN    #t_TRS2_Gap_Not_Ok; 
+      AN    #t_TRS4_Gap_Not_Ok; 
+      =     #s_Infeed_Items_Gap_OK; 
+NETWORK
+TITLE =LA: Ratio reached up or down for disable send upstream sections
+
+      NOP   0; 
+
+// Search number of items on the way TRS2
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2.DB_PLT_Num,
+           i_Position               := 90,
+           i_Window                 := 170,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS2_Fnd_Item_Leading);
+
+// Search number of items on the way TRS4
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS4.DB_PLT_Num,
+           i_Position               := 90,
+           i_Window                 := 170,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_TRS4_Fnd_Item_Leading);
+
+// Item not allowed from upstream TRS2
+      A     #s_TRS4_Upstr.Item_In_Handover; 
+      A     #i_TRS2_ST_Items; 
+      O(    ; 
+      AN    #t_TRS5_Operational; 
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      A     #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      S     #s_TRS2_Not_Allowed_Upstr; 
+
+      A(    ; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #t_TRS5_Operational; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      A(    ; 
+      L     #t_TRS4_Fnd_Item_Leading; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      R     #s_TRS2_Not_Allowed_Upstr; 
+
+// Item not allowed from upstream TRS4
+      A     #s_TRS2_Upstr.Item_In_Handover; 
+      A     #i_TRS4_ST_Items; 
+      O(    ; 
+      AN    #t_TRS5_Operational; 
+      A     #s_TRS2_Req_Halt_Die_Back; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS2_Req_Halt_Die_Back; 
+      A     #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      S     #s_TRS4_Not_Allowed_Upstr; 
+
+      A(    ; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      )     ; 
+      O(    ; 
+      A     #t_TRS5_Operational; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      A(    ; 
+      L     #t_TRS2_Fnd_Item_Leading; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      R     #s_TRS4_Not_Allowed_Upstr; 
+
+// Disable send TRS2 upstream when ratio reached
+      L     #s_TRS2.Item_Flow_Cnt; 
+      L     #t_TRS2_Fnd_Item_Leading; 
+      -I    ; 
+      L     0; 
+      <=I   ; 
+      AN    #s_TRS2.Priority; 
+      S     #s_Flow_Ratio_Reached; 
+      =     #s_TRS2_Upstr_Dis_Send; 
+      =     #s_TRS2_Ratio_reached; 
+
+      AN    #s_TRS2.Flow_Active; 
+      O     #s_TRS4_Not_Allowed_Upstr; 
+      S     #s_TRS2_Upstr_Dis_Send; 
+
+      AN    #s_Flow_Ratio_Reached; 
+      A     #s_Infeed_Items_Gap_OK; 
+      O(    ; 
+      A     #s_TRS2_Ratio_reached; 
+      A     #s_TRS4_Ratio_reached; 
+      AN    #s_TRS4.Flow_Active; 
+      A     #s_TRS2.Flow_Active; 
+      A     #s_TRS2.Flow_Can_Stop; 
+      AN    #s_TRS4.Flow_Can_Stop; 
+      )     ; 
+      R     #s_TRS2_Upstr_Dis_Send; 
+
+// Disable send TRS4 upstream when ratio reached
+      L     #s_TRS4.Item_Flow_Cnt; 
+      L     #t_TRS4_Fnd_Item_Leading; 
+      -I    ; 
+      L     0; 
+      <=I   ; 
+      AN    #s_TRS4.Priority; 
+      R     #s_Flow_Ratio_Reached; 
+      =     #s_TRS4_Upstr_Dis_Send; 
+      =     #s_TRS4_Ratio_reached; 
+
+      AN    #s_TRS4.Flow_Active; 
+      O     #s_TRS2_Not_Allowed_Upstr; 
+      S     #s_TRS4_Upstr_Dis_Send; 
+
+      A     #s_Flow_Ratio_Reached; 
+      A     #s_Infeed_Items_Gap_OK; 
+      O(    ; 
+      A     #s_TRS2_Ratio_reached; 
+      A     #s_TRS4_Ratio_reached; 
+      AN    #s_TRS2.Flow_Active; 
+      A     #s_TRS4.Flow_Active; 
+      A     #s_TRS4.Flow_Can_Stop; 
+      AN    #s_TRS2.Flow_Can_Stop; 
+      )     ; 
+      R     #s_TRS4_Upstr_Dis_Send; 
+NETWORK
+TITLE =MA: Inhibit disable send TRS High
+
+      NOP   0; 
+
+// Disable send upstream TRS2
+      O(    ; 
+      A(    ; 
+      ON    #s_Infeed_Items_Gap_OK; 
+      O     #s_TRS2_Not_Allowed_Upstr; 
+      O     ; 
+      A     #s_Infeed_Items_Gap_OK; 
+      A     #s_TRS2_Upstr.Item_In_Handover; 
+      A     #s_TRS4_Upstr.Item_In_Handover; 
+      AN    #o_TRS4_Upstr_Req_Dis_Snd; 
+      )     ; 
+      A     #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS2_Upstr_Dis_Send; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      A(    ; 
+      O     #i_CMD_Auto_Redun_Up; 
+      O     #i_CMD_Auto_Redun_Dn; 
+      )     ; 
+      =     #o_TRS2_Upstr_Req_Dis_Snd; 
+NETWORK
+TITLE =NA: Inhibit disable send TRS Low
+
+      NOP   0; 
+
+// Disable send upstream TRS4
+      O(    ; 
+      A(    ; 
+      ON    #s_Infeed_Items_Gap_OK; 
+      O     #s_TRS4_Not_Allowed_Upstr; 
+      O     ; 
+      A     #s_Infeed_Items_Gap_OK; 
+      A     #s_TRS2_Upstr.Item_In_Handover; 
+      A     #s_TRS4_Upstr.Item_In_Handover; 
+      AN    #o_TRS2_Upstr_Req_Dis_Snd; 
+      )     ; 
+      A     #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS4_Upstr_Dis_Send; 
+      AN    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      A(    ; 
+      O     #i_CMD_Auto_Redun_Up; 
+      O     #i_CMD_Auto_Redun_Dn; 
+      )     ; 
+      =     #o_TRS4_Upstr_Req_Dis_Snd; 
+NETWORK
+TITLE =OA: Initialize Position from local
+
+      AN    #i_CMD_SemiAuto_Fix_Up; 
+      AN    #i_CMD_SemiAuto_Fix_St; 
+      AN    #i_CMD_SemiAuto_Fix_Dn; 
+      JCN   OA99; 
+
+      AN    #i_CMD_Local; 
+      FP    #s_FP_CMD_Local; 
+      S     #s_SWS1_Req_Straight; 
+
+      A     #i_SWS1_ST_Straight; 
+      R     #s_SWS1_Req_Straight; 
+
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Make routing Bits
+// make routing bits
+      NOP   0; //hold comments
+
+//If in Semi Auto do not evaluate the switching conditions
+      AN    #i_CMD_SemiAuto_Fix_Up; 
+      AN    #i_CMD_SemiAuto_Fix_St; 
+      AN    #i_CMD_SemiAuto_Fix_Dn; 
+      AN    #i_CMD_Local; 
+      JCN   PA01; 
+
+//Switch requests for Auto Redundancy Down
+//Request to TRS2 to switch down if the SWS is not in down position
+      A     #i_CMD_Auto_Redun_Dn; 
+      A     #s_TRS2.Flow_Active; 
+      AN    #s_TRS4.Flow_Active; 
+      AN    #s_TRS4.Item_In_Handover; 
+      AN    #s_TRS4.Priority; 
+      A(    ; 
+      ON    #i_TRS4_ST_Items; 
+      ON    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      AN    #s_TRS4.Routing_Straight; 
+      AN    #i_SWS1_ST_Down; 
+      A     #t_TRS5_Operational; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      AN    #i_TRS4_ST_Items; 
+      =     #s_TRS2.Routing_Down; 
+
+//Switch requests for Auto Redundancy Down
+//Request to TRS4 to switch straight if the SWS is not in straight position
+      A     #i_CMD_Auto_Redun_Dn; 
+      A     #s_TRS4.Flow_Active; 
+      AN    #s_TRS2.Flow_Active; 
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS2.Priority; 
+      A(    ; 
+      ON    #i_TRS2_ST_Items; 
+      ON    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      AN    #s_TRS2.Routing_Down; 
+      AN    #i_SWS1_ST_Straight; 
+      O(    ; 
+      A     #i_CMD_Auto; 
+      AN    #i_SWS1_ST_Straight; 
+      )     ; 
+      A     #t_TRS5_Operational; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      AN    #i_TRS2_ST_Items; 
+      =     #s_TRS4.Routing_Straight; 
+
+//Switch requests for Auto Redundancy Up
+//Request to TRS2 to switch straight if the SWS is not in straight position
+      A     #i_CMD_Auto_Redun_Up; 
+      A     #s_TRS2.Flow_Active; 
+      AN    #s_TRS4.Flow_Active; 
+      AN    #s_TRS4.Item_In_Handover; 
+      AN    #s_TRS4.Routing_Straight; 
+      AN    #s_TRS4.Priority; 
+      A(    ; 
+      ON    #i_TRS4_ST_Items; 
+      ON    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      AN    #i_SWS1_ST_Straight; 
+      O(    ; 
+      A     #i_CMD_Auto; 
+      AN    #i_SWS1_ST_Straight; 
+      )     ; 
+      A     #t_TRS3_Operational; 
+      AN    #s_TRS4_Req_Halt_Die_Back; 
+      AN    #i_TRS4_ST_Items; 
+      =     #s_TRS2.Routing_Straight; 
+
+//Switch requests for Auto Redundancy Up
+//Request to TRS4 to switch Up if the SWS is not in Up position
+      A     #i_CMD_Auto_Redun_Up; 
+      A     #s_TRS4.Flow_Active; 
+      AN    #s_TRS2.Flow_Active; 
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS2.Priority; 
+      A(    ; 
+      ON    #i_TRS2_ST_Items; 
+      ON    #t_Ratio_1_Up_1_Down; 
+      )     ; 
+      AN    #s_TRS2.Routing_Down; 
+      AN    #i_SWS1_ST_Up; 
+      A     #t_TRS3_Operational; 
+      AN    #s_TRS2_Req_Halt_Die_Back; 
+      AN    #i_TRS2_ST_Items; 
+      =     #s_TRS4.Routing_Up; 
+
+// Decision depends of direction down     
+      A     #s_TRS2.Routing_Down; // IF routing down
+      AN    #s_SWS1_Req_Straight; // AND NOT switching mode straight
+      A     #i_SWS1_ST_Ready; 
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS4.Item_In_Handover; 
+      R     #o_SWS1_Req_Up; // THEN switch to up
+      R     #o_SWS1_Req_Straight; // THEN switch to straight
+      S     #o_SWS1_Req_Down; // THEN switch to down
+
+// Decision depends of direction up
+      A     #s_TRS4.Routing_Up; // IF routing up
+      AN    #s_SWS1_Req_Straight; // AND NOT switching mode straight
+      A     #i_SWS1_ST_Ready; 
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS4.Item_In_Handover; 
+      R     #o_SWS1_Req_Straight; // THEN switch to straight
+      R     #o_SWS1_Req_Down; // THEN switch to down
+      S     #o_SWS1_Req_Up; // THEN switch to up
+
+      A(    ; 
+      A     #s_TRS2.Routing_Straight; // IF routing TRS2 straight
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS4.Item_In_Handover; 
+      )     ; 
+      O(    ; 
+      A     #s_TRS4.Routing_Straight; // OR routing TRS4 straight
+      AN    #s_TRS2.Item_In_Handover; 
+      AN    #s_TRS4.Item_In_Handover; 
+      )     ; 
+      O     #s_SWS1_Req_Straight; // OR NOT switching mode straight
+      A     #i_SWS1_ST_Ready; 
+      R     #o_SWS1_Req_Up; // THEN switch to up
+      R     #o_SWS1_Req_Down; // THEN switch to down
+      S     #o_SWS1_Req_Straight; // THEN switch to straight
+
+      JU    PA02; 
+
+//reset the switch commands in Semi-Auto fixed modes
+PA01: SET   ; 
+      R     #o_SWS1_Req_Up; 
+      R     #o_SWS1_Req_Down; 
+      R     #o_SWS1_Req_Straight; 
+      R     #s_SWS1_Req_Straight; 
+      R     #s_TRS2.Routing_Down; 
+      R     #s_TRS2.Routing_Straight; 
+      R     #s_TRS4.Routing_Straight; 
+      R     #s_TRS4.Routing_Up; 
+
+// Evaluate Switch not in position only when not in Semi-Auto
+
+PA02: AN    #i_CMD_SemiAuto_Fix_Up; 
+      AN    #i_CMD_SemiAuto_Fix_St; 
+      AN    #i_CMD_SemiAuto_Fix_Dn; 
+      A(    ; 
+      A     #o_SWS1_Req_Up; 
+      AN    #i_SWS1_ST_Up; 
+      O(    ; 
+      A     #o_SWS1_Req_Straight; 
+      AN    #i_SWS1_ST_Straight; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_Req_Straight; 
+      AN    #i_SWS1_ST_Straight; 
+      )     ; 
+      )     ; 
+      =     #s_SWS1_Not_In_Req_Pos; 
+
+NETWORK
+TITLE =QA: look for a bag on the end of TRS2 and TRS4
+//        PEC 11 and PEC 12 are the switch area PEC's.
+//
+//                ---> Flow
+//____________________________________
+//I             PLT                    I
+//I    TRS 1    -->          TRS 2     I
+//I-----------------  -----------------I
+//I             PLT                    I
+//I    TRS 3    -->          TRS 4     I
+//I-----------------  -----------------I
+//I____________________________________I
+//
+//
+//
+      NOP   0; 
+//Look for a bag on the end of TRS2 and TRS4. IF there is a bag
+//and the switch is NOT in a position Or the next conveyor is in dieback, Than 
+//request Halt the conveyor.
+      L     #i_CFG_DieBack_Pos_Infeed; 
+      L     #i_CFG_Run_Out_Distance; 
+      +I    ; 
+      T     #t_DieBack_Position; 
+
+      SET   ; 
+      R     #s_TRS2_Req_Halt_Die_Back; 
+      R     #s_TRS4_Req_Halt_Die_Back; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS2.DB_PLT_Num,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Item_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      A(    ; 
+      L     #t_Item_Info; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      O(    ; 
+      O(    ; 
+      AN    #i_SWS1_ST_Straight; 
+      A     #s_TRS2.Routing_Straight; 
+      )     ; 
+      O(    ; 
+      AN    #i_SWS1_ST_Down; 
+      A     #s_TRS2.Routing_Down; 
+      )     ; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_Req_Straight; 
+      AN    #s_TRS3_Running; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_Req_Down; 
+      AN    #s_TRS5_Running; 
+      )     ; 
+      O     #i_SWS1_ST_Up; 
+      O(    ; 
+      AN    #s_TRS5_Running; 
+      ON    #i_SWS1_ST_Down; 
+      A     #i_CMD_Auto_Redun_Dn; 
+      )     ; 
+      )     ; 
+      =     #s_TRS2_Req_Halt_Die_Back; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_TRS4.DB_PLT_Num,
+           i_Position               := #t_DieBack_Position,
+           i_Window                 := #t_DieBack_Position,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Item_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      A(    ; 
+      L     #t_Item_Info; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      O(    ; 
+      O(    ; 
+      AN    #i_SWS1_ST_Straight; 
+      A     #s_TRS4.Routing_Straight; 
+      )     ; 
+      O(    ; 
+      AN    #i_SWS1_ST_Up; 
+      A     #s_TRS4.Routing_Up; 
+      )     ; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_Req_Straight; 
+      AN    #s_TRS5_Running; 
+      )     ; 
+      O(    ; 
+      A     #o_SWS1_Req_Up; 
+      AN    #s_TRS3_Running; 
+      )     ; 
+      O     #i_SWS1_ST_Down; 
+      O(    ; 
+      AN    #i_SWS1_ST_Up; 
+      ON    #s_TRS3_Running; 
+      A     #i_CMD_Auto_Redun_Up; 
+      )     ; 
+      )     ; 
+      =     #s_TRS4_Req_Halt_Die_Back; 
+NETWORK
+TITLE =RA: Halt Conveyors / Disable Infeed
+
+      A     #s_TRS2.Item_In_Handover; 
+      O     #s_TRS4.Item_In_Handover; 
+      A     #s_SWS1_Not_In_Req_Pos; 
+      =     #o_Req_Halt_Infeed; 
+
+      A     #s_TRS2_Req_Halt_Die_Back; 
+      =     #o_TRS2_Ext_Req_Halt; 
+
+      A     #s_TRS4_Req_Halt_Die_Back; 
+      =     #o_TRS4_Ext_Req_Halt; 
+
+
+END_FUNCTION_BLOCK
+

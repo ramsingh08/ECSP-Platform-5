@@ -1,0 +1,28 @@
+TYPE "UDT_OPS_Msg_Lifesign"
+TITLE =%version: 0.01 % CN: 10
+//History:
+//This version  %created_by:  nljclo %
+//              %date_created:  Wednesday, September 21, 2016 2:47:39 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+
+
+  STRUCT 	
+   Header : STRUCT 	//Telegram Header
+    EventTime : DATE_AND_TIME ;	//Timestamp of moment message is created
+    Message_Type : INT ;	//100 = Handover message, 200 = lifesign request, 201 = lifesign reply
+    Message_Identifier : DINT ;	//Not Used for OPS 
+    Sending_AreaID : DINT ;	//Indication of sending area
+   END_STRUCT ;	
+   Sequence_Number : INT ;	//LifeSign sequence ID number
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,51 @@
+TYPE "UDT_CLZ_Int_Prog"
+TITLE =%version: 1.09 % CN: 11 
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Wednesday, October 25, 2017 11:14:29 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//veg#1610: CLZ_Status bit 0.0 normal mode              nlHdL    25-10-17   1.09
+//ra#18840: CLZ delay start template update             nlHdL    11-07-17   1.08
+//ra#18840: rollback of bailout timer                   nlSdW    21-03-17   1.07
+//ra#18840: Added delay start bailout timer             nlSdW    17-03-17   1.06
+//ra#19143: clean up UDT                                nlJClo   26-01-17   1.05
+//ra#20083: Changes due to Flow control configuration   nlJClo   26-01-17   1.04
+//ra#19406: Add TransportDirReport to 2 dir CLZ         nlJClo   20-12-16   1.03
+//19143:Added normal, redundant mode and halt Win Gen   nlJClo   19-12-16   1.03
+//ra#18651: Add TRS2_H2H_Stop to int prog of the CLZ    nlHdL    17-11-16   1.02
+//ra#14943: Initial revision                            nljclo   06-07-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Redundant : BOOL ;	//Redundant mode active
+   Normal : BOOL  := TRUE;	//Normal mode active
+   Halt_Window_Gen : BOOL ;	//Halt window generator
+   Restart_TranspDir_Tim : BOOL ;	//Restart Transport Direction Report
+   FP_TransportDir_Report : BOOL ;	//FP Send TransportDirection Report
+   Calculated_H2H_Length : INT ;	//calculated head to head length
+   Search_Window : INT ;	//Calculated length of search window
+   Number_Items_Found : INT ;	//Number of Items found at search functions
+   Capacity_Actual_Value : INT ;	//Capacity [items per hour] Actual Value
+   Event_Zone : INT ;	//DB Event Zone
+   TransportDirection : INT ;	//Direction of transport 1 = Normal, 2 = Reverse
+   Restart_TranspDirRep : INT ;	//Timer value restart transport direction report
+   TRS1_Available_IO : BOOL ;	// TRS1 for indication IO is OK (no Fieldbus or IO error)
+   TRS1_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS1_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS1_Basic_Offset : INT ;	// TRS1 basic offset
+   TRS2_Available_IO : BOOL ;	// TRS2 for indication IO is OK (no Fieldbus or IO error)
+   TRS2_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS2_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS2_Basic_Offset : INT ;	// TRS2 basic offset
+   TRS3_Available_IO : BOOL ;	// TRS3 for indication IO is OK (no Fieldbus or IO error)
+   TRS3_H2H_Stop : INT ;	// H2H Stop from calculated window to section
+   TRS3_PEC_Offset : INT ;	//Position of the beginning of the conveyor
+   TRS3_Basic_Offset : INT ;	// TRS3 basic offset
+  END_STRUCT ;	
+END_TYPE
+

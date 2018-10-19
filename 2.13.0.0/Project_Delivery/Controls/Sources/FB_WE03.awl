@@ -1,0 +1,332 @@
+FUNCTION_BLOCK "FB_WE03"
+TITLE =%version: 0.05 % CN: 42 
+//Function:
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, March 21, 2018 9:15:29 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                  By:       Date:    Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9800: Send Packagereports from weiging unit       nlHdL    21-03-18   0.05
+//ra#25920: Detail statuses and type DB update          nlHdL    29-11-17   0.04
+//ra#25920: Update Detailed states                      inajos   15-11-17   0.03
+//ra#18757 i_DB_event and relevant code added           inajos   30-11-16   0.02
+//Init version                                          nlHdL    20-10-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_CFG_ADDR_In : INT ;	//CFG: Start address of input range of the PN device
+  i_CFG_ADDR_Out : INT ;	//CFG: Start address of Output range of the PN device
+  i_CFG_Num_No_Data_Err : INT  := 3;	//CFG: [Num] Value of consecutive no-data before a no-data error is set
+  i_TRS_PLT_DB : BLOCK_DB ;	//Data Structure: Position Data Block 
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Comm_Error : BOOL ;	//ST: communication error
+  o_ST_Scale_NOT_OK : BOOL ;	//ST: Weight Scale not OK/Error
+  o_ST_Succ_No_Data_Rcvd : BOOL ;	//ST: Too many successive no-data situations have occured
+  o_ST_No_Data_Rcvd : BOOL ;	//ST: No-data was received
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+END_VAR
+VAR
+  s_FB_WE_PN_Mettler : "FB_WE_PN_Mettler";	//Weight Unit
+  s_Weight : INT ;	//Weight from LNK
+  s_LNK : INT ;	//LNK of item on PLT
+  s_STAT_Good_Weight : INT ;	//STAT: Number of times that a correct weight scan has taken place
+  s_STAT_No_Weight : INT ;	//STAT: Number of times that the no weight was received
+  s_Succ_Error_No_Data : INT ;	//Counter for successive no-data situations
+  s_Weight_Done : BOOL ;	//Weight for item is set
+  s_FP_Good_Weight : BOOL ;	//Flank Positive good weight
+  s_FP_No_Weight : BOOL ;	//Flank Positive no weight
+  s_Eqp_Operational_On : BOOL ;	//Operational on signal of this object
+END_VAR
+VAR_TEMP
+  t_TRS_PLT_Num : INT ;	
+  t_TRS_Length : INT ;	//Length of TRS
+  t_Position : INT ;	//Position of found item
+  t_Event_DB_Num : INT ;	//Number of the Local Event DB
+  t_LNK : INT ;	//LNK of found item
+  t_LIC : INT ;	//LIC number from LNK
+  t_Found_PLT_DB : INT ;	//PLT DB of found trailing edge
+  t_Window : INT ;	//Window of remain TRS length
+  t_Not_Used : INT ;	//Int not used
+  t_RET_VAL : INT ;	//Return value function call read/write
+  t_Weight : INT ;	//Weight from scale unit
+  t_No_Weight : BOOL ;	//No weight received
+  t_item_present : BOOL ;	//Item on TRS
+  t_Item_at_Handover : BOOL ;	//Item in Handover from PLT DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive PLT info and check if item is present on TRS
+
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      OPN   #i_TRS_PLT_DB; 
+      L     DBNO; 
+      T     #t_TRS_PLT_Num; 
+
+      L     DBW   12; 
+      T     #t_TRS_Length; 
+
+      AN    DBX   10.0; 
+      BEC   ; // If PLT not done end block
+
+      A     DBX   10.6; 
+      =     #t_Item_at_Handover; 
+
+      SET   ; 
+      R     #t_item_present; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_TRS_PLT_Num,
+           i_Position               := 0,
+           i_Window                 := #t_TRS_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; //No lnk
+
+      L     #t_TRS_Length; 
+      L     #t_Position; 
+      -I    ; 
+      JMZ   AA99; 
+      T     #t_Window; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_TRS_PLT_Num,
+           i_Position               := #t_Position,
+           i_Window                 := #t_Window,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Found_PLT_DB,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Found_PLT_DB; 
+      L     #t_TRS_PLT_Num; 
+      ==I   ; 
+      JCN   AA99; 
+      S     #t_item_present; 
+
+      L     #s_LNK; 
+      L     #t_LNK; 
+      <>I   ; 
+      R     #s_Weight_Done; // Reset if new item found
+
+      T     #s_LNK; // Copy LNK
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: weighing unit
+
+      CALL #s_FB_WE_PN_Mettler (
+           i_Safety_OK              := #i_Safety_OK,
+           i_Available_IO           := #i_Available_IO,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_FieldB_NotPrsnt        := #i_FieldB_NotPrsnt,
+           i_FieldB_Error           := #i_FieldB_Error,
+           i_CFG_ADDR_In            := #i_CFG_ADDR_In,
+           i_CFG_ADDR_Out           := #i_CFG_ADDR_Out,
+           o_Ready_To_Restart       := #o_Ready_To_Restart,
+           o_ST_FieldB_NotPrsnt     := #o_ST_FieldB_NotPrsnt,
+           o_ST_FieldB_Error        := #o_ST_FieldB_Error,
+           o_ST_Comm_Error          := #o_ST_Comm_Error,
+           o_ST_No_Data_Recv        := #o_ST_Scale_NOT_OK,
+           o_Weight                 := #t_Weight);
+
+      A     #t_item_present; 
+      AN    #t_Item_at_Handover; 
+      JCN   BA01; 
+
+      L     0; 
+      L     #t_Weight; 
+      <I    ; 
+      JCN   BA01; 
+
+//--- copy weight to item (BIR)
+      T     #s_Weight; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Bag.Weight,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #s_Weight,
+           i_DB_Event_Num           := #t_Event_DB_Num);
+
+      S     #s_Weight_Done; 
+
+BA01: NOP   0; 
+NETWORK
+TITLE =CA: Halt TRS conditions
+
+      A     #t_Item_at_Handover; 
+      AN    #s_Weight_Done; 
+      FP    #s_FP_No_Weight; 
+      =     #t_No_Weight; 
+      S     #o_ST_No_Data_Rcvd; // Received weight is <= 0  set No weight received warning
+
+      A     #t_No_Weight; 
+      JCN   CA01; 
+
+      L     #s_Succ_Error_No_Data; 
+      L     1; 
+      +I    ; 
+      T     #s_Succ_Error_No_Data; 
+
+CA01: L     #s_Succ_Error_No_Data; 
+      L     #i_CFG_Num_No_Data_Err; 
+      >=I   ; 
+      S     #o_ST_Succ_No_Data_Rcvd; 
+
+      A     #s_Weight_Done; //When a new weight is received
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      A     #o_ST_Succ_No_Data_Rcvd; //while the no-data error is active
+      )     ; 
+      JCN   CA02; //THEN
+      L     0; //reset the no-data error counter
+      T     #s_Succ_Error_No_Data; 
+
+CA02: A     #i_CMD_Reset; 
+      R     #o_ST_Succ_No_Data_Rcvd; 
+
+      A     #s_Weight_Done; 
+      R     #o_ST_No_Data_Rcvd; // Reset No Weight warning when Weight of item is correctly received
+
+NETWORK
+TITLE =DA: Statistical Data and send package report
+//Statistical counters are implemented to count the number of times that a good 
+//read, no-read, no-data, unexpected-data or invalid-data situations occures. The 
+//statistical counters are cleared when s_clear_statisticals is set.
+      A     #t_Item_at_Handover; 
+      A     #s_Weight_Done; 
+      FP    #s_FP_Good_Weight; 
+      JCN   DA01; 
+
+//Send package report on good weight (volume with weight)
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1212,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+//--- Good weight counter
+      L     #s_STAT_Good_Weight; 
+      L     32767; 
+      <>I   ; 
+      JCN   DA01; 
+
+      L     #s_STAT_Good_Weight; 
+      +     1; 
+      T     #s_STAT_Good_Weight; 
+
+//--- No-weight counter
+DA01: A     #t_No_Weight; 
+      JCN   DA06; 
+
+      L     #s_STAT_No_Weight; 
+      L     32767; 
+      <>I   ; 
+      JCN   DA06; 
+
+      L     #s_STAT_No_Weight; 
+      +     1; 
+      T     #s_STAT_No_Weight; 
+
+DA06: NOP   0; 
+
+//--- Clearing the Statistics
+      A     #i_CMD_Send_Stat; // IF Command send statisticals
+      JCN   DA99; 
+
+//--write the "Good read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_STAT_Good_Weight,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+//--write the "No Read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2002,
+           i_Event_value            := #s_STAT_No_Weight,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+//--Clear the statistical
+      L     0; // THEN preset counters to zero
+      T     #s_STAT_Good_Weight; 
+      T     #s_STAT_No_Weight; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA:Determine 'Operational_ON' &  Create Ready to Restart 
+
+
+// Determine 'Operational_ON' status
+      A     #i_CMD_Start; 
+      S     #s_Eqp_Operational_On; 
+
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #o_ST_FieldB_NotPrsnt; 
+      O     #o_ST_FieldB_Error; 
+      O     #o_ST_Comm_Error; 
+      O     #o_ST_Scale_NOT_OK; 
+      )     ; 
+      R     #s_Eqp_Operational_On; 
+
+
+// Create Ready to Restart if EQP not operational on 
+      AN    #s_Eqp_Operational_On; 
+      A     #i_CMD_Enable; 
+      A     #i_Available_IO; 
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      AN    #o_ST_Comm_Error; 
+      AN    #o_ST_Scale_NOT_OK; 
+      S     #o_Ready_To_Restart; 
+
+      A     #o_Ready_To_Restart; 
+      =     #o_ST_WN_Restart; 
+
+END_FUNCTION_BLOCK
+

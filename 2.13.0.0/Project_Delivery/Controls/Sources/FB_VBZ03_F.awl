@@ -1,0 +1,1277 @@
+FUNCTION_BLOCK "FB_VBZ03_F"
+TITLE =%version: 1.02 % CN: 55 
+//Function:
+//Module for vertibelt zone VBZ03
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, May 10, 2018 1:02:54 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#28972: Code Updates based on testing               inajos  10-05-18   1.02
+//Init version                                          inajos  12-03-18   1.01
+//
+//Description:
+//
+//This block executes the Fixed part of VBZ03 zone.
+//
+//The transport function that can be executed by this module, are:
+//- PLT DB of Transport section for triggering item
+//- Decision block to decided the direction
+//- Hand over item from sorter conveyor to divert section.
+//- Trigger E-save of divert while direction is towards the divert
+//- Switch motor of vertibelt
+//- Belt motor of the vertibelt
+//- Jam detection PEC
+//- External
+//
+//Explanation of the parameters:
+//  Parameter prefixes:
+//    HW: field IO
+//    SET: setting
+//    CFG: configuration
+//    CMD: command
+//                        SWS = S1   Belt = S2 
+//                         _ ________________ _    
+//              ----------(_)________________(_)-----------------
+//                          ... verti-belt arm   
+//                Sorter          ...                   ---> Flow
+//                 Section              ...        
+//              ------------------------    (_)-------------------
+//                              |             |
+//                             |----------------< (Hac Pec)
+//                              |             |
+//                              |             |
+//                              |   Divert    |
+//                              |   Section BJ|
+//                              ---------------
+//                              |             |
+//                              | Divert      |
+//                              | Section  BF |
+//                              ---------------
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Setting : "UDT_VBZ_Sett";	//Data Structure: Setting Record
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CFG_PLC_No_Msg_To_Rout : BOOL ;	//CFG: Send No messages to Routing (If TRUE = No Messages are send to High Level)
+  i_Local_Commands : "UDT_VBZ_Local_CMD";	//CMD: Local HMI commands
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_DB_PLT_Sorter : BLOCK_DB ;	//Data structure: Position DataBlock Sorter conveyorSorter conveyorSorter conveyo
+  i_DB_Default_Route_Table : BLOCK_DB ;	//Data Structure: Default Routing Table
+  i_DB_System_Route_Table : BLOCK_DB ;	//Data Structure: System Routing Table
+  i_CFG_PEC_Block_Length : INT ;	//CFG: [cm] Delay for detecting a PEC blockage
+  i_CFG_Dir_A_Preference : INT ;	//CFG: Preference for Direction A (0 = No Direction 1 = Preferred)
+  i_CFG_Dir_B_Preference : INT ;	//CFG: Preference for Direction B (0 = No Direction 1 = Preferred)
+  i_CFG_UnSecure_Not_Allow : INT ;	//CFG: Dir. where unsecure Items are not allowed. Dir 1 or 2 or 'don't care'(0)
+  i_CFG_Dimen_SC_Not_Allow : INT ;	//CFG: Dir. where SC bags are not allowed. Direction 1 or 2 or 'don't care' (0)
+  i_CFG_Local_Unsecure_Dir : INT ;	//CFG: Local Direction for a Unsecure item. Direction 1 or 2 or 'don't care'(0)
+  i_CFG_Local_Dimensn_Dir : INT ;	//CFG: Local Direction for a NON ST item. Direction 1 or 2 or 'don't care'(0)
+  i_CFG_Sorter_PEC_Offset : INT ;	//CFG: [cm] PEC Offset of PEC located on sorter section
+  i_CFG_Sorter_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed for sorter section
+  i_CFG_Sorter_Run_Out : INT ;	//CFG: [cm] Run out distance for the sorter section
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Ext_Req_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_Ext_Req_Rst_ESave : BOOL ;	//Request signal from external reset energy saving
+  i_VBS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_VBS_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_VBS_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_VBS_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_VBS_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_VBS_IO_NOT_PEC_HAC : BOOL  := TRUE;	//HW: HandOver area clear signal of PEC (TRUE = No product)
+  i_SWS_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_SWS_Setting : "UDT_EQP_Switch_Sett";	//Data Structure: Setting Record VBS
+  i_SWS_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present SWS
+  i_SWS_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_SWS_IO_LMS_Auto : BOOL ;	//HW: switch of the motor equipment is in 'Automatic' position (Switch motor)
+  i_SWS_IO_LMS_Healthy : BOOL ;	//HW: Healthy signal from motor equipment (Switch motor) 
+  i_SWS_IO_PS_In : BOOL ;	//HW: Switch motor in position "in" (True = Active)
+  i_SWS_IO_PS_Out : BOOL ;	//HW: Switch motor in position "out" (True = Active)
+  i_DB_PLT_TRS1 : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_Req_Halt_Sorter : BOOL ;	//Request signal to external to halt sorter conveyor from Vertibelt
+  o_Req_Stop_Sorter : BOOL ;	//Request stop signal to external to stop sorter conveyor from vertibelt
+  o_ST_Position_Straight : BOOL ;	//ST: Position is in straight
+  o_ST_Position_Divert : BOOL ;	//ST: Position is in divert
+  o_ST_Fixed_Straight : BOOL ;	//ST: Fixed straight on mode activated
+  o_ST_Fixed_Divert : BOOL ;	//ST: Fixed divert mode activated
+  o_ST_Switch_Gap_NotClear : BOOL ;	//ST: Switch gap not clear
+  o_ST_No_Route_Available : BOOL ;	//ST: No route for the current destination available
+  o_ST_Not_AllowedItem_SOZ : BOOL ;	//ST: Item on SOZ is not allowed to continue in it's current direction
+  o_ST_Not_AllowedItem_Div : BOOL ;	//ST: Item on Divert is not allowed to continue in it's current direction
+  o_VBS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_VBS_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_VBS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_VBS_ST_Running : BOOL ;	//ST: Section is running
+  o_VBS_ST_Started : BOOL ;	//ST: Started
+  o_VBS_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_VBS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_VBS_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_VBS_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_VBS_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_VBS_ST_HAC_Blockage : BOOL ;	//ST: PEC blockage on Gap Clear PEC (at outfeed belt)
+  o_SWS_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_SWS_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor  
+  o_SWS_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_SWS_ST_Started : BOOL ;	//ST: Started
+  o_SWS_ST_Running : BOOL ;	//ST: Section is running
+  o_SWS_ST_Ext_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_SWS_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_SWS_ST_ASI_Error : BOOL ;	//ST: LMS ASI slave has an error
+  o_SWS_ST_Not_Automatic : BOOL ;	//ST: The motor is reporting not Automatic
+  o_SWS_ST_Not_Healthy : BOOL ;	//ST: The motor is reporting not Healthy
+  o_SWS_ST_Move_Time_Out : BOOL ;	//ST: Switch motor time out moving
+  o_SWS_ST_Err_PS_Double : BOOL ;	//ST: Switch motor error double detection
+  o_SWS_Action_Active : BOOL ;	//Reporting to system control that an action is active
+  o_TRS1_Req_Halt : BOOL ;	//Request signal to external to halt divert conveyor from Vertibelt
+  o_TRS1_Req_Stop : BOOL ;	//Request stop signal to external to stop divert conveyor from vertibelt
+END_VAR
+VAR
+  s_SWS_Switch : "FB_EQP_Switch";	//Block call static FB_EQP_Switch
+  s_SWS_MTR_2Dir : "FB_HW_MTR_2DIR_LMS";	//Block call static FB_HW_MTR_2DIR_LMS
+  s_VBS_MTR_LMS : "FB_HW_MTR_LMS";	//Block call static FB_HW_MTR_LMS
+  s_FB_Energy_Save : "FB_Energy_Save";	//Block call static FB_Energy_Save
+  s_Decision_Point : "FB_DecisionPoint";	//Block call static FB_Generate_Dest
+  s_VBS_PEC_HAC : "FB_EQP_PEC_Trigger";	//Block call static FB_EQP_PEC_Trigger
+  s_FB_DAT_VBZ : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_VBS : "FB_DAT";	//Block call static FB_DAT_SAC
+  s_FB_DAT_SWS : "FB_DAT";	//Block call static FB_DAT
+  s_TEP_TOP : "FB_TepTop_Manager";	//Tep TOP Manager
+  s_DB_Num_Event : INT ;	//Number of the Event DB
+  s_Vertibelt_Pos : INT ;	//The position where the turning point of the VBZ is located
+  s_Decision_Pos : INT ;	//Decision position
+  s_Check_Dir_Pos : INT ;	//Check direction position
+  s_Handover_Pos : INT ;	//Handover position
+  s_Start_HO_Pos : INT ;	//Start handover position
+  s_LNK : INT ;	//LNK position decision
+  s_Data_Straight : INT ;	//Found data for straight clear check
+  s_Data_Divert : INT ;	//Found data for divert clear check
+  s_Items_Present_In_SOZ : INT ;	//Items are present in the PLT DB for the sorter section
+  s_Restart_TrackRep_Wait : INT ;	//Setpoint timer for resend tracking report on wait
+  s_TEP : INT ;	//Total Empty Position
+  s_Direction_DP : BYTE ;	//Direction given at the decision point
+  s_VBS_Req_MTR_Run : BOOL ;	//S1 Request Motor Run
+  s_Req_Halt_SWS : BOOL ;	//Request Halt to SWS
+  s_Halt_SWS_from_2Dir : BOOL ;	//Request Halt to SWS from 2Dir
+  s_Item_in_Handover : BOOL ;	//Item is in Handover to divert section
+  s_Switch_Gap_Not_Clear : BOOL ;	//Item within switch gap found
+  s_Dir2 : BOOL ;	//Direction = 2
+  s_Info_1_Found : BOOL ;	//Leading edge that will be diverted found
+  s_FP_Info_1_Found : BOOL ;	//Flank Positive signal of leading edge found signal
+  s_Halt_TRS2_Gap_Not_Clr : BOOL ;	//Halt sorter conveyor because the gap clear area is not clear
+  s_Item_at_Check_Pos : BOOL ;	//Item present at the position to check if the VBS is in the correct direction
+  s_Halt_Sorter_Dir1 : BOOL ;	//Halt sorter section because off direction 1
+  s_Halt_Sorter_Dir2 : BOOL ;	//Halt sorter section because off direction 2
+  s_Halt_Sorter_Belt_NOK : BOOL ;	//Halt sorter section if belt motor Not OK
+  s_Item_Present_For_Dir2 : BOOL ;	//Item present at handover position that needs to be diverted
+  s_VBZ_Ready_To_Restart : BOOL ;	//Ready To Restart
+  s_Status_Semi_Auto : BOOL ;	//Status Mode Semi Auto
+  s_Status_Disabled : BOOL ;	//Status Mode Disabled (Offline or Manual)
+  s_VBS_Operational_On : BOOL ;	//section is Operational On
+  s_VBS_ST_ASI_Not_Prsnt : BOOL ;	//Status LMS ASI slave is not present
+  s_VBS_ST_ASI_Error : BOOL ;	//Status LMS ASI slave has an error
+  s_VBS_ST_Not_Automatic : BOOL ;	//Status The motor is reporting not Automatic
+  s_VBS_ST_Not_Healthy : BOOL ;	//Status The motor is reporting not Healthy
+  s_SWS_ST_ASI_Not_Present : BOOL ;	//Status LMS ASI slave is not present
+  s_SWS_ST_ASI_Error : BOOL ;	//Status LMS ASI slave has an error
+  s_SWS_ST_Not_Automatic : BOOL ;	//Status The motor is reporting not Automatic
+  s_SWS_ST_Not_Healthy : BOOL ;	//Status The motor is reporting not Healthy
+  s_SWS_ST_Move_Time_Out : BOOL ;	//Status Switch motor time out moving
+  s_SWS_ST_Err_PS_Double : BOOL ;	//Status Switch motor error double detection
+  s_ST_SWS_Running : BOOL ;	//Status SWS is running
+  s_ST_Not_AllowedItem_SOZ : BOOL ;	//ST: item not allowed at Sorter Zone, belt stopped
+  s_ST_Not_AllowedItem_Div : BOOL ;	//ST: item not allowed at Divert section, belt stopped
+  s_DB_Sorter_NOT_Empty : BOOL ;	//Indicating that the sorter DB is not empty used for clearing switch gap error
+  s_FP_Item_TrackRep : BOOL ;	//Detection positive edge item on infeed for sort report
+  s_FP_Wrong_PLT_DB : BOOL ;	//Flank positive for wrong PLT decision point
+  s_No_Route_Available : BOOL ;	//No route for the destination available
+  s_ST_Fixed_Straight : BOOL ;	//ST: Fixed straight on mode activated
+  s_ST_Fixed_Divert : BOOL ;	//ST: Fixed divert mode activated
+END_VAR
+VAR_TEMP
+  t_DB_PLT_TRS1 : INT ;	//PLT DB Number of the divert section
+  t_Length_TRS1 : INT ;	//Length divert section
+  t_DB_PLT_Sorter : INT ;	//PLT DB Number of the sorter section
+  t_Displacement_Sorter : INT ;	//Displacement of sorter section
+  t_Length_Sorter : INT ;	//Length sorter section
+  t_Nr_Info_1_Found_Sorter : INT ;	//Number of leading edges found in PLT DB of sorter section
+  t_Nr_Info_2_Found_Sorter : INT ;	//Number of Trailing edges found in PLT DB of sorter section
+  t_Search_Window : INT ;	//Search window between decision and handover point
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Info : INT ;	//Info number from PLT DB
+  t_LNK : INT ;	//LNK number from PLT DB
+  t_Nr_items_found : INT ;	//Number of items found within switch gap
+  t_Nr_Items_In_Gap_CLR : INT ;	//The number of itmes found in gap clear area
+  t_Position_Prs_Bag : INT ;	//Position of bag which is in decision area
+  t_Position_after_bag : INT ;	//Position of search leading edge
+  t_RET_Val : INT ;	//Return value of HLC message
+  t_DB_PLT_Found : INT ;	//PLT DB number of divert section
+  t_DB_Num_PLT_Sorter_Down : INT ;	//PLT DB number of downstream section of the sorter conveyor
+  t_LNK_Clear_check : INT ;	//Link nummer item for clear/unclear check 
+  t_LIC_nr : INT ;	//LIC number
+  t_Nom_Switch_Time : INT ;	//Nominal switch time in [ms]
+  t_Sorter_Run_out : INT ;	//Run out sorter
+  t_DB_PLT_TRS_Down : INT ;	//TRS1 Downstream PLT
+  t_TOP : INT ;	//Total Occupied Position
+  t_Done_TRS1 : BOOL ;	//Done Bit TRS1
+  t_Section_Run_TRS1 : BOOL ;	//Section run of divert section
+  t_Sorter_Operational_On : BOOL ;	//Operational on from PLT DB of sorter section
+  t_Dir_Run : BOOL ;	//Run SWS
+  t_Dir_Reverse : BOOL ;	//Not used in VBZ, reverse switch motor
+  t_Handover_OK : BOOL ;	//Handover to divert is OK
+  t_Belt_Stop_Motor : BOOL ;	//Stop motor because off technical error
+  t_SWS_Stop_Motor : BOOL ;	//Stop motor because off technical error
+  t_FP_Reset_E_Save : BOOL ;	//Trigger E-Save command
+  t_DecPoint_Wait : BOOL ;	//Wait signal from Decision Point
+  t_Item_Secure : BOOL ;	//When TRUE item is secure
+  t_VBS_PEC_IO_Available : BOOL ;	//Temp IO Available for PEC HAC which is connected to LMS of VBS
+  t_TRS1_Operational : BOOL ;	//TRS1 Section Operational
+  t_Restart_TrackRep_Timer : BOOL ;	//Timer elapsed wait resend tracking report
+  t_Send_TrackRep_Dir1 : BOOL ;	//Send tracking report dir 1
+  t_Send_TrackRep_Dir2 : BOOL ;	//Send tracking report dir 2
+  t_No_Route_Available : BOOL ;	//No route for the destination available
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read info from PLT DB's
+
+      NOP   0; 
+//Open the PLT DB of the divert section and retrieve the required information
+      OPN   #i_DB_PLT_TRS1; 
+      L     DBNO; 
+      T     #t_DB_PLT_TRS1; 
+
+      A     DBX   10.0; 
+      =     #t_Done_TRS1; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_TRS1; 
+
+      A     DBX   10.5; 
+      =     #t_TRS1_Operational; 
+
+      L     DBW   12; 
+      T     #t_Length_TRS1; 
+
+      OPN   #i_DB_PLT_TRS1; 
+      L     DBW    8; 
+      T     #t_DB_PLT_TRS_Down; 
+
+
+//Open the PLT DB of the sorter section and retrieve the required information
+      OPN   #i_DB_PLT_Sorter; 
+      L     DBNO; 
+      T     #t_DB_PLT_Sorter; 
+
+      L     DBW    2; 
+      T     #t_Displacement_Sorter; 
+
+      A     DBX   10.5; 
+      =     #t_Sorter_Operational_On; 
+
+      L     DBW   12; 
+      T     #t_Length_Sorter; 
+
+// Search in PLT DB of sorter section for leading and trailing edges to determine if the
+// sorter PLT DB contains items
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #t_Length_Sorter,
+           i_Window                 := #t_Length_Sorter,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Nr_Info_1_Found_Sorter);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #t_Length_Sorter,
+           i_Window                 := #t_Length_Sorter,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Nr_Info_2_Found_Sorter);
+
+      L     #t_Nr_Info_1_Found_Sorter; 
+      L     #t_Nr_Info_2_Found_Sorter; 
+      +I    ; 
+      T     #s_Items_Present_In_SOZ; 
+
+//Store the DB Number of the event DB
+      OPN   "DB_Event_Section"; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+//Set nominal switch time
+      L     1000; 
+      T     #t_Nom_Switch_Time; 
+
+NETWORK
+TITLE =AB: Copy oneshot commands to statics
+
+      A     #i_Local_Commands.Auto; 
+      R     #s_ST_Fixed_Straight; 
+      R     #s_ST_Fixed_Divert; 
+
+      A     #i_Local_Commands.Fixed_Straight_On; 
+      R     #s_ST_Fixed_Divert; 
+      S     #s_ST_Fixed_Straight; 
+
+      A     #i_Local_Commands.Fixed_Divert; 
+      R     #s_ST_Fixed_Straight; 
+      S     #s_ST_Fixed_Divert; 
+
+NETWORK
+TITLE =BA: Calculate all required positions
+//In this network all positions that are used are calculated. the 
+//calculations are done according the formula's displayed below: 
+//
+//Vertibelt position = Vertibelt position offset + PEC offset (EOS PEC sort sec.)
+//
+//                    Speed sort section * switch time VBS
+//Decision position = ------------------------------------ + vertibelt position
+//                   10000 (convert mm to cm and ms to sec)
+//
+//Check direction position = Vertibelt position + Run-Out distance sort section
+//
+//Handover position = Handover position offset + PEC offset (EOS PEC sort sec.)
+//
+//Start handover position = HO position + Run-Out distance sort section + 5 cm
+      NOP   0; 
+// Calculate the vertibelt position
+      L     #i_Setting.Offset_VertibeltPos; 
+      L     #i_CFG_Sorter_PEC_Offset; 
+      +I    ; 
+      T     #s_Vertibelt_Pos; 
+
+// Calculate the decision position
+      L     #i_CFG_Sorter_Conv_Speed; 
+      L     #t_Nom_Switch_Time; // Switch time of vetibelt [ms]
+      *I    ; 
+      L     10000; 
+      /D    ; 
+      L     #s_Vertibelt_Pos; 
+      +I    ; 
+      T     #s_Decision_Pos; 
+
+// Calculate the check direction position.
+      L     #i_CFG_Sorter_Run_Out; 
+      L     #s_Vertibelt_Pos; 
+      +I    ; 
+      T     #s_Check_Dir_Pos; 
+
+// Calculate the handover position
+      L     #i_Setting.Offset_Handover_Pos; 
+      L     #i_CFG_Sorter_PEC_Offset; 
+      +I    ; 
+      T     #s_Handover_Pos; 
+
+// Calculate the start handover position
+      L     #s_Handover_Pos; 
+      L     #i_CFG_Sorter_Run_Out; // Add run-out distance
+      +I    ; 
+      L     5; // And add 5 extra cm to make sure item can be stopped before the actual handover position
+      +I    ; 
+      T     #s_Start_HO_Pos; 
+
+NETWORK
+TITLE =CA: Determine direction for bag on sorter section
+//Search for an item at the decision point on the sorter section until the 
+//start handover for a valid LNK number. If valid LNK number is found, copy to 
+//static s_LNK. Generate a destination for the bag via the LNK number which was 
+//found. 
+      NOP   0; 
+// Reset destination not allowed
+      SET   ; 
+      R     #t_DecPoint_Wait; 
+      R     #s_No_Route_Available; 
+
+      OPN   #i_DB_PLT_Sorter; 
+      L     DBW    8; //DB PLT number downstream of the PLT sorter
+      T     #t_DB_Num_PLT_Sorter_Down; 
+
+// Calculate search window for decision point LNK search
+      L     #s_Decision_Pos; 
+      L     #s_Check_Dir_Pos; 
+      -I    ; 
+      T     #t_Search_Window; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Decision_Pos,
+           i_Window                 := #t_Search_Window,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Prs_Bag,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_DB_PLT_Found,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     0; 
+      L     #t_LNK; 
+      <I    ; 
+      JCN   CA99; 
+      T     #s_LNK; 
+
+      L     #t_DB_PLT_Found; 
+      L     #t_DB_PLT_Sorter; 
+      <>I   ; 
+      FP    #s_FP_Wrong_PLT_DB; 
+      JCN   CA01; 
+
+// Check if decision point is check LNK on sorter zone.
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3805,// LNK for decision point is not on sorter PLT!
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Not_Used_Int);
+
+CA01: CALL #s_Decision_Point (
+           i_LNK                    := #s_LNK,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           i_DB_Default_Route_Table := #i_DB_Default_Route_Table,
+           i_DB_System_Route_Table  := #i_DB_System_Route_Table,
+           i_Degraded_Mode          := "M_Comm_Degraded",
+           i_Fixed_Mode_Dir_A       := #s_ST_Fixed_Straight,
+           i_Fixed_Mode_Dir_B       := #s_ST_Fixed_Divert,
+           i_Dir_A_Failure          := FALSE,
+           i_Dir_A_Full             := FALSE,
+           i_Dir_B_Failure          := FALSE,
+           i_Dir_B_Full             := FALSE,
+           i_DB_PLT_Num_Dir_A       := #t_DB_Num_PLT_Sorter_Down,
+           i_DB_PLT_Num_Dir_B       := #t_DB_PLT_TRS_Down,//Master belt
+           i_TEP_Dir_A              := 2,
+           i_TEP_Dir_B              := #s_TEP,
+           i_CFG_Dir_A_Preference   := #i_CFG_Dir_A_Preference,
+           i_CFG_Dir_B_Preference   := #i_CFG_Dir_B_Preference,
+           i_CFG_Transport_Default  := 0,
+           i_CFG_UnSecure_Not_Allow := #i_CFG_UnSecure_Not_Allow,
+           i_CFG_Dimen_SC_Not_Allow := #i_CFG_Dimen_SC_Not_Allow,
+           i_CFG_Local_Unsecure_Dir := #i_CFG_Local_Unsecure_Dir,
+           i_CFG_Local_Dimensn_Dir  := #i_CFG_Local_Dimensn_Dir,
+           i_DP_Settings            := #i_Setting.Decision_Point,
+           o_Direction              := #s_Direction_DP,
+           o_Wait                   := #t_DecPoint_Wait,
+           o_No_Route_Available     := #t_No_Route_Available);
+
+      A     #t_No_Route_Available; 
+      S     #s_No_Route_Available; 
+
+
+//Determine if direction is divert (Dir2)
+      L     #s_Direction_DP; 
+      L     2; 
+      ==I   ; 
+      =     #s_Dir2; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Item not allowed at clear direction check
+//Unclear bags are not allowed on the clear direction, this check stops the belt 
+//if there is an unclear bag at the run out distance. The PLT DB has to be 
+//cleared to allow the error to be reset.
+      A     #i_CMD_Reset; 
+      R     #s_ST_Not_AllowedItem_SOZ; 
+      R     #s_ST_Not_AllowedItem_Div; 
+
+      L     #i_CFG_UnSecure_Not_Allow; 
+      L     0; 
+      <>I   ; 
+      JCN   DA99; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #i_CFG_Sorter_Run_Out,
+           i_Window                 := #i_CFG_Sorter_Run_Out,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #s_Data_Straight,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+
+//Check if Downstream PLT is valid PLT
+      A     #t_Done_TRS1; //If TRS1 PLT is done means downstream PLT is validated
+      JCN   DA99; 
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS_Down,//Master Belt TRS
+           i_Position               := #i_CFG_Sorter_Run_Out,//Standard Runout value considered
+           i_Window                 := #i_CFG_Sorter_Run_Out,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #s_Data_Divert,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #i_CFG_UnSecure_Not_Allow; 
+      L     1; 
+      ==I   ; 
+      JCN   DA01; 
+
+      L     #s_Data_Straight; 
+      T     #t_LNK_Clear_check; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+      JU    DA02; 
+
+DA01: L     #i_CFG_UnSecure_Not_Allow; 
+      L     2; 
+      ==I   ; 
+      JCN   DA99; 
+
+      L     #s_Data_Divert; 
+      T     #t_LNK_Clear_check; 
+      L     0; 
+      >I    ; 
+      JCN   DA99; 
+
+DA02: NOP   0; 
+
+// Convert LNK to LIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK_Clear_check,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_INT                    := #t_LIC_nr);
+
+      CALL "FC_Security_Check" (
+           i_LIC                    := #t_LIC_nr,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Item_Secure            := #t_Item_Secure);
+
+      L     #i_CFG_UnSecure_Not_Allow; 
+      L     1; 
+      ==I   ; 
+      JCN   DA03; 
+
+      AN    #t_Item_Secure; 
+      S     #s_ST_Not_AllowedItem_SOZ; 
+      JU    DA99; 
+
+DA03: AN    #t_Item_Secure; 
+      S     #s_ST_Not_AllowedItem_Div; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Start handover item from sorter section to divert section
+
+      NOP   0; 
+// Start handover when item is present at the start handover position
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Start_HO_Pos,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      A     #s_Dir2; // Only handover item when direction 2 is used
+      S     #s_Item_Present_For_Dir2; 
+
+// Check switch gap when moving to direction 2 (Side)
+// and direction 2 is used and not yet in dir 2
+      AN    #i_SWS_IO_PS_Out; 
+      A     #s_Item_Present_For_Dir2; 
+      A     #s_Dir2; // Only check if direction of the bag is divert
+      JCN   EA01; 
+
+      L     #t_Position_Prs_Bag; // Last kown position of bag
+      L     #t_Displacement_Sorter; 
+      -I    ; 
+      L     1; 
+      -I    ; 
+      T     #t_Position_after_bag; // Position after the bag 
+      L     0; 
+      >I    ; 
+      JCN   EA01; // Check if position for search is positive
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #t_Position_after_bag,
+           i_Window                 := #i_Setting.Minimum_Switch_Gap,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Nr_items_found);
+
+// If items present within the switch gap 
+      A(    ; 
+      L     #t_Nr_items_found; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; // and the info found is not -# 
+      L     #t_Info; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      S     #s_Switch_Gap_Not_Clear; // then switch gap not clear
+
+EA01: A     #s_Item_Present_For_Dir2; 
+      A     #s_Dir2; 
+      S     #s_Item_in_Handover; 
+
+// Switch gap is only allowed to be reset by clearing the PLT DB
+      A     #s_Switch_Gap_Not_Clear; 
+      JCN   EA99; 
+
+      L     #s_Items_Present_In_SOZ; 
+      L     0; 
+      >I    ; 
+      =     #s_DB_Sorter_NOT_Empty; 
+
+      A     #i_CMD_Reset; 
+      AN    #s_DB_Sorter_NOT_Empty; 
+      R     #s_Switch_Gap_Not_Clear; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Write item from sorter section to divert section
+//When item is in handover search for the leading edge in the PLT of the 
+//sorter section and write the data to the PLT DB of the divert section. Also 
+//remove the entry in the sorter PLT DB. When the item is diverted write this 
+//info into the LIC record and send the report to High Level.
+      NOP   0; 
+// Only handover item from sorter to divert when direction 2 is used
+      A     #s_Dir2; 
+      JCN   FA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Handover_Pos,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #s_Info_1_Found; 
+
+      A     #s_Info_1_Found; 
+      FP    #s_FP_Info_1_Found; 
+      JCN   FA99; 
+
+//Write begin of bag to divert
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #t_Length_TRS1,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #t_Info,
+           i_LNK                    := #t_LNK,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+//Write PLT DB number to LNK record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #t_DB_PLT_TRS1,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+// Clear entry if item is divert
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Handover_Pos,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: End handover from sorter section to divert section
+//When the trailing edge passes the end handover offset position the item is 
+//handed over to the divert section. When the trailing edge is written into the 
+//divert section the entry in the sorter section is removed.
+      NOP   0; 
+// Check if trailing edge has passed the gap clear area
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #t_Length_TRS1,
+           i_Window                 := #i_Setting.Gap_Clear_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Nr_Items_In_Gap_CLR);
+
+// Halt TRS2 when the gap clear area is not clear and the divert section is not running
+      L     #t_Nr_Items_In_Gap_CLR; 
+      L     0; 
+      >I    ; 
+      AN    #t_Section_Run_TRS1; 
+      =     #s_Halt_TRS2_Gap_Not_Clr; 
+
+// If there are no entries present in TRS2 and the gap clear area is free
+      L     #s_Items_Present_In_SOZ; 
+      L     #t_Nr_Items_In_Gap_CLR; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      JCN   GA01; 
+
+// IF no entries then clear signals
+      SET   ; 
+      R     #s_Item_Present_For_Dir2; 
+      R     #s_Item_in_Handover; 
+      R     #s_Item_at_Check_Pos; 
+
+GA01: A     #s_Item_Present_For_Dir2; 
+      A     #s_Dir2; 
+      JCN   GA02; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Handover_Pos,
+           i_Window                 := 0,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     2; 
+      ==I   ; 
+      JCN   GA02; 
+
+      SET   ; 
+      R     #s_Item_Present_For_Dir2; 
+
+      A     #s_Item_in_Handover; 
+      JCN   GA02; 
+
+//Write end of bag to divert
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #t_Length_TRS1,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #t_Info,
+           i_LNK                    := #t_LNK,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+//Clear entry if item is divert
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Handover_Pos,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_Position               := #t_Length_TRS1,
+           i_Window                 := #i_Setting.Gap_Clear_Area,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Nr_Items_In_Gap_CLR);
+
+      L     #t_Nr_Items_In_Gap_CLR; 
+      L     0; 
+      ==I   ; 
+      R     #s_Item_in_Handover; 
+
+GA02: L     #s_Items_Present_In_SOZ; 
+      L     #t_Nr_Items_In_Gap_CLR; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      JCN   GA99; 
+      CLR   ; 
+      =     #s_Item_Present_For_Dir2; 
+      =     #s_Item_in_Handover; 
+GA99: NOP   0; 
+NETWORK
+TITLE =GB:TEP Evaluation in Divert Direction
+
+      CALL #s_TEP_TOP (
+           i_CFG_DB_PLT_1st_Section := #i_DB_PLT_TRS1,
+           i_CFG_Num_Dwnstr         := 4,
+           i_CFG_TEP_Offset         := 0,
+           o_TEP                    := #s_TEP,
+           o_TOP                    := #t_TOP);
+
+
+
+NETWORK
+TITLE =HA: Check direction 1 for sorter section
+
+      SET   ; 
+      R     #s_Halt_Sorter_Dir1; 
+
+      L     #i_CFG_Sorter_Run_Out; 
+      L     5; 
+      +I    ; 
+      T     #t_Sorter_Run_out; 
+
+// Determine if there is an item at the check position
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Check_Dir_Pos,
+           i_Window                 := #t_Sorter_Run_out,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #t_Info; 
+      L     1; 
+      ==I   ; 
+      =     #s_Item_at_Check_Pos; 
+
+// Only check if VBS is in IN position when direction 2 is NOT selected.
+      AN    #s_Dir2; 
+      JCN   HA99; 
+
+      A     #s_Item_at_Check_Pos; 
+      AN    #i_SWS_IO_PS_In; 
+      S     #s_Halt_Sorter_Dir1; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Tracking Report
+//Restart report on wait
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #s_FP_Item_TrackRep,
+           i_CFG_Timer_Value        := 30,
+           i_Setpoint               := #s_Restart_TrackRep_Wait,
+           o_Setpoint               := #s_Restart_TrackRep_Wait,
+           o_Timer_Elapsed          := #t_Restart_TrackRep_Timer);
+
+      A     #s_Info_1_Found; 
+      =     #t_Send_TrackRep_Dir2; 
+
+      A     #s_Item_at_Check_Pos; 
+      AN    #s_Dir2; 
+      =     #t_Send_TrackRep_Dir1; 
+
+      A     #t_Send_TrackRep_Dir1; 
+      O     #t_Send_TrackRep_Dir2; 
+      O     #t_DecPoint_Wait; 
+      AN    #t_Restart_TrackRep_Timer; 
+      FP    #s_FP_Item_TrackRep; 
+      JCN   IA99; 
+
+//Write tracking report in straight direction
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,//1201 = Tracking report
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_RET_Val);
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Trigger E-save to divert & check dir 2 for left sort section
+//When the bag is diverted (dir 2) reset E-save of the divert section.
+//Also check if dir 2 is OK, else halt sorter section.
+      SET   ; 
+      R     #s_Halt_Sorter_Dir2; 
+
+// Only check direction 2 when Flow A is selected.
+      A     #s_Dir2; 
+      JCN   JA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_PLT_Sorter,
+           i_Position               := #s_Check_Dir_Pos,
+           i_Window                 := 0,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     1; 
+      L     #t_Info; 
+      ==I   ; // When a leading edge is found in the sorter PLT DB
+      O(    ; // OR
+      A     #s_Item_Present_For_Dir2; // Item present that needs to be diverted
+      AN    #t_Section_Run_TRS1; // And divert section not running
+      )     ; 
+      O     #i_Ext_Req_Rst_ESave; 
+      =     #t_FP_Reset_E_Save; // Reset energy save of divert
+
+      CALL #s_FB_Energy_Save (
+           i_DB_PLT_Num             := #t_DB_PLT_TRS1,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           i_CFG_Conveyor_Speed     := 0,// Not used
+           i_CMD_Enable             := #t_FP_Reset_E_Save,
+           i_CMD_Start              := TRUE,
+           i_Ready_to_Restart       := FALSE,
+           i_Reset_E_Save           := FALSE,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save);
+
+//If handover is not OK halt sorter
+// or handover to divert while arm is in straight direction.
+// or switch gap is Not OK
+// or item is present and PEC Blockage is detected
+
+      A     #s_Item_Present_For_Dir2; 
+      A     #t_Section_Run_TRS1; 
+      ON    #s_Item_Present_For_Dir2; 
+      =     #t_Handover_OK; 
+
+      AN    #t_Handover_OK; 
+      O(    ; 
+      A     #s_Dir2; 
+      A     #s_Item_at_Check_Pos; 
+      AN    #i_SWS_IO_PS_Out; 
+      )     ; 
+      O     #s_Switch_Gap_Not_Clear; 
+      O(    ; 
+      A     #s_Item_Present_For_Dir2; 
+      A     #o_VBS_ST_HAC_Blockage; // Check the HAC PEC
+      )     ; 
+      S     #s_Halt_Sorter_Dir2; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Stop S1 because off technical error
+//LAD!
+      O     #s_Switch_Gap_Not_Clear; 
+      O     #s_SWS_ST_Not_Automatic; 
+      O     #s_SWS_ST_Not_Healthy; 
+      O     #s_SWS_ST_ASI_Not_Present; 
+      O     #s_SWS_ST_ASI_Error; 
+      O     #o_VBS_ST_HAC_Blockage; 
+      O     #i_Ext_Req_Stop; 
+      =     #t_SWS_Stop_Motor; 
+NETWORK
+TITLE =LA: Equipment Switch Motor
+
+      A     #i_Available_IO; 
+      AN    #o_VBS_ST_ASI_NotPrsnt; 
+      AN    #o_VBS_ST_ASI_Err; 
+      =     #t_VBS_PEC_IO_Available; 
+
+      CALL #s_VBS_PEC_HAC (
+           i_CFG_Blockage_Length    := #i_CFG_PEC_Block_Length,
+           i_CFG_Delay_On_Filter    := 1,
+           i_CFG_Reset_Block_PEC_Oc := TRUE,
+           i_CFG_Time_Displacement  := TRUE,
+           i_IO_NOT_PEC             := #i_VBS_IO_NOT_PEC_HAC,
+           i_Eqp_Available_IO       := #t_VBS_PEC_IO_Available,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_Displacement           := #t_Displacement_Sorter,
+           o_ST_PEC_Blk             := #o_VBS_ST_HAC_Blockage);
+
+      A     #s_Halt_SWS_from_2Dir; 
+      O     #i_Ext_Req_Halt; 
+      O     #t_DecPoint_Wait; 
+      =     #s_Req_Halt_SWS; 
+
+      CALL #s_SWS_Switch (
+           i_Available_IO           := #i_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_IO_PS_A                := #i_SWS_IO_PS_In,
+           i_IO_PS_B                := #i_SWS_IO_PS_Out,
+           i_Ext_Req_Stop           := #t_SWS_Stop_Motor,
+           i_Ext_Req_Halt           := #s_Req_Halt_SWS,
+           i_Req_Dir_B              := #s_Dir2,
+           i_Timeout_Dir            := #i_SWS_Setting.Timeout_Dir,
+           o_CMD_MTR_Run            := #t_Dir_Run,
+           o_CMD_MTR_Reverse        := #t_Dir_Reverse,
+           o_ST_Running             := #s_ST_SWS_Running,
+           o_ST_Started             := #o_SWS_ST_Started,
+           o_ST_External_Stop       := #o_SWS_ST_Ext_Stop,
+           o_ST_Movement_Time_out   := #s_SWS_ST_Move_Time_Out,
+           o_ST_PS_Double           := #s_SWS_ST_Err_PS_Double,
+           o_Ready_To_Restart       := #s_VBZ_Ready_To_Restart);
+
+      A     #s_Switch_Gap_Not_Clear; 
+      =     #o_ST_Switch_Gap_NotClear; 
+
+      A     #s_ST_SWS_Running; 
+      AN    #s_Req_Halt_SWS; 
+      =     #o_SWS_Action_Active; 
+
+      CALL #s_SWS_MTR_2Dir (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_CFG_Motor_Switch_Time  := 300,
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_SWS_LMS_NotPrsnt,
+           i_LMS_Error              := #i_SWS_LMS_Error,
+           i_IO_LMS_Auto            := #i_SWS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_SWS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Run      := #t_Dir_Run,
+           i_CMD_Req_Motor_Reverse  := #t_Dir_Reverse,
+           o_IO_MTR_Fwd             := #o_SWS_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_SWS_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_SWS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #s_SWS_ST_ASI_Not_Present,
+           o_ST_ASI_Err             := #s_SWS_ST_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_SWS_ST_Not_Automatic,
+           o_ST_LMS_Not_Hthy        := #s_SWS_ST_Not_Healthy,
+           o_Req_Halt               := #s_Halt_SWS_from_2Dir);
+
+      CALL #s_FB_DAT_SWS (
+           i_ID_Section             := #i_SWS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =MA: Stop S2 because off technical error
+//LAD!
+      O     #s_VBS_ST_Not_Automatic; 
+      O     #s_VBS_ST_Not_Healthy; 
+      O     #s_VBS_ST_ASI_Not_Prsnt; 
+      O     #s_VBS_ST_ASI_Error; 
+      O     #o_VBS_ST_HAC_Blockage; 
+      O     #i_Ext_Req_Stop; 
+      =     #t_Belt_Stop_Motor; 
+NETWORK
+TITLE =NA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      S     #s_VBS_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #i_Ext_Req_Stop; 
+      ON    #i_Safety_OK; 
+      O     #t_Belt_Stop_Motor; 
+      )     ; 
+      R     #s_VBS_Operational_On; 
+      NOP   0; 
+NETWORK
+TITLE =OA: Belt Motor
+
+      NOP   0; 
+// Motor run conditions for belt of VB
+      OPN   #i_DB_PLT_Sorter; 
+      A     DBX   10.1; // Section run of sorter section
+      AN    #i_Ext_Req_Halt; 
+      A     #i_Safety_OK; 
+      A     #s_VBS_Operational_On; 
+      =     #s_VBS_Req_MTR_Run; 
+      =     #o_VBS_ST_Running; 
+
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      =     #o_VBS_ST_Ext_Stop; 
+
+      CALL #s_VBS_MTR_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_VBS_LMS_NotPrsnt,
+           i_LMS_Error              := #i_VBS_LMS_Error,
+           i_IO_LMS_Auto            := #i_VBS_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_VBS_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_VBS_Req_MTR_Run,
+           o_IO_MTR_Fwd             := #o_VBS_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_VBS_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_VBS_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #s_VBS_ST_ASI_Not_Prsnt,
+           o_ST_ASI_Err             := #s_VBS_ST_ASI_Error,
+           o_ST_LMS_Not_Auto        := #s_VBS_ST_Not_Automatic,
+           o_ST_LMS_Not_Hthy        := #s_VBS_ST_Not_Healthy);
+
+      CALL #s_FB_DAT_VBS (
+           i_ID_Section             := #i_VBS_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+//Belt Not OK only if position is not IN
+// and motor NOK
+      O     #t_Belt_Stop_Motor; 
+      ON    #s_VBS_Operational_On; 
+      AN    #i_SWS_IO_PS_In; 
+      =     #s_Halt_Sorter_Belt_NOK; 
+NETWORK
+TITLE =PA: Ready to Restart VBS
+//LAD!
+      AN    #s_VBS_Operational_On; 
+      AN    #t_Belt_Stop_Motor; 
+      A     #i_CMD_Enable; 
+      O     #s_VBZ_Ready_To_Restart; 
+      A     #i_Available_IO; 
+      =     #s_VBZ_Ready_To_Restart; 
+
+NETWORK
+TITLE =QA: Data Layer of VBZ
+
+      CALL #s_FB_DAT_VBZ (
+           i_ID_Section             := #i_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := #i_CFG_PLC_No_Msg_To_Rout);
+
+NETWORK
+TITLE =RA: Halt sorter/divert section
+
+      A     #s_Item_at_Check_Pos; 
+      A     #i_Ext_Req_Dis_Send; 
+      =     #o_TRS1_Req_Halt; 
+
+      A     #t_DecPoint_Wait; 
+      O     #s_Halt_TRS2_Gap_Not_Clr; // Halt TRS2 when the gap clear area is not clear and the divert section is not running
+      O     #s_Halt_Sorter_Dir1; 
+      O     #s_Halt_Sorter_Dir2; 
+      O     #o_TRS1_Req_Halt; 
+      O     #s_Halt_Sorter_Belt_NOK; 
+      =     #o_Req_Halt_Sorter; 
+NETWORK
+TITLE =SA: Mode Semi_Auto Disabled or Auto
+
+      A     #s_VBS_ST_Not_Automatic; 
+      O     #s_Switch_Gap_Not_Clear; 
+      O     #s_SWS_ST_Move_Time_Out; 
+      O     #s_VBS_ST_Not_Healthy; 
+      O     #s_VBS_ST_ASI_Not_Prsnt; 
+      O     #s_VBS_ST_ASI_Error; 
+      O     #s_SWS_ST_ASI_Not_Present; 
+      O     #s_SWS_ST_ASI_Error; 
+      O     #o_VBS_ST_HAC_Blockage; 
+      O     #s_SWS_ST_Err_PS_Double; 
+      O     #s_ST_Not_AllowedItem_SOZ; 
+      O     #s_ST_Not_AllowedItem_Div; 
+      =     #s_Status_Disabled; 
+      =     #o_Req_Stop_Sorter; 
+      =     #o_TRS1_Req_Stop; 
+
+      A     #s_ST_Fixed_Straight; 
+      O     #s_ST_Fixed_Divert; 
+      AN    #s_Status_Disabled; 
+      S     #s_Status_Semi_Auto; 
+
+      AN    #s_ST_Fixed_Straight; 
+      AN    #s_ST_Fixed_Divert; 
+      O     #s_Status_Disabled; 
+      O     #i_Local_Commands.Auto; 
+      R     #s_Status_Semi_Auto; 
+NETWORK
+TITLE =TA: Write zone status
+
+      A     #i_Available_IO; 
+      A     #i_SWS_IO_PS_In; 
+      AN    #s_Status_Semi_Auto; 
+      =     #o_ST_Position_Straight; 
+
+      A     #i_Available_IO; 
+      A     #i_SWS_IO_PS_Out; 
+      AN    #s_Status_Semi_Auto; 
+      =     #o_ST_Position_Divert; 
+
+      A     #s_ST_Fixed_Straight; 
+      =     #o_ST_Fixed_Straight; 
+
+      A     #s_ST_Fixed_Divert; 
+      =     #o_ST_Fixed_Divert; 
+
+      A     #s_VBS_Operational_On; 
+      =     #o_VBS_ST_Started; 
+
+// Copy section statusses to outputs
+      A     #s_VBS_ST_ASI_Not_Prsnt; 
+      =     #o_VBS_ST_ASI_NotPrsnt; 
+
+      A     #s_VBS_ST_ASI_Error; 
+      =     #o_VBS_ST_ASI_Err; 
+
+      A     #s_VBS_ST_Not_Automatic; 
+      =     #o_VBS_ST_LMS_Not_Auto; 
+
+      A     #s_VBS_ST_Not_Healthy; 
+      =     #o_VBS_ST_LMS_Not_Hthy; 
+
+      A     #s_ST_SWS_Running; 
+      =     #o_SWS_ST_Running; 
+
+      A     #s_SWS_ST_ASI_Not_Present; 
+      =     #o_SWS_ST_ASI_NotPrsnt; 
+
+      A     #s_SWS_ST_ASI_Error; 
+      =     #o_SWS_ST_ASI_Error; 
+
+      A     #s_SWS_ST_Not_Automatic; 
+      =     #o_SWS_ST_Not_Automatic; 
+
+      A     #s_SWS_ST_Not_Healthy; 
+      =     #o_SWS_ST_Not_Healthy; 
+
+      A     #s_SWS_ST_Move_Time_Out; 
+      =     #o_SWS_ST_Move_Time_Out; 
+
+      A     #s_SWS_ST_Err_PS_Double; 
+      =     #o_SWS_ST_Err_PS_Double; 
+
+      A     #s_ST_Not_AllowedItem_SOZ; 
+      =     #o_ST_Not_AllowedItem_SOZ; 
+
+      A     #s_ST_Not_AllowedItem_Div; 
+      =     #o_ST_Not_AllowedItem_Div; 
+
+      A     #s_No_Route_Available; 
+      =     #o_ST_No_Route_Available; 
+NETWORK
+TITLE =UA: Write zone status request signals
+
+      O     #s_VBZ_Ready_To_Restart; 
+      =     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

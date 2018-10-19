@@ -1,0 +1,141 @@
+FUNCTION "FC_On_Dly_T_0.1s" : VOID
+TITLE =%version: 0.03 % CN: 30
+//Function: 
+//This function create an on delay on the signal "Start".
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:02:16 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Copied from SSS                                         nlMRe  16-04-10   0.01
+//Based on FC_On_Dly_T_0.1s 1.5
+//
+//
+//Description:
+//If the delay is elapsed the signal "Status" will be high.
+//The count of the delay time is only done while "Enable" is high. So you can use
+//this as a retentive timer. 
+//
+//On-delay time characteristics:
+//
+//                   |<-- t -->|          
+//                    ______________     
+//Start input    ____|              |____
+//
+//                    _________          
+//Timer running  ____|         |_________
+//
+//                              ____
+//Status         ______________|    |____
+//
+//
+//
+//DECREMENT:
+//The counter is decremented by one if the signal state at input 
+//Start="1" and Enable="1" on every 0.1sec one-shot and the value of
+//the counter is greater than "0". 
+//
+//SET:
+//The Counter is preset with the value at input Time_Value if input Start="0". 
+//Time_Value only accept if >=0 and <=32767 else the counter is preset with 0.
+//If Set On-delay and the Time_Value is not accepted the BR will be "0".
+//This indicate an error occurred during execution, the BR bit is "0".
+//If the function was executed with no error, the BR bit is "1".
+//
+//Time_Value format [* 0.1 Sec]
+//
+//STATUS:
+//The signal state at output status is "1" if
+//the count is equal to zero and Start='1'. This mains the time is elapesed.
+//                                                                           
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Start : BOOL ;	//Start count
+  i_Enable_Dly : BOOL ;	//Enable delay timer
+  i_Time_Value : INT ;	//[0.1 sec] Preset Value
+  i_Current_Value : INT ;	//Current counter value
+END_VAR
+VAR_OUTPUT
+  o_Status : BOOL ;	//Delay counter active count >0
+  o_Current_Value : INT ;	//Current counter value
+END_VAR
+VAR_TEMP
+  t_Elapsed : BOOL ;	//Timer elapsed
+  t_Current_Value : INT ;	//Temp Current counter value
+END_VAR
+BEGIN
+NETWORK
+TITLE =Init BR Binary Result Bit
+// Init the BR-bit as a good result
+      SET   ; // Init
+      SAVE  ; // BR-bit
+NETWORK
+TITLE =DA: Counter down
+//If 'Start' and Enable and time_one_shot the counter will decrement.
+//In the network 'Counter status' the counter will be kept to zero if 
+//the counter become < "0". So the counter will not be negative.
+      L     #i_Current_Value; 
+      T     #t_Current_Value; 
+
+      A     #i_Start; // IF   count down
+      A     #i_Enable_Dly; // AND  enable
+      A     "M_OS_/0.1_sec."; // AND  time_one_shot
+      JCN   DA99; // ELSE no count
+      L     #t_Current_Value; // THEN currunt value-1
+      +     -1; 
+      T     #t_Current_Value; 
+DA99: NOP   0; 
+NETWORK
+TITLE =PS: Preset counter
+//IF not 'START' then preset counter
+//IF 'Preset_Value' is between 0 and 32767 (max integer)
+//the counter take over the preset value into 'Current_Value'
+//else the 'Current-Value' will be zero.
+//IF preset and the "Time_Value" is out of range then the BR-bit will be "0".
+      AN    #i_Start; // IF   set counter
+      JCN   PS99; // ELSE no preset
+      L     32767; // Max preset value
+      L     #i_Time_Value; // Preset value
+      >=I   ; // IF   lower or same max
+      A(    ; // AND
+      L     0; // Min preset value
+      >=I   ; // IF   higher or same min
+      )     ; 
+      SAVE  ; // IF Accept Time_Value THEN BR="1" ELSE BR="0"
+      JCN   PS01; // ELSE preset zero
+      L     #i_Time_Value; // THEN time_value
+PS01: T     #t_Current_Value; // preset: current value
+PS99: NOP   0; 
+NETWORK
+TITLE =RA: Counter status
+//If the counter <= "0" the time has elapsed
+//The counter can not be negative so it will be kept to zero
+      L     #t_Current_Value; // IF   current value counter = 0
+      L     0; 
+      <=I   ; 
+      =     #t_Elapsed; // THEN time elapesed
+      JCN   RA99; 
+      T     #t_Current_Value; // ALSO keep counter zero
+RA99: NOP   0; 
+NETWORK
+TITLE =On-delay status
+//Status on-delay
+      L     #t_Current_Value; 
+      T     #o_Current_Value; 
+
+      A     #t_Elapsed; // IF   the time is elepsed
+      A     #i_Start; // AND 'Start'
+      =     #o_Status; // THEN time elapesed so status := '1' 
+END_FUNCTION
+

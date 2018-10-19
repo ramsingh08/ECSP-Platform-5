@@ -1,0 +1,422 @@
+FUNCTION_BLOCK "FB_WE04"
+TITLE =%version: 0.06 % CN: 42 
+//Function:
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, November 29, 2017 2:44:24 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                  By:       Date:    Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25920: Detail statuses and type DB update          nlHdL    29-11-17   0.06
+//ina#8624: Over weight baggage reset issue             nlHdL    24-11-17   0.05
+//ra#25920: Update Detailed states                      inajos   15-11-17   0.04
+//ina#8407: condition under weight modified             nlHdL    10-11-17   0.03
+//ra#18333 Multiple IO_available and its code added     inajos   30-11-16   0.02
+//ra#18757 i_DB_event and relevant code added           inajos   30-11-16   0.02
+//Init version                                          nlHdL    04-11-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_Available_IO_PN : BOOL  := TRUE;	//Signal for indication IO is OK (no PN or IO error)
+  i_Available_IO_ASI : BOOL  := TRUE;	//Signal for indication IO is OK (no ASI or IO error)
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_PB_IO_Reset_Check : BOOL ;	//HW: Push Button Reset Check
+  i_ASI_NotPrsnt_1 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_1 : BOOL ;	//ASI has an Error
+  i_ASI_NotPrsnt_2 : BOOL ;	//ASI is Not Present
+  i_ASI_Error_2 : BOOL ;	//ASI has an Error
+  i_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave is not present
+  i_FieldB_Error : BOOL ;	//Fieldbus Slave has an error
+  i_CFG_ADDR_In : INT ;	//CFG: Start address of input range of the PN device
+  i_CFG_ADDR_Out : INT ;	//CFG: Start address of Output range of the PN device
+  i_CFG_Max_Weight : INT ;	//CFG: [0.1 kg] Maximum weight 
+  i_CFG_Horn_Period : INT  := 10;	//CFG: [sec] Time period for horn signal (0 = disabled)
+  i_CFG_Num_No_Data_Err : INT  := 3;	//CFG: [Num] Value of consecutive no-data before a no-data error is set
+  i_TRS_PLT_DB : BLOCK_DB ;	//Data Structure: Position Data Block 
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+END_VAR
+VAR_OUTPUT
+  o_IO_PB_Fault : BOOL ;	//HW: PBB Light that indicates fault 
+  o_IO_SL_Fault : BOOL ;	//HW: SLC Light that indicates fault 
+  o_IO_Horn_Fault : BOOL ;	//HW: Horn indicates fault
+  o_Req_Halt_TRS : BOOL ;	//Request halt section
+  o_ST_Weight_Error : BOOL ;	//ST: Weight check error
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_ST_FieldB_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_ST_FieldB_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_ST_Comm_Error : BOOL ;	//ST: communication error
+  o_ST_Scale_NOT_OK : BOOL ;	//ST: Weight Scale not OK
+  o_ST_ASI_NotPrsnt_1 : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_1 : BOOL ;	//ST: ASI slave has an error
+  o_ST_ASI_NotPrsnt_2 : BOOL ;	//ST: ASI slave is not present
+  o_ST_ASI_Error_2 : BOOL ;	//ST: ASI slave has an error
+  o_ST_Succ_No_Data_Rcvd : BOOL ;	//ST: Too many successive no-data situations have occured
+  o_ST_No_Data_Rcvd : BOOL ;	//ST: No-data was received
+  o_ST_WN_Restart : BOOL ;	//ST: Warning: restart is required
+END_VAR
+VAR
+  s_FB_WE_PN_Mettler : "FB_WE_PN_Mettler";	//Weight Unit
+  s_Weight : INT ;	//Last measred weight
+  s_STAT_Good_Weight : INT ;	//STAT: Number of times that a correct weight scan has taken place
+  s_STAT_Weight_Heavy : INT ;	//STAT: Number of times that a bag was too heavy
+  s_Succ_No_Data : INT ;	//Counter for successive no-data situations
+  s_Timer_Horn_Period : INT ;	//Timer value Horn period
+  s_Weight_Done : BOOL ;	//Weight for item is set
+  s_FP_Good_Weight : BOOL ;	//Flank Positive good weight
+  s_FP_Weight_NOK : BOOL ;	//Flank Positive weight Not ok
+  s_Weight_OK : BOOL ;	//Weight checked status OK
+  s_Eqp_Operational_On : BOOL ;	//Operational on signal of this object
+  s_FP_Item_Present : BOOL ;	//Flank Positive item is present
+  s_FP_No_Weight : BOOL ;	//Flank Positive no weight
+END_VAR
+VAR_TEMP
+  t_TRS_PLT_Num : INT ;	
+  t_TRS_Length : INT ;	//Length of TRS
+  t_Position : INT ;	//Position of found item
+  t_Event_DB_Num : INT ;	//Number of the Local Event DB
+  t_Found_PLT_DB : INT ;	//PLT DB of found trailing edge
+  t_Window : INT ;	//Window of remain TRS length
+  t_Not_Used : INT ;	//Int not used
+  t_RET_VAL : INT ;	//Return value function call read/write
+  t_Weight : INT ;	//Weight from scale unit
+  t_Number_Items_Found : INT ;	//Number of items found in PLT
+  t_item_present : BOOL ;	//Item on TRS
+  t_Item_at_Handover : BOOL ;	//Item in Handover from PLT DB
+  t_Start_Horn_Fault : BOOL ;	//Start Horn Fault
+  t_Stop_Horn_Fault : BOOL ;	//Stop Horn Fault
+  t_ASI_Error : BOOL ;	//ASI Error combined
+  t_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  t_No_Weight : BOOL ;	//No weight received
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive PLT info and check if item is present on TRS
+
+
+//Collect IO Available from different Networks (PN/DP/ASI)    
+      A     #i_Available_IO_PN; 
+      A     #i_Available_IO_ASI; 
+      =     #t_Available_IO; 
+
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #t_Event_DB_Num; 
+
+      OPN   #i_TRS_PLT_DB; 
+      L     DBNO; 
+      T     #t_TRS_PLT_Num; 
+
+      L     DBW   12; 
+      T     #t_TRS_Length; 
+
+      AN    DBX   10.0; 
+      BEC   ; // If PLT not done end block
+
+      A     DBX   10.6; 
+      =     #t_Item_at_Handover; 
+
+      SET   ; 
+      R     #t_item_present; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_TRS_PLT_Num,
+           i_Position               := 0,
+           i_Window                 := #t_TRS_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      >I    ; 
+      JCN   AA99; //No lnk
+
+      L     #t_TRS_Length; 
+      L     #t_Position; 
+      -I    ; 
+      JMZ   AA99; 
+      T     #t_Window; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_TRS_PLT_Num,
+           i_Position               := #t_Position,
+           i_Window                 := #t_Window,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Found_PLT_DB,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_Found_PLT_DB; 
+      L     #t_TRS_PLT_Num; 
+      ==I   ; 
+      S     #t_item_present; 
+      FP    #s_FP_Item_Present; 
+      R     #s_Weight_Done; // Reset if new item found
+      R     #s_Weight_OK; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: ASI Slave not present
+
+      A     #i_CMD_Reset; // OR reset
+      ON    #i_Available_IO_ASI; // OR IO not available
+      R     #o_ST_ASI_NotPrsnt_1; // RESET Slave not Present
+      R     #o_ST_ASI_NotPrsnt_2; // RESET Slave not Present
+      R     #o_ST_ASI_Error_1; // RESET ASI Slave error
+      R     #o_ST_ASI_Error_2; // RESET ASI Slave error
+
+      A     #i_ASI_NotPrsnt_1; // ASI Slave not present
+      A     #i_Available_IO_ASI; // AND IO available
+      S     #o_ST_ASI_NotPrsnt_1; // SET the Slave not present
+
+      A     #i_ASI_NotPrsnt_2; // ASI Slave not present
+      A     #i_Available_IO_ASI; // AND IO available
+      S     #o_ST_ASI_NotPrsnt_2; // SET the Slave not present
+
+      A     #i_ASI_Error_1; // ASI Slave not present
+      A     #i_Available_IO_ASI; // AND IO available
+      S     #o_ST_ASI_Error_1; // SET ASI Slave Error
+
+      A     #i_ASI_Error_2; // ASI Slave not present
+      A     #i_Available_IO_ASI; // AND IO available
+      S     #o_ST_ASI_Error_2; // SET ASI Slave Error
+
+      A     #o_ST_ASI_NotPrsnt_1; 
+      O     #o_ST_ASI_NotPrsnt_2; 
+      O     #o_ST_ASI_Error_1; 
+      O     #o_ST_ASI_Error_2; 
+      =     #t_ASI_Error; 
+NETWORK
+TITLE =CA: weighing unit
+
+      CALL #s_FB_WE_PN_Mettler (
+           i_Safety_OK              := #i_Safety_OK,
+           i_Available_IO           := #i_Available_IO_PN,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_FieldB_NotPrsnt        := #i_FieldB_NotPrsnt,
+           i_FieldB_Error           := #i_FieldB_Error,
+           i_CFG_ADDR_In            := #i_CFG_ADDR_In,
+           i_CFG_ADDR_Out           := #i_CFG_ADDR_Out,
+           o_Ready_To_Restart       := #o_Ready_To_Restart,
+           o_ST_FieldB_NotPrsnt     := #o_ST_FieldB_NotPrsnt,
+           o_ST_FieldB_Error        := #o_ST_FieldB_Error,
+           o_ST_Comm_Error          := #o_ST_Comm_Error,
+           o_ST_No_Data_Recv        := #o_ST_Scale_NOT_OK,
+           o_Weight                 := #t_Weight);
+
+      AN    #t_Item_at_Handover; 
+      A     #t_item_present; 
+      O     #i_CMD_Reset; 
+      O     #i_PB_IO_Reset_Check; 
+      JCN   CA01; 
+
+      L     0; 
+      L     #t_Weight; 
+      <=I   ; //Also when weight under zero.
+      JCN   CA01; 
+
+//--- check weight of item
+      T     #s_Weight; 
+      L     #i_CFG_Max_Weight; 
+      <I    ; 
+// When the weigthing scale is running in the min then we get a large value then it's not possibel
+// to reset anymore. For example when the weighing scale is showing is -0.1 value the t_Weight variable has a value of 598888
+      O(    ; 
+      L     10000; 
+      L     #t_Weight; 
+      >I    ; 
+      )     ; 
+      =     #s_Weight_OK; 
+
+      SET   ; 
+      S     #s_Weight_Done; 
+
+CA01: NOP   0; 
+NETWORK
+TITLE =DA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      S     #s_Eqp_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #t_Available_IO; 
+      O     #o_ST_FieldB_NotPrsnt; 
+      O     #o_ST_FieldB_Error; 
+      O     #o_ST_Comm_Error; 
+      O     #o_ST_Scale_NOT_OK; 
+      O     #t_ASI_Error; 
+      )     ; 
+      R     #s_Eqp_Operational_On; 
+      NOP   0; 
+
+NETWORK
+TITLE =EA: Halt TRS conditions
+
+      A     #i_PB_IO_Reset_Check; // OR reset
+      ON    #t_Available_IO; // OR IO not available
+      R     #o_ST_Weight_Error; // RESET Weight error
+
+      AN    #s_Weight_OK; 
+      A     #t_Item_at_Handover; 
+      S     #o_ST_Weight_Error; 
+
+      AN    #t_Available_IO; 
+      O     #o_ST_Weight_Error; 
+      ON    #s_Eqp_Operational_On; 
+      =     #o_Req_Halt_TRS; 
+
+// Create Ready to Restart if EQP not operational on 
+      AN    #s_Eqp_Operational_On; 
+      A     #i_CMD_Enable; 
+      A     #t_Available_IO; 
+      AN    #o_ST_Weight_Error; 
+      AN    #o_ST_FieldB_NotPrsnt; 
+      AN    #o_ST_FieldB_Error; 
+      AN    #o_ST_Comm_Error; 
+      AN    #o_ST_Scale_NOT_OK; 
+      AN    #t_ASI_Error; 
+      S     #o_Ready_To_Restart; 
+
+      A     #o_Ready_To_Restart; 
+      =     #o_ST_WN_Restart; 
+
+// Creat No weight received Warning & Error
+
+      A     #t_Item_at_Handover; 
+      AN    #s_Weight_Done; 
+      FP    #s_FP_No_Weight; 
+      =     #t_No_Weight; 
+      S     #o_ST_No_Data_Rcvd; // Received weight is <= 0  set No weight received warning
+
+      A     #t_No_Weight; 
+      JCN   EA01; 
+
+      L     #s_Succ_No_Data; 
+      L     1; 
+      +I    ; 
+      T     #s_Succ_No_Data; 
+
+EA01: A     #s_Weight_Done; //When a new weight is received
+      O(    ; //OR
+      A     #i_CMD_Reset; //a reset command is given
+      O     #i_PB_IO_Reset_Check; // OR Local reset
+      A     #o_ST_Succ_No_Data_Rcvd; //while the no-data error is active
+      )     ; 
+      JCN   EA02; //THEN
+      L     0; //reset the no-data error counter
+      T     #s_Succ_No_Data; 
+
+EA02: L     #s_Succ_No_Data; 
+      L     #i_CFG_Num_No_Data_Err; 
+      >=I   ; 
+      =     #o_ST_Succ_No_Data_Rcvd; 
+
+      A     #s_Weight_Done; 
+      R     #o_ST_No_Data_Rcvd; // Reset No Weight warning when Weight of item is correctly received
+
+NETWORK
+TITLE =FA: Indication Horn Fault 
+
+      A     #o_ST_Weight_Error; 
+      =     #o_IO_SL_Fault; 
+      =     #o_IO_PB_Fault; 
+
+      L     #i_CFG_Horn_Period; 
+      L     0; 
+      >I    ; 
+      JCN   FA99; 
+
+      A     #o_ST_Weight_Error; 
+      AN    #o_ST_ASI_Error_1; 
+      AN    #o_ST_ASI_NotPrsnt_1; 
+      =     #t_Start_Horn_Fault; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_Horn_Fault,
+           i_CFG_Timer_Value        := #i_CFG_Horn_Period,
+           i_Setpoint               := #s_Timer_Horn_Period,
+           o_Setpoint               := #s_Timer_Horn_Period,
+           o_Timer_Elapsed          := #t_Stop_Horn_Fault);
+
+      A     #t_Start_Horn_Fault; 
+      AN    #t_Stop_Horn_Fault; 
+      =     #o_IO_Horn_Fault; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Statistical Data
+//Statistical counters are implemented to count the number of times that a good 
+//read, no-read, too heavy situations occures. The statistical counters are 
+//cleared after send.
+      A     #t_Item_at_Handover; 
+      A     #s_Weight_OK; 
+      FP    #s_FP_Good_Weight; 
+      JCN   GA01; 
+//--- Good weight counter
+
+      L     #s_STAT_Good_Weight; 
+      L     32767; 
+      <>I   ; 
+      JCN   GA01; 
+
+      L     #s_STAT_Good_Weight; 
+      +     1; 
+      T     #s_STAT_Good_Weight; 
+
+//--- Too Heavy (No-weight) counter
+GA01: AN    #s_Weight_OK; 
+      A     #t_Item_at_Handover; 
+      FP    #s_FP_Weight_NOK; 
+      JCN   GA06; 
+
+      L     #s_STAT_Weight_Heavy; 
+      L     32767; 
+      <>I   ; 
+      JCN   GA06; 
+
+      L     #s_STAT_Weight_Heavy; 
+      +     1; 
+      T     #s_STAT_Weight_Heavy; 
+
+GA06: NOP   0; 
+      A     #i_CMD_Send_Stat; // IF Command send statisticals
+      JCN   GA99; 
+
+//--write the "Good read" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2001,
+           i_Event_value            := #s_STAT_Good_Weight,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+//--write the "Too Heavy" Statistical to DB-Event 
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 2003,
+           i_Event_value            := #s_STAT_Weight_Heavy,
+           i_DB_Event_Num           := #t_Event_DB_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+//--Clear the statistical
+      L     0; // THEN preset counters to zero
+      T     #s_STAT_Good_Weight; 
+      T     #s_STAT_Weight_Heavy; 
+
+GA99: NOP   0; 
+END_FUNCTION_BLOCK
+

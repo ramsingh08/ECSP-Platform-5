@@ -1,0 +1,1922 @@
+FUNCTION_BLOCK "FB_Rcv_PackageInstr"
+TITLE =%version: 0.20 %  CN: 40
+//Function:
+//Handle received message 'PackageInstruction'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, January 03, 2018 1:50:43 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//veg#1853: Abort screen pending on recovery update     nlHdL    03-01-18   0.20
+//veg#1853: Abort screen pending not correct            nlHdL    02-01-18   0.19
+//ra#24941: Screening pending updates                   nldy     23-10-17   0.18
+//ina#7621: Ignore Instruction for fallback tag item    nlHdL    03-10-17   0.17
+//ra#18139: Screening results only partially taken over nlHdL    24-10-16   0.16
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.15
+//ra#15408: PackInstr prcs 1 failed lvl chk not correct nlHdL    06-07-16   0.14
+//ra#14076: Package Instruct and report with pseudoID   nlHdL    14-06-16   0.13
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.12
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.12
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.12
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.12
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.07
+//18060: Update messages ID's for Vibes 3.2             nlHdL    01-04-14   0.06
+//18032: package instr & package rep update             nlHdL    14-02-14   0.05
+//16735: Screening lvl Failed or Reached modified       nlHdL    07-11-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//Jump label corrected JA99 --> LA99                    nlLvdG   04-06-13   0.02
+//Initial Version based on version 0.09 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Handle received message 'PackageInstruction'
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//ANY pointer to received message body
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR
+  s_PackageInstr : "UDT_Msg_PackageInstr";	//Data Structure: Message Destination reply
+  s_LIC_Record : "UDT_LIC_Record";	//Data Structure: LIC Record
+  s_Current_Level : INT ;	//Current ScreeningLevel
+  s_New_Level_Is_Zero : BOOL ;	//New ScreeningLevel is zero
+  s_New_Level_Is_Lower : BOOL ;	//New ScreeningLevel is lower then previous
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_ANY_Rcv_Msg_Body : ANY ;	//ANY pointer to the received message body
+  t_Ret_Val_Int : INT ;	//Return Value (int)
+  t_LNK : INT ;	//LNK record
+  t_HBS : INT ;	//HBS record
+  t_Byte_Offset : INT ;	//Byte offset for process selection
+  t_Event_Pending_DBNO : INT ;	//DBnumber of screening pending event DB
+  t_PID_Equal : BOOL ;	//The PID in instruction and LIC PID match
+  t_Abort_Scrn_Pend : BOOL ;	//Abort screening pending process if it's applicable
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy Received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_PackageInstr.Body);
+
+NETWORK
+TITLE =BB: Init values
+
+      OPN   "DB_Event_Pending"; 
+      L     DBNO; 
+      T     #t_Event_Pending_DBNO; 
+NETWORK
+TITLE =CA: Copy LIC record to instance DB
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := #s_LIC_Record.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =CB: Check assigned reason before accepting instruction
+
+      L     #s_LIC_Record.BIR.Assignment_Reason; 
+      L     B#16#14; //Dec = 20 = Fallback tag
+      ==I   ; 
+      JCN   CB99; 
+
+      CALL "FC_Write_Event" (// Report event "Receive package instruction: Item is Fallback tag in PLC"(3514)
+           i_Message_ID             := 3514,
+           i_Event_value            := #s_PackageInstr.Body.LIC,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      BEU   ; 
+
+CB99: NOP   0; 
+NETWORK
+TITLE =DA: Handle PID
+
+      NOP   0; 
+// If PID = 0 then copy the received PID into
+// the LIC record
+      L     #s_PackageInstr.Body.PID; 
+      L     #s_LIC_Record.BIR.PID; 
+      ==D   ; 
+      =     #t_PID_Equal; 
+
+      L     0; 
+      L     #s_LIC_Record.BIR.PID; 
+      ==D   ; 
+      O     #t_PID_Equal; 
+      JCN   DA01; 
+
+      L     #s_PackageInstr.Body.PID; 
+      T     #s_LIC_Record.BIR.PID; 
+
+      JU    DA99; 
+
+// Ignore message if PID from LIC record does not
+// match LIC from message and LIC PID is not 0
+DA01: AN    #t_PID_Equal; 
+
+      CALL "FC_Write_Event" (// Report event "Receive package instruction: PID is not matching between PLC and high level"(3205)
+           i_Message_ID             := 3205,
+           i_Event_value            := #s_PackageInstr.Body.LIC,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+      BEU   ; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =DB: Copy Destinations
+//This networks copies the destinations from the message into the LIC record.
+      L     #s_PackageInstr.Body.Destination_1; 
+      T     #s_LIC_Record.BIR.Destination_1; 
+
+      L     #s_PackageInstr.Body.Destination_2; 
+      T     #s_LIC_Record.BIR.Destination_2; 
+
+      L     #s_PackageInstr.Body.Destination_3; 
+      T     #s_LIC_Record.BIR.Destination_3; 
+
+      L     #s_PackageInstr.Body.Destination_4; 
+      T     #s_LIC_Record.BIR.Destination_4; 
+
+      L     #s_PackageInstr.Body.Destination_5; 
+      T     #s_LIC_Record.BIR.Destination_5; 
+NETWORK
+TITLE =EA: Handle BID
+
+      NOP   0; 
+// If BID = zero, then there is nothing to copy
+      L     #s_PackageInstr.Body.BID; 
+      L     0; 
+      ==I   ; 
+      JC    EA01; 
+
+      L     #s_PackageInstr.Body.BID; 
+      T     #s_LIC_Record.BIR.BID; 
+
+      L     #s_PackageInstr.Body.BID_Extension[1]; 
+      T     #s_LIC_Record.BIR.BID_Extension[1]; 
+      L     #s_PackageInstr.Body.BID_Extension[2]; 
+      T     #s_LIC_Record.BIR.BID_Extension[2]; 
+
+EA01: NOP   0; 
+NETWORK
+TITLE =FA: Copy LPC code
+
+      NOP   0; 
+// If the first char is valid copy the code into the LIC record
+
+      A(    ; 
+      L     #s_PackageInstr.Body.LPN[1]; 
+      L     '0'; //  ascii code More than '0'
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_PackageInstr.Body.LPN[1]; 
+      L     '9'; //  ascii code Lessthan '9'
+      <=I   ; 
+      )     ; 
+      JCN   FA99; 
+
+      L     #s_PackageInstr.Body.LPN[1]; 
+      T     #s_LIC_Record.BIR.LPN[1]; 
+
+      L     #s_PackageInstr.Body.LPN[2]; 
+      T     #s_LIC_Record.BIR.LPN[2]; 
+
+      L     #s_PackageInstr.Body.LPN[3]; 
+      T     #s_LIC_Record.BIR.LPN[3]; 
+
+      L     #s_PackageInstr.Body.LPN[4]; 
+      T     #s_LIC_Record.BIR.LPN[4]; 
+
+      L     #s_PackageInstr.Body.LPN[5]; 
+      T     #s_LIC_Record.BIR.LPN[5]; 
+
+      L     #s_PackageInstr.Body.LPN[6]; 
+      T     #s_LIC_Record.BIR.LPN[6]; 
+
+      L     #s_PackageInstr.Body.LPN[7]; 
+      T     #s_LIC_Record.BIR.LPN[7]; 
+
+      L     #s_PackageInstr.Body.LPN[8]; 
+      T     #s_LIC_Record.BIR.LPN[8]; 
+
+      L     #s_PackageInstr.Body.LPN[9]; 
+      T     #s_LIC_Record.BIR.LPN[9]; 
+
+      L     #s_PackageInstr.Body.LPN[10]; 
+      T     #s_LIC_Record.BIR.LPN[10]; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Copy FlightNr
+
+      NOP   0; 
+// If the first character is a space, then there is nothing to copy
+      L     #s_PackageInstr.Body.FlightNr[1]; 
+      L     B#16#20; // ASCII code 20 is a space
+      <>I   ; 
+      JCN   GA99; 
+
+      L     #s_PackageInstr.Body.FlightNr[1]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[1]; 
+      L     #s_PackageInstr.Body.FlightNr[2]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[2]; 
+      L     #s_PackageInstr.Body.FlightNr[3]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[3]; 
+      L     #s_PackageInstr.Body.FlightNr[4]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[4]; 
+      L     #s_PackageInstr.Body.FlightNr[5]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[5]; 
+      L     #s_PackageInstr.Body.FlightNr[6]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[6]; 
+      L     #s_PackageInstr.Body.FlightNr[7]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[7]; 
+      L     #s_PackageInstr.Body.FlightNr[8]; 
+      T     #s_LIC_Record.BIR.Flight.Airline_Number[8]; 
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Copy Scheduled Day / Time of Departure
+
+      NOP   0; 
+// If the first character is a space, then there is nothing to copy
+      L     #s_PackageInstr.Body.SDD[1]; 
+      L     B#16#20; // ASCII code 20 is a space
+      <>I   ; 
+      JCN   HA99; // If there is no SDD then also don't copy STD
+
+      L     #s_PackageInstr.Body.SDD[1]; 
+      T     #s_LIC_Record.BIR.Flight.Day_Depart[1]; 
+      L     #s_PackageInstr.Body.SDD[2]; 
+      T     #s_LIC_Record.BIR.Flight.Day_Depart[2]; 
+
+// If the first character is a space, then there is nothing to copy
+      L     #s_PackageInstr.Body.STD[1]; 
+      L     B#16#20; // ASCII code 20 is a space
+      <>I   ; 
+      JCN   HA99; 
+
+      L     #s_PackageInstr.Body.STD[1]; 
+      T     #s_LIC_Record.BIR.Flight.Time_Depart[1]; 
+      L     #s_PackageInstr.Body.STD[2]; 
+      T     #s_LIC_Record.BIR.Flight.Time_Depart[2]; 
+      L     #s_PackageInstr.Body.STD[3]; 
+      T     #s_LIC_Record.BIR.Flight.Time_Depart[3]; 
+      L     #s_PackageInstr.Body.STD[4]; 
+      T     #s_LIC_Record.BIR.Flight.Time_Depart[4]; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =JA: Set required screening Level
+//Set the required screening level for this bag, check if required level is not 
+//lower than the current required level.+
+      CLR   ; 
+      =     #t_Abort_Scrn_Pend; 
+
+      L     0; 
+      T     #t_LNK; 
+
+// Skip this part if reached screening level must not be 
+// updated (e.g. value 9 in the message)      
+      L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   JA99; 
+
+// Set bit level_1 if s_PackageInstr.Body.Reached_Screen_Level = 1
+      L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+      JCN   JA01; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+
+      JU    JA99; 
+
+JA01: L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+      JCN   JA02; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+
+      JU    JA99; 
+
+JA02: L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+      JCN   JA03; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+
+      JU    JA99; 
+
+JA03: L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+      JCN   JA04; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+
+      JU    JA99; 
+
+JA04: L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     5; 
+      >=I   ; 
+      JCN   JA99; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_5; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_3; 
+      =     #s_LIC_Record.BIR.Process_1.Required_Screen_Level_4; 
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Set reached and failed level
+//Set reached (accepted) and failed screening levels, only when no levels are 
+//filled (this is for re-introduced bags)
+      NOP   0; 
+      L     #s_PackageInstr.Body.Pr_1_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   KA99; 
+
+      AN    #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_5; 
+      AN    #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_5; 
+      JCN   KA10; 
+
+// Set level 1 results
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Failed_Screen_Lev; 
+      L     1; // Accept = 0 / Reject = L1
+      ==I   ; 
+      JC    KA01; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Reached_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      JCN   KA02; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    KA10; 
+
+KA01: SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 2 results
+
+KA02: L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Failed_Screen_Lev; 
+      L     2; // Accept = 0 / Reject = L2
+      ==I   ; 
+      JC    KA03; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Reached_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      JCN   KA04; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    KA10; 
+
+KA03: SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 3 results
+
+KA04: L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Failed_Screen_Lev; 
+      L     3; // Accept = 0 / Reject = L3
+      ==I   ; 
+      JC    KA05; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Reached_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      JCN   KA06; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    KA10; 
+
+KA05: SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 4 results
+
+KA06: L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Failed_Screen_Lev; 
+      L     4; // Accept = 0 / Reject = L4
+      ==I   ; 
+      JC    KA07; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Reached_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      JCN   KA08; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    KA10; 
+
+KA07: SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 5 results
+
+KA08: L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Failed_Screen_Lev; 
+      L     5; // Accept = 0 / Reject = L5
+      ==I   ; 
+      JC    KA09; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.Reached_Screen_Lev; 
+      L     5; 
+      ==I   ; 
+      JCN   KA10; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Reached_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    KA10; 
+
+KA09: SET   ; 
+      =     #s_LIC_Record.BIR.Process_1.Failed_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+KA10: L     0; 
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_1.PseudoID; 
+      <>D   ; 
+      JCN   KA99; 
+
+      T     #s_LIC_Record.BIR.Process_1.Pseudo_ID; 
+
+KA99: NOP   0; 
+NETWORK
+TITLE =KB: Abort screening pending if applicable
+
+      A     #t_Abort_Scrn_Pend; 
+      JCN   KB99; 
+
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   KB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   KB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      >I    ; 
+      JCN   KB99; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := 0,// 0 for process 1
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 201,// Abort pending on process 1
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #t_Event_Pending_DBNO,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+KB99: NOP   0; 
+NETWORK
+TITLE =LA: Set custom screening required level
+
+      CLR   ; 
+      =     #t_Abort_Scrn_Pend; 
+
+      NOP   0; // Hold comments
+
+// Skip this part if reached screening level must not be 
+// updated (e.g. value 9 in the message)      
+      L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   LA99; 
+
+      L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+      JCN   LA01; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+
+      JU    LA99; 
+
+LA01: L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+      JCN   LA02; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+
+      JU    LA99; 
+
+LA02: L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+      JCN   LA03; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+
+      JU    LA99; 
+
+LA03: L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+      JCN   LA04; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+
+      JU    LA99; 
+
+LA04: L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     5; 
+      >=I   ; 
+      JCN   LA99; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_5; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_3; 
+      =     #s_LIC_Record.BIR.Process_2.Required_Screen_Level_4; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Set custom screening results
+//Set reached (accepted) and failed custom screening levels, only when no levels 
+//are filled (this is for re-introduced bags)
+      L     #s_PackageInstr.Body.Pr_2_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   MA99; 
+
+      AN    #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_5; 
+      AN    #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_5; 
+      JCN   MA10; 
+
+// Set level 1 Custom results
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Failed_Screen_Lev; 
+      L     1; // Accept = 0 / Reject = L1
+      ==I   ; 
+      JC    MA01; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Reached_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      JCN   MA02; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    MA10; 
+
+MA01: SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 2 Custom results
+
+MA02: L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Failed_Screen_Lev; 
+      L     2; // Accept = 0 / Reject = L2
+      ==I   ; 
+      JC    MA03; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Reached_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      JCN   MA04; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    MA10; 
+
+MA03: SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 3 Custom results
+
+MA04: L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Failed_Screen_Lev; 
+      L     3; // Accept = 0 / Reject = L3
+      ==I   ; 
+      JC    MA05; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Reached_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      JCN   MA06; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    MA10; 
+
+MA05: SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 4 Custom results
+
+MA06: L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Failed_Screen_Lev; 
+      L     4; // Accept = 0 / Reject = L4
+      ==I   ; 
+      JC    MA07; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Reached_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      JCN   MA08; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    MA10; 
+
+MA07: SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 5 Custom results
+
+MA08: L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Failed_Screen_Lev; 
+      L     5; // Accept = 0 / Reject = L5
+      ==I   ; 
+      JC    MA09; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.Reached_Screen_Lev; 
+      L     5; 
+      ==I   ; 
+      JCN   MA10; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Reached_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    MA10; 
+
+MA09: SET   ; 
+      =     #s_LIC_Record.BIR.Process_2.Failed_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+MA10: L     0; 
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_2.PseudoID; 
+      <>D   ; 
+      JCN   MA99; 
+
+      T     #s_LIC_Record.BIR.Process_2.Pseudo_ID; 
+
+MA99: NOP   0; 
+NETWORK
+TITLE =MB: Abort screening pending if applicable
+
+      A     #t_Abort_Scrn_Pend; 
+      JCN   MB99; 
+
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   MB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   MB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      >I    ; 
+      JCN   MB99; 
+
+      L     1; 
+      L     "DB_HBS_List".HBS_Process_Length; 
+      *I    ; 
+      T     #t_Byte_Offset; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_Byte_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 202,// Abort pending on process 2
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #t_Event_Pending_DBNO,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+MB99: NOP   0; 
+NETWORK
+TITLE =NA: Set process level 3
+
+      CLR   ; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Skip this part if reached screening level must not be 
+// updated (e.g. value 9 in the message)      
+      L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   NA99; 
+
+      L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+      JCN   NA01; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+
+      JU    NA99; 
+
+NA01: L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+      JCN   NA02; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+
+      JU    NA99; 
+
+NA02: L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+      JCN   NA03; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+
+      JU    NA99; 
+
+NA03: L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+      JCN   NA04; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+
+      JU    NA99; 
+
+NA04: L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     5; 
+      >=I   ; 
+      JCN   NA99; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_5; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_3; 
+      =     #s_LIC_Record.BIR.Process_3.Required_Screen_Level_4; 
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Set Process 3 screening results
+//Set reached (accepted) and failed Process 3 screening levels, only when no 
+//levels 
+//are filled (this is for re-introduced bags)
+      L     #s_PackageInstr.Body.Pr_3_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   OA99; 
+
+      AN    #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_5; 
+      AN    #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_5; 
+      JCN   OA10; 
+
+
+// Set level 1 Process 3 results
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Failed_Screen_Lev; 
+      L     1; // Accept = 0 / Reject = L1
+      ==I   ; 
+      JC    OA01; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Reached_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      JCN   OA02; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    OA10; 
+
+OA01: SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 2 Process 3 results
+
+OA02: L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Failed_Screen_Lev; 
+      L     2; // Accept = 0 / Reject = L2
+      ==I   ; 
+      JC    OA03; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Reached_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      JCN   OA04; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    OA10; 
+
+OA03: SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 3 Process 3 results
+
+OA04: L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Failed_Screen_Lev; 
+      L     3; // Accept = 0 / Reject = L3
+      ==I   ; 
+      JC    OA05; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Reached_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      JCN   OA06; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    OA10; 
+
+OA05: SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 4 Process 3 results
+
+OA06: L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Failed_Screen_Lev; 
+      L     4; // Accept = 0 / Reject = L4
+      ==I   ; 
+      JC    OA07; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Reached_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      JCN   OA08; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    OA10; 
+
+OA07: SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 5 Process 3 results
+
+OA08: L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Failed_Screen_Lev; 
+      L     5; // Accept = 0 / Reject = L5
+      ==I   ; 
+      JC    OA09; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.Reached_Screen_Lev; 
+      L     5; 
+      ==I   ; 
+      JCN   OA10; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Reached_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    OA10; 
+
+OA09: SET   ; 
+      =     #s_LIC_Record.BIR.Process_3.Failed_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+OA10: L     0; 
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_3.PseudoID; 
+      <>D   ; 
+      JCN   OA99; 
+
+      T     #s_LIC_Record.BIR.Process_3.Pseudo_ID; 
+
+OA99: NOP   0; 
+NETWORK
+TITLE =OB: Abort screening pending if applicable
+
+      A     #t_Abort_Scrn_Pend; 
+      JCN   OB99; 
+
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   OB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   OB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      >I    ; 
+      JCN   OB99; 
+
+      L     2; 
+      L     "DB_HBS_List".HBS_Process_Length; 
+      *I    ; 
+      T     #t_Byte_Offset; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_Byte_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 203,// Abort pending on process 3
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #t_Event_Pending_DBNO,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+OB99: NOP   0; 
+NETWORK
+TITLE =PA: Set process 4 screening required level
+
+      CLR   ; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Skip this part if reached screening level must not be 
+// updated (e.g. value 9 in the message)      
+      L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   PA99; 
+
+      L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+      JCN   PA01; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+
+      JU    PA99; 
+
+PA01: L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+      JCN   PA02; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+
+      JU    PA99; 
+
+PA02: L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+      JCN   PA03; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+
+      JU    PA99; 
+
+PA03: L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+      JCN   PA04; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+
+      JU    PA99; 
+
+PA04: L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     5; 
+      >=I   ; 
+      JCN   PA99; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_5; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_3; 
+      =     #s_LIC_Record.BIR.Process_4.Required_Screen_Level_4; 
+
+PA99: NOP   0; 
+NETWORK
+TITLE =QA: Set process 4 screening results
+//Set reached (accepted) and failed process 4 screening levels, only when no 
+//levels 
+//are filled (this is for re-introduced bags)
+      L     #s_PackageInstr.Body.Pr_4_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   QA99; 
+
+      AN    #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_5; 
+      AN    #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_5; 
+      JCN   QA10; 
+
+// Set level 1 process 4 results
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Failed_Screen_Lev; 
+      L     1; // Accept = 0 / Reject = L1
+      ==I   ; 
+      JC    QA01; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Reached_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      JCN   QA02; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    QA10; 
+
+QA01: SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 2 process 4 results
+
+QA02: L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Failed_Screen_Lev; 
+      L     2; // Accept = 0 / Reject = L2
+      ==I   ; 
+      JC    QA03; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Reached_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      JCN   QA04; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    QA10; 
+
+QA03: SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 3 process 4 results
+
+QA04: L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Failed_Screen_Lev; 
+      L     3; // Accept = 0 / Reject = L3
+      ==I   ; 
+      JC    QA05; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Reached_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      JCN   QA06; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    QA10; 
+
+QA05: SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 4 process 4 results
+
+QA06: L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Failed_Screen_Lev; 
+      L     4; // Accept = 0 / Reject = L4
+      ==I   ; 
+      JC    QA07; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Reached_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      JCN   QA08; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    QA10; 
+
+QA07: SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 5 process 4 results
+
+QA08: L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Failed_Screen_Lev; 
+      L     5; // Accept = 0 / Reject = L5
+      ==I   ; 
+      JC    QA09; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.Reached_Screen_Lev; 
+      L     5; 
+      ==I   ; 
+      JCN   QA10; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Reached_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    QA10; 
+
+QA09: SET   ; 
+      =     #s_LIC_Record.BIR.Process_4.Failed_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+QA10: L     0; 
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_4.PseudoID; 
+      <>D   ; 
+      JCN   QA99; 
+
+      T     #s_LIC_Record.BIR.Process_4.Pseudo_ID; 
+
+QA99: NOP   0; 
+NETWORK
+TITLE =QB: Abort screening pending if applicable
+
+      A     #t_Abort_Scrn_Pend; 
+      JCN   QB99; 
+
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   QB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   QB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      >I    ; 
+      JCN   QB99; 
+
+      L     3; 
+      L     "DB_HBS_List".HBS_Process_Length; 
+      *I    ; 
+      T     #t_Byte_Offset; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_Byte_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 204,// Abort pending on process 4
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #t_Event_Pending_DBNO,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+QB99: NOP   0; 
+NETWORK
+TITLE =RA: Set process level 5
+
+      CLR   ; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Skip this part if reached screening level must not be 
+// updated (e.g. value 9 in the message)      
+      L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   RA99; 
+
+      L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+      JCN   RA01; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+
+      JU    RA99; 
+
+RA01: L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+      JCN   RA02; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+
+      JU    RA99; 
+
+RA02: L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+      JCN   RA03; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+
+      JU    RA99; 
+
+RA03: L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+      JCN   RA04; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+
+      JU    RA99; 
+
+RA04: L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     5; 
+      >=I   ; 
+      JCN   RA99; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_5; 
+
+      CLR   ; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_1; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_2; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_3; 
+      =     #s_LIC_Record.BIR.Process_5.Required_Screen_Level_4; 
+
+RA99: NOP   0; 
+NETWORK
+TITLE =SA: Set Process 5 screening results
+//Set reached (accepted) and failed Process 5 screening levels, only when no 
+//levels 
+//are filled (this is for re-introduced bags)
+      L     #s_PackageInstr.Body.Pr_5_Required_Screen_Lev; 
+      L     9; 
+      <>I   ; 
+      JCN   SA99; 
+
+      AN    #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_5; 
+      AN    #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_1; 
+      AN    #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_2; 
+      AN    #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_3; 
+      AN    #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_4; 
+      AN    #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_5; 
+      JCN   SA10; 
+
+
+// Set level 1 Process 5 results
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Failed_Screen_Lev; 
+      L     1; // Accept = 0 / Reject = L1
+      ==I   ; 
+      JC    SA01; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Reached_Screen_Lev; 
+      L     1; 
+      ==I   ; 
+      JCN   SA02; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    SA10; 
+
+SA01: SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_1; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 2 Process 5 results
+
+SA02: L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Failed_Screen_Lev; 
+      L     2; // Accept = 0 / Reject = L2
+      ==I   ; 
+      JC    SA03; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Reached_Screen_Lev; 
+      L     2; 
+      ==I   ; 
+      JCN   SA04; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    SA10; 
+
+SA03: SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_2; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 3 Process 5 results
+
+SA04: L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Failed_Screen_Lev; 
+      L     3; // Accept = 0 / Reject = L3
+      ==I   ; 
+      JC    SA05; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Reached_Screen_Lev; 
+      L     3; 
+      ==I   ; 
+      JCN   SA06; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    SA10; 
+
+SA05: SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_3; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 4 Process 5 results
+
+SA06: L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Failed_Screen_Lev; 
+      L     4; // Accept = 0 / Reject = L4
+      ==I   ; 
+      JC    SA07; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Reached_Screen_Lev; 
+      L     4; 
+      ==I   ; 
+      JCN   SA08; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    SA10; 
+
+SA07: SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_4; 
+      =     #t_Abort_Scrn_Pend; 
+
+// Set level 5 Process 5 results
+
+SA08: L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Failed_Screen_Lev; 
+      L     5; // Accept = 0 / Reject = L5
+      ==I   ; 
+      JC    SA09; 
+
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.Reached_Screen_Lev; 
+      L     5; 
+      ==I   ; 
+      JCN   SA10; 
+
+      SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Reached_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+      JU    SA10; 
+
+SA09: SET   ; 
+      =     #s_LIC_Record.BIR.Process_5.Failed_Screen_Level_5; 
+      =     #t_Abort_Scrn_Pend; 
+
+SA10: L     0; 
+      L     #s_PackageInstr.Body.ScreeningInfo.Process_5.PseudoID; 
+      <>D   ; 
+      JCN   SA99; 
+
+      T     #s_LIC_Record.BIR.Process_5.Pseudo_ID; 
+
+SA99: NOP   0; 
+NETWORK
+TITLE =SB: Abort screening pending if applicable
+
+      A     #t_Abort_Scrn_Pend; 
+      JCN   SB99; 
+
+      A     "DB_HBS_List".s_Pending_Items_Allowed; 
+      JCN   SB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".LNK,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LNK);
+
+      L     #t_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   SB99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".HBS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_HBS);
+
+      L     #t_HBS; 
+      L     0; 
+      >I    ; 
+      JCN   SB99; 
+
+      L     4; 
+      L     "DB_HBS_List".HBS_Process_Length; 
+      *I    ; 
+      T     #t_Byte_Offset; 
+
+      CALL "FC_Write_Bool_RecOff" (
+           i_Record_Number          := #t_HBS,
+           i_Pointer_Offset         := #t_Byte_Offset,
+           i_P_BOOL_Record          := "DB_UDT_HBS_Record".HBS_Process_1.Process_Active,
+           i_DB                     := "DB_HBS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 205,// Abort pending on process 5
+           i_Event_value            := #t_LNK,
+           i_DB_Event_Num           := #t_Event_Pending_DBNO,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+SB99: NOP   0; 
+NETWORK
+TITLE =TA: Physical Class
+
+      A     #s_PackageInstr.Body.Physical_Class_ST; 
+      JCN   TA01; 
+
+      =     #s_LIC_Record.BIR.Physical_Class_ST; 
+      R     #s_LIC_Record.BIR.Physical_Class_SC; 
+      R     #s_LIC_Record.BIR.Physical_Class_OG; 
+      R     #s_LIC_Record.BIR.Physical_Class_OS; 
+      R     #s_LIC_Record.BIR.Physical_Class_SP; 
+      JU    TA99; 
+
+TA01: A     #s_PackageInstr.Body.Physical_Class_SC; 
+      JCN   TA02; 
+
+      R     #s_LIC_Record.BIR.Physical_Class_ST; 
+      =     #s_LIC_Record.BIR.Physical_Class_SC; 
+      R     #s_LIC_Record.BIR.Physical_Class_OG; 
+      R     #s_LIC_Record.BIR.Physical_Class_OS; 
+      R     #s_LIC_Record.BIR.Physical_Class_SP; 
+      JU    TA99; 
+
+TA02: A     #s_PackageInstr.Body.Physical_Class_OG; 
+      JCN   TA03; 
+
+      R     #s_LIC_Record.BIR.Physical_Class_ST; 
+      R     #s_LIC_Record.BIR.Physical_Class_SC; 
+      =     #s_LIC_Record.BIR.Physical_Class_OG; 
+      R     #s_LIC_Record.BIR.Physical_Class_OS; 
+      R     #s_LIC_Record.BIR.Physical_Class_SP; 
+      JU    TA99; 
+
+TA03: A     #s_PackageInstr.Body.Physical_Class_OS; 
+      JCN   TA04; 
+
+      R     #s_LIC_Record.BIR.Physical_Class_ST; 
+      R     #s_LIC_Record.BIR.Physical_Class_SC; 
+      R     #s_LIC_Record.BIR.Physical_Class_OG; 
+      =     #s_LIC_Record.BIR.Physical_Class_OS; 
+      R     #s_LIC_Record.BIR.Physical_Class_SP; 
+      JU    TA99; 
+
+TA04: A     #s_PackageInstr.Body.Physical_Class_SP; 
+      JCN   TA99; 
+
+      R     #s_LIC_Record.BIR.Physical_Class_ST; 
+      R     #s_LIC_Record.BIR.Physical_Class_SC; 
+      R     #s_LIC_Record.BIR.Physical_Class_OG; 
+      R     #s_LIC_Record.BIR.Physical_Class_OS; 
+      =     #s_LIC_Record.BIR.Physical_Class_SP; 
+
+TA99: NOP   0; 
+NETWORK
+TITLE =UA: Handle BAG (Size) data
+
+      NOP   0; 
+// Check if not zero, then copy size to bag
+
+      L     0; 
+      L     #s_PackageInstr.Body.Size.Length; 
+      <>I   ; 
+      JCN   UA01; 
+
+      T     #s_LIC_Record.BIR.Bag.Length; 
+
+UA01: L     0; 
+      L     #s_PackageInstr.Body.Size.Width; 
+      <>I   ; 
+      JCN   UA02; 
+
+      T     #s_LIC_Record.BIR.Bag.Width; 
+
+UA02: L     0; 
+      L     #s_PackageInstr.Body.Size.Height; 
+      <>I   ; 
+      JCN   UA03; 
+
+      T     #s_LIC_Record.BIR.Bag.Height; 
+
+UA03: L     0; 
+      L     #s_PackageInstr.Body.Size.Volume; 
+      <>I   ; 
+      JCN   UA04; 
+
+      T     #s_LIC_Record.BIR.Bag.Volume; 
+
+UA04: L     0; 
+      L     #s_PackageInstr.Body.Size.Weight; 
+      <>I   ; 
+      JCN   UA05; 
+
+      T     #s_LIC_Record.BIR.Bag.Weight; 
+
+UA05: NOP   0; 
+NETWORK
+TITLE =VA: Assigment Reason and Bagstatus
+
+      L     #s_PackageInstr.Body.Assignment_Reason; 
+      T     #s_LIC_Record.BIR.Assignment_Reason; 
+
+      L     0; 
+      L     #s_PackageInstr.Body.BagStatus; 
+      <I    ; 
+      JCN   VA99; 
+      T     #s_LIC_Record.BIR.Bag_Status; 
+VA99: NOP   0; 
+NETWORK
+TITLE =WA: Write LIC record back into the LIC list
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_PackageInstr.Body.LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := #s_LIC_Record.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+END_FUNCTION_BLOCK
+

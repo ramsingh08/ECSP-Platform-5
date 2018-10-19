@@ -1,0 +1,467 @@
+FUNCTION_BLOCK "FB_Flow_Control"
+TITLE =%version: 1.12 % CN: 40 
+//Function:
+//Smart block for basic flow control
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, March 15, 2017 3:16:10 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#3604: included stopping wihtin Delay section run  nlHdL    15-03-17   1.12
+//ra#18577: Overrule flow delay timer stays active      nlHdL    15-11-16   1.11
+//ra#17056: Overrule_Flow not working if PPI or LMS-V   nlHdL    15-09-16   1.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.09
+//7413:stop item too late when downstream is stopped    nlHdL    08-07-15   1.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.08
+//24344: Section creates gap also when cfg = 0          nlHdL    03-07-15   1.08
+//22668: Flow not correct if upstream is not running    nlHdL    21-04-15   1.07
+//22514: hicking of section with LMS-V flowcontrol      nlHdL    19-01-15   1.06
+//22391: wrong comment and symbolname                   nlHdL    09-01-15   1.05
+//19834: Stop item until section run are not IHO        nlHdL    25-11-14   1.04
+//20821: Delay section run timer check down run         nlHdL    17-10-14   1.03
+//5181: Added Die-back delay with overrule flowcontrol  nlHdL    02-07-14   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.12 of PLT version 0
+//
+//Description:  
+//The basic flow control consists of the functions gap control and head to head 
+//control.   
+//
+//      +------+         +----------+
+// -->  |  2   |         |    1     |  --> flow direction
+//      +------+         +----------+
+//             |<- gap ->|
+//             |<-  head to head  ->|
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Act_Run_Out_Distance : INT ;	//Actual Run Out distance from nominal speed to standstill [cm]
+  i_Act_Start_Up_Distance : INT ;	//Actual StartUp distance in [cm]
+  i_CFG_Start_Up_Distance : INT ;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_Minimum_Gap : INT ;	//SETT: [cm] Minimum gap length between products (0 = no minimum gap control) 
+  i_Add_Gap_Stop : INT ;	//SETT: [cm] Additional gap after stop of upstream conveyor
+  i_Minimum_Head_To_Head : INT ;	//SETT: [cm] Minimum head to head length (0 = no head to head control)
+  i_Add_Head_To_Head_Stop : INT ;	//SETT: [cm] Additional head to head length after stop of upstream conveyor
+  i_CFG_Conveyor_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_Section_Run : BOOL ;	//Section Run signal
+END_VAR
+VAR_OUTPUT
+  o_Flow_Control_Run_OK : BOOL ;	//Indicating that for the flow control function its ok to run the section
+  o_Gap_Control_OK : BOOL ;	//Gap is clear
+  o_Head_to_Head_OK : BOOL ;	//Heat to Head is clear
+  o_Delay_Section_Run : BOOL ;	//Delay Section Run signal
+END_VAR
+VAR
+  s_Head_to_Head_distance : INT ;	//Total head to head including stop
+  s_Gap_Distance : INT ;	//Total Gap including stop
+  s_Act_T_Delay_SectionR : INT ;	//Actual time delay for section run
+  s_Gap_Data_Found : BOOL ;	//Data found in the configured gap
+  s_Head_2_Head_Data_Found : BOOL ;	//Data found in the configured H2H	
+  s_Flow_Not_Clear : BOOL ;	//The gap or H2H is not clear, flow cannot continue
+  s_Item_Ready_to_Handover : BOOL ;	//An item is ready to handover
+END_VAR
+VAR_TEMP
+  t_DB_PLT : INT ;	//PLT DB datablock
+  t_Int_Not_Used : INT ;	//Not used integer
+  t_Num_Items_Found : INT ;	//Number of items found during search.
+  t_Leading_Edge_Found : BOOL ;	//Data found 
+  t_Trailing_Edge_Found : BOOL ;	//Data found 
+  t_Combined_Edge_Found : BOOL ;	//Data found 	
+  t_DB_PLT_Down : INT ;	//PLT DB downstream
+  t_Length_Down : INT ;	//Length of downstream section
+  t_position_found : INT ;	//Position of an object which need to be stopped	
+  t_Position_Not_Used : INT ;	//Position of search NOT Used
+  t_DB_PLT_Found_Item : INT ;	//PLT DB of the found item
+  t_Section_Run_Down : BOOL ;	//Section run of downstream
+  t_Overrule_Flow : BOOL ;	//Overrule Flow because off Die-back
+  t_H2H_distance : INT ;	//Calculated H2H + Stop for delay time
+  t_Gap_distance : INT ;	//Calculated Gap + Gap for delay time
+  t_Delay_value : INT ;	//Calculated delay from distance
+  t_Start_Delay_Timer : BOOL ;	//Start delay timer if section not running and down is running
+  t_Section_Operational : BOOL ;	//Section operational from PLT DB
+  t_Item_Ready_to_Handover : BOOL ;	//Item found for handover
+  t_Dwn_Motor_on_speed : BOOL ;	//Downstream motor on speed
+  t_Dwn_Motor_stopped : BOOL ;	//Downstream motor stopped
+  t_Act_Start_Up_Distance : INT ;	//Actual StartUp distance in [cm]
+  t_section_on_speed : BOOL ;	//Section on speed
+  t_No_Flow_set : BOOL ;	//Check if flow is configured if not no extra downstream startup is added
+  t_Section_Stopped : BOOL ;	//Section is stopped
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load downstream conveyor length from PLT DB 
+
+      A     "M_First_Scan"; 
+      JCN   AA01; 
+
+      BEU   ; 
+
+AA01: L     #i_DB_PLT_Num; // Open DB does only work on temporaries
+      T     #t_DB_PLT; 
+
+      OPN   DB [#t_DB_PLT]; 
+
+      A     DBX   10.2; 
+      =     #t_section_on_speed; 
+
+      A     DBX   11.1; 
+      =     #t_Section_Stopped; 
+
+      L     DBW    8; 
+      T     #t_DB_PLT_Down; 
+      L     1; 
+      <=I   ; 
+      O(    ; // Or if Downstream is own PLT disable flow control  
+      L     #t_DB_PLT_Down; 
+      L     #t_DB_PLT; 
+      ==I   ; 
+      )     ; 
+      JCN   AA02; 
+
+//If no downstream end block without Gap or Head to Head control
+      SET   ; 
+      =     #o_Flow_Control_Run_OK; 
+      =     #o_Gap_Control_OK; 
+      =     #o_Head_to_Head_OK; 
+      R     #o_Delay_Section_Run; 
+
+      BEU   ; 
+
+AA02: OPN   DB [#t_DB_PLT_Down]; 
+      L     DBW   12; 
+      T     #t_Length_Down; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_Down; 
+
+      A     DBX   10.2; 
+      =     #t_Dwn_Motor_on_speed; 
+
+      A     DBX   10.5; 
+      =     #t_Section_Operational; 
+
+      A     DBX   11.1; 
+      =     #t_Dwn_Motor_stopped; 
+
+//Clear temps
+      SET   ; 
+      R     #t_Overrule_Flow; 
+NETWORK
+TITLE =BA: Check is something needs to be stopped
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := #i_Act_Run_Out_Distance,
+           i_Window                 := #i_Act_Run_Out_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_position_found,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT_Found_Item,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      A(    ; 
+      L     #t_DB_PLT_Found_Item; 
+      L     #t_DB_PLT; 
+      ==I   ; 
+      )     ; 
+      =     #t_Item_Ready_to_Handover; 
+
+      A     #t_Item_Ready_to_Handover; 
+      O(    ; 
+      A     #s_Item_Ready_to_Handover; 
+      AN    #i_Section_Run; 
+      A     #t_Section_Operational; 
+      )     ; 
+      =     #s_Item_Ready_to_Handover; 
+
+NETWORK
+TITLE =CA: Determine the actuele start up depending on downstream
+
+      L     #i_Minimum_Gap; 
+      L     #i_Minimum_Head_To_Head; 
+      +I    ; 
+      L     0; 
+      ==I   ; 
+      =     #t_No_Flow_set; 
+
+      A     #t_Dwn_Motor_on_speed; 
+      JCN   CA01; 
+
+      L     #i_Act_Start_Up_Distance; 
+      JU    CA90; 
+
+CA01: A     #t_Dwn_Motor_stopped; 
+      A     #t_section_on_speed; 
+      JCN   CA02; 
+
+      L     #i_CFG_Start_Up_Distance; 
+      L     -2; 
+      *I    ; 
+      JU    CA90; 
+
+//If downstream not on speed and not stopped and own section is on speed
+CA02: A     #t_section_on_speed; 
+      JCN   CA03; 
+      L     #i_CFG_Start_Up_Distance; 
+      L     -1; 
+      *I    ; 
+      JU    CA90; 
+
+// If downstream not on speed and not stopped use 70% of start-up as value 
+CA03: NOP   0; 
+      L     #i_CFG_Start_Up_Distance; 
+      L     #i_Act_Start_Up_Distance; 
+      -I    ; 
+      L     -7; //70 %
+      *I    ; 
+      L     10; 
+      /I    ; 
+CA90: T     #t_Act_Start_Up_Distance; 
+      A     #t_No_Flow_set; 
+      JCN   CA99; 
+      L     0; 
+      <I    ; 
+      JCN   CA99; 
+// If no gap or H2H is requested then no downstream correct applied
+      T     #t_Act_Start_Up_Distance; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Add gap and H2H if conveyor not run
+
+      AN    #i_Section_Run; // If conveyor is running
+      JCN   DA03; 
+
+      L     #i_Minimum_Gap; // ...Then add extra gap distance
+      L     #t_Act_Start_Up_Distance; // correction with start up
+      -I    ; 
+      L     #i_Add_Gap_Stop; 
+      +I    ; 
+      JPZ   DA01; 
+      L     0; 
+DA01: T     #s_Gap_Distance; 
+
+      L     #i_Minimum_Head_To_Head; // ...And add extra H2H distance
+      L     #t_Act_Start_Up_Distance; // correction with start up
+      -I    ; 
+      L     #i_Add_Head_To_Head_Stop; 
+      +I    ; 
+      JPZ   DA02; 
+      L     0; 
+DA02: T     #s_Head_to_Head_distance; 
+
+      JU    DA99; 
+
+DA03: L     #i_Minimum_Gap; // ELSE copy setting distance 
+      L     #t_position_found; 
+      -I    ; 
+      L     #t_Act_Start_Up_Distance; // correction with start up
+      -I    ; 
+      JPZ   DA04; 
+      L     0; 
+DA04: T     #s_Gap_Distance; 
+
+      L     #i_Minimum_Head_To_Head; 
+      L     #t_position_found; 
+      -I    ; 
+      L     #t_Act_Start_Up_Distance; // correction with start up
+      -I    ; 
+      JPZ   DA05; 
+      L     0; 
+DA05: T     #s_Head_to_Head_distance; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Search for empty GAP
+
+      CLR   ; 
+      =     #t_Leading_Edge_Found; 
+      =     #t_Trailing_Edge_Found; 
+      =     #t_Combined_Edge_Found; 
+
+      L     #s_Gap_Distance; 
+      L     0; 
+      >I    ; 
+      A     #s_Item_Ready_to_Handover; 
+      JCN   EA90; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Down,
+           i_Position               := #t_Length_Down,
+           i_Window                 := #s_Gap_Distance,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #t_Leading_Edge_Found; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Down,
+           i_Position               := #t_Length_Down,
+           i_Window                 := #s_Gap_Distance,
+           i_Info                   := 2,
+           o_Position               := #t_Position_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge_Found; 
+
+EA90: A     #t_Leading_Edge_Found; 
+      O     #t_Trailing_Edge_Found; 
+      =     #s_Gap_Data_Found; 
+
+NETWORK
+TITLE =FA: Search for empty Head to Head (Leading edges)
+
+      CLR   ; 
+      =     #t_Leading_Edge_Found; 
+      =     #t_Trailing_Edge_Found; 
+      =     #t_Combined_Edge_Found; 
+
+      L     #s_Head_to_Head_distance; 
+      L     0; 
+      >I    ; 
+      A     #s_Item_Ready_to_Handover; 
+      JCN   FA90; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Down,
+           i_Position               := #t_Length_Down,
+           i_Window                 := #s_Head_to_Head_distance,
+           i_Info                   := 1,
+           o_Position               := #t_Position_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #t_Leading_Edge_Found; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT_Down,
+           i_Position               := #t_Length_Down,
+           i_Window                 := #s_Head_to_Head_distance,
+           i_Info                   := 3,
+           o_Position               := #t_Position_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #t_Combined_Edge_Found; 
+
+FA90: A     #t_Leading_Edge_Found; 
+      O     #t_Combined_Edge_Found; 
+      =     #s_Head_2_Head_Data_Found; 
+
+NETWORK
+TITLE =GA: Die-Back overrule flow control
+
+      L     #i_Minimum_Head_To_Head; 
+      L     #i_Add_Head_To_Head_Stop; 
+      +I    ; 
+      T     #t_H2H_distance; 
+
+      L     #i_Minimum_Gap; 
+      L     #i_Add_Gap_Stop; 
+      +I    ; 
+      T     #t_Gap_distance; 
+      L     #t_H2H_distance; 
+      <I    ; 
+      JCN   GA01; 
+
+      T     #t_Delay_value; 
+      JU    GA02; 
+
+GA01: L     #t_Gap_distance; 
+      T     #t_Delay_value; 
+GA02: NOP   0; 
+
+      L     #i_CFG_Conveyor_Speed; 
+      L     0; 
+      ==I   ; 
+      JCN   GA03; 
+
+      L     100; 
+      T     #i_CFG_Conveyor_Speed; 
+
+//Convert distance to time
+GA03: L     #t_Delay_value; 
+      L     15000; //150 = + 50 %
+      *D    ; 
+      L     #i_CFG_Conveyor_Speed; 
+      /D    ; 
+      T     #t_Delay_value; 
+
+      A     #t_Section_Stopped; // Section not running or stopped
+      A     #t_Section_Run_Down; 
+      =     #t_Start_Delay_Timer; 
+
+      CALL "FC_On_Dly_Timer_MSec" (
+           i_CMD_Start              := #t_Start_Delay_Timer,
+           i_CFG_Timer_Value        := #t_Delay_value,
+           i_Setpoint               := #s_Act_T_Delay_SectionR,
+           o_Setpoint               := #s_Act_T_Delay_SectionR,
+           o_Timer_Elapsed          := #o_Delay_Section_Run);
+
+//Invert timer resoled
+
+      AN    #o_Delay_Section_Run; 
+      A     #t_Start_Delay_Timer; 
+      ON    #t_Section_Stopped; 
+      =     #o_Delay_Section_Run; 
+
+      AN    #o_Delay_Section_Run; 
+      A     #t_Section_Run_Down; 
+      =     #t_Overrule_Flow; 
+NETWORK
+TITLE =HA: Determine if flow is clear
+
+      A     #s_Head_2_Head_Data_Found; // OR Head to Head is NOT clear
+      O     #s_Gap_Data_Found; // ..OR Downstream is NOT clear
+      A     #s_Item_Ready_to_Handover; 
+      AN    #t_Overrule_Flow; 
+      =     #s_Flow_Not_Clear; // ..Than flow is NOT clear
+NETWORK
+TITLE =IA: Create output signals
+//Signals are inverted for clear monitoring in equipment block.
+      AN    #s_Head_2_Head_Data_Found; 
+      =     #o_Head_to_Head_OK; // Head to Head OK output to be used for monitoring
+
+      AN    #s_Gap_Data_Found; 
+      =     #o_Gap_Control_OK; // Gap OK output to be used for monitoring
+
+      AN    #s_Flow_Not_Clear; 
+      =     #o_Flow_Control_Run_OK; // Indicating that for the flow control function its ok to run the section
+END_FUNCTION_BLOCK
+

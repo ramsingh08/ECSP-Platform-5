@@ -1,0 +1,214 @@
+FUNCTION_BLOCK "FB_Handover"
+TITLE =%version: 1.05 % CN: 40
+//Function:
+//The handover block decides if an item can be handed over and if that handover 
+//can continue. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, July 13, 2016 1:11:47 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#15647: Item in Handover retreived from PLT         nlHdL    13-07-16   1.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.04
+//22670: Report severity change HO Bit Wrongfully Set   nlHdL    12-03-15   1.04
+//22039: Check PEC state in handover before reset IHO   nlHdL    25-02-15   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//PR14161 Update violation coding convention 9          nlple    26-06-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.09 of PLT version 0
+//
+//Description:
+//- Checks if an item is in the handover procedure
+//- Stop if downstream stops during handover
+//- Allows new handover to start
+//- (futher devolopment) Keep displacement of product for upstream or downstream 
+//PLT db for item in handover, including 50% rule
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Position_HO : INT ;	//CFG: [cm] Start Position for Hand-Over
+  i_PEC_Offset : INT ;	//Offset from most downstream PEC's in [cm]
+  i_Section_Run_Downstream : BOOL ;	//Section Run Signal Downstream
+  i_OS_Direction_Change : BOOL ;	//Reset handover on One Shot direction change
+END_VAR
+VAR_OUTPUT
+  o_Handover_Run_OK : BOOL ;	//Indicating that for the handover function its ok to run the section
+  o_Item_In_HandOver_Area : BOOL ;	//Indicating that a item is in the handover area
+END_VAR
+VAR
+  s_Item_In_HandOver_Area : BOOL ;	//Item present in handover area
+  s_Leading_Edge_HO : BOOL ;	//Leading edge found in handover area
+  s_Trailing_Edge_HO : BOOL ;	//Trailing edge found in handover area
+  s_Trailing_Edge_Offset : BOOL ;	//Trailing edge found in pec offset area
+END_VAR
+VAR_TEMP
+  t_DB_PLT : INT ;	//PLT Data block
+  t_Int_Not_Used : INT ;	//Not used integer
+  t_Num_Items_Found : INT ;	//Number of items found during search.
+  t_PEC_Latch : BOOL ;	//PEC Latch from PLT DB of the most downstream PEC
+  t_Offset_configured : BOOL ;	//PEC has offset > 0, so PEC is available
+  t_Return_Value_Int : INT ;	//Return value write event
+  t_position_Leading : INT ;	//Found position of leading edge
+  t_Window : INT ;	//Calculated window from the leading edge till the HO position
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB's
+
+      A     "M_First_Scan"; // In the first scan, skip this block
+      JCN   AA01; 
+
+      BEU   ; 
+
+AA01: L     #i_DB_PLT_Num; // Load DB number on temporaries
+      T     #t_DB_PLT; // Because the Open command cannot handle input or statics
+
+      OPN   DB [#t_DB_PLT]; // Open PLT db
+
+      A     DBX   10.7; 
+      =     #t_PEC_Latch; // Item detected in most downstream pec 
+
+      A     DBX   10.6; 
+      =     #s_Item_In_HandOver_Area; 
+NETWORK
+TITLE =BA:  Search for leading edge in handover area 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := #i_Position_HO,
+           i_Window                 := #i_Position_HO,
+           i_Info                   := 1,
+           o_Position               := #t_position_Leading,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #s_Leading_Edge_HO; 
+
+      L     #t_position_Leading; 
+      L     0; 
+      <I    ; 
+      JCN   BA01; 
+      T     #t_position_Leading; 
+BA01: NOP   0; 
+NETWORK
+TITLE =CA: Search for trailing edge in handover area 
+
+      CLR   ; 
+      =     #s_Trailing_Edge_HO; 
+
+      A     #s_Item_In_HandOver_Area; 
+      O     #s_Leading_Edge_HO; 
+      JCN   CA99; 
+
+      L     #i_Position_HO; 
+      L     #t_position_Leading; 
+      -I    ; 
+      T     #t_Window; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := #i_Position_HO,
+           i_Window                 := #t_Window,
+           i_Info                   := 2,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #s_Trailing_Edge_HO; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Monitor handover status
+
+      CLR   ; 
+      =     #s_Trailing_Edge_Offset; 
+
+      L     #i_PEC_Offset; 
+      L     0; 
+      >I    ; 
+      =     #t_Offset_configured; 
+
+      AN    #s_Leading_Edge_HO; 
+      A     #t_Offset_configured; 
+      A     #s_Item_In_HandOver_Area; 
+      AN    #t_PEC_Latch; 
+      JCN   DA99; 
+
+// Search for trailing edge in pec offset area 
+      CALL "FC_PLT_Srch_InfUpLen" (
+           i_DB_PLT_Num             := #t_DB_PLT,
+           i_Position               := 0,
+           i_Window                 := #i_PEC_Offset,
+           i_Info                   := 2,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Num_Items_Found,
+           o_Length_Diff            := #t_Int_Not_Used);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #s_Trailing_Edge_Offset; 
+
+      AN    #t_PEC_Latch; // AND NOT item in most downstream PEC 
+      AN    #s_Trailing_Edge_Offset; // AND NOT trailing edge detected after this PEC
+      A     #t_Offset_configured; // AND offset is configured (PEC present on section)
+      JCN   DA99; 
+
+      CALL "FC_Write_Event" (// Report event "Item in HandOver Bit Cleared by handover check" (3700)
+           i_Message_ID             := 3700,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Return_Value_Int);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Handle item in handover signal
+
+      A     #s_Leading_Edge_HO; 
+      S     #s_Item_In_HandOver_Area; // SET item in handover when leading edge is detected  
+
+      A     #i_OS_Direction_Change; // IF direction change  
+      O     #s_Trailing_Edge_HO; // OR trailing edge detected in handover area
+      O(    ; // OR 
+      AN    #t_PEC_Latch; // AND NOT item in most downstream PEC 
+      AN    #s_Trailing_Edge_Offset; // AND NOT trailing edge detected after this PEC
+      A     #t_Offset_configured; // AND offset is configured (PEC present on section)
+      AN    #s_Leading_Edge_HO; 
+      )     ; 
+      R     #s_Item_In_HandOver_Area; 
+
+NETWORK
+TITLE =FA: Stop in Die-Back
+
+      A     #s_Item_In_HandOver_Area; 
+      =     #o_Item_In_HandOver_Area; 
+
+      A     #s_Item_In_HandOver_Area; // If there is an item handing over
+      A     #i_Section_Run_Downstream; // And the downstream is running
+      ON    #s_Item_In_HandOver_Area; // If there is an item handing over
+      =     #o_Handover_Run_OK; // For the handover function its OK to run the section
+END_FUNCTION_BLOCK
+

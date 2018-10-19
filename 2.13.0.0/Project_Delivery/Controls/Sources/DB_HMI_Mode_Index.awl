@@ -1,0 +1,21 @@
+DATA_BLOCK "DB_HMI_Mode_Index"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Thursday, September 29, 2016 3:37:19 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13652 Initial revision                             inajos   27-09-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	// Insertion point for the S7 Code Generator	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

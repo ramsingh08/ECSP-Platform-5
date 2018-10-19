@@ -1,0 +1,32 @@
+FUNCTION "FC_Diagnose_ASI" : VOID
+TITLE =%version: 0.02 % CN: 60
+//Function:
+//Base ASI diagnose, needed for S7 Code Generator
+//
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:16:02 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//PR15411 Initial revision                              nlple    18-09-13  0.01
+//
+//Description:
+//Base ASI diagnose, needed for S7 Code Generator
+//
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =#Insert# //Insertion point code generator
+//The generated source will be added overhere.
+END_FUNCTION
+

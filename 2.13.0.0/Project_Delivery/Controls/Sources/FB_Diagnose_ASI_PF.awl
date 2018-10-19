@@ -1,0 +1,970 @@
+FUNCTION_BLOCK "FB_Diagnose_ASI_PF"
+TITLE =%version: 0.08 % CN: 32
+//Function: 
+//Module for cyclic ASI slave diagnose.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, April 05, 2018 8:17:56 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9911: ASI gateway not diagnosed while PN error    nlHdL    05-04-18   0.08
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//20058: Version corrected                              nlple    25-09-14   0.07
+//20058: Error calculation "S" changed in "="           nlple    25-09-14   0.06
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//PR14161 Update violation coding convention 9          nlple    25-06-13   0.03
+//Updated Rev.nr.                                        nlRSwi  01-09-10   0.02
+//Copied from SSS                                        nlRSwi  31-08-10   0.01
+//Based on FB_Diagnose_ASI_PF version 1.8 library BH  
+//
+//Description: 
+//This block send three different request to the Gateway DP/ASI Pepperl & Fuchs 
+//VGB-PB-K20-DMD
+//These three request allows to retreive three list with somes of the different 
+//important status of the ASI slaves.
+//These status are:
+//             -GET_LPS (Code Hex 44)
+//              Get list of projected slaves.
+//             -GET_LDS (Code Hex 46)
+//              Get list of detected Asi slaves
+//             -GET_DELTA" (Code Hex 57)
+//              Get delta list, return the list of the slave addresses with 
+//              configuration errors
+//When these status are up to date in the instance DB of this block, two bits for 
+//each ASI slaves are calculated and one Delta configuration error bit for each 
+//Master ASI.
+//             -Slave Not_Present = A Bit_LPS 
+//                                 AN Bit_LDS
+//                                  A Bit_DELTA
+//               
+//             -Slave in Error = A Bit_LPS
+//                               A Bit_LDS
+//                               A Bit_DELTA
+//
+//             -Delta configuration Error = If a no projected slave is connected  
+//                                         
+//at the master (UFO)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Refresh_Rate : INT ;	//[sec] Refresh rate of the cyclic ASI diagnosis
+  i_ASI_M1_NotPres_Bitmap : ANY ;	//ANY pointer to ASI Not Present Bitmap Master1
+  i_ASI_M2_NotPres_Bitmap : ANY ;	//ANY pointer to ASI Not Present Bitmap  Master2
+  i_Command_Interface_In : INT ;	//Start address reading diagnostic module
+  i_Command_Interface_Out : INT ;	//Start address writing command diagnostic module
+  i_Flags_Master1 : BYTE ;	//FLags input diagnostic ASI Master 1
+  i_Flags_Master2 : BYTE ;	//FLags input diagnostic ASI Master 2
+  i_Gateway_Not_Present : BOOL ;	//DP Gateway not present
+  i_Gateway_Error : BOOL ;	//DP Gateway in error
+  i_Only_Master1 : BOOL ;	//SETT: Only one AS-i master  (TRUE=Mast1 FALSE=Mast1 and Mast2)
+END_VAR
+VAR_OUTPUT
+  o_Error : BOOL ;	//Error in the good execution of the function
+  o_ASI_NOT_Diagnosed : BOOL ;	//Delay ASI Diagnose not updated after trailing edge master error/not present
+END_VAR
+VAR
+  s_ASiMailbox : "FB_Mailbox_ASI_PF";	
+  s_Lst_Slave1_Not_Present : DWORD ;	//List ASI slaves not present
+  s_Lst_Slave1_Error : DWORD ;	//List ASI slaves in error
+  s_Lst_Slave2_Not_Present : DWORD ;	//List ASI slaves not present
+  s_Lst_Slave2_Error : DWORD ;	//List ASI slaves in error
+  s_List : DWORD ;	//Buffer list FB_MailBox_ASI
+  s_List_LPS_Mast1 : DWORD ;	//List Projected Slaves Master 1 ASI
+  s_List_LDS_Mast1 : DWORD ;	//List Detected Slaves Master 1 ASI
+  s_List_DELTA_Mast1 : DWORD ;	//List Delta config Slaves Master 1 ASI
+  s_List_LPS_Mast2 : DWORD ;	//List Projected Slaves Master 2 ASI
+  s_List_LDS_Mast2 : DWORD ;	//List Detected Slaves Master 2 ASI
+  s_List_DELTA_Mast2 : DWORD ;	//List Delta config Slaves Master 2 ASI
+  s_Not_LDS_Mast1 : DWORD ;	//Complement List Detected Slaves Master 1 ASI
+  s_Not_LPS_Mast1 : DWORD ;	//Complement List Projected Slaves Master 1 ASI
+  s_Not_LDS_Mast2 : DWORD ;	//Complement List Detected Slaves Master 2 ASI
+  s_Not_LPS_Mast2 : DWORD ;	//Complement List Projected Slaves Master 2 ASI
+  s_Mail_Status : WORD ;	//Status of the request (see code in block FB_Mailbox_ASI)
+  s_Flags_M1 : BYTE ;	//Flags master 1 after mask of the low bits
+  s_Flags_M2 : BYTE ;	//Flags master 2 after mask of the low bits
+  s_Cnt_Flags_M1_Error : INT ;	
+  s_Cnt_Flags_M2_Error : INT ;	
+  s_Cnt_Master_Error : INT ;	
+  s_Cnt_Trigger : INT ;	//Timer triggering
+  s_Mail_Error : BOOL ;	//Request to the gateway error
+  s_Mail_Reset : BOOL ;	//Reset error and function mailbox
+  s_LPS_Mast1_Busy : BOOL ;	//Retrieving LPS Master 1 not yet complete
+  s_LPS_Mast1_Start : BOOL ;	//Trigger the retrieving of the LPS Master 1
+  s_LPS_Mast1_Complete : BOOL ;	//Retrieving LPS Master 1 complete
+  s_LDS_Mast1_Busy : BOOL ;	//Retrieving LDS Master 1 not yet complete
+  s_LDS_Mast1_Start : BOOL ;	//Trigger the retrieving of the LDS Master 1
+  s_LDS_Mast1_Complete : BOOL ;	//Retrieving LPS Master 1 complete
+  s_Delta_Mast1_Busy : BOOL ;	//Retrieving DELTA list Master 1 not yet complete
+  s_Delta_Mast1_Start : BOOL ;	//Trigger the retrieving of the DELTA list Master 1
+  s_Delta_Mast1_Complete : BOOL ;	//Retrieving DELTA list Master 1 complete
+  s_LPS_Mast2_Busy : BOOL ;	//Retrieving LPS Master 2 not yet complete
+  s_LPS_Mast2_Start : BOOL ;	//Trigger the retrieving of the LPS Master 2
+  s_LPS_Mast2_Complete : BOOL ;	//Retrieving LPS Master 2 complete
+  s_LDS_Mast2_Busy : BOOL ;	//Retrieving LDS Master 2 not yet complete
+  s_LDS_Mast2_Start : BOOL ;	//Trigger the retrieving of the LDS Master 2
+  s_LDS_Mast2_Complete : BOOL ;	//Retrieving LPS Master 2 complete
+  s_Delta_Mast2_Busy : BOOL ;	//Retrieving DELTA list Master 2 not yet complete
+  s_Delta_Mast2_Start : BOOL ;	//Trigger the retrieving of the DELTA list Master 2
+  s_Delta_Mast2_Complete : BOOL ;	//Retrieving DELTA list Master 2 complete
+  s_Flags_M1_Error : BOOL ;	//One of the flags error ASI Master 1 is True
+  s_Flags_M2_Error : BOOL ;	//One of the flags error ASI Master 2 is True
+  s_Copy_FP_Flags_M1_Error : BOOL ;	//Detection positive edge error present Master 1
+  s_Copy_FP_Flags_M2_Error : BOOL ;	//Detection positive edge error present Master 2
+  s_Copy_FP_DeltaM1_Compl : BOOL ;	//Detection positive edge Delta list complete ASI  Master 1
+  s_Copy_FP_DeltaM2_Compl : BOOL ;	//Detection positive edge Delta list complete ASI  Master 2
+  s_Copy_FN_Flags_M1_Error : BOOL ;	//Detection negative edge error present Master 1
+  s_Copy_FN_Allow_Diagnose : BOOL ;	//Detection negative edge error present Master 2
+  s_Copy_FP_Allow_Diagnose : BOOL ;	//Detection negative edge error present Master 2
+  s_Copy_FN_Flags_M2_Error : BOOL ;	//Detection negative edge error present Master 2
+  s_OS_FP_Flags_M1_Error : BOOL ;	//One shot FP error present Master 1
+  s_OS_FP_Flags_M2_Error : BOOL ;	//One shot FP error present Master 2
+  s_OS_FP_DeltaM1_Compl : BOOL ;	//One shot FP Delta list complete ASI  Master 1
+  s_OS_FP_DeltaM2_Compl : BOOL ;	//One shot FP Delta list complete ASI  Master 2
+  s_OS_FN_Flags_M1_Error : BOOL ;	//One shot FN error present Master 1
+  s_OS_FN_Flags_M2_Error : BOOL ;	//One shot FN error present Master 2
+  s_OS_FN_Allow_Diagnose : BOOL ;	//One shot FN error present Master 2
+  s_OS_FP_Allow_Diagnose : BOOL ;	//One shot FN error present Master 2
+  s_Request : BOOL ;	//Request to read diagnostic
+  s_Master1_Master2 : BOOL ;	//Reading Master1 or Master2
+  s_OS_Trigger : BOOL ;	//One-shot trigger diagnosis
+  s_ASI_M1_DeltaErr_Bit : BOOL ;	//ASI Delta Error Bit  Master1
+  s_ASI_M2_DeltaErr_Bit : BOOL ;	//ASI Delta Error Bit  Master2
+  s_Allow_Diagnose : BOOL ;	
+  s_Error_LPS1 : BOOL ;	
+  s_Error_LDS1 : BOOL ;	
+  s_Error_Delta1 : BOOL ;	
+  s_Error_LPS2 : BOOL ;	
+  s_Error_LDS2 : BOOL ;	
+  s_Error_Delta2 : BOOL ;	
+  s_Error_Copy_NOTPrst1 : BOOL ;	
+  s_Error_Copy_Slavelist1 : BOOL ;	
+  s_Error_Copy_NOTPrst2 : BOOL ;	
+  s_Error_Copy_Slavelist2 : BOOL ;	
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_DB_Num : WORD ;	//Temp used for copy ANY Pointers
+  t_Pointer : DWORD ;	//Temp used for copy ANY Pointers
+  t_ASI_M1_NotPres_Bitmap : ANY ;	//Temp ANY Pointer to ASI Master 1 Not present bitmap
+  t_ASI_M1_Error_Bitmap : ANY ;	//Temp ANY Pointer to ASI Master 1 Error bitmap
+  t_ASI_M2_NotPres_Bitmap : ANY ;	//Temp ANY Pointer to ASI Master 2 Not present bitmap
+  t_ASI_M2_Error_Bitmap : ANY ;	//Temp ANY Pointer to ASI Master 2 Error bitmap
+  t_SFC20_ret_val : INT ;	//Temp return value SFC20
+  t_Record_Lenght : INT ;	
+  t_Off_Slave_Error : DWORD ;	
+  t_Off_Delta_Error : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get 'relative address'-mask
+//In case of a multiple instance DB, AR2 contains the pointer from the beginning 
+//of the multiple instance DB to the start of the instance DB of this FB. AR2 is 
+//masked and stored for further use.
+      TAR2  ; 
+      AD    DW#16#FFFFFF; 
+      T     #t_AR2_Mask; 
+NETWORK
+TITLE =BA: General lenghts for internal calculations (lenghts in bytes)
+// 
+      L     4; 
+      T     #t_Record_Lenght; // Lenght in bytes one record DB_Diagnose_ASI
+
+      L     P#4.0; 
+      T     #t_Off_Slave_Error; // Offset to slave errors record
+
+      L     P#8.0; 
+      T     #t_Off_Delta_Error; // Offset to delta error ASI network
+
+
+NETWORK
+TITLE =CA: Diagnosis triggering
+// Pre-set triggering timer
+      A     #s_OS_Trigger; 
+      JCN   CA10; 
+      L     0; // IF input refresh rate > 0:
+      L     #i_Refresh_Rate; // Timer triggering = input refresh rate
+      <I    ; 
+      JCN   CA11; 
+      JU    CA12; 
+CA11: L     10; // IF input refresh rate = 0:
+CA12: T     #s_Cnt_Trigger; // Timer triggering = 10
+
+// Reset one-shot trigger
+CA10: SET   ; 
+      R     #s_OS_Trigger; 
+
+// Countdown of the triggering timer (each second)
+      A     "M_OS_/1.0_sec."; 
+      JCN   CA01; 
+      L     #s_Cnt_Trigger; 
+      L     1; 
+      -I    ; 
+      JPZ   CA02; 
+      L     0; // Keep on zero
+CA02: T     #s_Cnt_Trigger; 
+
+// Evaluation of triggering timer 
+CA01: L     #s_Cnt_Trigger; // IF timer triggering <= 0 
+      L     0; 
+      <=I   ; 
+      S     #s_OS_Trigger; // SET one-shot triggering
+
+NETWORK
+TITLE =DA: Delay After Master becomes Available
+//When the master becomes available a time delay is needed before the diagnose 
+//function may be executed. This to avoid errors on all configured slaves
+      A     #i_Gateway_Not_Present; 
+      O     "M_First_Scan"; 
+      JCN   DA01; 
+      L     10; // Preset counter if Gateway erros are present
+      T     #s_Cnt_Master_Error; 
+
+// Countdown of the delay diagnose counter
+DA01: A     "M_OS_/1.0_sec."; 
+      JCN   DA03; 
+      L     #s_Cnt_Master_Error; 
+      L     1; 
+      -I    ; 
+      JPZ   DA02; 
+      L     0; // Keep on zero
+DA02: T     #s_Cnt_Master_Error; 
+
+// Evaluation of delay diagnose counter 
+DA03: L     #s_Cnt_Master_Error; // IF counter <= 0 
+      L     0; 
+      <=I   ; 
+      =     #s_Allow_Diagnose; // THEN allow diagnose ASI network
+
+      AN    #s_Allow_Diagnose; 
+      =     #o_ASI_NOT_Diagnosed; // 
+
+      A     #s_Allow_Diagnose; 
+      FP    #s_Copy_FP_Allow_Diagnose; 
+      =     #s_OS_FP_Allow_Diagnose; 
+
+      A     #s_Allow_Diagnose; 
+      FN    #s_Copy_FN_Allow_Diagnose; 
+      =     #s_OS_FN_Allow_Diagnose; 
+
+NETWORK
+TITLE =EA: Mask flags 
+//In each first input byte (See address in the hardware conf.) of each master 
+//are 4 flags bits in the high part of the byte.
+//These bits gives a status of each master.
+//                      Bit 4 :Configuration error  OK=0 
+//                      Bit 5 :ASI Power failure    OK=0
+//                      Bit 6 :Periphery fault      OK=0
+//                      Bit 7 :Configuration active Active=0
+//         
+//             ASI Master 1                            ASI Master 2
+//
+//Hardware    C1: I Address                           C2: I Address
+//          __________________                       __________________
+//  Byte 0 | Flags  | Slave 1 |              Byte 0 | Flags  | Slave 1 |
+//          __________________                       _________________
+//  Byte 1 | Slave 2| Slave 3 |              Byte 1 | Slave 2| Slave 3 |
+//
+//
+      NOP   0; 
+// Mask flags ASI master 1
+      L     #i_Flags_Master1; 
+      L     B#16#F0; 
+      AW    ; 
+      T     #s_Flags_M1; 
+
+      L     #s_Flags_M1; 
+      L     0; 
+      <>I   ; 
+      =     #s_Flags_M1_Error; 
+
+// Mask flags ASI master 2
+      L     #i_Flags_Master2; 
+      L     B#16#F0; 
+      AW    ; 
+      T     #s_Flags_M2; 
+
+      L     #s_Flags_M2; 
+      L     0; 
+      <>I   ; 
+      =     #s_Flags_M2_Error; 
+
+
+NETWORK
+TITLE =FA: Detection edges
+//One shot Detection of each event incoming and outgoing
+      NOP   0; 
+// Flags Master 1 Error
+// Incoming
+      A     #s_Flags_M1_Error; 
+      FP    #s_Copy_FP_Flags_M1_Error; 
+      =     #s_OS_FP_Flags_M1_Error; 
+
+// Outgoing including 2 sec delay to avoid LMS errors after coming back online.  
+
+      A     #s_Flags_M1_Error; 
+      JCN   FA01; 
+      L     40; // Preset counter if Gateway errors are present
+      T     #s_Cnt_Flags_M1_Error; 
+
+// Countdown of the delay counter
+FA01: A     "M_OS_/0.1_sec."; 
+      JCN   FA03; 
+      L     #s_Cnt_Flags_M1_Error; 
+      L     1; 
+      -I    ; 
+      JPZ   FA02; 
+      L     0; // Keep on zero
+FA02: T     #s_Cnt_Flags_M1_Error; 
+
+// Evaluation of delay diagnose counter 
+FA03: L     #s_Cnt_Flags_M1_Error; // IF counter <= 0 
+      L     0; 
+      ==I   ; 
+      FP    #s_Copy_FN_Flags_M1_Error; 
+      =     #s_OS_FN_Flags_M1_Error; // THEN trigger diagnose for outgoing event
+
+// Flags Master 2 Error
+// Incoming
+      A     #s_Flags_M2_Error; 
+      FP    #s_Copy_FP_Flags_M2_Error; 
+      =     #s_OS_FP_Flags_M2_Error; 
+
+// Outgoing including 1 sec delay to avoid LMS errors after coming back online.
+
+      A     #s_Flags_M2_Error; 
+      JCN   FA11; 
+      L     30; // Preset counter if Gateway errors are present
+      T     #s_Cnt_Flags_M2_Error; 
+
+// Countdown of the delay counter
+FA11: A     "M_OS_/0.1_sec."; 
+      JCN   FA13; 
+      L     #s_Cnt_Flags_M2_Error; 
+      L     1; 
+      -I    ; 
+      JPZ   FA12; 
+      L     0; // Keep on zero
+FA12: T     #s_Cnt_Flags_M2_Error; 
+
+// Evaluation of delay diagnose counter 
+FA13: L     #s_Cnt_Flags_M2_Error; // IF counter <= 0 
+      L     0; 
+      <=I   ; 
+      FP    #s_Copy_FN_Flags_M2_Error; 
+      =     #s_OS_FN_Flags_M2_Error; // THEN trigger diagnose for outgoing event
+
+// Retrieve of the Delta list from ASI network 1 complete
+      A     #s_Delta_Mast1_Complete; 
+      FP    #s_Copy_FP_DeltaM1_Compl; 
+      =     #s_OS_FP_DeltaM1_Compl; 
+
+// Retrieve of the Delta list from ASI network 2 complete
+      A     #s_Delta_Mast2_Complete; 
+      FP    #s_Copy_FP_DeltaM2_Compl; 
+      =     #s_OS_FP_DeltaM2_Compl; 
+
+NETWORK
+TITLE =GA: Trigger the function
+
+      NOP   0; 
+// Reset interlock between execution function Master 1 and Master 2
+      A     #s_OS_FP_Flags_M1_Error; 
+      O     #s_OS_FN_Flags_M1_Error; 
+      O     #s_OS_FP_Flags_M2_Error; 
+      O     #s_OS_FN_Flags_M2_Error; 
+      R     #s_Master1_Master2; 
+
+// Start execution to refresh on going or coming event or time based trigger 
+      A     #s_OS_FP_Flags_M1_Error; 
+      O     #s_OS_FN_Flags_M1_Error; 
+      O     #s_OS_FP_Flags_M2_Error; 
+      O     #s_OS_FN_Flags_M2_Error; 
+      O     #s_OS_Trigger; 
+      S     #s_Request; 
+
+// Last request complete
+      A     #s_OS_FP_DeltaM2_Compl; 
+      O(    ; 
+      A     #s_OS_FP_DeltaM1_Compl; 
+      A     #i_Only_Master1; 
+      )     ; 
+      O(    ; 
+      L     #s_Cnt_Flags_M2_Error; // IF counter <= 0 
+      L     0; 
+      >I    ; 
+      AN    #s_Flags_M2_Error; 
+      )     ; 
+      O(    ; 
+      L     #s_Cnt_Flags_M1_Error; // IF counter <= 0 
+      L     0; 
+      >I    ; 
+      AN    #s_Flags_M1_Error; 
+      )     ; 
+      ON    #s_Allow_Diagnose; 
+      R     #s_Request; 
+
+// Reset error
+// Diagnose
+      A     #s_Error_LPS1; 
+      O     #s_Error_LDS1; 
+      O     #s_Error_Delta1; 
+      O     #s_Error_LPS2; 
+      O     #s_Error_LDS2; 
+      O     #s_Error_Delta2; 
+      =     #o_Error; 
+// Mailbox
+      A     #s_OS_Trigger; 
+      A     #o_Error; 
+      S     #s_Mail_Reset; 
+
+NETWORK
+TITLE =HA: GET_LDS, GET_LPS, GET_DELTA ASI Master 1
+//Reading lists of the ASI Master 1:
+//         -LPS: List of the Projected Slaves
+//         -LDS: List of the Detected Slaves
+//         -DELTA: Liast of the slave with a configuration error
+      NOP   0; 
+// Request reading ASI master1
+      AN    #s_Request; 
+      JC    HA07; 
+
+      A     #s_Master1_Master2; 
+      JC    HA99; 
+
+//Reading of the list LPS
+      A     #s_LDS_Mast1_Busy; 
+      JC    HA02; 
+      A     #s_Delta_Mast1_Busy; 
+      JC    HA04; 
+      A     #s_LPS_Mast1_Busy; 
+      JC    HA01; 
+      S     #s_LPS_Mast1_Start; 
+
+// Call read list function 
+HA01: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#44,
+           i_Circuit                := B#16#0,
+           i_Start                  := #s_LPS_Mast1_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_LPS_Mast1_Complete,
+           o_Command_Busy           := #s_LPS_Mast1_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_LPS_Mast1_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+      A     #s_LPS_Mast1_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   HA02; 
+      L     #s_List; 
+      T     #s_List_LPS_Mast1; 
+
+HA02: A     #s_LPS_Mast1_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_LPS1; 
+      BEC   ; 
+
+//Reading of the list LDS
+      A     #s_LPS_Mast1_Busy; 
+      JC    HA99; 
+      A     #s_Delta_Mast1_Busy; 
+      JC    HA05; 
+      A     #s_LDS_Mast1_Busy; 
+      JC    HA03; 
+      S     #s_LDS_Mast1_Start; 
+
+// Call read list function 
+HA03: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#46,
+           i_Circuit                := B#16#0,
+           i_Start                  := #s_LDS_Mast1_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_LDS_Mast1_Complete,
+           o_Command_Busy           := #s_LDS_Mast1_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_LDS_Mast1_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+      A     #s_LDS_Mast1_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   HA04; 
+      L     #s_List; 
+      T     #s_List_LDS_Mast1; 
+
+HA04: A     #s_LDS_Mast1_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_LDS1; 
+      BEC   ; 
+
+//Reading of the list DELTA
+      A     #s_LDS_Mast1_Busy; 
+      JC    HA99; 
+      A     #s_Delta_Mast1_Busy; 
+      JC    HA05; 
+      S     #s_Delta_Mast1_Start; 
+
+// Call read list function 
+HA05: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#57,
+           i_Circuit                := B#16#0,
+           i_Start                  := #s_Delta_Mast1_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_Delta_Mast1_Complete,
+           o_Command_Busy           := #s_Delta_Mast1_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_Delta_Mast1_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+
+      A     #s_Delta_Mast1_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   HA06; 
+      L     #s_List; 
+      T     #s_List_DELTA_Mast1; 
+
+HA06: A     #s_Delta_Mast1_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_Delta1; 
+      BEC   ; 
+
+// Function complete set interlock
+      A     #s_Delta_Mast1_Complete; 
+HA07: S     #s_Master1_Master2; 
+
+
+
+HA99: NOP   0; 
+
+NETWORK
+TITLE =IA: GET_LDS, GET_LPS, GET_DELTA ASI Master 2
+//Reading lists of the ASI Master 2:
+//         -LPS: List of the Projected Slaves
+//         -LDS: List of the Detected Slaves
+//         -DELTA: Liast of the slave with a configuration error
+      NOP   0; 
+// Request reading ASI master1
+      AN    #s_Request; 
+      O     #i_Only_Master1; 
+      JC    IA07; 
+
+      AN    #s_Master1_Master2; 
+      JC    IA99; 
+
+//Reading of the list LPS
+      A     #s_LDS_Mast2_Busy; 
+      JC    IA02; 
+      A     #s_Delta_Mast2_Busy; 
+      JC    IA04; 
+      A     #s_LPS_Mast2_Busy; 
+      JC    IA01; 
+      S     #s_LPS_Mast2_Start; 
+
+// Call read list function 
+IA01: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#44,
+           i_Circuit                := B#16#1,
+           i_Start                  := #s_LPS_Mast2_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_LPS_Mast2_Complete,
+           o_Command_Busy           := #s_LPS_Mast2_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_LPS_Mast2_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+      A     #s_LPS_Mast2_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   IA02; 
+      L     #s_List; 
+      T     #s_List_LPS_Mast2; 
+
+IA02: A     #s_LPS_Mast2_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_LPS2; 
+      BEC   ; 
+
+//Reading of the list LDS
+      A     #s_LPS_Mast2_Busy; 
+      JC    IA99; 
+      A     #s_Delta_Mast2_Busy; 
+      JC    IA05; 
+      A     #s_LDS_Mast2_Busy; 
+      JC    IA03; 
+      S     #s_LDS_Mast2_Start; 
+
+// Call read list function 
+IA03: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#46,
+           i_Circuit                := B#16#1,
+           i_Start                  := #s_LDS_Mast2_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_LDS_Mast2_Complete,
+           o_Command_Busy           := #s_LDS_Mast2_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_LDS_Mast2_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+      A     #s_LDS_Mast2_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   IA04; 
+      L     #s_List; 
+      T     #s_List_LDS_Mast2; 
+
+IA04: A     #s_LDS_Mast2_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_LDS2; 
+      BEC   ; 
+
+//Reading of the list DELTA
+      A     #s_LDS_Mast2_Busy; 
+      JC    IA99; 
+      A     #s_Delta_Mast2_Busy; 
+      JC    IA05; 
+      S     #s_Delta_Mast2_Start; 
+
+// Call read list function 
+IA05: CALL #s_ASiMailbox (
+           i_Command_Interface_In   := #i_Command_Interface_In,
+           i_Command_Interface_Out  := #i_Command_Interface_Out,
+           i_Command                := B#16#57,
+           i_Circuit                := B#16#1,
+           i_Start                  := #s_Delta_Mast2_Start,
+           i_Reset                  := #s_Mail_Reset,
+           o_Complete               := #s_Delta_Mast2_Complete,
+           o_Command_Busy           := #s_Delta_Mast2_Busy,
+           o_Error                  := #s_Mail_Error,
+           o_Start                  := #s_Delta_Mast2_Start,
+           o_Status                 := #s_Mail_Status,
+           o_List                   := #s_List);
+
+
+      A     #s_Delta_Mast2_Complete; 
+      AN    #s_Mail_Error; 
+      JCN   IA06; 
+      L     #s_List; 
+      T     #s_List_DELTA_Mast2; 
+
+IA06: A     #s_Delta_Mast2_Complete; 
+      A     #s_Mail_Error; 
+      =     #s_Error_Delta2; 
+      BEC   ; 
+
+// Function complete reset interlock
+      A     #s_Delta_Mast2_Complete; 
+IA07: R     #s_Master1_Master2; 
+
+
+IA99: NOP   0; 
+
+NETWORK
+TITLE =JA: Update DB diagnose ASI Master 1
+
+      A     #s_OS_FP_DeltaM1_Compl; // IF al records are retrieved for network 1  
+      JCN   JA99; 
+
+// ASI slave Not Present
+// Convert LDS in a Not LDS list
+
+      L     #s_List_LDS_Mast1; // THEN update the diagnose list
+      L     DW#16#FFFFFFFF; 
+      XOD   ; 
+      T     #s_Not_LDS_Mast1; 
+
+      L     #s_List_LPS_Mast1; 
+      L     #s_Not_LDS_Mast1; 
+      AD    ; 
+
+      L     #s_List_DELTA_Mast1; 
+      AD    ; 
+      T     #s_Lst_Slave1_Not_Present; 
+
+// ASI slave Error
+      L     #s_List_LDS_Mast1; 
+      L     #s_List_LPS_Mast1; 
+      AD    ; 
+      L     #s_List_DELTA_Mast1; 
+      AD    ; 
+      T     #s_Lst_Slave1_Error; 
+
+// ASI Delta configuration error
+      L     #s_List_LPS_Mast1; 
+      L     DW#16#FFFFFFFF; 
+      XOD   ; 
+      T     #s_Not_LPS_Mast1; 
+
+      L     #s_List_LDS_Mast1; 
+      L     #s_Not_LPS_Mast1; 
+      AD    ; 
+      L     #s_List_DELTA_Mast1; 
+      AD    ; 
+      L     0; 
+      <>D   ; 
+      =     #s_ASI_M1_DeltaErr_Bit; 
+
+JA99: NOP   0; 
+
+NETWORK
+TITLE =KA: Update DB diagnose ASI Master 2
+
+      A     #s_OS_FP_DeltaM2_Compl; // IF al records are retrieved for network 1 
+      JCN   KA99; 
+
+// ASI slave Not Present
+// Convert LDS in a Not LDS list
+
+      L     #s_List_LDS_Mast2; // THEN update the diagnose list
+      L     DW#16#FFFFFFFF; 
+      XOD   ; 
+      T     #s_Not_LDS_Mast2; 
+
+      L     #s_List_LPS_Mast2; 
+      L     #s_Not_LDS_Mast2; 
+      AD    ; 
+
+      L     #s_List_DELTA_Mast2; 
+      AD    ; 
+      T     #s_Lst_Slave2_Not_Present; 
+
+// ASI slave Error
+      L     #s_List_LDS_Mast2; 
+      L     #s_List_LPS_Mast2; 
+      AD    ; 
+      L     #s_List_DELTA_Mast2; 
+      AD    ; 
+      T     #s_Lst_Slave2_Error; 
+
+// ASI Delta configuration error
+      L     #s_List_LPS_Mast2; 
+      L     DW#16#FFFFFFFF; 
+      XOD   ; 
+      T     #s_Not_LPS_Mast2; 
+
+      L     #s_List_LDS_Mast2; 
+      L     #s_Not_LPS_Mast2; 
+      AD    ; 
+      L     #s_List_DELTA_Mast2; 
+      AD    ; 
+      L     0; 
+      <>D   ; 
+      =     #s_ASI_M2_DeltaErr_Bit; 
+
+KA99: NOP   0; 
+
+NETWORK
+TITLE =LA: set initial state diagnose when not allowed or delta error
+
+      AN    #s_Allow_Diagnose; // IF diagnose not allowed
+      JCN   LA99; 
+      L     0; 
+      T     #s_Lst_Slave1_Not_Present; // THEN clear all network errors 
+      T     #s_Lst_Slave1_Error; 
+      T     #s_Lst_Slave2_Not_Present; // THEN clear all network errors 
+      T     #s_Lst_Slave2_Error; 
+
+      CLR   ; 
+      =     #s_ASI_M1_DeltaErr_Bit; // AND reset delta error bit 
+      =     #s_ASI_M2_DeltaErr_Bit; // AND reset delta error bit 
+
+LA99: NOP   0; 
+
+NETWORK
+TITLE =MA: Copy lists to Master 1 ASI Slave status bitmap
+//Copy s_Lst_Slave1_Not_Present to ASI Master 1 Slave Not Present Bitmap
+//Copy s_Lst_Slave1_Error to ASI Master 1 Slave Error Bitmap
+// 
+      A     #s_OS_FP_DeltaM1_Compl; // IF al list from the ASI network 1 updated 
+      O     #s_OS_FN_Allow_Diagnose; // OR incoming gateway error 
+      O     "M_First_Scan"; // OR first scan
+      JCN   MA99; 
+
+
+// Prepare Pointer for blockmove to Slave not present bitmap  
+
+      L     P##i_ASI_M1_NotPres_Bitmap; // Load ANY pointer to input ASI bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number ASI Not Present bitmap
+      T     #t_DB_Num; 
+      L     D [AR1,P#6.0]; // Load Pointer to start of Bitmap in DB
+      T     #t_Pointer; 
+
+      L     P##t_ASI_M1_NotPres_Bitmap; // Load ANY Pointer to temp ASI Not Present Bitmap 
+      LAR1  ; 
+      L     W#16#1002; // Load header from pointer in instance DB component
+      T     LW [AR1,P#0.0]; 
+      L     #t_Record_Lenght; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Num; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI 
+      T     LD [AR1,P#6.0]; 
+
+// Prepare Pointer for blockmove to Slave error bitmap  
+
+      L     P##t_ASI_M1_Error_Bitmap; // Load ANY Pointer to temp ASI Error Bitmap 
+      LAR1  ; 
+      L     W#16#1002; // Load header from pointer in instance DB component
+      T     LW [AR1,P#0.0]; 
+      L     #t_Record_Lenght; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Num; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI 
+      L     #t_Off_Slave_Error; // Load offset to slave error record
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Transfer to start of ASI Error bitmap in DB
+
+// prepare pointer to delta slave error
+
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI  
+      L     #t_Off_Delta_Error; // Load offset to delta slave error  
+      +D    ; 
+      LAR1  ; 
+
+      OPN   DB [#t_DB_Num]; //  Open Db number from DB_Diagnose_ASI 
+      A     #s_ASI_M1_DeltaErr_Bit; 
+      =     DBX [AR1,P#0.0]; 
+
+
+// Blockmove: Copy s_Lst_Slave_Not_Present to t_ASI_Not_Present_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave1_Not_Present,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_ASI_M1_NotPres_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      =     #s_Error_Copy_NOTPrst1; 
+
+// Blockmove: Copy s_Lst_Slave_Error to t_DP_Error_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave1_Error,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_ASI_M1_Error_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      =     #s_Error_Copy_Slavelist1; 
+
+MA99: NOP   0; 
+
+NETWORK
+TITLE =NA: Copy lists to Master 2 ASI Slave status bitmap
+//Copy s_Lst_Slave2_Not_Present to ASI Master 2 Slave Not Present Bitmap
+//Copy s_Lst_Slave2_Error to ASI Master 2Slave Error Bitmap
+//
+      A     #s_OS_FP_DeltaM2_Compl; // IF al records are retrieved for network 1  
+      O     #s_OS_FN_Allow_Diagnose; // OR incoming gateway error 
+      O     "M_First_Scan"; // OR first scan
+      JCN   NA99; 
+
+// Prepare Pointer for blockmove to Slave not present bitmap  
+
+      L     P##i_ASI_M2_NotPres_Bitmap; // Load ANY pointer to input ASI bitmap
+      L     #t_AR2_Mask; // Add 'relative address'-mask to AR1
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#4.0]; // Load DB number ASI Not Present bitmap
+      T     #t_DB_Num; 
+      L     D [AR1,P#6.0]; // Load Pointer to start of Bitmap in DB
+      T     #t_Pointer; 
+
+      L     P##t_ASI_M2_NotPres_Bitmap; // Load ANY Pointer to temp ASI Not Present Bitmap 
+      LAR1  ; 
+      L     W#16#1002; // Load header from pointer in instance DB component
+      T     LW [AR1,P#0.0]; 
+      L     #t_Record_Lenght; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Num; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI 
+      T     LD [AR1,P#6.0]; 
+
+// Prepare Pointer for blockmove to Slave error bitmap  
+
+      L     P##t_ASI_M2_Error_Bitmap; // Load ANY Pointer to temp ASI Error Bitmap 
+      LAR1  ; 
+      L     W#16#1002; // Load header from pointer in instance DB component
+      T     LW [AR1,P#0.0]; 
+      L     #t_Record_Lenght; // Load Repetition factor
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Num; // Load DB number
+      T     LW [AR1,P#4.0]; 
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI 
+      L     #t_Off_Slave_Error; // Load offset to slave error record
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Transfer to start of ASI Error bitmap in DB
+
+// prepare pointer to delta slave error
+
+      L     #t_Pointer; // Load pointer to start adress in DB_Diagnose_ASI  
+      L     #t_Off_Delta_Error; // Load offset to delta slave error  
+      +D    ; 
+      LAR1  ; 
+
+      OPN   DB [#t_DB_Num]; //  Open Db number from DB_Diagnose_ASI 
+      A     #s_ASI_M2_DeltaErr_Bit; 
+      =     DBX [AR1,P#0.0]; 
+
+// Blockmove: Copy s_Lst_Slave_Not_Present to t_ASI_Not_Present_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave2_Not_Present,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_ASI_M2_NotPres_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      =     #s_Error_Copy_NOTPrst2; 
+
+
+// Blockmove: Copy s_Lst_Slave_Error to t_DP_Error_Bitmap
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Lst_Slave2_Error,
+           RET_VAL                  := #t_SFC20_ret_val,
+           DSTBLK                   := #t_ASI_M2_Error_Bitmap);
+
+// Error condition: SFC 20 return value not 0
+// ************** TODO: Error handling **************
+      L     #t_SFC20_ret_val; 
+      L     0; 
+      <>I   ; 
+      S     #s_Error_Copy_Slavelist2; 
+
+NA99: NOP   0; 
+
+END_FUNCTION_BLOCK
+

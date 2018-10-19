@@ -1,0 +1,28 @@
+DATA_BLOCK "DB_EmptyLaneTable"
+TITLE =%version: 0.05 % CN: 20
+//History:
+//This version  %created_by: nlsdw %
+//              %date_created: Thursday, May 18, 2017 4:06:38 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22511: Added comments for manual addition          nlSdW    18-05-17   0.05
+//ra#22511: Added insert key to generate the DB         nlSdW    01-05-17   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.02
+//Initial Revision                                      nlMRe    03-09-10   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;	//Example MMM_ZZ_SS : "UDT_EmptyLaneTable"		
+BEGIN
+END_DATA_BLOCK
+

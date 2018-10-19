@@ -1,0 +1,618 @@
+FUNCTION_BLOCK "FB_TCTC_Receive"
+TITLE =%version: 1.09 % CN: 40
+//Function:
+//This block receives Item data via a profibus DP coupler
+//It also handles the interface protocols US
+//
+//History:                                   
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:13:01 %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.09
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.09
+//14162: Update comment of variable                     nlHdL    17-06-15   1.09
+//23269: Change condition to determine if data received nlmlaut  19-03-15   1.08
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   1.07
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.03
+//19498: PNPN block not correct with TIR and LIC record nlHdL    27-05-14   0.02
+//Initial Version based on version 1.05 ECS-P GEN       nlHHop   01-04-14   0.01 
+//
+//Description:
+//This compound receives the FIF from the last module from a PLC and connects it 
+//to the receiver in the next PLC. This is done with a handshake protocol and 
+//the sending of a data. The data is received at the start of the transfer.
+//
+//                              transport direction
+//                                  --------->
+//
+// --------------------+   s_HO_In    +------+             +--------------------
+//                     | ---------->  |      |  via PLT    |
+//   Sending Module    |              |      | --------->  |   Receiving Module
+//                     | <---------   |      |             |
+// --------------------+   s_HO_Out   +------+             +--------------------
+//
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_TRS_ID : DWORD ;	//ID Record of transport section connected of this receive HEX AAAA - ZZSS/OO
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Event_DB : BLOCK_DB ;	//Data Structure: Event DataBlock 
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link
+  i_Rcv_RTS : BOOL ;	//Receiving: Ready-To-Send
+  i_Rcv_TIP : BOOL ;	//Receiving: Tranfer-In-Progress
+  i_Rcv_Reset_E_Saving : BOOL ;	//Receiving: Reset Energy Saving
+  i_Rcv_Lifesign : BOOL ;	//Receiving: Lifesign
+  i_Rcv_Sequence_NR : INT ;	//Receiving: Sequence number
+  i_Rcv_P_ProductData_Area : ANY ;	//Receiving: Product Data
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_TEP_Downstream : INT ;	//Sending: Total-Empty-Positions Downstream
+  i_Started_Downstream : BOOL ;	//Receiving: Conveyor is started
+END_VAR
+VAR_OUTPUT
+  o_Reset_E_Saving_Down : BOOL ;	//Receiving: Reset E Saving
+  o_Req_Halt_Down : BOOL ;	//Request halt section downstream
+  o_Snd_RTR : BOOL ;	//Sending: Ready-To-Receive
+  o_Snd_Lifesign_Reply : BOOL ;	//Sending: Lifesign Reply
+  o_Snd_TEP : INT ;	//Sending: Total Empty Positions
+  o_ST_Link_Error : BOOL ;	//ST: Link Error
+END_VAR
+VAR
+  s_Actual_value : STRUCT 	//Actual value counters
+   Alive_Delay : INT ;	//Delay counter for creating an error on a low alive signal
+   Max_WaitForData_Time : INT ;	//Maximum time for waiting for data
+  END_STRUCT ;	
+  s_Copy_OS : STRUCT 	//Help bits OS
+   FP_TIP : BOOL ;	//FP Transfer in progress
+   FN_TIP : BOOL ;	//FN Transfer in progress
+   FN_Lifesign : BOOL ;	//FN LifeSign puls
+   FP_Lifesign : BOOL ;	//FP LifeSign puls
+  END_STRUCT ;	
+  s_OS : STRUCT 	//Oneshots
+   FP_TIP : BOOL ;	//FP Transfer in progress
+   FN_TIP : BOOL ;	//FN Transfer in progress
+   FN_Lifesign : BOOL ;	//FN LifeSign puls
+   FP_Lifesign : BOOL ;	//FP LifeSign puls
+  END_STRUCT ;	
+  s_HO_Out : STRUCT 	//HandOver data for output
+   Spare_0_0 : BOOL ;	//Spare 0.0
+   RTR : BOOL ;	//RTR
+   Spare_0_2 : BOOL ;	//Spare 0.2
+   Spare_0_3 : BOOL ;	//Spare 0.3
+   Spare_0_4 : BOOL ;	//Spare 0.4
+   Spare_0_5 : BOOL ;	//Spare 0.5
+   Spare_0_6 : BOOL ;	//Spare 0.6
+   Spare_0_7 : BOOL ;	//Spare 0.7
+   Spare_1_0 : BOOL ;	//Spare 1.0
+   Spare_1_1 : BOOL ;	//Spare 1.1
+   Lifesign_Reply : BOOL ;	//LifeSign Reply
+   Spare_1_3 : BOOL ;	//Spare 1.3
+   Spare_1_4 : BOOL ;	//Spare 1.4
+   Spare_1_5 : BOOL ;	//Spare 1.5
+   Spare_1_6 : BOOL ;	//Spare 1.6
+   Spare_1_7 : BOOL ;	//Spare 1.7
+  END_STRUCT ;	
+  s_HO_In : STRUCT 	//HandOver data from input
+   RTS : BOOL ;	//RTS
+   Spare_0_1 : BOOL ;	//Spare 0.1
+   Spare_0_2 : BOOL ;	//Spare 0.2
+   Spare_0_3 : BOOL ;	//Spare 0.3
+   Spare_0_4 : BOOL ;	//Spare 0.4
+   TIP : BOOL ;	//TIP
+   Spare_0_6 : BOOL ;	//Spare 0.6
+   Spare_0_7 : BOOL ;	//Spare 0.7
+   Reset_E_Saving : BOOL ;	//Reset energy save
+   Lifesign : BOOL ;	//LifeSign
+   Spare_1_2 : BOOL ;	//Spare 1.2
+   Spare_1_3 : BOOL ;	//Spare 1.3
+   Spare_1_4 : BOOL ;	//Spare 1.4
+   Spare_1_5 : BOOL ;	//Spare 1.5
+   Spare_1_6 : BOOL ;	//Spare 1.6
+   Spare_1_7 : BOOL ;	//Spare 1.7
+  END_STRUCT ;	
+  s_ProductData : STRUCT 	//Product data
+   New_Data : BOOL ;	//New data available
+   Data : STRUCT 	//Data Structure
+    BIR : "UDT_BIR";	
+   END_STRUCT ;	
+  END_STRUCT ;	
+  s_Length_Section_Dwn : INT ;	//Downstream section length
+  s_LNK : INT ;	//LNK number of bag item
+  s_LIC : INT ;	//LIC number of bag item
+  s_TEP : INT ;	//TEP value
+  s_Sequence_NR : INT ;	//Sequence number
+  s_Previous_Seq_Nr : INT ;	//Previous sequence number
+  s_DB_Num_PLT_Dwn : INT ;	//DB number of Downstream PLT
+  s_Base_Address : DWORD ;	//Base Address
+  s_Data_With_Item : BOOL ;	//Data received with Item
+  s_Link_Failure : BOOL ;	//The module has a failure
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_Wait_For_Data : BOOL ;	//Waiting for data from sender
+  s_Check_Alive : BOOL ;	//Check Alive started
+  s_Check_Data : BOOL ;	//Check data started
+  s_No_Data : BOOL ;	//No data received
+  s_Data_Timeout : BOOL ;	//Data Timeout
+  s_Section_Run_Dwn : BOOL ;	//Downstream section is running
+  s_Section_On_Speed_Dwn : BOOL ;	//Dwonstream section is on speed
+  s_Request_Halt : BOOL ;	//Request Halt for section
+END_VAR
+VAR_TEMP
+  t_Rcv_P_ProductData_Area : ANY ;	//copy of input any pointer
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_RET_VAL : INT ;	//Return Value function call
+  t_ECS : INT ;	//ECS number of generated LNK
+  t_Timer_Start : BOOL ;	//helpbit Start timer 
+  t_Timer_Output : BOOL ;	//helpbit output timer 
+  t_DB_Event_Num : INT ;	//Event DB number
+  t_Int_Not_Used : INT ;	//Int not used
+  t_Number_Items_Found : INT ;	//Number of items found in PLT
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get offset from instance-DB and start address backbone
+//The 'base address' is used to get the absolute address of the intances-DB's 
+//out of the 'central' DB (e.g. DB_Setting).
+//During a 'call' of a FB, the start-address of the pointer to the instance-DB 
+//can be read out of the last 3 bytes of AR2 (Address Register). A 'Mask' byte is 
+//used to filter the last 3 bytes out of AR2.
+//
+//AR2:         10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Mask:        00000000 11111111 11111111 11111111
+//             ----------------------------------- +
+//t_AR2_Mask:  00000000 00000yyy yyyyyyyy yyyyyxxx
+// 
+//   Z=Operand area      y=Byte address    x=Bit address
+//
+      O     "M_First_Scan"; // The pointer calculation needs to be called only once. 
+      ON    #s_Done; // and in case a new instance is downloaded.
+      JCN   AA99; 
+
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #s_Base_Address; // 'relative address'
+
+      SET   ; 
+      =     #s_Done; 
+
+AA99: NOP   0; 
+
+      OPN   #i_Event_DB; // Load local event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; 
+
+NETWORK
+TITLE =BA: Read PLT DB num
+//Read all required parameters from the PLT DB and calculate the run-out distance 
+//for the energy saving.
+      OPN   #i_DB_PLT_DwnStr; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT_Dwn; // Determine PLT block DB number
+
+      A     DBX   10.1; 
+      =     #s_Section_Run_Dwn; 
+
+      A     DBX   10.2; 
+      =     #s_Section_On_Speed_Dwn; 
+
+      L     DBW   12; 
+      T     #s_Length_Section_Dwn; 
+
+NETWORK
+TITLE =CA: Copy ANY-pointer input area
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_Rcv_P_ProductData_Area; // 'area-crossing pointer'
+      L     #s_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_Rcv_P_ProductData_Area; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Store
+
+NETWORK
+TITLE =DA: Get HO from DP/DP coupler
+
+      NOP   0; 
+//Handle input-Handover Signals
+      A     #i_Rcv_RTS; 
+      =     #s_HO_In.RTS; 
+
+      A     #i_Rcv_TIP; 
+      =     #s_HO_In.TIP; 
+
+      A     #i_Rcv_Reset_E_Saving; 
+      =     #s_HO_In.Reset_E_Saving; 
+
+      A     #i_Rcv_Lifesign; 
+      =     #s_HO_In.Lifesign; 
+
+// Handle TEP signal
+      L     #i_TEP_Downstream; 
+      T     #s_TEP; 
+
+// Handle Sequence NR
+      L     #i_Rcv_Sequence_NR; 
+      T     #s_Sequence_NR; 
+
+NETWORK
+TITLE =EA: Create Oneshots
+//Create a rising and a  falling trigger of the TIP signal
+      NOP   0; 
+//Create rising trigger of TIP
+      A     #s_HO_In.TIP; 
+      FP    #s_Copy_OS.FP_TIP; 
+      =     #s_OS.FP_TIP; 
+
+//Create falling trigger of TIP
+      A     #s_HO_In.TIP; 
+      FN    #s_Copy_OS.FN_TIP; 
+      =     #s_OS.FN_TIP; 
+
+//Create falling trigger of Lifesign
+      A     #s_HO_In.Lifesign; 
+      FN    #s_Copy_OS.FN_Lifesign; 
+      =     #s_OS.FN_Lifesign; 
+
+NETWORK
+TITLE =FA: Check if new data available
+
+      SET   ; 
+      R     #s_No_Data; 
+      R     #s_Data_With_Item; 
+
+//Possible Data
+      A     #s_OS.FN_Lifesign; 
+      A     #s_HO_In.TIP; 
+      S     #s_Check_Data; 
+
+      A     #s_Check_Data; 
+      JCN   FA99; 
+
+      L     #s_Sequence_NR; 
+      L     0; 
+      ==I   ; 
+      JCN   FA01; 
+
+//No Data
+      S     #s_No_Data; 
+      R     #s_Check_Data; 
+
+      JU    FA99; 
+
+FA01: A     #s_OS.FN_Lifesign; 
+      A(    ; 
+      L     #s_Sequence_NR; 
+      L     #s_Previous_Seq_Nr; 
+      <>I   ; 
+      )     ; 
+      JCN   FA99; 
+
+//Data received with item
+      S     #s_Data_With_Item; 
+      R     #s_Check_Data; 
+
+      L     #s_Sequence_NR; 
+      T     #s_Previous_Seq_Nr; 
+
+FA99: NOP   0; 
+
+NETWORK
+TITLE =GA: Delay to receive data from sender
+//Waiting for data until data received is given or maximum waiting time for data 
+//is expired.
+      A     #s_Check_Data; 
+      =     #t_Timer_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Timer_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 20,
+           i_Current_Value          := #s_Actual_value.Max_WaitForData_Time,
+           o_Status                 := #t_Timer_Output,
+           o_Current_Value          := #s_Actual_value.Max_WaitForData_Time);
+
+      A     #t_Timer_Output; 
+      =     #s_Data_Timeout; //Data Timeout
+
+NETWORK
+TITLE =IA: Handover signals
+
+      NOP   0; 
+//RTR
+      AN    #s_Section_Run_Dwn; 
+      AN    #s_Request_Halt; 
+      A     #i_Started_Downstream; 
+      ON    #i_Started_Downstream; 
+      O     #s_OS.FN_TIP; // On negative edge of real TIP
+      ON    #i_Available_IO; // OR IO NOT Available
+      R     #s_HO_Out.RTR; // RESET RTR
+
+      A     #s_Section_Run_Dwn; // IF Section_Run
+      AN    #s_Link_Failure; // No communication failure
+      AN    #s_Wait_For_Data; // No more waiting for data
+      O(    ; 
+      A     #i_Started_Downstream; 
+      A     #s_Request_Halt; 
+      )     ; 
+      S     #s_HO_Out.RTR; // SET RTR
+
+//TIP true AND RTS false -> Request_Halt
+      A     #s_HO_In.TIP; 
+      AN    #s_HO_In.RTS; 
+      =     #s_Request_Halt; 
+
+//Reset Energy Saving
+      A     #s_HO_In.Reset_E_Saving; // Reset E Saving from sending part
+      O     #s_HO_In.RTS; // OR Ready-To-Send
+      =     #o_Reset_E_Saving_Down; // IS Reset E Saving
+
+      A     #s_HO_In.Reset_E_Saving; // Reset E Saving from sending part
+      O     #s_HO_In.RTS; // OR Ready-To-Send
+      JCN   IA99; //Reset E-Save
+
+//Reset energy saving of Merge
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := 0,
+           i_Window                 := #s_Length_Section_Dwn,
+           i_Info                   := -3,
+           o_Position               := #t_Int_Not_Used,
+           o_Info                   := #t_Int_Not_Used,
+           o_LNK                    := #t_Int_Not_Used,
+           o_DB_PLT_Num             := #t_Int_Not_Used,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      AN    #s_Section_Run_Dwn; // AND conveyor is NOT running
+      JCN   IA99; // If entries are already present skip write -3
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Create LNK and LIC
+//A LNK/LIC is generated on the positive flank of the TIP signal, the data
+//is copied to the LIC as the data is arrived.
+      A     #s_OS.FP_TIP; 
+      JCN   JA01; 
+
+      CALL "FC_Gen_Default_LNK" (
+           i_LNK                    := 0,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (// Write UFO item in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #s_DB_Num_PLT_Dwn,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+JA01: NOP   0; 
+
+      A     #s_OS.FN_TIP; 
+      JCN   JA99; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_Physical          := 2,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (// Write UFO item in PLT DB
+           i_DB_PLT_Num             := #s_DB_Num_PLT_Dwn,
+           i_Position               := #s_Length_Section_Dwn,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+JA99: NOP   0; 
+
+NETWORK
+TITLE =KA: Copy data and Send reports (Register/ID Change)
+
+      A     #s_Data_With_Item; //When data is received
+      AN    #s_Link_Failure; //And NO Communication failure
+      JCN   KA99; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Rcv_P_ProductData_Area,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_ProductData.Data.BIR);
+
+// Convert LNK to LIC
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC);
+
+      L     #s_ProductData.Data.BIR.PID; 
+      L     L#0; 
+      ==D   ; // Check if PID value is <> 0
+      JCN   KA01; 
+
+// Send unexpected item register package to high level 
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      L     #t_ECS; 
+      L     0; 
+      >I    ; 
+      JCN   KA02; 
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Write current ID into last location ID field for reporting
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_ECS,
+           i_ANY_Data_Record        := "DB_UDT_ECS_Record".CIR.Last_Location,
+           i_ANY_Data               := #i_TRS_ID,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Write update succesfull into record to indicate item will be registered
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Update_Succesfull,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA02: CALL "FC_Write_Event" (// Report Registerpackage (1205)
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+      JU    KA03; 
+
+KA01: CALL "FC_Write_Event" (// Report IDChangeReport (1203)
+           i_Message_ID             := 1203,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+KA03: NOP   0; 
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #s_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := #s_ProductData.Data.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Make Lifesign and flanks
+// 
+      NOP   0; 
+//Make Lifesign
+      A     #s_HO_In.Lifesign; 
+      AN    #s_Link_Failure; 
+      A     #i_Available_IO; 
+      =     #s_HO_Out.Lifesign_Reply; 
+
+NETWORK
+TITLE =MA: Check Lifesign Reply
+
+      A     #i_CMD_Reset; 
+      R     #s_Link_Failure; 
+
+      A     "M_OS_/0.1_sec."; 
+      S     #s_Check_Alive; 
+
+      A     #s_HO_In.Lifesign; 
+      FP    #s_Copy_OS.FP_Lifesign; 
+      =     #s_OS.FP_Lifesign; 
+
+      A     #s_OS.FP_Lifesign; 
+      ON    #i_Available_IO; 
+      R     #s_Check_Alive; 
+      R     #s_Link_Failure; 
+
+      A     #s_Check_Alive; 
+      =     #t_Timer_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Timer_Start,
+           i_Enable_Dly             := #i_Available_IO,
+           i_Time_Value             := 20,
+           i_Current_Value          := #s_Actual_value.Alive_Delay,
+           o_Status                 := #t_Timer_Output,
+           o_Current_Value          := #s_Actual_value.Alive_Delay);
+
+      A     #t_Timer_Output; 
+      S     #s_Link_Failure; // Communication failure
+
+NETWORK
+TITLE =NA: Handle TCTC statussen
+
+      NOP   0; 
+// Handle Errors
+      A     #s_Link_Failure; 
+      A     #i_Available_IO; 
+      =     #o_ST_Link_Error; 
+NETWORK
+TITLE =OA: Copy s_HO_Out
+//Copy s_HO_Out to the physical output area coupled with the DP_DP coupler
+      NOP   0; 
+//Handle output-HO
+      A     #s_HO_Out.RTR; 
+      =     #o_Snd_RTR; 
+
+      A     #s_HO_Out.Lifesign_Reply; 
+      =     #o_Snd_Lifesign_Reply; 
+
+      L     #s_TEP; 
+      T     #o_Snd_TEP; 
+
+      A     #s_Request_Halt; 
+      =     #o_Req_Halt_Down; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,25 @@
+TYPE "UDT_OPZ_Sett"
+TITLE =%version: 0.02 % CN: 10
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Friday, October 07, 2016 9:08:40 AM %
+//
+//Modification History:                                 By:     Date:     Rev:
+//Project
+//----------------------------------------------------  -------  --------  -----
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   07-10-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   07-10-16   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+  STRUCT 	
+   Local_Destination : INT ;	//Destination number of the manual coding position
+   Unattended_Baggage_Time : INT  := 60;	//[seconds] Time to pass before an 'unatteneded baggage' warning is set
+   Create_Position_Time_Out : INT  := 60;	//[seconds] Time to pass before the 'create position' times-out
+  END_STRUCT ;	
+END_TYPE
+

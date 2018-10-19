@@ -1,0 +1,42 @@
+DATA_BLOCK "DB_PLT_Template"
+TITLE =%version: 1.05 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, April 18, 2018 2:35:20 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26076: PLT datablock with UDT array                nlHdL    18-04-18   1.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.04
+//21025: PLT Header Motor Run description               nlHdL    30-09-14   1.04
+//15797: Keyword release added                          nlwwij   26-09-13   1.03
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Entries_Used : INT ;	//Number of entries used in tracking DB
+   Displacement : INT ;	//Displacement last PLC cycle used by read tracking functions  
+   Entries_Present : INT ;	//Number of entries present in tracking DB
+   DB_PLT_nr_Upstream : INT ;	//DB PLT number of the upstream
+   DB_PLT_nr_Downstream : INT ;	//DB PLT number of the downstream
+   Done : BOOL ;	//Header data is written in the PLT DB.
+   Motor_Run : BOOL ;	//Motor running signal
+   Motor_On_Speed : BOOL ;	//Motor on speed signal 
+   Cascade_Start_up : BOOL ;	//Cascade start up downstream
+   Section_Available : BOOL ;	//Section is available to recieve items (TEP=1)
+   Section_Operational : BOOL ;	//Section is started 
+   Item_at_Handover : BOOL ;	//Item at Handover position 
+   PEC_Latch : BOOL ;	//PEC Latch at EOS
+   Inhibit_Receive_Item : BOOL ;	//Section is setting the inhibit to receive item found in upstream handover
+   Section_Stopped : BOOL ;	//Section is stopped. (Actuele speed = 0)
+   Length_Section : INT ;	//Length of the conveyor
+   Insert : INT ;	//Entry : ARRAY  [1 .. x ] OF "UDT_PLT_Entry"
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

@@ -1,0 +1,67 @@
+FUNCTION "FC_Dual_SHO_Control" : VOID
+TITLE =%version: 0.01 %  CN: 20
+//Function:
+//Shutter control used to control 2 shutters connected to one section
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, March 09, 2017 3:59:51 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version                                       nlHdL    09-03-13   0.01
+//
+//Description:
+//If two shutters are connected to one section, the shutters need to be controlled
+//by an manager to prevent one shutter of not being able to close.
+//Shutters need to close accoording the flow. First close the upstream, and when 
+//closed, then close the downstream. 
+//On fire alarm of first shutter halt the fire alarm of the second shutter, until 
+//the first shutter is closed. If Shutter 1 has no fire alarm send the input of 
+//fire alarm 2 to shutter 2. (No action required).
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Controlled_Stop : BOOL ;	//CMD: Controlled stop from the StartStop Manager
+  i_IO_No_Fire_alarm_SHO_1 : BOOL ;	//HW: No Fire alarm local Shutter 1
+  i_IO_No_Fire_alarm_SHO_2 : BOOL ;	//HW: No Fire alarm local Shutter 2
+  i_ST_SHO_1_Close : BOOL ;	//ST: Shutter 1 is in close position 
+END_VAR
+VAR_OUTPUT
+  o_NO_Fire_alarm_SHO_1 : BOOL ;	//CMD: Fire alarm Shutter 1
+  o_NO_Fire_alarm_SHO_2 : BOOL ;	//CMD: Fire alarm Shutter 2
+  o_Controlled_Stop_SHO_2 : BOOL ;	//CMD: Controlled stop from the StartStop Manager
+END_VAR
+VAR_TEMP
+  t_Fire_Alarm : BOOL ;	//Fire Alarm detected
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Controlled Stop for Shutter 2
+
+      A     #i_CMD_Controlled_Stop; 
+      A     #i_ST_SHO_1_Close; 
+      =     #o_Controlled_Stop_SHO_2; 
+
+NETWORK
+TITLE =BA: Fire Alarm Shutter 2
+
+      ON    #i_IO_No_Fire_alarm_SHO_1; 
+      ON    #i_IO_No_Fire_alarm_SHO_2; 
+      =     #t_Fire_Alarm; 
+//Combine the fire alarms to one command
+
+      AN    #t_Fire_Alarm; 
+      =     #o_NO_Fire_alarm_SHO_1; 
+      =     #o_NO_Fire_alarm_SHO_2; 
+//Write the fire alarm to the shutters
+
+      A     #t_Fire_Alarm; 
+      AN    #i_ST_SHO_1_Close; 
+      S     #o_NO_Fire_alarm_SHO_2; 
+//Overwrite the command if shutter 1 not closed
+END_FUNCTION
+

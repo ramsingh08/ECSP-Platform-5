@@ -1,0 +1,2730 @@
+FUNCTION_BLOCK "FB_Slave_Cab_Manager"
+TITLE =%version: 0.10 % CN: 42
+//Function:
+//Module which extend power supply as slave of master cabinet.
+//
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, January 02, 2018 10:58:49 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26464: Motorgroups notation 2 characters           nlHdL    02-01-18   0.10
+//ra#26786: Cabinet temperature high i.s.o. OK          nlHdL    05-12-17   0.09
+//ina#7734: Add not mainswitch off to Request_On PwrGrp nlHdL    16-11-17   0.08
+//ra#25712: CCC03 add inputs to FB_Slave_Cab_Manager    nlHdL    20-10-17   0.07
+//ra#24114: FB_Slave_Cab_Manager no IO_Available input  nlHdL    28-09-17   0.06
+//ra#24801: Add QBad to slave cabinet manager           nlHdL    14-09-17   0.05
+//ra#23669: CCC Cabinet temperature too high            nlHdL    14-08-17   0.04
+//ina#6991: FB_Slave_Cab_Manager - Supress Errors       nlHdL    10-08-17   0.03
+//ra#20041: Feedbck Relay PG DS Master and Slave cabin  nlHdL    21-02-17   0.02
+//ra#15864: slave cabinet CCC03                         nlHdL    13-10-16   0.01
+//
+//Description:
+//The FB_Slave_Cab_Manager collects the information which is not covered by the 
+//area, zone or section layers. This is information about the PLC, Profinet, 
+//Safety system and additional equipment located inside the main cabinet.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_CCC_Mainswitch_ON : BOOL  := TRUE;	//Mainswitch CCC is switched ON
+  i_CCC_24VDC_OK : BOOL ;	//Power supply 24 Vdc CTRL present
+  i_CCC_24VDC_PLC_OK : BOOL ;	//Power supply 24 Vdc PLC present
+  i_CCC_24VDC_ESTOP_OK : BOOL ;	//Circuit breaker safety unit
+  i_CCC_Phase_Power_OK : BOOL ;	//Phase measure power supply
+  i_CCC_Phase_OK : BOOL ;	//Phase fault power supply 
+  i_ETH_SWITCH_OK : BOOL ;	//Ethernet switch OK
+  i_CAB_Temp_NOT_OK : BOOL ;	//Cabinet temperature not OK
+  i_UPS_Power_OK : BOOL  := TRUE;	//UPS (Uninterruptible power supply) power OK, Circuit breaker
+  i_No_Fire_Alarm_Zone_1 : BOOL ;	//Fire alarm for Zone 1 (FALSE = Fire alarm active)
+  i_No_Fire_Alarm_Zone_2 : BOOL ;	//Fire alarm for Zone 2 (FALSE = Fire alarm active)
+  i_CCC_400VAC_OK_GRP01 : BOOL ;	//No thermal overload 400Vac power supply 01
+  i_CCC_400VAC_OK_GRP02 : BOOL ;	//No thermal overload 400Vac power supply 02
+  i_CCC_400VAC_OK_GRP03 : BOOL ;	//No thermal overload 400Vac power supply 03
+  i_CCC_400VAC_OK_GRP04 : BOOL ;	//No thermal overload 400Vac power supply 04
+  i_CCC_400VAC_OK_GRP05 : BOOL ;	//No thermal overload 400Vac power supply 05
+  i_CCC_400VAC_OK_GRP06 : BOOL ;	//No thermal overload 400Vac power supply 06
+  i_CCC_400VAC_OK_GRP07 : BOOL ;	//No thermal overload 400Vac power supply 07
+  i_CCC_400VAC_OK_GRP08 : BOOL ;	//No thermal overload 400Vac power supply 08
+  i_CCC_400VAC_OK_GRP09 : BOOL ;	//No thermal overload 400Vac power supply 09
+  i_CCC_400VAC_OK_GRP10 : BOOL ;	//No thermal overload 400Vac power supply 10
+  i_CCC_400VAC_OK_GRP11 : BOOL ;	//No thermal overload 400Vac power supply 11
+  i_CCC_400VAC_OK_GRP12 : BOOL ;	//No thermal overload 400Vac power supply 12
+  i_CCC_400VAC_OK_GRP13 : BOOL ;	//No thermal overload 400Vac power supply 13
+  i_CCC_400VAC_OK_GRP14 : BOOL ;	//No thermal overload 400Vac power supply 14
+  i_CCC_400VAC_OK_GRP15 : BOOL ;	//No thermal overload 400Vac power supply 15
+  i_CCC_400VAC_OK_GRP16 : BOOL ;	//No thermal overload 400Vac power supply 16
+  i_CCC_230VAC_OK_GRP01 : BOOL ;	//No thermal overload 240Vac power supply 01
+  i_CCC_230VAC_OK_GRP02 : BOOL ;	//No thermal overload 240Vac power supply 02
+  i_CCC_230VAC_OK_GRP03 : BOOL ;	//No thermal overload 240Vac power supply 03
+  i_CCC_230VAC_OK_GRP04 : BOOL ;	//No thermal overload 240Vac power supply 04
+  i_CCC_230VAC_OK_GRP05 : BOOL ;	//No thermal overload 240Vac power supply 05
+  i_CCC_230VAC_OK_GRP06 : BOOL ;	//No thermal overload 240Vac power supply 06
+  i_CCC_230VAC_OK_GRP07 : BOOL ;	//No thermal overload 240Vac power supply 07
+  i_CCC_230VAC_OK_GRP08 : BOOL ;	//No thermal overload 240Vac power supply 08
+  i_CCC_230VAC_OK_GRP09 : BOOL ;	//No thermal overload 240Vac power supply 09
+  i_CCC_230VAC_OK_GRP10 : BOOL ;	//No thermal overload 240Vac power supply 10
+  i_CCC_230VAC_OK_GRP11 : BOOL ;	//No thermal overload 240Vac power supply 11
+  i_CCC_230VAC_OK_GRP12 : BOOL ;	//No thermal overload 240Vac power supply 12
+  i_CCC_230VAC_OK_GRP13 : BOOL ;	//No thermal overload 240Vac power supply 13
+  i_CCC_230VAC_OK_GRP14 : BOOL ;	//No thermal overload 240Vac power supply 14
+  i_CCC_230VAC_OK_GRP15 : BOOL ;	//No thermal overload 240Vac power supply 15
+  i_CCC_230VAC_OK_GRP16 : BOOL ;	//No thermal overload 240Vac power supply 16
+  i_CCC_Power_On_GRP01 : BOOL ;	//Power supply on group 01 (inverted in block for Isave)
+  i_CCC_Power_On_GRP02 : BOOL ;	//Power supply on group 02 (inverted in block for Isave)
+  i_CCC_Power_On_GRP03 : BOOL ;	//Power supply on group 03 (inverted in block for Isave)
+  i_CCC_Power_On_GRP04 : BOOL ;	//Power supply on group 04 (inverted in block for Isave)
+  i_CCC_Power_On_GRP05 : BOOL ;	//Power supply on group 05 (inverted in block for Isave)
+  i_CCC_Power_On_GRP06 : BOOL ;	//Power supply on group 06 (inverted in block for Isave)
+  i_CCC_Power_On_GRP07 : BOOL ;	//Power supply on group 07 (inverted in block for Isave)
+  i_CCC_Power_On_GRP08 : BOOL ;	//Power supply on group 08 (inverted in block for Isave)
+  i_CCC_Power_On_GRP09 : BOOL ;	//Power supply on group 09 (inverted in block for Isave)
+  i_CCC_Power_On_GRP10 : BOOL ;	//Power supply on group 10 (inverted in block for Isave)
+  i_CCC_Power_On_GRP11 : BOOL ;	//Power supply on group 11 (inverted in block for Isave)
+  i_CCC_Power_On_GRP12 : BOOL ;	//Power supply on group 12 (inverted in block for Isave)
+  i_CCC_Power_On_GRP13 : BOOL ;	//Power supply on group 13 (inverted in block for Isave)
+  i_CCC_Power_On_GRP14 : BOOL ;	//Power supply on group 14 (inverted in block for Isave)
+  i_CCC_Power_On_GRP15 : BOOL ;	//Power supply on group 15 (inverted in block for Isave)
+  i_CCC_Power_On_GRP16 : BOOL ;	//Power supply on group 16 (inverted in block for Isave)
+  i_SafetyRelais_OK_GRP01 : BOOL ;	//Safety Zone of motor group 01 
+  i_SafetyRelais_OK_GRP02 : BOOL ;	//Safety Zone of motor group 02 
+  i_SafetyRelais_OK_GRP03 : BOOL ;	//Safety Zone of motor group 03 
+  i_SafetyRelais_OK_GRP04 : BOOL ;	//Safety Zone of motor group 04 
+  i_SafetyRelais_OK_GRP05 : BOOL ;	//Safety Zone of motor group 05 
+  i_SafetyRelais_OK_GRP06 : BOOL ;	//Safety Zone of motor group 06 
+  i_SafetyRelais_OK_GRP07 : BOOL ;	//Safety Zone of motor group 07 
+  i_SafetyRelais_OK_GRP08 : BOOL ;	//Safety Zone of motor group 08 
+  i_SafetyRelais_OK_GRP09 : BOOL ;	//Safety Zone of motor group 09 
+  i_SafetyRelais_OK_GRP10 : BOOL ;	//Safety Zone of motor group 10 
+  i_SafetyRelais_OK_GRP11 : BOOL ;	//Safety Zone of motor group 11 
+  i_SafetyRelais_OK_GRP12 : BOOL ;	//Safety Zone of motor group 12 
+  i_SafetyRelais_OK_GRP13 : BOOL ;	//Safety Zone of motor group 13 
+  i_SafetyRelais_OK_GRP14 : BOOL ;	//Safety Zone of motor group 14 
+  i_SafetyRelais_OK_GRP15 : BOOL ;	//Safety Zone of motor group 15 
+  i_SafetyRelais_OK_GRP16 : BOOL ;	//Safety Zone of motor group 16 
+  i_SafetyRelais_Err_GRP01 : BOOL ;	//Feedbackerror safetyrelais 01 only used with Isafe 
+  i_SafetyRelais_Err_GRP02 : BOOL ;	//Feedbackerror safetyrelais 02 only used with Isafe   
+  i_SafetyRelais_Err_GRP03 : BOOL ;	//Feedbackerror safetyrelais 03 only used with Isafe  
+  i_SafetyRelais_Err_GRP04 : BOOL ;	//Feedbackerror safetyrelais 04 only used with Isafe  
+  i_SafetyRelais_Err_GRP05 : BOOL ;	//Feedbackerror safetyrelais 05 only used with Isafe  
+  i_SafetyRelais_Err_GRP06 : BOOL ;	//Feedbackerror safetyrelais 06 only used with Isafe  
+  i_SafetyRelais_Err_GRP07 : BOOL ;	//Feedbackerror safetyrelais 07 only used with Isafe  
+  i_SafetyRelais_Err_GRP08 : BOOL ;	//Feedbackerror safetyrelais 08 only used with Isafe  
+  i_SafetyRelais_Err_GRP09 : BOOL ;	//Feedbackerror safetyrelais 09 only used with Isafe  
+  i_SafetyRelais_Err_GRP10 : BOOL ;	//Feedbackerror safetyrelais 10 only used with Isafe  
+  i_SafetyRelais_Err_GRP11 : BOOL ;	//Feedbackerror safetyrelais 11 only used with Isafe  
+  i_SafetyRelais_Err_GRP12 : BOOL ;	//Feedbackerror safetyrelais 12 only used with Isafe  
+  i_SafetyRelais_Err_GRP13 : BOOL ;	//Feedbackerror safetyrelais 13 only used with Isafe  
+  i_SafetyRelais_Err_GRP14 : BOOL ;	//Feedbackerror safetyrelais 14 only used with Isafe  
+  i_SafetyRelais_Err_GRP15 : BOOL ;	//Feedbackerror safetyrelais 15 only used with Isafe  
+  i_SafetyRelais_Err_GRP16 : BOOL ;	//Feedbackerror safetyrelais 16 only used with Isafe 
+  i_Safety_System_Alive : BOOL  := TRUE;	//HW: Thermal overload signal from safety unit
+  i_PN1_Err : BOOL ;	//Profinet: Slave 1 (Switch) has an error
+  i_PN1_NotPrsnt : BOOL ;	//Profinet: Slave 1 (Switch) is not present
+  i_PN2_Err : BOOL ;	//Profinet: Slave 2 (ET200S) has an error
+  i_PN2_NotPrsnt : BOOL ;	//Profinet: Slave 2 (ET200S) is not present
+  i_PN3_Err : BOOL ;	//Profinet: Slave 3 (ET200M) has an error
+  i_PN3_NotPrsnt : BOOL ;	//Profinet: Slave 3 (ET200M) is not present
+  i_CFG_Motor_Prsnt_GRP01 : BOOL  := TRUE;	//CFG: Motor group 01 present in cabinet
+  i_CFG_Motor_Prsnt_GRP02 : BOOL  := TRUE;	//CFG: Motor group 02 present in cabinet
+  i_CFG_Motor_Prsnt_GRP03 : BOOL  := TRUE;	//CFG: Motor group 03 present in cabinet
+  i_CFG_Motor_Prsnt_GRP04 : BOOL  := TRUE;	//CFG: Motor group 04 present in cabinet
+  i_CFG_Motor_Prsnt_GRP05 : BOOL  := TRUE;	//CFG: Motor group 05 present in cabinet
+  i_CFG_Motor_Prsnt_GRP06 : BOOL  := TRUE;	//CFG: Motor group 06 present in cabinet
+  i_CFG_Motor_Prsnt_GRP07 : BOOL  := TRUE;	//CFG: Motor group 07 present in cabinet
+  i_CFG_Motor_Prsnt_GRP08 : BOOL  := TRUE;	//CFG: Motor group 08 present in cabinet
+  i_CFG_Motor_Prsnt_GRP09 : BOOL  := TRUE;	//CFG: Motor group 09 present in cabinet
+  i_CFG_Motor_Prsnt_GRP10 : BOOL  := TRUE;	//CFG: Motor group 10 present in cabinet
+  i_CFG_Motor_Prsnt_GRP11 : BOOL  := TRUE;	//CFG: Motor group 11 present in cabinet
+  i_CFG_Motor_Prsnt_GRP12 : BOOL  := TRUE;	//CFG: Motor group 12 present in cabinet
+  i_CFG_Motor_Prsnt_GRP13 : BOOL  := TRUE;	//CFG: Motor group 13 present in cabinet
+  i_CFG_Motor_Prsnt_GRP14 : BOOL  := TRUE;	//CFG: Motor group 14 present in cabinet
+  i_CFG_Motor_Prsnt_GRP15 : BOOL  := TRUE;	//CFG: Motor group 15 present in cabinet
+  i_CFG_Motor_Prsnt_GRP16 : BOOL  := TRUE;	//CFG: Motor group 16 present in cabinet
+  i_CFG_Isafe_Used : BOOL ;	//CFG: Intergrated Safety Used. Feedback signals are inverted
+  i_CFG_Power_On_Time_Out : INT  := 500;	//CFG: [msec] Time out on power on motor groups (0 = disable time-out)
+  i_CFG_Safety_PwrOn_Delay : INT  := 1000;	//CFG: [msec] Delay-on of Safety Group Power On used to make Motor Group In signa
+  i_QBAD_Module_1 : BOOL ;	//Safety Module 1 indicating that one of the channels is pacified (1 = QBad)
+  i_QBAD_Module_2 : BOOL ;	//Safety Module 2 indicating that one of the channels is pacified (1 = QBad)
+  i_QBAD_Module_3 : BOOL ;	//Safety Module 3 indicating that one of the channels is pacified (1 = QBad)
+  i_QBAD_Module_4 : BOOL ;	//Safety Module 4 indicating that one of the channels is pacified (1 = QBad)
+END_VAR
+VAR_OUTPUT
+  o_Direct_Stop : BOOL ;	//Signal: Direct stop of area
+  o_Controlled_Stop : BOOL ;	//Signal: Controlled stop of area
+  o_ST_Mainswitch_OFF : BOOL ;	//ST: Mainswitch OFF
+  o_ST_CCC_THO_1_24VDC : BOOL ;	//ST: Thermal overload signal from 24Vdc #1 CCC
+  o_ST_CCC_THO_2_24VDC : BOOL ;	//ST: Thermal overload signal from 24Vdc #2 CCC
+  o_ST_CCC_THO_24VDC_ESTOP : BOOL ;	//ST: Thermal overload signal from EStop
+  o_ST_CCC_THO_Phase : BOOL ;	//ST: Thermal overload signal from Phase
+  o_ST_CCC_Phase_Fault : BOOL ;	//ST: Phase Fault
+  o_ST_Safety_Comm_Fault : BOOL ;	//ST: Safety system communication failure
+  o_ST_Fire_Alarm_Zone_1 : BOOL ;	//ST: Fire Alarm zone 1 detected
+  o_ST_Fire_Alarm_Zone_2 : BOOL ;	//ST: Fire Alarm zone 2 detected
+  o_ST_ETH_Switch_Fault : BOOL ;	//ST: Ethernet Switch Fault
+  o_ST_CAB_Temp_High : BOOL ;	//ST: Cabinet temperature too high
+  o_ST_CAB_Temp_Error : BOOL ;	//ST: Cabinet temperature high error
+  o_ST_UPS_THO : BOOL ;	//ST: UPS Circuit breaker Tripped
+  o_ST_THO_400Vac_GRP01 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 01
+  o_ST_THO_400Vac_GRP02 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 02
+  o_ST_THO_400Vac_GRP03 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 03
+  o_ST_THO_400Vac_GRP04 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 04
+  o_ST_THO_400Vac_GRP05 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 05
+  o_ST_THO_400Vac_GRP06 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 06
+  o_ST_THO_400Vac_GRP07 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 07
+  o_ST_THO_400Vac_GRP08 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 08
+  o_ST_THO_400Vac_GRP09 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 09
+  o_ST_THO_400Vac_GRP10 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 10
+  o_ST_THO_400Vac_GRP11 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 11
+  o_ST_THO_400Vac_GRP12 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 12
+  o_ST_THO_400Vac_GRP13 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 13
+  o_ST_THO_400Vac_GRP14 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 14
+  o_ST_THO_400Vac_GRP15 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 15
+  o_ST_THO_400Vac_GRP16 : BOOL ;	//ST: Thermal Overload (400Vac) Motor Group 16
+  o_ST_THO_230Vac_GRP01 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 01
+  o_ST_THO_230Vac_GRP02 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 02
+  o_ST_THO_230Vac_GRP03 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 03
+  o_ST_THO_230Vac_GRP04 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 04
+  o_ST_THO_230Vac_GRP05 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 05
+  o_ST_THO_230Vac_GRP06 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 06
+  o_ST_THO_230Vac_GRP07 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 07
+  o_ST_THO_230Vac_GRP08 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 08
+  o_ST_THO_230Vac_GRP09 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 09
+  o_ST_THO_230Vac_GRP10 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 10
+  o_ST_THO_230Vac_GRP11 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 11
+  o_ST_THO_230Vac_GRP12 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 12
+  o_ST_THO_230Vac_GRP13 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 13
+  o_ST_THO_230Vac_GRP14 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 14
+  o_ST_THO_230Vac_GRP15 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 15
+  o_ST_THO_230Vac_GRP16 : BOOL ;	//ST: Thermal Overload (240Vac) Motor Group 16
+  o_ST_No_Power_GRP01 : BOOL ;	//ST: No power group 01 Time Out
+  o_ST_No_Power_GRP02 : BOOL ;	//ST: No power group 02 Time Out
+  o_ST_No_Power_GRP03 : BOOL ;	//ST: No power group 03 Time Out
+  o_ST_No_Power_GRP04 : BOOL ;	//ST: No power group 04 Time Out
+  o_ST_No_Power_GRP05 : BOOL ;	//ST: No power group 05 Time Out
+  o_ST_No_Power_GRP06 : BOOL ;	//ST: No power group 06 Time Out
+  o_ST_No_Power_GRP07 : BOOL ;	//ST: No power group 07 Time Out
+  o_ST_No_Power_GRP08 : BOOL ;	//ST: No power group 08 Time Out
+  o_ST_No_Power_GRP09 : BOOL ;	//ST: No power group 09 Time Out
+  o_ST_No_Power_GRP10 : BOOL ;	//ST: No power group 10 Time Out
+  o_ST_No_Power_GRP11 : BOOL ;	//ST: No power group 11 Time Out
+  o_ST_No_Power_GRP12 : BOOL ;	//ST: No power group 12 Time Out
+  o_ST_No_Power_GRP13 : BOOL ;	//ST: No power group 13 Time Out
+  o_ST_No_Power_GRP14 : BOOL ;	//ST: No power group 14 Time Out
+  o_ST_No_Power_GRP15 : BOOL ;	//ST: No power group 15 Time Out
+  o_ST_No_Power_GRP16 : BOOL ;	//ST: No power group 16 Time Out
+  o_ST_PN1_NotPrsnt : BOOL ;	//ST: PN slave 1 (Switch) is not present
+  o_ST_PN1_Err : BOOL ;	//ST: PN slave 1 (Switch) has an error
+  o_ST_PN2_NotPrsnt : BOOL ;	//ST: PN slave 2 (ET200S) is not present
+  o_ST_PN2_Err : BOOL ;	//ST: PN slave 2 (ET200S) has an error
+  o_ST_PN3_NotPrsnt : BOOL ;	//ST: PN slave 3 (ET200M) is not present
+  o_ST_PN3_Err : BOOL ;	//ST: PN slave 3 (ET200M) has an error
+  o_SafetyRelais_Err_GRP01 : BOOL ;	//ST: Safety Relay Error Group 1
+  o_SafetyRelais_Err_GRP02 : BOOL ;	//ST: Safety Relay Error Group 2
+  o_SafetyRelais_Err_GRP03 : BOOL ;	//ST: Safety Relay Error Group 3
+  o_SafetyRelais_Err_GRP04 : BOOL ;	//ST: Safety Relay Error Group 4
+  o_SafetyRelais_Err_GRP05 : BOOL ;	//ST: Safety Relay Error Group 5
+  o_SafetyRelais_Err_GRP06 : BOOL ;	//ST: Safety Relay Error Group 6
+  o_SafetyRelais_Err_GRP07 : BOOL ;	//ST: Safety Relay Error Group 7
+  o_SafetyRelais_Err_GRP08 : BOOL ;	//ST: Safety Relay Error Group 8
+  o_SafetyRelais_Err_GRP09 : BOOL ;	//ST: Safety Relay Error Group 9
+  o_SafetyRelais_Err_GRP10 : BOOL ;	//ST: Safety Relay Error Group 10
+  o_SafetyRelais_Err_GRP11 : BOOL ;	//ST: Safety Relay Error Group 11
+  o_SafetyRelais_Err_GRP12 : BOOL ;	//ST: Safety Relay Error Group 12
+  o_SafetyRelais_Err_GRP13 : BOOL ;	//ST: Safety Relay Error Group 13
+  o_SafetyRelais_Err_GRP14 : BOOL ;	//ST: Safety Relay Error Group 14
+  o_SafetyRelais_Err_GRP15 : BOOL ;	//ST: Safety Relay Error Group 15
+  o_SafetyRelais_Err_GRP16 : BOOL ;	//ST: Safety Relay Error Group 16
+END_VAR
+VAR
+  s_Status : "UDT_CCC_Status";	//Detailed statusses
+  s_Cnt_Power_On_TO_GRP01 : INT ;	//Power On Group 01 Time Out Counter
+  s_Cnt_Power_On_TO_GRP02 : INT ;	//Power On Group 02 Time Out Counter
+  s_Cnt_Power_On_TO_GRP03 : INT ;	//Power On Group 03 Time Out Counter
+  s_Cnt_Power_On_TO_GRP04 : INT ;	//Power On Group 04 Time Out Counter
+  s_Cnt_Power_On_TO_GRP05 : INT ;	//Power On Group 05 Time Out Counter
+  s_Cnt_Power_On_TO_GRP06 : INT ;	//Power On Group 06 Time Out Counter
+  s_Cnt_Power_On_TO_GRP07 : INT ;	//Power On Group 07 Time Out Counter
+  s_Cnt_Power_On_TO_GRP08 : INT ;	//Power On Group 08 Time Out Counter
+  s_Cnt_Power_On_TO_GRP09 : INT ;	//Power On Group 09 Time Out Counter
+  s_Cnt_Power_On_TO_GRP10 : INT ;	//Power On Group 10 Time Out Counter
+  s_Cnt_Power_On_TO_GRP11 : INT ;	//Power On Group 11 Time Out Counter
+  s_Cnt_Power_On_TO_GRP12 : INT ;	//Power On Group 12 Time Out Counter
+  s_Cnt_Power_On_TO_GRP13 : INT ;	//Power On Group 13 Time Out Counter
+  s_Cnt_Power_On_TO_GRP14 : INT ;	//Power On Group 14 Time Out Counter
+  s_Cnt_Power_On_TO_GRP15 : INT ;	//Power On Group 15 Time Out Counter
+  s_Cnt_Power_On_TO_GRP16 : INT ;	//Power On Group 16 Time Out Counter
+  s_Cnt_Safety_Dly_GRP01 : INT ;	//Counter used to make delay-on of Safety Group 01 Power On signal
+  s_Cnt_Safety_Dly_GRP02 : INT ;	//Counter used to make delay-on of Safety Group 02 Power On signal
+  s_Cnt_Safety_Dly_GRP03 : INT ;	//Counter used to make delay-on of Safety Group 03 Power On signal
+  s_Cnt_Safety_Dly_GRP04 : INT ;	//Counter used to make delay-on of Safety Group 04 Power On signal
+  s_Cnt_Safety_Dly_GRP05 : INT ;	//Counter used to make delay-on of Safety Group 05 Power On signal
+  s_Cnt_Safety_Dly_GRP06 : INT ;	//Counter used to make delay-on of Safety Group 06 Power On signal
+  s_Cnt_Safety_Dly_GRP07 : INT ;	//Counter used to make delay-on of Safety Group 07 Power On signal
+  s_Cnt_Safety_Dly_GRP08 : INT ;	//Counter used to make delay-on of Safety Group 08 Power On signal
+  s_Cnt_Safety_Dly_GRP09 : INT ;	//Counter used to make delay-on of Safety Group 09 Power On signal
+  s_Cnt_Safety_Dly_GRP10 : INT ;	//Counter used to make delay-on of Safety Group 10 Power On signal
+  s_Cnt_Safety_Dly_GRP11 : INT ;	//Counter used to make delay-on of Safety Group 11 Power On signal
+  s_Cnt_Safety_Dly_GRP12 : INT ;	//Counter used to make delay-on of Safety Group 12 Power On signal
+  s_Cnt_Safety_Dly_GRP13 : INT ;	//Counter used to make delay-on of Safety Group 13 Power On signal
+  s_Cnt_Safety_Dly_GRP14 : INT ;	//Counter used to make delay-on of Safety Group 14 Power On signal
+  s_Cnt_Safety_Dly_GRP15 : INT ;	//Counter used to make delay-on of Safety Group 15 Power On signal
+  s_Cnt_Safety_Dly_GRP16 : INT ;	//Counter used to make delay-on of Safety Group 16 Power On signal
+  s_Timer_Temp_Error : INT ;	//Timer value temperature too high error
+END_VAR
+VAR_TEMP
+  t_Suppress_Errors : BOOL ;	//Suppress other errors
+  t_Suppress_Errors_Isafe : BOOL ;	//Supress errors PG
+  t_Suppress_Errors_PN3 : BOOL ;	//Supress errors PN3
+  t_Safety_Pwr_On_GRP01 : BOOL ;	//Delayed Power On signal of Safety Group 01
+  t_Safety_Pwr_On_GRP02 : BOOL ;	//Delayed Power On signal of Safety Group 02
+  t_Safety_Pwr_On_GRP03 : BOOL ;	//Delayed Power On signal of Safety Group 03
+  t_Safety_Pwr_On_GRP04 : BOOL ;	//Delayed Power On signal of Safety Group 04
+  t_Safety_Pwr_On_GRP05 : BOOL ;	//Delayed Power On signal of Safety Group 05
+  t_Safety_Pwr_On_GRP06 : BOOL ;	//Delayed Power On signal of Safety Group 06
+  t_Safety_Pwr_On_GRP07 : BOOL ;	//Delayed Power On signal of Safety Group 07
+  t_Safety_Pwr_On_GRP08 : BOOL ;	//Delayed Power On signal of Safety Group 08
+  t_Safety_Pwr_On_GRP09 : BOOL ;	//Delayed Power On signal of Safety Group 09
+  t_Safety_Pwr_On_GRP10 : BOOL ;	//Delayed Power On signal of Safety Group 10
+  t_Safety_Pwr_On_GRP11 : BOOL ;	//Delayed Power On signal of Safety Group 11
+  t_Safety_Pwr_On_GRP12 : BOOL ;	//Delayed Power On signal of Safety Group 12
+  t_Safety_Pwr_On_GRP13 : BOOL ;	//Delayed Power On signal of Safety Group 13
+  t_Safety_Pwr_On_GRP14 : BOOL ;	//Delayed Power On signal of Safety Group 14
+  t_Safety_Pwr_On_GRP15 : BOOL ;	//Delayed Power On signal of Safety Group 15
+  t_Safety_Pwr_On_GRP16 : BOOL ;	//Delayed Power On signal of Safety Group 16
+  t_No_Safety_Stop_GRP01 : BOOL ;	//No safety stop Motorgroup 01
+  t_No_Safety_Stop_GRP02 : BOOL ;	//No safety stop Motorgroup 02
+  t_No_Safety_Stop_GRP03 : BOOL ;	//No safety stop Motorgroup 03
+  t_No_Safety_Stop_GRP04 : BOOL ;	//No safety stop Motorgroup 04
+  t_No_Safety_Stop_GRP05 : BOOL ;	//No safety stop Motorgroup 05
+  t_No_Safety_Stop_GRP06 : BOOL ;	//No safety stop Motorgroup 06
+  t_No_Safety_Stop_GRP07 : BOOL ;	//No safety stop Motorgroup 07
+  t_No_Safety_Stop_GRP08 : BOOL ;	//No safety stop Motorgroup 08
+  t_No_Safety_Stop_GRP09 : BOOL ;	//No safety stop Motorgroup 09
+  t_No_Safety_Stop_GRP10 : BOOL ;	//No safety stop Motorgroup 10
+  t_No_Safety_Stop_GRP11 : BOOL ;	//No safety stop Motorgroup 11
+  t_No_Safety_Stop_GRP12 : BOOL ;	//No safety stop Motorgroup 12
+  t_No_Safety_Stop_GRP13 : BOOL ;	//No safety stop Motorgroup 13
+  t_No_Safety_Stop_GRP14 : BOOL ;	//No safety stop Motorgroup 14
+  t_No_Safety_Stop_GRP15 : BOOL ;	//No safety stop Motorgroup 15
+  t_No_Safety_Stop_GRP16 : BOOL ;	//No safety stop Motorgroup 16
+  t_CCC_Power_On_GRP01 : BOOL ;	//Feedback of safety relais 01 
+  t_CCC_Power_On_GRP02 : BOOL ;	//Feedback of safety relais 02
+  t_CCC_Power_On_GRP03 : BOOL ;	//Feedback of safety relais 03
+  t_CCC_Power_On_GRP04 : BOOL ;	//Feedback of safety relais 04
+  t_CCC_Power_On_GRP05 : BOOL ;	//Feedback of safety relais 05
+  t_CCC_Power_On_GRP06 : BOOL ;	//Feedback of safety relais 06
+  t_CCC_Power_On_GRP07 : BOOL ;	//Feedback of safety relais 07
+  t_CCC_Power_On_GRP08 : BOOL ;	//Feedback of safety relais 08
+  t_CCC_Power_On_GRP09 : BOOL ;	//Feedback of safety relais 09
+  t_CCC_Power_On_GRP10 : BOOL ;	//Feedback of safety relais 10
+  t_CCC_Power_On_GRP11 : BOOL ;	//Feedback of safety relais 11
+  t_CCC_Power_On_GRP12 : BOOL ;	//Feedback of safety relais 12
+  t_CCC_Power_On_GRP13 : BOOL ;	//Feedback of safety relais 13
+  t_CCC_Power_On_GRP14 : BOOL ;	//Feedback of safety relais 14
+  t_CCC_Power_On_GRP15 : BOOL ;	//Feedback of safety relais 15
+  t_CCC_Power_On_GRP16 : BOOL ;	//Feedback of safety relais 16
+  t_Hardware_Error : BOOL ;	
+  t_Cab_Temp_High : BOOL ;	//Temperature too high start timer
+  t_Cab_Temp_Error : BOOL ;	//Temperature too high error
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Suppress errors 
+
+      NOP   0; 
+//Suppress errors in first scan or when mainswitch off
+      O     "M_First_Scan"; 
+      O     #s_Status.Mainswitch_OFF; 
+      ON    #i_Available_IO; 
+      =     #t_Suppress_Errors; 
+
+//Suppress errors when the ET200M has an error
+      O     #i_PN3_NotPrsnt; 
+      O     #i_PN3_Err; 
+      =     #t_Suppress_Errors_PN3; 
+NETWORK
+TITLE =BA: System Guarding
+//Here the status information concerning the PLC-hardware is collected.
+      A     #i_CMD_Reset; 
+      R     #s_Status.Mainswitch_OFF; 
+      R     #s_Status.Fire_Alarm_Zone_1; 
+      R     #s_Status.Fire_Alarm_Zone_2; 
+      R     #s_Status.CAB_Temp_High; 
+      R     #s_Status.CAB_Temp_Error; 
+
+// Mainswitch Off
+      AN    #i_CCC_Mainswitch_ON; 
+      AN    #i_PN3_NotPrsnt; 
+      S     #s_Status.Mainswitch_OFF; 
+
+//Fire alarm
+      AN    #i_No_Fire_Alarm_Zone_1; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.Fire_Alarm_Zone_1; 
+
+      AN    #i_No_Fire_Alarm_Zone_2; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.Fire_Alarm_Zone_2; 
+
+//Cabinet temperature error
+      A     #i_CAB_Temp_NOT_OK; 
+      AN    #t_Suppress_Errors_PN3; 
+      =     #t_Cab_Temp_High; 
+      S     #s_Status.CAB_Temp_High; 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Cab_Temp_High,
+           i_Enable_Dly             := #t_Cab_Temp_High,
+           i_Time_Value             := 300,// 30 sec default
+           i_Current_Value          := #s_Timer_Temp_Error,
+           o_Status                 := #t_Cab_Temp_Error,
+           o_Current_Value          := #s_Timer_Temp_Error);
+
+      A     #t_Cab_Temp_Error; 
+      S     #s_Status.CAB_Temp_Error; 
+
+NETWORK
+TITLE =CA: Hardware Control
+//Here the status information concerning hardware located in the main cabinet is
+//collected.   
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      R     #s_Status.CCC_THO_24VDC; 
+      R     #s_Status.PLC_Power_Supply_Error; 
+      R     #s_Status.CCC_THO_Phase; 
+      R     #s_Status.CCC_Phase_Fault; 
+      R     #s_Status.UPS_THO; 
+
+//CCC inputs
+// Power supply 24Vdc of CCC CTRL
+      AN    #i_CCC_24VDC_OK; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.CCC_THO_24VDC; 
+
+// Power supply 24Vdc of CCC PLC
+      AN    #i_CCC_24VDC_PLC_OK; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.PLC_Power_Supply_Error; 
+
+// Power supply Phase measuring
+      AN    #i_CCC_Phase_Power_OK; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.CCC_THO_Phase; 
+
+// Phase fault
+      AN    #i_CCC_Phase_OK; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_PN3; 
+      A     #i_CCC_Phase_Power_OK; 
+      S     #s_Status.CCC_Phase_Fault; 
+
+// Circuit breaker UPS
+      AN    #i_UPS_Power_OK; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.UPS_THO; 
+
+// Suppress errors also when there is a phase fault or when power to the relais is not OK
+      ON    #i_CCC_Phase_OK; 
+      ON    #i_CCC_Mainswitch_ON; 
+      S     #t_Suppress_Errors; 
+
+NETWORK
+TITLE =DA: Thermal Overload 400V
+//Handle 400V thermal overload errors for all motor groups.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      R     #s_Status.THO_400VAC_GRP01; 
+      R     #s_Status.THO_400VAC_GRP02; 
+      R     #s_Status.THO_400VAC_GRP03; 
+      R     #s_Status.THO_400VAC_GRP04; 
+      R     #s_Status.THO_400VAC_GRP05; 
+      R     #s_Status.THO_400VAC_GRP06; 
+      R     #s_Status.THO_400VAC_GRP07; 
+      R     #s_Status.THO_400VAC_GRP08; 
+      R     #s_Status.THO_400VAC_GRP09; 
+      R     #s_Status.THO_400VAC_GRP10; 
+      R     #s_Status.THO_400VAC_GRP11; 
+      R     #s_Status.THO_400VAC_GRP12; 
+      R     #s_Status.THO_400VAC_GRP13; 
+      R     #s_Status.THO_400VAC_GRP14; 
+      R     #s_Status.THO_400VAC_GRP15; 
+      R     #s_Status.THO_400VAC_GRP16; 
+
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      JC    DA99; 
+
+// No Thermal Overload 400Vac Power Group 01
+      AN    #i_CCC_400VAC_OK_GRP01; 
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      S     #s_Status.THO_400VAC_GRP01; 
+
+// No Thermal Overload 400Vac Power Group 02
+      AN    #i_CCC_400VAC_OK_GRP02; 
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      S     #s_Status.THO_400VAC_GRP02; 
+
+// No Thermal Overload 400Vac Power Group 03
+      AN    #i_CCC_400VAC_OK_GRP03; 
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      S     #s_Status.THO_400VAC_GRP03; 
+
+// No Thermal Overload 400Vac Power Group 04
+      AN    #i_CCC_400VAC_OK_GRP04; 
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      S     #s_Status.THO_400VAC_GRP04; 
+
+// No Thermal Overload 400Vac Power Group 05
+      AN    #i_CCC_400VAC_OK_GRP05; 
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      S     #s_Status.THO_400VAC_GRP05; 
+
+// No Thermal Overload 400Vac Power Group 06
+      AN    #i_CCC_400VAC_OK_GRP06; 
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      S     #s_Status.THO_400VAC_GRP06; 
+
+// No Thermal Overload 400Vac Power Group 07
+      AN    #i_CCC_400VAC_OK_GRP07; 
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      S     #s_Status.THO_400VAC_GRP07; 
+
+// No Thermal Overload 400Vac Power Group 08
+      AN    #i_CCC_400VAC_OK_GRP08; 
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      S     #s_Status.THO_400VAC_GRP08; 
+
+// No Thermal Overload 400Vac Power Group 09
+      AN    #i_CCC_400VAC_OK_GRP09; 
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      S     #s_Status.THO_400VAC_GRP09; 
+
+// No Thermal Overload 400Vac Power Group 10
+      AN    #i_CCC_400VAC_OK_GRP10; 
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      S     #s_Status.THO_400VAC_GRP10; 
+
+// No Thermal Overload 400Vac Power Group 11
+      AN    #i_CCC_400VAC_OK_GRP11; 
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      S     #s_Status.THO_400VAC_GRP11; 
+
+// No Thermal Overload 400Vac Power Group 12
+      AN    #i_CCC_400VAC_OK_GRP12; 
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      S     #s_Status.THO_400VAC_GRP12; 
+
+// No Thermal Overload 400Vac Power Group 13
+      AN    #i_CCC_400VAC_OK_GRP13; 
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      S     #s_Status.THO_400VAC_GRP13; 
+
+// No Thermal Overload 400Vac Power Group 14
+      AN    #i_CCC_400VAC_OK_GRP14; 
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      S     #s_Status.THO_400VAC_GRP14; 
+
+// No Thermal Overload 400Vac Power Group 15
+      AN    #i_CCC_400VAC_OK_GRP15; 
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      S     #s_Status.THO_400VAC_GRP15; 
+
+// No Thermal Overload 400Vac Power Group 16
+      AN    #i_CCC_400VAC_OK_GRP16; 
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      S     #s_Status.THO_400VAC_GRP16; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Thermal Overload 240Vac
+//Handle 240Vac thermal overload errors for all motor groups
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      R     #s_Status.THO_230VAC_GRP01; 
+      R     #s_Status.THO_230VAC_GRP02; 
+      R     #s_Status.THO_230VAC_GRP03; 
+      R     #s_Status.THO_230VAC_GRP04; 
+      R     #s_Status.THO_230VAC_GRP05; 
+      R     #s_Status.THO_230VAC_GRP06; 
+      R     #s_Status.THO_230VAC_GRP07; 
+      R     #s_Status.THO_230VAC_GRP08; 
+      R     #s_Status.THO_230VAC_GRP09; 
+      R     #s_Status.THO_230VAC_GRP10; 
+      R     #s_Status.THO_230VAC_GRP11; 
+      R     #s_Status.THO_230VAC_GRP12; 
+      R     #s_Status.THO_230VAC_GRP13; 
+      R     #s_Status.THO_230VAC_GRP14; 
+      R     #s_Status.THO_230VAC_GRP15; 
+      R     #s_Status.THO_230VAC_GRP16; 
+
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      JC    EA99; 
+
+// No Th_Overload 230Vac Supply 01 
+      AN    #i_CCC_230VAC_OK_GRP01; 
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      S     #s_Status.THO_230VAC_GRP01; 
+
+// No Th_Overload 230Vac Supply 02 
+      AN    #i_CCC_230VAC_OK_GRP02; 
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      S     #s_Status.THO_230VAC_GRP02; 
+
+// No Th_Overload 230Vac Supply 03 
+      AN    #i_CCC_230VAC_OK_GRP03; 
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      S     #s_Status.THO_230VAC_GRP03; 
+
+// No Th_Overload 230Vac Supply 04 
+      AN    #i_CCC_230VAC_OK_GRP04; 
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      S     #s_Status.THO_230VAC_GRP04; 
+
+// No Th_Overload 230Vac Supply 05
+      AN    #i_CCC_230VAC_OK_GRP05; 
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      S     #s_Status.THO_230VAC_GRP05; 
+
+// No Th_Overload 230Vac Supply 06 
+      AN    #i_CCC_230VAC_OK_GRP06; 
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      S     #s_Status.THO_230VAC_GRP06; 
+
+// No Th_Overload 230Vac Supply 07 
+      AN    #i_CCC_230VAC_OK_GRP07; 
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      S     #s_Status.THO_230VAC_GRP07; 
+
+// No Th_Overload 230Vac Supply 08 
+      AN    #i_CCC_230VAC_OK_GRP08; 
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      S     #s_Status.THO_230VAC_GRP08; 
+
+// No Th_Overload 230Vac Supply 09
+      AN    #i_CCC_230VAC_OK_GRP09; 
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      S     #s_Status.THO_230VAC_GRP09; 
+
+// No Th_Overload 230Vac Supply 10
+      AN    #i_CCC_230VAC_OK_GRP10; 
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      S     #s_Status.THO_230VAC_GRP10; 
+
+// No Th_Overload 230Vac Supply 11
+      AN    #i_CCC_230VAC_OK_GRP11; 
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      S     #s_Status.THO_230VAC_GRP11; 
+
+// No Th_Overload 230Vac Supply 12
+      AN    #i_CCC_230VAC_OK_GRP12; 
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      S     #s_Status.THO_230VAC_GRP12; 
+
+// No Th_Overload 230Vac Supply 13
+      AN    #i_CCC_230VAC_OK_GRP13; 
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      S     #s_Status.THO_230VAC_GRP13; 
+
+// No Th_Overload 230Vac Supply 14
+      AN    #i_CCC_230VAC_OK_GRP14; 
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      S     #s_Status.THO_230VAC_GRP14; 
+
+// No Th_Overload 230Vac Supply 15 
+      AN    #i_CCC_230VAC_OK_GRP15; 
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      S     #s_Status.THO_230VAC_GRP15; 
+
+// No Th_Overload 230Vac Supply 16 
+      AN    #i_CCC_230VAC_OK_GRP16; 
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      S     #s_Status.THO_230VAC_GRP16; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =EB: Set Failsafe signal to request power group on
+
+      AN    #s_Status.THO_400VAC_GRP01; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      =     "M_F_PG_21_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP02; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      =     "M_F_PG_22_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP03; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      =     "M_F_PG_23_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP04; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      =     "M_F_PG_24_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP05; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      =     "M_F_PG_25_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP06; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      =     "M_F_PG_26_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP07; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      =     "M_F_PG_27_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP08; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      =     "M_F_PG_28_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP09; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      =     "M_F_PG_29_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP10; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      =     "M_F_PG_30_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP11; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      =     "M_F_PG_31_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP12; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      =     "M_F_PG_32_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP13; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      =     "M_F_PG_33_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP14; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      =     "M_F_PG_34_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP15; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      =     "M_F_PG_35_Req_On"; 
+
+      AN    #s_Status.THO_400VAC_GRP16; 
+      AN    #s_Status.Mainswitch_OFF; 
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      =     "M_F_PG_36_Req_On"; 
+NETWORK
+TITLE =EC: Invert feedback when using Isafe
+//When Integrated safety is used the feedback signal needs to be inverted.
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP01; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP01; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP02; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP02; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP03; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP03; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP04; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP04; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP05; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP05; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP06; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP06; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP07; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP07; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP08; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP08; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP09; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP09; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP10; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP10; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP11; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP11; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP12; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP12; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP13; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP13; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP14; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP14; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP15; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP15; 
+
+      X     #i_CFG_Isafe_Used; //When Isafe is used
+      X     #i_CCC_Power_On_GRP16; //Feedback is inverted
+      =     #t_CCC_Power_On_GRP16; 
+NETWORK
+TITLE =EH:Profinet devices
+//Collect status of the profinet devices
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.PN1_Error; 
+      R     #s_Status.PN1_NotPrsnt; 
+      R     #s_Status.PN2_Error; 
+      R     #s_Status.PN2_NotPrsnt; 
+      R     #s_Status.PN3_Error; 
+      R     #s_Status.PN3_NotPrsnt; 
+      R     #s_Status.ETH_Switch_Fault; 
+
+      A     #t_Suppress_Errors; 
+      JC    EH99; 
+
+//Ethernet Switch (ring master)
+      A     #i_PN1_NotPrsnt; 
+      S     #s_Status.PN1_NotPrsnt; 
+
+      A     #i_PN1_Err; 
+      AN    #s_Status.PN1_NotPrsnt; 
+      S     #s_Status.PN1_Error; 
+
+      AN    #i_ETH_SWITCH_OK; 
+      AN    #t_Suppress_Errors_PN3; 
+      AN    #s_Status.CCC_THO_24VDC; 
+      S     #s_Status.ETH_Switch_Fault; 
+
+//ET200s
+      A     #i_PN2_NotPrsnt; 
+      AN    #s_Status.CCC_THO_24VDC_ESTOP; 
+      S     #s_Status.PN2_NotPrsnt; 
+
+      A     #i_PN2_Err; 
+      O     #i_QBAD_Module_1; 
+      O     #i_QBAD_Module_2; 
+      O     #i_QBAD_Module_3; 
+      O     #i_QBAD_Module_4; 
+      AN    #s_Status.PN2_NotPrsnt; 
+      AN    #s_Status.CCC_THO_24VDC_ESTOP; 
+      S     #s_Status.PN2_Error; 
+
+//ET200M
+      A     #i_PN3_NotPrsnt; 
+      S     #s_Status.PN3_NotPrsnt; 
+
+      A     #i_PN3_Err; 
+      AN    #s_Status.PN3_NotPrsnt; 
+      S     #s_Status.PN3_Error; 
+
+EH99: NOP   0; 
+NETWORK
+TITLE =EZ: Feedback Safety Relay Error Group alarm
+
+      A(    ; 
+      O     #s_Status.CCC_THO_24VDC_ESTOP; 
+      O     #i_PN1_NotPrsnt; // nlaah: Use real input i.s.o. Status
+      O     #i_PN2_NotPrsnt; // nlaah: Use real input i.s.o. Status
+      O     #i_PN2_Err; // nlaah: Use real input i.s.o. Status
+      )     ; 
+      A     #i_CFG_Isafe_Used; 
+      =     #t_Suppress_Errors_Isafe; 
+
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.SafetyRelais_Err_GRP01; 
+      R     #s_Status.SafetyRelais_Err_GRP02; 
+      R     #s_Status.SafetyRelais_Err_GRP03; 
+      R     #s_Status.SafetyRelais_Err_GRP04; 
+      R     #s_Status.SafetyRelais_Err_GRP05; 
+      R     #s_Status.SafetyRelais_Err_GRP06; 
+      R     #s_Status.SafetyRelais_Err_GRP07; 
+      R     #s_Status.SafetyRelais_Err_GRP08; 
+      R     #s_Status.SafetyRelais_Err_GRP09; 
+      R     #s_Status.SafetyRelais_Err_GRP10; 
+      R     #s_Status.SafetyRelais_Err_GRP11; 
+      R     #s_Status.SafetyRelais_Err_GRP12; 
+      R     #s_Status.SafetyRelais_Err_GRP13; 
+      R     #s_Status.SafetyRelais_Err_GRP14; 
+      R     #s_Status.SafetyRelais_Err_GRP15; 
+      R     #s_Status.SafetyRelais_Err_GRP16; 
+
+//Feedback Safety Relay Group  Alarms
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP01; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP01; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP02; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP02; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP03; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP03; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP04; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP04; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP05; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP05; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP06; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP06; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP07; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP07; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP08; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP08; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP09; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP09; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP10; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP10; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP11; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP11; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP12; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP12; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP13; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP13; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP14; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP14; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP15; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP15; 
+
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP16; 
+      AN    #t_Suppress_Errors_Isafe; // Added conditions if ET200F module is not available
+      S     #s_Status.SafetyRelais_Err_GRP16; 
+
+//Mapping Status bit to Output Bit
+      A     #s_Status.SafetyRelais_Err_GRP01; 
+      =     #o_SafetyRelais_Err_GRP01; 
+
+      A     #s_Status.SafetyRelais_Err_GRP02; 
+      =     #o_SafetyRelais_Err_GRP02; 
+
+      A     #s_Status.SafetyRelais_Err_GRP03; 
+      =     #o_SafetyRelais_Err_GRP03; 
+
+      A     #s_Status.SafetyRelais_Err_GRP04; 
+      =     #o_SafetyRelais_Err_GRP04; 
+
+      A     #s_Status.SafetyRelais_Err_GRP05; 
+      =     #o_SafetyRelais_Err_GRP05; 
+
+      A     #s_Status.SafetyRelais_Err_GRP06; 
+      =     #o_SafetyRelais_Err_GRP06; 
+
+      A     #s_Status.SafetyRelais_Err_GRP07; 
+      =     #o_SafetyRelais_Err_GRP07; 
+
+      A     #s_Status.SafetyRelais_Err_GRP08; 
+      =     #o_SafetyRelais_Err_GRP08; 
+
+      A     #s_Status.SafetyRelais_Err_GRP09; 
+      =     #o_SafetyRelais_Err_GRP09; 
+
+      A     #s_Status.SafetyRelais_Err_GRP10; 
+      =     #o_SafetyRelais_Err_GRP10; 
+
+      A     #s_Status.SafetyRelais_Err_GRP11; 
+      =     #o_SafetyRelais_Err_GRP11; 
+
+
+      A     #s_Status.SafetyRelais_Err_GRP12; 
+      =     #o_SafetyRelais_Err_GRP12; 
+
+      A     #s_Status.SafetyRelais_Err_GRP13; 
+      =     #o_SafetyRelais_Err_GRP13; 
+
+      A     #s_Status.SafetyRelais_Err_GRP14; 
+      =     #o_SafetyRelais_Err_GRP14; 
+
+      A     #s_Status.SafetyRelais_Err_GRP15; 
+      =     #o_SafetyRelais_Err_GRP15; 
+
+      A     #s_Status.SafetyRelais_Err_GRP16; 
+      =     #o_SafetyRelais_Err_GRP16; 
+
+NETWORK
+TITLE =FA: Safety Signal Handling
+//Here the status information concerning the safety signal handling is collected.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_PN3; 
+      R     #s_Status.Safety_Comm_Fault; 
+      R     #s_Status.CCC_THO_24VDC_ESTOP; 
+
+// Safety System alive 
+      AN    #i_Safety_System_Alive; 
+      AN    #t_Suppress_Errors; 
+      S     #s_Status.Safety_Comm_Fault; 
+
+// Circuit breaker of safety unit alive 
+      AN    #i_CCC_24VDC_ESTOP_OK; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_PN3; 
+      S     #s_Status.CCC_THO_24VDC_ESTOP; 
+NETWORK
+TITLE =GA: Determine the safety stop for each group
+//Safety status of each powergroup
+      NOP   0; 
+// Check if safety zone for Grp01 is active
+      A     #i_SafetyRelais_OK_GRP01; 
+      =     #t_No_Safety_Stop_GRP01; 
+
+// Check if safety zone for Grp02 is active
+      A     #i_SafetyRelais_OK_GRP02; 
+      =     #t_No_Safety_Stop_GRP02; 
+
+// Check if safety zone for Grp03 is active
+      A     #i_SafetyRelais_OK_GRP03; 
+      =     #t_No_Safety_Stop_GRP03; 
+
+// Check if safety zone for Grp04 is active
+      A     #i_SafetyRelais_OK_GRP04; 
+      =     #t_No_Safety_Stop_GRP04; 
+
+// Check if safety zone for Grp05 is active
+      A     #i_SafetyRelais_OK_GRP05; 
+      =     #t_No_Safety_Stop_GRP05; 
+
+// Check if safety zone for Grp06 is active
+      A     #i_SafetyRelais_OK_GRP06; 
+      =     #t_No_Safety_Stop_GRP06; 
+
+// Check if safety zone for Grp07 is active
+      A     #i_SafetyRelais_OK_GRP07; 
+      =     #t_No_Safety_Stop_GRP07; 
+
+// Check if safety zone for Grp08 is active
+      A     #i_SafetyRelais_OK_GRP08; 
+      =     #t_No_Safety_Stop_GRP08; 
+
+// Check if safety zone for Grp09 is active
+      A     #i_SafetyRelais_OK_GRP09; 
+      =     #t_No_Safety_Stop_GRP09; 
+
+// Check if safety zone for Grp10 is active
+      A     #i_SafetyRelais_OK_GRP10; 
+      =     #t_No_Safety_Stop_GRP10; 
+
+// Check if safety zone for Grp11 is active
+      A     #i_SafetyRelais_OK_GRP11; 
+      =     #t_No_Safety_Stop_GRP11; 
+
+// Check if safety zone for Grp12 is active
+      A     #i_SafetyRelais_OK_GRP12; 
+      =     #t_No_Safety_Stop_GRP12; 
+
+// Check if safety zone for Grp13 is active
+      A     #i_SafetyRelais_OK_GRP13; 
+      =     #t_No_Safety_Stop_GRP13; 
+
+// Check if safety zone for Grp14 is active
+      A     #i_SafetyRelais_OK_GRP14; 
+      =     #t_No_Safety_Stop_GRP14; 
+
+// Check if safety zone for Grp15 is active
+      A     #i_SafetyRelais_OK_GRP15; 
+      =     #t_No_Safety_Stop_GRP15; 
+
+// Check if safety zone for Grp16 is active
+      A     #i_SafetyRelais_OK_GRP16; 
+      =     #t_No_Safety_Stop_GRP16; 
+NETWORK
+TITLE =HA: Safety group 01 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP01; 
+
+      O     #t_CCC_Power_On_GRP01; // Power on Group 1
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HA01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on group 1 time out counter
+      T     #s_Cnt_Power_On_TO_GRP01; 
+HA01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      A     #i_SafetyRelais_OK_GRP01; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HA99; 
+
+      L     #s_Cnt_Power_On_TO_GRP01; //IF Power on group 1 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP01; 
+      )     ; 
+      S     #s_Status.No_Power_GRP01; // THEN Power on group 1 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP01; // Power On Group 1
+      A     #i_CCC_400VAC_OK_GRP01; // No Thermal Overload 400Vac Motorgroup 1 
+      A     #i_CCC_230VAC_OK_GRP01; // No Th.Overload  240Vac Motorgroup 1 
+      A     #t_No_Safety_Stop_GRP01; // No Safety stop MotorGroup 1  
+      JCN   HA99; 
+      L     #s_Cnt_Power_On_TO_GRP01; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HA02; 
+      L     0; 
+HA02: T     #s_Cnt_Power_On_TO_GRP01; 
+HA99: NOP   0; 
+NETWORK
+TITLE =HB: Safety group 02 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP02; 
+
+      O     #t_CCC_Power_On_GRP02; // Power on Group 2
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HB01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 2 time out counter
+      T     #s_Cnt_Power_On_TO_GRP02; 
+HB01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      A     #i_SafetyRelais_OK_GRP02; //Circuit breaker for Power group relays   
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HB99; 
+
+      L     #s_Cnt_Power_On_TO_GRP02; //IF Power on Group 2 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP02; 
+      )     ; 
+      S     #s_Status.No_Power_GRP02; // THEN Power on Group 2 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP02; // Power On Group 2
+      A     #i_CCC_400VAC_OK_GRP02; // No Thermal Overload 400Vac MotorGroup 2 
+      A     #i_CCC_230VAC_OK_GRP02; // No Th.Overload  240Vac MotorGroup 2 
+      A     #t_No_Safety_Stop_GRP02; // No Safety stop MotorGroup 2  
+      JCN   HB99; 
+      L     #s_Cnt_Power_On_TO_GRP02; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HB02; 
+      L     0; 
+HB02: T     #s_Cnt_Power_On_TO_GRP02; 
+HB99: NOP   0; 
+NETWORK
+TITLE =HC: Safety group 03 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated.When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP03; 
+
+      O     #t_CCC_Power_On_GRP03; // Power on Group 3
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HC01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 3 time out counter
+      T     #s_Cnt_Power_On_TO_GRP03; 
+HC01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      A     #i_SafetyRelais_OK_GRP03; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HC99; 
+
+      L     #s_Cnt_Power_On_TO_GRP03; //IF Power on Group 3 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP03; 
+      )     ; 
+      S     #s_Status.No_Power_GRP03; // THEN Power on Group 3 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP03; // Power On Group 3
+      A     #i_CCC_400VAC_OK_GRP03; // No Thermal Overload 400Vac MotorGroup 3 
+      A     #i_CCC_230VAC_OK_GRP03; // No Th.Overload  240Vac MotorGroup 3 
+      A     #t_No_Safety_Stop_GRP03; // No Safety stop MotorGroup 3  
+      JCN   HC99; 
+      L     #s_Cnt_Power_On_TO_GRP03; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HC02; 
+      L     0; 
+HC02: T     #s_Cnt_Power_On_TO_GRP03; 
+HC99: NOP   0; 
+NETWORK
+TITLE =HD: Safety group 04 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP04; 
+
+      O     #t_CCC_Power_On_GRP04; // Power on Group 4
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HD01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 4 time out counter
+      T     #s_Cnt_Power_On_TO_GRP04; 
+HD01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      A     #i_SafetyRelais_OK_GRP04; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HD99; 
+
+      L     #s_Cnt_Power_On_TO_GRP04; //IF Power on Group 4 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP04; 
+      )     ; 
+      S     #s_Status.No_Power_GRP04; // THEN Power on Group 4 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP04; // Power On Group 4
+      A     #i_CCC_400VAC_OK_GRP04; // No Thermal Overload 400Vac MotorGroup 4 
+      A     #i_CCC_230VAC_OK_GRP04; // No Th.Overload  240Vac MotorGroup 4 
+      A     #t_No_Safety_Stop_GRP04; // No Safety stop MotorGroup 4 
+      JCN   HD99; 
+      L     #s_Cnt_Power_On_TO_GRP04; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HD02; 
+      L     0; 
+HD02: T     #s_Cnt_Power_On_TO_GRP04; 
+HD99: NOP   0; 
+NETWORK
+TITLE =HE: Safety group 05 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP05; 
+
+      O     #t_CCC_Power_On_GRP05; // Power on Group 5
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HE01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 5 time out counter
+      T     #s_Cnt_Power_On_TO_GRP05; 
+HE01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      A     #i_SafetyRelais_OK_GRP05; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HE99; 
+
+      L     #s_Cnt_Power_On_TO_GRP05; //IF Power on Group 5 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP05; 
+      )     ; 
+      S     #s_Status.No_Power_GRP05; // THEN Power on Group 5 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP05; // Power On Group 5
+      A     #i_CCC_400VAC_OK_GRP05; // No Thermal Overload 400Vac MotorGroup 5 
+      A     #i_CCC_230VAC_OK_GRP05; // No Th.Overload  240Vac MotorGroup 5 
+      A     #t_No_Safety_Stop_GRP05; // No Safety stop MotorGroup 5  
+      JCN   HE99; 
+      L     #s_Cnt_Power_On_TO_GRP05; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HE02; 
+      L     0; 
+HE02: T     #s_Cnt_Power_On_TO_GRP05; 
+HE99: NOP   0; 
+NETWORK
+TITLE =HF: Safety group 06 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP06; 
+
+      O     #t_CCC_Power_On_GRP06; // Power on Group 6
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HF01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 6 time out counter
+      T     #s_Cnt_Power_On_TO_GRP06; 
+HF01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      A     #i_SafetyRelais_OK_GRP06; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HF99; 
+
+      L     #s_Cnt_Power_On_TO_GRP06; //IF Power on Group 6 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP06; 
+      )     ; 
+      S     #s_Status.No_Power_GRP06; // THEN Power on Group 6 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP06; // Power On Group 6
+      A     #i_CCC_400VAC_OK_GRP06; // No Thermal Overload 400Vac MotorGroup 6 
+      A     #i_CCC_230VAC_OK_GRP06; // No Th.Overload  240Vac MotorGroup 6 
+      A     #t_No_Safety_Stop_GRP06; // No Safety stop MotorGroup 6  
+      JCN   HF99; 
+      L     #s_Cnt_Power_On_TO_GRP06; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HF02; 
+      L     0; 
+HF02: T     #s_Cnt_Power_On_TO_GRP06; 
+HF99: NOP   0; 
+NETWORK
+TITLE =HG: Safety group 07 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP07; 
+
+      O     #t_CCC_Power_On_GRP07; // Power on Group 7
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HG01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 7 time out counter
+      T     #s_Cnt_Power_On_TO_GRP07; 
+HG01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      A     #i_SafetyRelais_OK_GRP07; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HG99; 
+
+      L     #s_Cnt_Power_On_TO_GRP07; //IF Power on Group 7 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP07; 
+      )     ; 
+      S     #s_Status.No_Power_GRP07; // THEN Power on Group 7 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP07; // Power On Group 7
+      A     #i_CCC_400VAC_OK_GRP07; // No Thermal Overload 400Vac MotorGroup 7 
+      A     #i_CCC_230VAC_OK_GRP07; // No Th.Overload  240Vac MotorGroup 7 
+      A     #t_No_Safety_Stop_GRP07; // No Safety stop MotorGroup 7  
+      JCN   HG99; 
+      L     #s_Cnt_Power_On_TO_GRP07; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HG02; 
+      L     0; 
+HG02: T     #s_Cnt_Power_On_TO_GRP07; 
+HG99: NOP   0; 
+NETWORK
+TITLE =HH: Safety group 08 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP08; 
+
+      O     #t_CCC_Power_On_GRP08; // Power on Group 8
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HH01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 8 time out counter
+      T     #s_Cnt_Power_On_TO_GRP08; 
+HH01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      A     #i_SafetyRelais_OK_GRP08; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HH99; 
+
+      L     #s_Cnt_Power_On_TO_GRP08; //IF Power on Group 8 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP08; 
+      )     ; 
+      S     #s_Status.No_Power_GRP08; // THEN Power on Group 8 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP08; // Power On Group 8
+      A     #i_CCC_400VAC_OK_GRP08; // No Thermal Overload 400Vac MotorGroup 8 
+      A     #i_CCC_230VAC_OK_GRP08; // No Th.Overload  240Vac MotorGroup 8 
+      A     #t_No_Safety_Stop_GRP08; // No Safety stop MotorGroup 8  
+      JCN   HH99; 
+      L     #s_Cnt_Power_On_TO_GRP08; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HH02; 
+      L     0; 
+HH02: T     #s_Cnt_Power_On_TO_GRP08; 
+HH99: NOP   0; 
+NETWORK
+TITLE =HI: Safety group 09 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP09; 
+
+      O     #t_CCC_Power_On_GRP09; // Power on Group 9
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HI01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 9 time out counter
+      T     #s_Cnt_Power_On_TO_GRP09; 
+HI01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      A     #i_SafetyRelais_OK_GRP09; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HI99; 
+
+      L     #s_Cnt_Power_On_TO_GRP09; //IF Power on Group 9 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP09; 
+      )     ; 
+      S     #s_Status.No_Power_GRP09; // THEN Power on Group 9 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP09; // Power On Group 9
+      A     #i_CCC_400VAC_OK_GRP09; // No Thermal Overload 400Vac MotorGroup 9 
+      A     #i_CCC_230VAC_OK_GRP09; // No Th.Overload  240Vac MotorGroup 9 
+      A     #t_No_Safety_Stop_GRP09; // No Safety stop MotorGroup 9  
+      JCN   HI99; 
+      L     #s_Cnt_Power_On_TO_GRP09; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HI02; 
+      L     0; 
+HI02: T     #s_Cnt_Power_On_TO_GRP09; 
+HI99: NOP   0; 
+NETWORK
+TITLE =HJ: Safety group 10 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP10; 
+
+      O     #t_CCC_Power_On_GRP10; // Power on Group 10
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HJ01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 10 time out counter
+      T     #s_Cnt_Power_On_TO_GRP10; 
+HJ01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      A     #i_SafetyRelais_OK_GRP10; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HJ99; 
+
+      L     #s_Cnt_Power_On_TO_GRP10; //IF Power on Group 10 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP10; 
+      )     ; 
+      S     #s_Status.No_Power_GRP10; // THEN Power on Group 10 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP10; // Power On Group 10
+      A     #i_CCC_400VAC_OK_GRP10; // No Thermal Overload 400Vac MotorGroup 10 
+      A     #i_CCC_230VAC_OK_GRP10; // No Th.Overload  240Vac MotorGroup 10 
+      A     #t_No_Safety_Stop_GRP10; // No Safety stop MotorGroup 10  
+      JCN   HJ99; 
+      L     #s_Cnt_Power_On_TO_GRP10; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HJ02; 
+      L     0; 
+HJ02: T     #s_Cnt_Power_On_TO_GRP10; 
+HJ99: NOP   0; 
+NETWORK
+TITLE =HK: Safety group 11 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP11; 
+
+      O     #t_CCC_Power_On_GRP11; // Power on Group 11
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HK01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 11 time out counter
+      T     #s_Cnt_Power_On_TO_GRP11; 
+HK01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      A     #i_SafetyRelais_OK_GRP11; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HK99; 
+
+      L     #s_Cnt_Power_On_TO_GRP11; //IF Power on Group 11 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP11; 
+      )     ; 
+      S     #s_Status.No_Power_GRP11; // THEN Power on Group 11 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP11; // Power On Group 11
+      A     #i_CCC_400VAC_OK_GRP11; // No Thermal Overload 400Vac MotorGroup 11 
+      A     #i_CCC_230VAC_OK_GRP11; // No Th.Overload  240Vac MotorGroup 11 
+      A     #t_No_Safety_Stop_GRP11; // No Safety stop MotorGroup 11  
+      JCN   HK99; 
+      L     #s_Cnt_Power_On_TO_GRP11; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HK02; 
+      L     0; 
+HK02: T     #s_Cnt_Power_On_TO_GRP11; 
+HK99: NOP   0; 
+NETWORK
+TITLE =HL: Safety group 12 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP12; 
+
+      O     #t_CCC_Power_On_GRP12; // Power on Group 12
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HL01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 12 time out counter
+      T     #s_Cnt_Power_On_TO_GRP12; 
+HL01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      A     #i_SafetyRelais_OK_GRP12; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HL99; 
+
+      L     #s_Cnt_Power_On_TO_GRP12; //IF Power on Group 12 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP12; 
+      )     ; 
+      S     #s_Status.No_Power_GRP12; // THEN Power on Group 12 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP12; // Power On Group 12
+      A     #i_CCC_400VAC_OK_GRP12; // No Thermal Overload 400Vac MotorGroup 12 
+      A     #i_CCC_230VAC_OK_GRP12; // No Th.Overload  240Vac MotorGroup 12 
+      A     #t_No_Safety_Stop_GRP12; // No Safety stop MotorGroup 12  
+      JCN   HL99; 
+      L     #s_Cnt_Power_On_TO_GRP12; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HL02; 
+      L     0; 
+HL02: T     #s_Cnt_Power_On_TO_GRP12; 
+HL99: NOP   0; 
+NETWORK
+TITLE =HM: Safety group 13 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP13; 
+
+      O     #t_CCC_Power_On_GRP13; // Power on Group 13
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HM01; 
+      L     #i_CFG_Power_On_Time_Out; //THHM preset Power on Group 13 time out counter
+      T     #s_Cnt_Power_On_TO_GRP13; 
+HM01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      A     #i_SafetyRelais_OK_GRP13; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HM99; 
+
+      L     #s_Cnt_Power_On_TO_GRP13; //IF Power on Group 13 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP13; 
+      )     ; 
+      S     #s_Status.No_Power_GRP13; // THHM Power on Group 13 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP13; // Power On Group 13
+      A     #i_CCC_400VAC_OK_GRP13; // No Thermal Overload 400Vac MotorGroup 13 
+      A     #i_CCC_230VAC_OK_GRP13; // No Th.Overload  240Vac MotorGroup 13 
+      A     #t_No_Safety_Stop_GRP13; // No Safety stop MotorGroup 13  
+      JCN   HM99; 
+      L     #s_Cnt_Power_On_TO_GRP13; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HM02; 
+      L     0; 
+HM02: T     #s_Cnt_Power_On_TO_GRP13; 
+HM99: NOP   0; 
+NETWORK
+TITLE =HN: Safety group 14 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP14; 
+
+      O     #t_CCC_Power_On_GRP14; // Power on Group 14
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HN01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 14 time out counter
+      T     #s_Cnt_Power_On_TO_GRP14; 
+HN01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      A     #i_SafetyRelais_OK_GRP14; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HN99; 
+
+      L     #s_Cnt_Power_On_TO_GRP14; //IF Power on Group 14 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP14; 
+      )     ; 
+      S     #s_Status.No_Power_GRP14; // THEN Power on Group 14 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP14; // Power On Group 14
+      A     #i_CCC_400VAC_OK_GRP14; // No Thermal Overload 400Vac MotorGroup 14 
+      A     #i_CCC_230VAC_OK_GRP14; // No Th.Overload  240Vac MotorGroup 14 
+      A     #t_No_Safety_Stop_GRP14; // No Safety stop MotorGroup 14  
+      JCN   HN99; 
+      L     #s_Cnt_Power_On_TO_GRP14; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HN02; 
+      L     0; 
+HN02: T     #s_Cnt_Power_On_TO_GRP14; 
+HN99: NOP   0; 
+NETWORK
+TITLE =HO: Safety group 15 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP15; 
+
+      O     #t_CCC_Power_On_GRP15; // Power on Group 15
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HO01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 15 time out counter
+      T     #s_Cnt_Power_On_TO_GRP15; 
+HO01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      A     #i_SafetyRelais_OK_GRP15; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HO99; 
+
+      L     #s_Cnt_Power_On_TO_GRP15; //IF Power on Group 15 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP15; 
+      )     ; 
+      S     #s_Status.No_Power_GRP15; // THEN Power on Group 15 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP15; // Power On Group 15
+      A     #i_CCC_400VAC_OK_GRP15; // No Thermal Overload 400Vac MotorGroup 15 
+      A     #i_CCC_230VAC_OK_GRP15; // No Th.Overload  240Vac MotorGroup 15 
+      A     #t_No_Safety_Stop_GRP15; // No Safety stop MotorGroup 15  
+      JCN   HO99; 
+      L     #s_Cnt_Power_On_TO_GRP15; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HO02; 
+      L     0; 
+HO02: T     #s_Cnt_Power_On_TO_GRP15; 
+HO99: NOP   0; 
+NETWORK
+TITLE =HP: Safety group 16 power on time-out
+//When no e-stop is present, and all circuit breakers and thermal overloads of 
+//the motor group are Okay, this network monitors if the power on signal is 
+//received in a configurable time. When this is not the case a Power on time out 
+//error is generated. When using Isafe only the error input is checked for 
+//generating power on time out error.
+      O     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      R     #s_Status.No_Power_GRP16; 
+
+      O     #t_CCC_Power_On_GRP16; // Power on Group 16
+      O     "M_First_Scan"; 
+      O     #i_CFG_Isafe_Used; // Intergrated safety is used so feedback alarm handled by ISafe
+      JCN   HP01; 
+      L     #i_CFG_Power_On_Time_Out; //THEN preset Power on Group 16 time out counter
+      T     #s_Cnt_Power_On_TO_GRP16; 
+HP01: NOP   0; 
+
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      A     #i_SafetyRelais_OK_GRP16; //Circuit breaker for Power group relays
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      JCN   HP99; 
+
+      L     #s_Cnt_Power_On_TO_GRP16; //IF Power on Group 16 time out
+      L     0; 
+      <=I   ; 
+      A(    ; 
+      L     #i_CFG_Power_On_Time_Out; 
+      L     0; // AND time out selected (setting 0 = no time out setting)
+      >I    ; 
+      )     ; 
+      O(    ; 
+      A     #i_CFG_Isafe_Used; 
+      A     #i_SafetyRelais_Err_GRP16; 
+      )     ; 
+      S     #s_Status.No_Power_GRP16; // THEN Power on Group 16 time out expired
+
+// Countdown time out counter
+      AN    #t_CCC_Power_On_GRP16; // Power On Group 16
+      A     #i_CCC_400VAC_OK_GRP16; // No Thermal Overload 400Vac MotorGroup 16 
+      A     #i_CCC_230VAC_OK_GRP16; // No Th.Overload  240Vac MotorGroup 16 
+      A     #t_No_Safety_Stop_GRP16; // No Safety stop MotorGroup 16  
+      JCN   HP99; 
+      L     #s_Cnt_Power_On_TO_GRP16; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+      JPZ   HP02; 
+      L     0; 
+HP02: T     #s_Cnt_Power_On_TO_GRP16; 
+HP99: NOP   0; 
+NETWORK
+TITLE =IA: Motor Group 01 in
+//Handle motor group 1 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP01; // Power On Group 01
+      JC    IA01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP01; 
+IA01: L     #s_Cnt_Safety_Dly_GRP01; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP01; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP01; 
+      JCN   IA02; 
+      T     #s_Cnt_Safety_Dly_GRP01; 
+
+IA02: A     #t_Safety_Pwr_On_GRP01; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP01; 
+      AN    #s_Status.No_Power_GRP01; 
+      AN    #s_Status.THO_230VAC_GRP01; 
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      =     "DB_Motor_CCC03".Motor_Group_01_in; 
+NETWORK
+TITLE =IB: Motor Group 02 in
+//Handle motor group 2 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP02; // Power On Group 02
+      JC    IB01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP02; 
+IB01: L     #s_Cnt_Safety_Dly_GRP02; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP02; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP02; 
+      JCN   IB02; 
+      T     #s_Cnt_Safety_Dly_GRP02; 
+
+IB02: A     #t_Safety_Pwr_On_GRP02; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP02; 
+      AN    #s_Status.No_Power_GRP02; 
+      AN    #s_Status.THO_230VAC_GRP02; 
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      =     "DB_Motor_CCC03".Motor_Group_02_in; 
+NETWORK
+TITLE =IC: Motor Group 03 in
+//Handle motor group 3 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP03; // Power On Group 03
+      JC    IC01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP03; 
+IC01: L     #s_Cnt_Safety_Dly_GRP03; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP03; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP03; 
+      JCN   IC02; 
+      T     #s_Cnt_Safety_Dly_GRP03; 
+
+IC02: A     #t_Safety_Pwr_On_GRP03; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP03; 
+      AN    #s_Status.No_Power_GRP03; 
+      AN    #s_Status.THO_230VAC_GRP03; 
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      =     "DB_Motor_CCC03".Motor_Group_03_in; 
+NETWORK
+TITLE =ID: Motor Group 04 in
+//Handle motor group 4 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP04; // Power On Group 04
+      JC    ID01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP04; 
+ID01: L     #s_Cnt_Safety_Dly_GRP04; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP04; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP04; 
+      JCN   ID02; 
+      T     #s_Cnt_Safety_Dly_GRP04; 
+
+ID02: A     #t_Safety_Pwr_On_GRP04; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP04; 
+      AN    #s_Status.No_Power_GRP04; 
+      AN    #s_Status.THO_230VAC_GRP04; 
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      =     "DB_Motor_CCC03".Motor_Group_04_in; 
+NETWORK
+TITLE =IE: Motor Group 05 in
+//Handle motor group 5 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP05; // Power On Group 05
+      JC    IE01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP05; 
+IE01: L     #s_Cnt_Safety_Dly_GRP05; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP05; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP05; 
+      JCN   IE02; 
+      T     #s_Cnt_Safety_Dly_GRP05; 
+
+IE02: A     #t_Safety_Pwr_On_GRP05; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP05; 
+      AN    #s_Status.No_Power_GRP05; 
+      AN    #s_Status.THO_230VAC_GRP05; 
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      =     "DB_Motor_CCC03".Motor_Group_05_in; 
+NETWORK
+TITLE =IF: Motor Group 06 in
+//Handle motor group 6 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP06; // Power On Group 06
+      JC    IF01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP06; 
+IF01: L     #s_Cnt_Safety_Dly_GRP06; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP06; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP06; 
+      JCN   IF02; 
+      T     #s_Cnt_Safety_Dly_GRP06; 
+
+IF02: A     #t_Safety_Pwr_On_GRP06; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP06; 
+      AN    #s_Status.No_Power_GRP06; 
+      AN    #s_Status.THO_230VAC_GRP06; 
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      =     "DB_Motor_CCC03".Motor_Group_06_in; 
+NETWORK
+TITLE =IG: Motor Group 07 in
+//Handle motor group 7 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP07; // Power On Group 07
+      JC    IG01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP07; 
+IG01: L     #s_Cnt_Safety_Dly_GRP07; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP07; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP07; 
+      JCN   IG02; 
+      T     #s_Cnt_Safety_Dly_GRP07; 
+
+IG02: A     #t_Safety_Pwr_On_GRP07; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP07; 
+      AN    #s_Status.No_Power_GRP07; 
+      AN    #s_Status.THO_230VAC_GRP07; 
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      =     "DB_Motor_CCC03".Motor_Group_07_in; 
+NETWORK
+TITLE =IH: Motor Group 08 in
+//Handle motor group 8 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP08; // Power On Group 08
+      JC    IH01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP08; 
+IH01: L     #s_Cnt_Safety_Dly_GRP08; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP08; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP08; 
+      JCN   IH02; 
+      T     #s_Cnt_Safety_Dly_GRP08; 
+
+IH02: A     #t_Safety_Pwr_On_GRP08; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP08; 
+      AN    #s_Status.No_Power_GRP08; 
+      AN    #s_Status.THO_230VAC_GRP08; 
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      =     "DB_Motor_CCC03".Motor_Group_08_in; 
+NETWORK
+TITLE =II: Motor Group 09 in
+//Handle motor group 9 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP09; // Power On Group 09
+      JC    II01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP09; 
+II01: L     #s_Cnt_Safety_Dly_GRP09; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP09; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP09; 
+      JCN   II02; 
+      T     #s_Cnt_Safety_Dly_GRP09; 
+
+II02: A     #t_Safety_Pwr_On_GRP09; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP09; 
+      AN    #s_Status.No_Power_GRP09; 
+      AN    #s_Status.THO_230VAC_GRP09; 
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      =     "DB_Motor_CCC03".Motor_Group_09_in; 
+NETWORK
+TITLE =IJ: Motor Group 10 in
+//Handle motor group 10 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP10; // Power On Group 10
+      JC    IJ01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP10; 
+IJ01: L     #s_Cnt_Safety_Dly_GRP10; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP10; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP10; 
+      JCN   IJ02; 
+      T     #s_Cnt_Safety_Dly_GRP10; 
+
+IJ02: A     #t_Safety_Pwr_On_GRP10; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP10; 
+      AN    #s_Status.No_Power_GRP10; 
+      AN    #s_Status.THO_230VAC_GRP10; 
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      =     "DB_Motor_CCC03".Motor_Group_10_in; 
+NETWORK
+TITLE =IK: Motor Group 11 in
+//Handle motor group 11 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP11; // Power On Group 11
+      JC    IK01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP11; 
+IK01: L     #s_Cnt_Safety_Dly_GRP11; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP11; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP11; 
+      JCN   IK02; 
+      T     #s_Cnt_Safety_Dly_GRP11; 
+
+IK02: A     #t_Safety_Pwr_On_GRP11; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP11; 
+      AN    #s_Status.No_Power_GRP11; 
+      AN    #s_Status.THO_230VAC_GRP11; 
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      =     "DB_Motor_CCC03".Motor_Group_11_in; 
+NETWORK
+TITLE =IL: Motor Group 12 in
+//Handle motor group 12 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP12; // Power On Group 12
+      JC    IL01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP12; 
+IL01: L     #s_Cnt_Safety_Dly_GRP12; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP12; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP12; 
+      JCN   IL02; 
+      T     #s_Cnt_Safety_Dly_GRP12; 
+
+IL02: A     #t_Safety_Pwr_On_GRP12; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP12; 
+      AN    #s_Status.No_Power_GRP12; 
+      AN    #s_Status.THO_230VAC_GRP12; 
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      =     "DB_Motor_CCC03".Motor_Group_12_in; 
+NETWORK
+TITLE =IM: Motor Group 13 in
+//Handle motor group 13 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP13; // Power On Group 13
+      JC    IM01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP13; 
+IM01: L     #s_Cnt_Safety_Dly_GRP13; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP13; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP13; 
+      JCN   IM02; 
+      T     #s_Cnt_Safety_Dly_GRP13; 
+
+IM02: A     #t_Safety_Pwr_On_GRP13; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP13; 
+      AN    #s_Status.No_Power_GRP13; 
+      AN    #s_Status.THO_230VAC_GRP13; 
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      =     "DB_Motor_CCC03".Motor_Group_13_in; 
+NETWORK
+TITLE =IN: Motor Group 14 in
+//Handle motor group 14 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP14; // Power On Group 14
+      JC    IN01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP14; 
+IN01: L     #s_Cnt_Safety_Dly_GRP14; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP14; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP14; 
+      JCN   IN02; 
+      T     #s_Cnt_Safety_Dly_GRP14; 
+
+IN02: A     #t_Safety_Pwr_On_GRP14; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP14; 
+      AN    #s_Status.No_Power_GRP14; 
+      AN    #s_Status.THO_230VAC_GRP14; 
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      =     "DB_Motor_CCC03".Motor_Group_14_in; 
+NETWORK
+TITLE =IO: Motor Group 15 in
+//Handle motor group 15 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP15; // Power On Group 15
+      JC    IO01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP15; 
+IO01: L     #s_Cnt_Safety_Dly_GRP15; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP15; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP15; 
+      JCN   IO02; 
+      T     #s_Cnt_Safety_Dly_GRP15; 
+
+IO02: A     #t_Safety_Pwr_On_GRP15; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP15; 
+      AN    #s_Status.No_Power_GRP15; 
+      AN    #s_Status.THO_230VAC_GRP15; 
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      =     "DB_Motor_CCC03".Motor_Group_15_in; 
+NETWORK
+TITLE =IP: Motor Group 16 in
+//Handle motor group 16 status for the motor group status DB.
+//A delayed version of the Safety Group Power On signal is used to prevent 
+//problems because other 'devices' are not yet 'healthy'.
+      A     #t_CCC_Power_On_GRP16; // Power On Group 16
+      JC    IP01; 
+      L     0; 
+      T     #s_Cnt_Safety_Dly_GRP16; 
+IP01: L     #s_Cnt_Safety_Dly_GRP16; 
+      L     "MW_Prev_Cycle_Time"; 
+      +I    ; 
+      T     #s_Cnt_Safety_Dly_GRP16; 
+      L     #i_CFG_Safety_PwrOn_Delay; 
+      >=I   ; 
+      =     #t_Safety_Pwr_On_GRP16; 
+      JCN   IP02; 
+      T     #s_Cnt_Safety_Dly_GRP16; 
+
+IP02: A     #t_Safety_Pwr_On_GRP16; 
+      AN    #t_Suppress_Errors; 
+      AN    #t_Suppress_Errors_Isafe; 
+      AN    #s_Status.THO_400VAC_GRP16; 
+      AN    #s_Status.No_Power_GRP16; 
+      AN    #s_Status.THO_230VAC_GRP16; 
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      =     "DB_Motor_CCC03".Motor_Group_16_in; 
+NETWORK
+TITLE =JA: Safety Signal Handling
+//Handle safety stop signals for every motor group
+      NOP   0; 
+// No Safety stop MotorGroup 01 
+      A     #t_No_Safety_Stop_GRP01; 
+      A     #i_CFG_Motor_Prsnt_GRP01; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG01; 
+
+// No Safety stop MotorGroup 02 
+      A     #t_No_Safety_Stop_GRP02; 
+      A     #i_CFG_Motor_Prsnt_GRP02; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG02; 
+
+// No Safety stop MotorGroup 03 
+      A     #t_No_Safety_Stop_GRP03; 
+      A     #i_CFG_Motor_Prsnt_GRP03; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG03; 
+
+// No Safety stop MotorGroup 04 
+      A     #t_No_Safety_Stop_GRP04; 
+      A     #i_CFG_Motor_Prsnt_GRP04; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG04; 
+
+// No Safety stop MotorGroup 05 
+      A     #t_No_Safety_Stop_GRP05; 
+      A     #i_CFG_Motor_Prsnt_GRP05; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG05; 
+
+// No Safety stop MotorGroup 06 
+      A     #t_No_Safety_Stop_GRP06; 
+      A     #i_CFG_Motor_Prsnt_GRP06; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG06; 
+
+// No Safety stop MotorGroup 07 
+      A     #t_No_Safety_Stop_GRP07; 
+      A     #i_CFG_Motor_Prsnt_GRP07; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG07; 
+
+// No Safety stop MotorGroup 08 
+      A     #t_No_Safety_Stop_GRP08; 
+      A     #i_CFG_Motor_Prsnt_GRP08; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG08; 
+
+// No Safety stop MotorGroup 09 
+      A     #t_No_Safety_Stop_GRP09; 
+      A     #i_CFG_Motor_Prsnt_GRP09; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG09; 
+
+// No Safety stop MotorGroup 10 
+      A     #t_No_Safety_Stop_GRP10; 
+      A     #i_CFG_Motor_Prsnt_GRP10; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG10; 
+
+// No Safety stop MotorGroup 11 
+      A     #t_No_Safety_Stop_GRP11; 
+      A     #i_CFG_Motor_Prsnt_GRP11; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG11; 
+
+// No Safety stop MotorGroup 12 
+      A     #t_No_Safety_Stop_GRP12; 
+      A     #i_CFG_Motor_Prsnt_GRP12; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG12; 
+
+// No Safety stop MotorGroup 13 
+      A     #t_No_Safety_Stop_GRP13; 
+      A     #i_CFG_Motor_Prsnt_GRP13; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG13; 
+
+// No Safety stop MotorGroup 14 
+      A     #t_No_Safety_Stop_GRP14; 
+      A     #i_CFG_Motor_Prsnt_GRP14; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG14; 
+
+// No Safety stop MotorGroup 15 
+      A     #t_No_Safety_Stop_GRP15; 
+      A     #i_CFG_Motor_Prsnt_GRP15; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG15; 
+
+// No Safety stop MotorGroup 16 
+      A     #t_No_Safety_Stop_GRP16; 
+      A     #i_CFG_Motor_Prsnt_GRP16; 
+      O     #t_Suppress_Errors; 
+      O     #t_Suppress_Errors_Isafe; 
+      =     "DB_Motor_CCC03".No_Safety_Stop_PG16; 
+
+NETWORK
+TITLE =KA: Handle commands
+//Set the controlled stop and direct stop output signals. 
+      O     #s_Status.Fire_Alarm_Zone_1; 
+      O     #s_Status.Fire_Alarm_Zone_2; 
+      O     #s_Status.CAB_Temp_Error; 
+      =     #o_Controlled_Stop; 
+
+      A(    ; 
+      O     #s_Status.PN1_NotPrsnt; 
+      O     #s_Status.PN2_Error; 
+      O     #s_Status.PN2_NotPrsnt; 
+      O     #s_Status.PN3_Error; 
+      O     #s_Status.PN3_NotPrsnt; 
+      )     ; 
+      A     #i_CFG_Isafe_Used; 
+      O     #s_Status.Mainswitch_OFF; 
+      O     #s_Status.Safety_Comm_Fault; 
+      O     #s_Status.CCC_THO_24VDC_ESTOP; 
+      O     #s_Status.CCC_THO_24VDC; 
+      O     #s_Status.PLC_Power_Supply_Error; 
+// Option to stop is Phase fault is detected.
+      O     #s_Status.CCC_Phase_Fault; 
+      =     #o_Direct_Stop; 
+NETWORK
+TITLE =LA: Write output signals
+
+      A     #s_Status.Mainswitch_OFF; 
+      =     #o_ST_Mainswitch_OFF; 
+
+      A     #s_Status.Safety_Comm_Fault; 
+      =     #o_ST_Safety_Comm_Fault; 
+
+      A     #s_Status.CCC_THO_24VDC; 
+      =     #o_ST_CCC_THO_1_24VDC; 
+
+      A     #s_Status.PLC_Power_Supply_Error; 
+      =     #o_ST_CCC_THO_2_24VDC; 
+
+      A     #s_Status.CCC_THO_24VDC_ESTOP; 
+      =     #o_ST_CCC_THO_24VDC_ESTOP; 
+
+      A     #s_Status.CCC_THO_Phase; 
+      =     #o_ST_CCC_THO_Phase; 
+
+      A     #s_Status.CCC_Phase_Fault; 
+      =     #o_ST_CCC_Phase_Fault; 
+
+      A     #s_Status.Fire_Alarm_Zone_1; 
+      =     #o_ST_Fire_Alarm_Zone_1; 
+
+      A     #s_Status.Fire_Alarm_Zone_2; 
+      =     #o_ST_Fire_Alarm_Zone_2; 
+
+      A     #s_Status.ETH_Switch_Fault; 
+      =     #o_ST_ETH_Switch_Fault; 
+
+      A     #s_Status.CAB_Temp_High; 
+      =     #o_ST_CAB_Temp_Error; 
+
+      A     #s_Status.CAB_Temp_Error; 
+      =     #o_ST_CAB_Temp_Error; 
+
+      A     #s_Status.UPS_THO; 
+      =     #o_ST_UPS_THO; 
+
+      A     #s_Status.THO_400VAC_GRP01; 
+      =     #o_ST_THO_400Vac_GRP01; 
+
+      A     #s_Status.THO_400VAC_GRP02; 
+      =     #o_ST_THO_400Vac_GRP02; 
+
+      A     #s_Status.THO_400VAC_GRP03; 
+      =     #o_ST_THO_400Vac_GRP03; 
+
+      A     #s_Status.THO_400VAC_GRP04; 
+      =     #o_ST_THO_400Vac_GRP04; 
+
+      A     #s_Status.THO_400VAC_GRP05; 
+      =     #o_ST_THO_400Vac_GRP05; 
+
+      A     #s_Status.THO_400VAC_GRP06; 
+      =     #o_ST_THO_400Vac_GRP06; 
+
+      A     #s_Status.THO_400VAC_GRP07; 
+      =     #o_ST_THO_400Vac_GRP07; 
+
+      A     #s_Status.THO_400VAC_GRP08; 
+      =     #o_ST_THO_400Vac_GRP08; 
+
+      A     #s_Status.THO_400VAC_GRP09; 
+      =     #o_ST_THO_400Vac_GRP09; 
+
+      A     #s_Status.THO_400VAC_GRP10; 
+      =     #o_ST_THO_400Vac_GRP10; 
+
+      A     #s_Status.THO_400VAC_GRP11; 
+      =     #o_ST_THO_400Vac_GRP11; 
+
+      A     #s_Status.THO_400VAC_GRP12; 
+      =     #o_ST_THO_400Vac_GRP12; 
+
+      A     #s_Status.THO_400VAC_GRP13; 
+      =     #o_ST_THO_400Vac_GRP13; 
+
+      A     #s_Status.THO_400VAC_GRP14; 
+      =     #o_ST_THO_400Vac_GRP14; 
+
+      A     #s_Status.THO_400VAC_GRP15; 
+      =     #o_ST_THO_400Vac_GRP15; 
+
+      A     #s_Status.THO_400VAC_GRP16; 
+      =     #o_ST_THO_400Vac_GRP16; 
+
+      A     #s_Status.THO_230VAC_GRP01; 
+      =     #o_ST_THO_230Vac_GRP01; 
+
+      A     #s_Status.THO_230VAC_GRP02; 
+      =     #o_ST_THO_230Vac_GRP02; 
+
+      A     #s_Status.THO_230VAC_GRP03; 
+      =     #o_ST_THO_230Vac_GRP03; 
+
+      A     #s_Status.THO_230VAC_GRP04; 
+      =     #o_ST_THO_230Vac_GRP04; 
+
+      A     #s_Status.THO_230VAC_GRP05; 
+      =     #o_ST_THO_230Vac_GRP05; 
+
+      A     #s_Status.THO_230VAC_GRP06; 
+      =     #o_ST_THO_230Vac_GRP06; 
+
+      A     #s_Status.THO_230VAC_GRP07; 
+      =     #o_ST_THO_230Vac_GRP07; 
+
+      A     #s_Status.THO_230VAC_GRP08; 
+      =     #o_ST_THO_230Vac_GRP08; 
+
+      A     #s_Status.THO_230VAC_GRP09; 
+      =     #o_ST_THO_230Vac_GRP09; 
+
+      A     #s_Status.THO_230VAC_GRP10; 
+      =     #o_ST_THO_230Vac_GRP10; 
+
+      A     #s_Status.THO_230VAC_GRP11; 
+      =     #o_ST_THO_230Vac_GRP11; 
+
+      A     #s_Status.THO_230VAC_GRP12; 
+      =     #o_ST_THO_230Vac_GRP12; 
+
+      A     #s_Status.THO_230VAC_GRP13; 
+      =     #o_ST_THO_230Vac_GRP13; 
+
+      A     #s_Status.THO_230VAC_GRP14; 
+      =     #o_ST_THO_230Vac_GRP14; 
+
+      A     #s_Status.THO_230VAC_GRP15; 
+      =     #o_ST_THO_230Vac_GRP15; 
+
+      A     #s_Status.THO_230VAC_GRP16; 
+      =     #o_ST_THO_230Vac_GRP16; 
+
+      A     #s_Status.No_Power_GRP01; 
+      =     #o_ST_No_Power_GRP01; 
+
+      A     #s_Status.No_Power_GRP02; 
+      =     #o_ST_No_Power_GRP02; 
+
+      A     #s_Status.No_Power_GRP03; 
+      =     #o_ST_No_Power_GRP03; 
+
+      A     #s_Status.No_Power_GRP04; 
+      =     #o_ST_No_Power_GRP04; 
+
+      A     #s_Status.No_Power_GRP05; 
+      =     #o_ST_No_Power_GRP05; 
+
+      A     #s_Status.No_Power_GRP06; 
+      =     #o_ST_No_Power_GRP06; 
+
+      A     #s_Status.No_Power_GRP07; 
+      =     #o_ST_No_Power_GRP07; 
+
+      A     #s_Status.No_Power_GRP08; 
+      =     #o_ST_No_Power_GRP08; 
+
+      A     #s_Status.No_Power_GRP09; 
+      =     #o_ST_No_Power_GRP09; 
+
+      A     #s_Status.No_Power_GRP10; 
+      =     #o_ST_No_Power_GRP10; 
+
+      A     #s_Status.No_Power_GRP11; 
+      =     #o_ST_No_Power_GRP11; 
+
+      A     #s_Status.No_Power_GRP12; 
+      =     #o_ST_No_Power_GRP12; 
+
+      A     #s_Status.No_Power_GRP13; 
+      =     #o_ST_No_Power_GRP13; 
+
+      A     #s_Status.No_Power_GRP14; 
+      =     #o_ST_No_Power_GRP14; 
+
+      A     #s_Status.No_Power_GRP15; 
+      =     #o_ST_No_Power_GRP15; 
+
+      A     #s_Status.No_Power_GRP16; 
+      =     #o_ST_No_Power_GRP16; 
+
+      A     #s_Status.PN1_Error; 
+      =     #o_ST_PN1_Err; 
+
+      A     #s_Status.PN1_NotPrsnt; 
+      =     #o_ST_PN1_NotPrsnt; 
+
+      A     #s_Status.PN2_Error; 
+      =     #o_ST_PN2_Err; 
+
+      A     #s_Status.PN2_NotPrsnt; 
+      =     #o_ST_PN2_NotPrsnt; 
+
+      A     #s_Status.PN3_Error; 
+      =     #o_ST_PN3_Err; 
+
+      A     #s_Status.PN3_NotPrsnt; 
+      =     #o_ST_PN3_NotPrsnt; 
+
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,622 @@
+FUNCTION "FC_FIFO" : VOID
+TITLE =%version: 0.05 % CN: 29
+//Function:
+// Module that handles a FIFO DB
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Tuesday, June 14, 2016 4:38:13 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#10112: Change CN FC_FIFO use in FB_Handle_Status   nlHdL    14-06-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7719: Report if send fifo is full or per full         nlHdL    06-08-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.03
+//PR5877 adding call FC_Log_Event_FIFO                  nlple    10-02-11   0.02
+//Initial Revision                                      nlMRe    02-09-10   0.01
+//
+//Description:
+// i_Mode can have the following values:
+// -------------------------------------
+// I = Input, to fill the FIFO with a record.
+// O = Output, to read the record of the FIFO
+// S = Status, to read the status of the FIFO
+// R = Reset, to reset the FIFO
+// L = Logging, to fill the FIFO without the full check (Ringbuffer-function)
+//
+// RET_VAL_FIFO and Binary Result bit:
+// -----------------------------------
+// After execution, the module will return with a value. The meaning of these 
+// values is explaned below.
+// A negative value is an error code (BR=0). The following error codes are 
+// possible: 
+// 3102: DB_FIFO does not exist
+// 3104: Record length too long
+// 3105: Wrong record length
+// 3106: Setting prefull incorrect
+// 3107: BlockMove_Fault
+// 3108: Pointer_OutOfRange
+// A positive or equal to zero value (BR = 1) represents the actual number of 
+// stored entries
+//                                                                        
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_FIFO_DB_Num : INT ;	//Number of DB FIFO
+  i_Mode : CHAR ;	//Mode: I(nput), O(utput), S(tatus), R(eset), L(ogging)
+  i_ANY_Data : ANY ;	//ANY pointer to Data Record to Retrieve Data from
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+END_VAR
+VAR_OUTPUT
+  o_RET_VAL_FIFO : WORD ;	//Return Value of FIFO. Fault or Number Of Stored Records
+END_VAR
+VAR_TEMP
+  t_ANY_data : ANY ;	//Temporary ANY Data Pointer from Source    
+  t_ANY_entry : ANY ;	//Temporary ANY Entry Pointer from Destination
+  t_RET_VAL_BLKMOV : INT ;	//Return Value of Blockmove
+  t_FIFO_DB_Num : INT ;	//Number of the FIFO DB
+  t_FIFO_length : WORD ;	//Total Length of the FIFO
+  t_PTR_to_ANY_data : DWORD ;	//Temporary Pointer to ANY-Data
+  t_Offset_To_First_Record : INT ;	//Number of bytes used for FIFO-Managment
+//General FIFO-Managment Temporary Bits
+  t_Status_Bits : WORD ;	//DW 0: Status Bits for Empty, Prefull, Full etc
+  t_Prefull_Num_Of_Record : INT ;	//DW 2: Number Of Records to store, before FIFO will be Full
+  t_Record_Data_length : INT ;	//DW 4: Equal to FIFO Record Length [Nr of bytes]
+  t_Num_Of_Records_Stored : INT ;	//DW 6: Actual Number Of Records Stored in FIFO
+  t_Max_Num_Of_Records : INT ;	//DW 8: Maximal Number Of Records to Store in FIFO
+  t_Next_Record_Store : INT ;	//DW 10:Next Record to Store to in FIFO
+  t_Next_Record_Retrieve : INT ;	//DW 12:Next Record to Retrieve from FIFO
+  t_Empty : BOOL ;	//FIFO is empty
+  t_Prefull : BOOL ;	//FIFO is not empty and not full
+  t_Full : BOOL ;	//FIFO is full
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: FIFO Managment
+//Remark:
+//Each call the length of the DB is checked and with the entry length the number 
+//of entries is checked. 
+//(This could also be done only initial.) 
+//
+//Preset Offset to First Record (equal to General FIFO-Managment Number-Of-Bytes)
+      L     14; // 14 bytes are reserved for FIFO management
+      T     #t_Offset_To_First_Record; 
+
+// Reset RETURN_VALUES of FIFO & BLOCKMOVE
+      L     #i_FIFO_DB_Num; 
+      T     #t_FIFO_DB_Num; 
+
+      L     0; 
+      <=I   ; 
+      JCN   AA01; 
+
+      L     W#16#3102; // Error 3002: 'DB-Fifo does not exist'
+      T     #o_RET_VAL_FIFO; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3102,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+AA01: L     W#16#0; // Clear Return_value
+      T     #o_RET_VAL_FIFO; 
+      T     #t_RET_VAL_BLKMOV; 
+
+// Copy General FIFO-Management on Temporary Variable
+      OPN   DB [#t_FIFO_DB_Num]; 
+
+      L     DBW    0; 
+      T     #t_Status_Bits; 
+
+      L     DBW    2; 
+      T     #t_Prefull_Num_Of_Record; 
+
+      L     DBW    4; 
+      T     #t_Record_Data_length; 
+
+      L     DBW    6; 
+      T     #t_Num_Of_Records_Stored; 
+
+      L     DBW    8; 
+      T     #t_Max_Num_Of_Records; 
+
+      L     DBW   10; 
+      T     #t_Next_Record_Store; 
+
+      L     DBW   12; 
+      T     #t_Next_Record_Retrieve; 
+
+// Calculate maxmimum number of entries in FIFO
+      L     DBLG; // load DB length [bytes]
+      L     #t_Offset_To_First_Record; 
+      -I    ; 
+      T     #t_FIFO_length; 
+
+      L     #t_Record_Data_length; // Repetition factor
+      /D    ; 
+      T     #t_Max_Num_Of_Records; 
+      L     0; // Minimum size 1
+      <=I   ; 
+      JCN   AA02; 
+
+      L     W#16#3104; // Error 3104: 'Record Length Too long'
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#100000000000; // Bit 0.3: 'Record Length Too long'
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3104,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+AA02: L     #t_FIFO_length; 
+      L     #t_Record_Data_length; // Repetition factor
+      MOD   ; 
+      L     0; 
+      <>I   ; 
+      JCN   AA03; 
+
+      L     W#16#3105; // Error 3105: 'Wrong record length'
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#1000000000000; // Bit 0.4: 'Wrong record length'
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3105,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+//Check setting Record_Data_Length within the general FIFO-Management
+AA03: L     P##i_ANY_Data; // 'area-crossing pointer'
+      LAR1  ; // Absolute address      
+
+      L     W [AR1,P#2.0]; // IF ANY pointer repetition factor
+      L     #t_Record_Data_length; // AND Record data length
+      <>I   ; // ARE NOT equal then ERROR
+      JCN   AA04; 
+
+      L     W#16#3108; // Error 3108: 'Pointer_OutOfRange'
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#10000000000000; // Bit 0.5: 'Pointer_OutOfRange'
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3108,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+AA04: L     #t_Prefull_Num_Of_Record; 
+      L     #t_Max_Num_Of_Records; 
+      >I    ; 
+      JCN   AA05; 
+
+      L     W#16#3106; // Error 3106: 'Setting prefull incorrect'
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#100000000000000; // Bit 0.6: 'Setting prefull incorrect'
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3106,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+// Check for Initial use OR i_Mode == R(eset)
+AA05: O(    ; 
+      L     #t_Next_Record_Store; 
+      L     0; 
+      ==I   ; // IF No Record Stored (Initial)
+      )     ; 
+      O(    ; 
+      L     #i_Mode; 
+      L     'R'; 
+      ==I   ; // OR i_Mode == R(Reset)
+      )     ; 
+      JCN   AA99; // THEN Initialise FIFO
+
+// Initiate FIFO
+      L     0; 
+      T     #t_Num_Of_Records_Stored; 
+
+      L     1; 
+      T     #t_Next_Record_Store; 
+      T     #t_Next_Record_Retrieve; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Define ANYs 'data' and 'entry'
+//Depending on the executed function IN or OUT the ANYs 'data' and 'entry' have 
+//different meanings: 
+//             Function
+//                                                          
+//t_ANY_data      IN:      defines data to be stored in FIFO
+//               OUT:      defines where to move fetched data out of FIFO to
+//
+//t_ANY_entry     IN:      defines entry to store data
+//               OUT:      defines entry to fetch data from
+//
+//
+// Check Mode
+      O(    ; 
+      L     #i_Mode; 
+      L     'S'; 
+      ==I   ; // IF i_Mode >< S(tatus)
+      )     ; 
+      O(    ; 
+      L     #i_Mode; 
+      L     'R'; 
+      ==I   ; // AND i_Mode >< R(Reset)THEN
+      )     ; 
+      JC    BA99; // THEN Calculate Pointers
+
+// define t_ANY_data
+      L     P##i_ANY_Data; // input ANY POINTER
+      T     #t_PTR_to_ANY_data; 
+
+// Copy the the pointer type to the Temporary pointers
+      L     W#16#1002; // ANY pointer type: 10 for S7, 02 for data type 'BYTE'
+      LAR1  P##t_ANY_data; // ANY POINTER for data to write to or read from FIFO DB
+      T     LW [AR1,P#0.0]; // ANY pointer type
+      LAR1  P##t_ANY_entry; // ANY POINTER to data position in FIFO DB
+      T     LW [AR1,P#0.0]; // ANY pointer type
+
+// Copy the repetition factor (= data lentgh) to the Temporary pointers
+      L     #t_Record_Data_length; // Number of bytes to copy
+      LAR1  P##t_ANY_data; // ANY POINTER for data to write to or read from FIFO DB
+      T     LW [AR1,P#2.0]; // ANY pointer repetition factor
+      LAR1  P##t_ANY_entry; // ANY POINTER to data position in FIFO DB
+      T     LW [AR1,P#2.0]; // ANY pointer repetition factor
+
+// Copy the DB number to the Data temporary pointer
+      LAR1  #t_PTR_to_ANY_data; 
+      L     W [AR1,P#4.0]; // ANY pointer DB number
+      LAR1  P##t_ANY_data; // ANY POINTER for data to write to or read from FIFO DB
+      T     LW [AR1,P#4.0]; // ANY pointer DB number
+
+// Copy the DB number to the Data Entry temporary pointer
+      L     DBNO; // load the DB number of the FIFO DB
+      LAR1  P##t_ANY_entry; // ANY POINTER to data position in FIFO DB
+      T     LW [AR1,P#4.0]; // ANY pointer DB number
+
+// Copy the Area pointer to the Data Temporary pointer
+      LAR1  #t_PTR_to_ANY_data; 
+      L     D [AR1,P#6.0]; // ANY pointer Area pointer
+      LAR1  P##t_ANY_data; 
+      T     LD [AR1,P#6.0]; // ANY pointer Area pointer
+
+// Copy the Area pointer to the Data Entry Temporary pointer
+      L     #i_Mode; 
+      L     'I'; 
+      ==I   ; 
+      JCN   BA01; 
+
+      L     #t_Next_Record_Store; 
+      +     -1; 
+
+      JU    BA03; 
+
+BA01: L     #i_Mode; 
+      L     'L'; 
+      ==I   ; 
+      JCN   BA02; 
+
+      L     #t_Next_Record_Store; 
+      +     -1; 
+
+      JU    BA03; 
+
+BA02: L     #i_Mode; 
+      L     'O'; 
+      ==I   ; 
+      JCN   BA03; 
+
+      L     #t_Next_Record_Retrieve; 
+      +     -1; 
+
+BA03: L     #t_Record_Data_length; 
+      *D    ; 
+      L     #t_Offset_To_First_Record; 
+      +D    ; 
+      SLD   3; // convert byte address to pointer format
+      LAR1  P##t_ANY_entry; // ANY POINTER to data position in FIFO DB
+      T     LD [AR1,P#6.0]; 
+
+// Change the Area pointer of the Data Entry Temporary pointer. Because it has to access the FIFO DB
+      L     B#16#84; // 84h: Memory area: Data Block
+      T     LB [AR1,P#6.0]; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: FIFO IN: Write entry
+//Check Mode
+      L     #i_Mode; 
+      L     'I'; 
+      ==I   ; // IF i_Mode == I(nput) THEN
+      JCN   CA99; // ELSE Jump_To_End
+
+// Check if empty entries available
+      L     #t_Num_Of_Records_Stored; 
+      L     #t_Max_Num_Of_Records; 
+      >=I   ; 
+      JCN   CA01; 
+
+// FIFO already full
+      L     2#11000000000; // Bit 0.2 : "Full Indication"
+      T     #t_Status_Bits; // Bit 0.1 : "Prefull Indication"
+
+      JU    FA00; 
+
+CA01: CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_data,
+           RET_VAL                  := #t_RET_VAL_BLKMOV,
+           DSTBLK                   := #t_ANY_entry);
+
+      L     #t_RET_VAL_BLKMOV; // IF the RET_VAL is lower then 0
+      L     0; // THEN an error occured
+      <I    ; 
+      JCN   CA02; // In case of error skip next.
+
+//Blockmove Error
+      L     #t_RET_VAL_BLKMOV; 
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#1000000000000000; // Bit 0.7 : "Blockmove Fault"
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3107,
+           i_ID                     := #i_ID);
+
+      JU    FA00; 
+
+// Update FIFO management
+CA02: L     #t_Next_Record_Store; 
+      +     1; // Increment Next_Record_Store
+      T     #t_Next_Record_Store; 
+
+      L     #t_Max_Num_Of_Records; 
+      >D    ; 
+      JCN   CA03; 
+
+      L     1; 
+      T     #t_Next_Record_Store; 
+
+CA03: L     #t_Num_Of_Records_Stored; 
+      +     1; // Increment NumberOfRecords_Stored
+      T     #t_Num_Of_Records_Stored; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: FIFO Logging: Write entry without overwrite check 
+//Check Mode
+      L     #i_Mode; 
+      L     'L'; 
+      ==I   ; // IF i_Mode == L(ogging) THEN
+      JCN   DA99; // ELSE Jump_To_End
+
+      L     0; 
+      T     #t_Status_Bits; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_data,
+           RET_VAL                  := #t_RET_VAL_BLKMOV,
+           DSTBLK                   := #t_ANY_entry);
+
+      L     #t_RET_VAL_BLKMOV; // IF the RET_VAL is lower then 0
+      L     0; // THEN an error occured
+      <I    ; 
+      JCN   DA01; // In case of error skip next.
+
+//Blockmove Error
+      L     #t_RET_VAL_BLKMOV; 
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#1000000000000000; // Bit 0.7 : "Blockmove Fault"
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3107,
+           i_ID                     := #i_ID);
+
+      JU    FA03; 
+
+// Update FIFO management
+DA01: L     #t_Next_Record_Store; 
+      +     1; // Increment Next_Record_Store
+      T     #t_Next_Record_Store; 
+
+      L     #t_Max_Num_Of_Records; 
+      >D    ; 
+      JCN   DA02; 
+
+      L     1; 
+      T     #t_Next_Record_Store; 
+
+DA02: L     #t_Num_Of_Records_Stored; 
+      L     #t_Max_Num_Of_Records; 
+      <I    ; 
+      JCN   DA03; // Increment NumberOfRecords_Stored only when t_Num_Of_Records_Stored < t_Max_Num_Of_Records
+
+      L     #t_Num_Of_Records_Stored; 
+      +     1; 
+      T     #t_Num_Of_Records_Stored; 
+
+      JU    DA99; 
+
+DA03: L     #t_Max_Num_Of_Records; // FIFO is full, copy t_Max_Num_Of_Records to t_Num_Of_Records_Stored
+      T     #t_Num_Of_Records_Stored; 
+
+      L     #t_Next_Record_Store; // With a full FIFO that is uses as logging #t_Next_Record_Retrieve must equal #t_Next_Record_Store
+      T     #t_Next_Record_Retrieve; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: FIFO Out
+// Check Mode
+      L     #i_Mode; 
+      L     'O'; 
+      ==I   ; // IF i_Mode == O(utput) THEN
+      JCN   EA99; // ELSE Jump_To_End
+
+// Check if FIFO not empty
+      L     #t_Num_Of_Records_Stored; 
+      L     0; 
+      <=I   ; // IF NumberOfRecords_Stored <= 0 
+      JCN   EA01; // THEN FIFO is Empty
+
+// FIFO already empty
+      L     2#100000000; // Bit 0.0 : "Empty Indication"
+      T     #t_Status_Bits; 
+
+      JU    FA00; 
+
+EA01: CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_entry,
+           RET_VAL                  := #t_RET_VAL_BLKMOV,
+           DSTBLK                   := #t_ANY_data);
+
+      L     #t_RET_VAL_BLKMOV; // IF the RET_VAL is lower then 0
+      L     0; // THEN an error occured
+      <I    ; 
+      JCN   EA02; // In case of error skip next.
+
+//Blockmove Error
+      L     #t_RET_VAL_BLKMOV; 
+      T     #o_RET_VAL_FIFO; 
+
+      L     2#1000000000000000; // Bit 0.7 : "Blockmove Fault"
+      T     #t_Status_Bits; 
+
+      CALL "FC_Log_Event_FIFO" (
+           i_Event_ID               := 3107,
+           i_ID                     := #i_ID);
+
+      JU    EA99; 
+
+// Update FIFO management
+EA02: L     #t_Num_Of_Records_Stored; 
+      +     -1; // Decrement NumberOfRecords_Stored
+      T     #t_Num_Of_Records_Stored; 
+
+// Calculate new Next_entry_to_fetch_from out of Actual_number_of_entries and Next_entry_to_store_to
+      L     #t_Next_Record_Store; // Next_entry_to_store_to
+      L     #t_Num_Of_Records_Stored; // Actual_number_of_entries
+      -I    ; 
+      JP    EA03; 
+
+      L     #t_Max_Num_Of_Records; 
+      +I    ; 
+EA03: T     #t_Next_Record_Retrieve; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Status Bits
+//IF the Mode is status, then there will be No Full, Empty Or Blockmove
+//Error, so then the return value contains the Prefull status.
+FA00: L     #o_RET_VAL_FIFO; 
+      L     0; 
+      >=I   ; // IF There's already an error THEN 
+      JCN   FA99; // ELSE Jump_To_End
+
+      L     2#0; // Init: Clear status bits 
+      T     #t_Status_Bits; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     0; 
+      <=I   ; 
+      =     #t_Empty; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     #t_Prefull_Num_Of_Record; 
+      >=I   ; 
+      =     #t_Prefull; 
+
+      L     #t_Num_Of_Records_Stored; 
+      L     #t_Max_Num_Of_Records; 
+      >=I   ; 
+      =     #t_Full; 
+
+//Empty Indication
+      A     #t_Empty; 
+      JCN   FA02; 
+
+      L     2#100000000; // Bit 0.0 : "Empty Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+//Prefull Indication
+FA02: A     #t_Prefull; 
+      JCN   FA03; 
+
+      L     2#1000000000; // Bit 0.1 : "Prefull Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+//Full Indication
+FA03: A     #t_Full; 
+      JCN   FA04; 
+
+      L     2#10000000000; // Bit 0.2 : "Full Indication"
+      L     #t_Status_Bits; 
+      OW    ; 
+      T     #t_Status_Bits; 
+
+FA04: L     #i_Mode; 
+      L     'S'; 
+      ==I   ; // IF i_Mode == S(tatus)
+      JCN   FA05; // THEN Write Fault Code
+
+      L     #o_RET_VAL_FIFO; // IF no Error
+      L     0; 
+      >=I   ; 
+      JCN   FA99; // THEN
+
+FA05: L     #t_Num_Of_Records_Stored; // Number_of_stored_entries 
+      T     #o_RET_VAL_FIFO; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Update BINARY RESULT (BR) Bit
+//According Siemens rules:
+//
+//Block ended with error:       BR = 0         RET_VAL < 0
+//Block ended without error:    BR = 1         RET_VAL >= 0
+      L     #o_RET_VAL_FIFO; // RET_VALUE >=0 when no error 
+      L     0; 
+      >=I   ; 
+      SAVE  ; // Save RLO to BR     
+NETWORK
+TITLE =HA: Copy Temp Var which have been Modified to General FIFO
+
+      L     #t_Status_Bits; 
+      T     DBW    0; 
+
+      L     #t_Num_Of_Records_Stored; 
+      T     DBW    6; 
+
+      L     #t_Max_Num_Of_Records; 
+      T     DBW    8; 
+
+      L     #t_Next_Record_Store; 
+      T     DBW   10; 
+
+      L     #t_Next_Record_Retrieve; 
+      T     DBW   12; 
+END_FUNCTION
+

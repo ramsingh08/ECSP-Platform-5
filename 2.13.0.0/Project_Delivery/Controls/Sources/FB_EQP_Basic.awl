@@ -1,0 +1,520 @@
+FUNCTION_BLOCK "FB_EQP_Basic"
+TITLE =%version: 1.12 % CN: 50 
+//Function:
+//Module for baisc control of equipment.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, April 20, 2017 8:19:12 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#1103: Reset E-save in temp slave mode         nlHdL    20-04-17   1.12
+//ina#1918: flow control configuration                  nlJClo   24-01-17   1.11
+//ra#18816: Clear PLT layer EQP equipment               nlHdL    02-12-16   1.10
+//ra#13986: Add the External Stop status to EQP         nlHdL    02-06-16   1.09
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.07
+//22668: Flow not correct if downstream is not running  nlHdL    21-04-15   1.07
+//23445: wrongfully remove last entry during pull fase  nlHdL    07-04-15   1.06
+//23247: Trailing edge in Runout section no IHO bit     nlHdL    13-03-15   1.05
+//23247: Trailing edge in Runout section no IHO bit     nlHdL    13-03-15   1.05
+//5181: Added Die-back delay with overrule flowcontrol  nlHdL    02-07-14   1.04
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   1.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//14506: Add Motor_Stopped to EQP Basic & Lean          nlHdL    02-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.54 of PLT version 0
+//
+//Description:
+//
+//!!This block is in LAD!!
+//
+//The transport function that can be executed by this module, are:
+//- Displacement
+//- PLT
+//- Flow Control
+//- Handover
+//- Cascade
+//- Energy Saving
+//- External
+//
+//Explanation of the parameters:
+//  Parameter prefixes:
+//    HW: field IO
+//    SET: setting
+//    CFG: configuration
+//    CMD: command
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID_Section : DWORD ;	//ID of Section ID Record HEX AAAA - ZZSS.
+  i_Basic_Offset : INT ;	//[cm] Distance between begin of conveyor and next handling point (mostly a PEC)
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_PLT_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Conveyor_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_CFG_Run_Out_Distance : INT  := 14;	//CFG: [cm] Run out distance from nominal speed
+  i_CFG_Start_Up_Distance : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_Minimum_Gap : INT ;	//[cm] Minimum gap length between products (0 = no gap control) 
+  i_Add_Gap_Stop : INT ;	//[cm] Additional gap after stop of upstream conveyor
+  i_Minimum_H2H : INT ;	//[cm] Minimum head to head length (0 = no head to head control)
+  i_Add_H2H_Stop : INT ;	//[cm] Additional head to head length after stop of upstream conveyor
+  i_CFG_Cascade_Delay_Time : INT ;	//CFG: [ms] Cascade delay time
+  i_CFG_Strt_Up_T_E_Save : INT ;	//CFG: Start up Time Energy Saving (Common Setting)
+  i_CFG_Run_Out_E_Save : INT ;	//CFG: Run Out Time Energy Saving (Common Setting)
+  i_CFG_Stop_T_E_Save : INT ;	//CFG: Stop Time Energy Saving (Common Setting)
+  i_PPI_Displacement : INT ;	//The displacement coming from the PPI in [mm]
+  i_Dwnstr_PLT_Pos : INT ;	//CFG: Total offset from downstream datahandling point in [cm] (previous pos)
+  i_CFG_Disbl_E_Save : BOOL ;	//CFG: Disable Energy Saving (Common Setting)
+  i_CFG_Slave_Mode : BOOL ;	//CFG: Make this section a slave
+  i_CFG_Del_Window_Codes : BOOL ;	//CFG: Empty window and window reservation codes are deleted at the end
+  i_Available_IO : BOOL  := TRUE;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_Safety_OK : BOOL  := TRUE;	//Safety is OK signal
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_Ext_Req_Stop : BOOL ;	//Request signal from external to stop (restart needed)
+  i_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_Ext_Req_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_Ext_Req_Rst_ESave : BOOL ;	//Request signal from external reset energy saving
+  i_OS_Direction_Change : BOOL ;	//Reset handover on One-Shot direction change
+  i_Clr_PLT_Data : BOOL ;	//Clear PLT Data when LMS is not automatic
+END_VAR
+VAR_OUTPUT
+  o_External : "UDT_External_Outputs";	//Data Structure: External record
+  o_Motor_Run : BOOL ;	//Command run motor to HW layer
+  o_ST_Items : BOOL ;	//ST: Items present on section
+  o_ST_Running : BOOL ;	//ST: Section is running
+  o_ST_Started : BOOL ;	//ST: Started
+  o_ST_Request_Halt : BOOL ;	//ST: Request Halt
+  o_ST_Request_Stop : BOOL ;	//ST: Request Stop
+  o_ST_External_Stop : BOOL ;	//ST: Component is operationally off and not available for operational use
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+END_VAR
+VAR
+  s_FB_Displacement : "FB_Displacement";	//Multi Instance block call
+  s_FB_Manage_PLT : "FB_Manage_PLT";	//Multi Instance block call
+  s_FB_HandOver : "FB_Handover";	//Multi Instance block call
+  s_FB_Cascade : "FB_Cascade";	//Multi Instance block call
+  s_FB_Energy_Save : "FB_Energy_Save";	//Multi Instance block call
+  s_FB_Flow_Control : "FB_Flow_Control";	//Multi Instance block call
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_DB_Num_Event : INT ;	//Number of the Event DB
+  s_DB_Num_PLT_Downstream : INT ;	//Number ot hte PLT DB downstream section
+  s_Length_Section : INT ;	//[cm] Length of this section.
+  s_Displacement : INT ;	//[cm] Displacement of the section
+  s_Act_Run_Out_Distance : INT ;	//Actual calculated run-out distance
+  s_Act_Start_Up_Distance : INT ;	//Actual calculated start-up distance
+  s_Section_Run : BOOL ;	//PLT: Indication if the section is running
+  s_Motor_On_Speed : BOOL ;	//Motor on nominal speed
+  s_Motor_Stopped : BOOL ;	//Motor is stopped (speed = 0)
+  s_Eqp_Energy_Saving : BOOL ;	//Indication if the equipment is in energy saving
+  s_Eqp_Operational_On : BOOL ;	//Operational on signal of this section
+  s_Eqp_Announce : BOOL ;	//Announce signal to the downstream section that bags are arriving
+  s_Stop_Motor : BOOL ;	//Request to stop the motor
+  s_Handover_Run_OK : BOOL ;	//Indicating that for the handover function its ok to run the section
+  s_Cascade_Run_Ok : BOOL ;	//Request Halt Conveyor because off cascade
+  s_Gap_OK : BOOL ;	//Monitor siganal to see if the Gap is available
+  s_Head_to_Head_OK : BOOL ;	//Monitor signal to see if the Head to Head is OK
+  s_Flow_Control_Run_OK : BOOL ;	//Indicating that for the flow control function its ok to run the section
+  s_Item_In_Handover_Area : BOOL ;	//Indicating an item is in the handover area
+  s_Cascade_Start_Up : BOOL ;	//Cascade Start-Up bit Downstream
+  s_Section_Run_Downstream : BOOL  := TRUE;	//Section Run Signal Downstream
+  s_Cascade_Start_Up_Downs : BOOL ;	//Cascade Start-Up bit Downstream
+  s_Cascade_Start_UP_PLT : BOOL ;	//Indicating if the Section is started in Cascade
+  s_Section_Available : BOOL ;	//Section Available Upstream
+  s_FP_Handover_Active : BOOL ;	//Positive flank detection when handover is active
+  s_Disable_Send : BOOL ;	//Request to stop the motor
+  s_Inhibit_Rcv_Item_Dwn : BOOL ;	//Downstream inhibit to receive item
+  s_Section_Linked : BOOL ;	//Section is linked to own PLT DB, No flow are cascade.
+  s_Slave_Mode_Active : BOOL ;	//Slave active on configuration are 50% rule pull fase
+  s_FN_Clear_PLT : BOOL ;	//Negative flank of Clear PLT data
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_DB_PLT_Num_Downstream : INT ;	//Number of the downstream PLT DB
+  t_number_items_found : INT ;	//Number of items found in search
+  t_ready_to_restart : BOOL ;	//Equipment is ready to restart
+  t_Disable_Item : BOOL ;	//Item is disabled
+  t_Leading_Edge_Found : BOOL ;	//Leading edge found in PLT
+  t_Trailing_Edge_Found : BOOL ;	//Trailing edge found in PLT
+  t_Delay_Section_Run : BOOL ;	//Delay Section Run signal
+  t_Pull_Dwn_Stopped : BOOL ;	//Pull fase downstream stopped
+  t_Clear_PLT : BOOL ;	//Clear PLT command
+  t_PEC_Latch_PLT : BOOL ;	//PEC Latch for PLT
+  t_Delay_Started : BOOL ;	//Indicating if the Section is delay started (if the downstream was not running)
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB num
+//Read all required parameters from the PLT DB and calculate the run-out distance 
+//for the energy saving.
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      A     DBX   10.1; 
+      =     #s_Section_Run; 
+
+      A     DBX   10.3; 
+      =     #s_Cascade_Start_Up; 
+
+      A     DBX   10.7; 
+      =     #t_PEC_Latch_PLT; 
+
+      L     DBW   12; 
+      T     #s_Length_Section; 
+
+      A     #i_CMD_Start; 
+      JCN   AA01; 
+
+//Check the run out on start command
+      L     #i_CFG_Run_Out_Distance; 
+      L     #s_Length_Section; 
+      >I    ; 
+      JCN   AA01; 
+
+//Report that run out is to large
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 3005,
+           i_Event_value            := #i_CFG_Run_Out_Distance,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           o_Return_Value           := #t_Not_Used_Int);
+
+AA01: L     DBW    8; // Read downstream PLT DB number from PLT DB.
+      T     #t_DB_PLT_Num_Downstream; // The input i_DB_PLT_DwnStr cannot be used because the DB can be swapped (in reverse mode)
+
+      OPN   #i_DB_PLT_DwnStr; // Open downstream PLT DB block
+      L     DBNO; 
+      T     #s_DB_Num_PLT_Downstream; // Determine PLT block DB number for FB_Manage_PLT (needed only in the first scan or if done bit in PLT is FALSE)
+
+      L     #t_DB_PLT_Num_Downstream; // Check if downstream PLT DB is connected
+      L     1; 
+      >I    ; 
+      JCN   AA99; 
+
+      OPN   DB [#t_DB_PLT_Num_Downstream]; 
+
+      A     DBX   10.1; 
+      =     #s_Section_Run_Downstream; 
+
+      A     DBX   10.3; 
+      =     #s_Cascade_Start_Up_Downs; 
+
+      A     DBX   11.0; 
+      =     #s_Inhibit_Rcv_Item_Dwn; 
+
+//Check if downstream = own PLT DB
+      L     #t_DB_PLT_Num_Downstream; 
+      L     #s_DB_Num_PLT; 
+      ==I   ; 
+      =     #s_Section_Linked; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Call smart blocks
+// 
+      CALL #s_FB_Displacement (
+           i_CFG_Conveyor_Speed     := #i_CFG_Conveyor_Speed,
+           i_CFG_Run_Out_Distance   := #i_CFG_Run_Out_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_PPI_Displacement       := #i_PPI_Displacement,
+           i_Section_Run            := #s_Section_Run,
+           o_Motor_On_Speed         := #s_Motor_On_Speed,
+           o_Motor_Stopped          := #s_Motor_Stopped,
+           o_Displacement           := #s_Displacement,
+           o_Act_Run_Out_Distance   := #s_Act_Run_Out_Distance,
+           o_Act_Start_Up_Distance  := #s_Act_Start_Up_Distance);
+
+      CALL #s_FB_Manage_PLT (
+           i_ID                     := #i_ID_Section,
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_PLT_Num_DwnStr      := #s_DB_Num_PLT_Downstream,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           i_Basic_Offset           := #i_Basic_Offset,
+           i_Dwnstr_PLT_Pos         := #i_Dwnstr_PLT_Pos,
+           i_Displacement           := #s_Displacement,
+           i_CFG_Del_Window_Codes   := #i_CFG_Del_Window_Codes,
+           i_Section_Run            := #s_Section_Run,
+           o_Pull_Dwn_Stopped       := #t_Pull_Dwn_Stopped);
+
+      CALL #s_FB_Flow_Control (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Act_Run_Out_Distance   := #s_Act_Run_Out_Distance,
+           i_Act_Start_Up_Distance  := #s_Act_Start_Up_Distance,
+           i_CFG_Start_Up_Distance  := #i_CFG_Start_Up_Distance,
+           i_Minimum_Gap            := #i_Minimum_Gap,
+           i_Add_Gap_Stop           := #i_Add_Gap_Stop,
+           i_Minimum_Head_To_Head   := #i_Minimum_H2H,
+           i_Add_Head_To_Head_Stop  := #i_Add_H2H_Stop,
+           i_CFG_Conveyor_Speed     := #i_CFG_Conveyor_Speed,
+           i_Section_Run            := #s_Section_Run,
+           o_Flow_Control_Run_OK    := #s_Flow_Control_Run_OK,
+           o_Gap_Control_OK         := #s_Gap_OK,
+           o_Head_to_Head_OK        := #s_Head_to_Head_OK,
+           o_Delay_Section_Run      := #t_Delay_Section_Run);
+
+      CALL #s_FB_HandOver (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           i_Position_HO            := #s_Act_Run_Out_Distance,
+           i_PEC_Offset             := #i_Dwnstr_PLT_Pos,
+           i_Section_Run_Downstream := #s_Section_Run_Downstream,
+           i_OS_Direction_Change    := #i_OS_Direction_Change,
+           o_Handover_Run_OK        := #s_Handover_Run_OK,
+           o_Item_In_HandOver_Area  := #s_Item_In_Handover_Area);
+
+      CALL #s_FB_Cascade (
+           i_Cascade_Delay_Time     := #i_CFG_Cascade_Delay_Time,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_Eqp_Operational_On     := #s_Eqp_Operational_On,
+           i_Section_Run            := #s_Section_Run,
+           i_Cascade_Start_Up       := #s_Cascade_Start_Up,
+           i_Section_Run_Downstream := #s_Section_Run_Downstream,
+           i_Cascase_Start_Up_Downs := #s_Cascade_Start_Up_Downs,
+           i_Item_In_Handover_Area  := #s_Item_In_Handover_Area,
+           o_Cascade_Run_OK         := #s_Cascade_Run_Ok,
+           o_Cascade_Start_Up       := #s_Cascade_Start_UP_PLT,
+           o_Delay_Started          := #t_Delay_Started);
+
+      A     #o_Ready_To_Restart; 
+      =     #t_ready_to_restart; 
+
+      CALL #s_FB_Energy_Save (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #s_DB_Num_Event,
+           i_CFG_Conveyor_Speed     := #i_CFG_Conveyor_Speed,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ready_to_Restart       := #t_ready_to_restart,
+           i_Reset_E_Save           := #i_Ext_Req_Rst_ESave,
+           i_CFG_Slave_Mode         := #s_Slave_Mode_Active,
+           i_CFG_Disbl_E_Save       := #i_CFG_Disbl_E_Save,
+           i_CFG_Strt_Up_T_E_Save   := #i_CFG_Strt_Up_T_E_Save,
+           i_CFG_Run_Out_E_Save     := #i_CFG_Run_Out_E_Save,
+           i_CFG_Stop_T_E_Save      := #i_CFG_Stop_T_E_Save,
+           o_Energy_Saving          := #s_Eqp_Energy_Saving,
+           o_Announce               := #s_Eqp_Announce);
+
+NETWORK
+TITLE =CA: Determine 'Operational_ON' status
+//LAD!
+      A     #i_CMD_Start; 
+      S     #s_Eqp_Operational_On; 
+      A(    ; 
+      ON    #i_CMD_Enable; 
+      ON    #i_Available_IO; 
+      O     #i_Ext_Req_Stop; 
+      ON    #i_Safety_OK; 
+      )     ; 
+      R     #s_Eqp_Operational_On; 
+      A     #s_Eqp_Operational_On; 
+      =     #o_External.Operational_On; 
+NETWORK
+TITLE =DA: Stop Motor
+//LAD!
+      ON    #s_Eqp_Operational_On; 
+      ON    #i_Safety_OK; 
+      O     #i_Ext_Req_Stop; 
+      =     #s_Stop_Motor; 
+NETWORK
+TITLE =EA: Clear PLT
+
+      A     #i_Clr_PLT_Data; 
+      AN    #t_PEC_Latch_PLT; 
+      FN    #s_FN_Clear_PLT; 
+      =     #t_Clear_PLT; 
+
+      A     #t_Clear_PLT; 
+      JCN   EA01; 
+
+//Clear PLT 
+      CALL "FC_PLT_Clr_DB" (
+           i_Enable_Clr             := #t_Clear_PLT,
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+EA01: NOP   0; 
+NETWORK
+TITLE =FA: Halt Disable Send
+//LAD!
+      A(    ; 
+      A     #s_Item_In_Handover_Area; 
+      FP    #s_FP_Handover_Active; 
+      O     ; 
+      A     #s_Disable_Send; 
+      AN    #t_Clear_PLT; 
+      )     ; 
+
+      A     #i_Ext_Req_Dis_Send; 
+      =     #s_Disable_Send; 
+NETWORK
+TITLE =GA: Downstream is inhibit to Receive item
+
+      A     #s_Item_In_Handover_Area; 
+      A     #s_Inhibit_Rcv_Item_Dwn; 
+      O     #s_Disable_Send; 
+      =     #t_Disable_Item; 
+NETWORK
+TITLE =HA:Slave mode is active on configuration are during pull fase 50
+
+      O     #i_CFG_Slave_Mode; 
+      O     #t_Pull_Dwn_Stopped; 
+      =     #s_Slave_Mode_Active; 
+NETWORK
+TITLE =IA: Motor Control
+//LAD!
+      A     #i_Safety_OK; 
+      AN    #s_Stop_Motor; 
+      AN    #s_Eqp_Energy_Saving; 
+      A(    ; 
+      A(    ; 
+      AN    #s_Slave_Mode_Active; 
+      A     #s_Handover_Run_OK; 
+      O     ; 
+      A     #s_Slave_Mode_Active; 
+      A     #s_Section_Run_Downstream; 
+      )     ; 
+      A     #s_Flow_Control_Run_OK; 
+      A     #s_Cascade_Run_Ok; 
+      O     #s_Section_Linked; 
+      )     ; 
+      AN    #i_Ext_Req_Halt; 
+      AN    #t_Disable_Item; 
+      =     #o_Motor_Run; 
+      =     #s_Section_Run; 
+      =     #o_External.Motor_Run; 
+NETWORK
+TITLE =JA: Status Items Present
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Window                 := #s_Length_Section,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_number_items_found);
+
+      L     #t_number_items_found; 
+      L     0; 
+      >I    ; 
+      =     #t_Leading_Edge_Found; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := #s_Length_Section,
+           i_Window                 := #s_Length_Section,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_number_items_found);
+
+      L     #t_number_items_found; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge_Found; 
+
+      A     #t_Leading_Edge_Found; 
+      O     #t_Trailing_Edge_Found; 
+      O     #s_Item_In_Handover_Area; 
+      =     #o_ST_Items; 
+NETWORK
+TITLE =KA: Status running
+//LAD!
+      O     #s_Section_Run; 
+      O     #t_Delay_Section_Run; 
+      =     #o_ST_Running; 
+NETWORK
+TITLE =LA: Status Started
+//LAD!
+      A     #s_Eqp_Operational_On; 
+      AN    #s_Stop_Motor; 
+      =     #o_ST_Started; 
+NETWORK
+TITLE =MA: Status Request Halt
+//LAD!
+      A     #i_Ext_Req_Halt; 
+      =     #o_ST_Request_Halt; 
+NETWORK
+TITLE =NA: Status Request Stop
+//LAD!
+      A     #i_Ext_Req_Stop; 
+      =     #o_ST_Request_Stop; 
+NETWORK
+TITLE =OA: External stop
+//LAD!
+      ON    #i_Available_IO; 
+      ON    #i_Safety_OK; 
+      =     #o_ST_External_Stop; 
+NETWORK
+TITLE =PA: External status Energy Saving
+//LAD!
+      A     #s_Eqp_Energy_Saving; 
+      AN    #i_Ext_Req_Stop; 
+      A     #s_Eqp_Operational_On; 
+      =     #o_External.Energy_Saving; 
+NETWORK
+TITLE =QA: Ready to restart indication to Equipment Control
+//LAD!
+      AN    #s_Eqp_Operational_On; 
+      A     #i_CMD_Enable; 
+      AN    #i_Ext_Req_Stop; 
+      A     #i_Safety_OK; 
+      A     #i_Available_IO; 
+      =     #o_Ready_To_Restart; 
+NETWORK
+TITLE =RA: Section Available
+//LAD!
+      A     #o_ST_Started; 
+      AN    #o_ST_Request_Halt; 
+      AN    #o_ST_Request_Stop; 
+      A(    ; 
+      AN    #i_CFG_Slave_Mode; 
+      AN    #t_Disable_Item; 
+      O     ; 
+      A     #i_CFG_Slave_Mode; 
+      A     #s_Section_Run_Downstream; 
+      )     ; 
+      =     #s_Section_Available; 
+NETWORK
+TITLE =SA: Write outputs
+
+      OPN   #i_DB_PLT; 
+
+      A     #s_Section_Run; // Write section run signal
+      =     DBX   10.1; 
+
+      A     #s_Motor_On_Speed; // Write on speed signal
+      =     DBX   10.2; 
+      =     #o_External.Motor_On_Speed; 
+
+      A     #s_Cascade_Start_UP_PLT; // Write cascade start-up signal
+      =     DBX   10.3; 
+
+      A     #s_Section_Available; // Write section available to recieve
+      =     DBX   10.4; 
+
+      A     #o_ST_Started; // Write section operational
+      =     DBX   10.5; 
+
+      A     #s_Item_In_Handover_Area; //Write Item is at Handover
+      =     DBX   10.6; 
+
+      A     #s_Motor_Stopped; //Write Motor Stopped
+      =     DBX   11.1; 
+END_FUNCTION_BLOCK
+

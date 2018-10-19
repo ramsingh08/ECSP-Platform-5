@@ -1,0 +1,282 @@
+FUNCTION "FC_On_Dly_Timer_Sec" : VOID
+TITLE =%version: 0.03 %  CN: 30
+//Function:
+//This function block acts as a delay on timer that can be configured in seconds.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:02:28 %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//19201: Timer restarts after timer has elapsed         nlHdL    09-05-14   0.03
+//19134: Timer problem integer overflow occurs          nlHdL    07-05-14   0.02
+//Initial version                                       nlHHop   07-02-14   0.01
+//
+//Description:
+//The timer can be configured by assigning the required time value (in seconds) 
+//to the configuration input. When the command start is received the timer will 
+//start running (timer will stop running when command start is false). The 
+//setpoint will be set to the sum of the actual timer value and the configured 
+//time. The toggle bit will be set (to indicate if the setpoint is valid for a 
+//negative or a positive hour) and the timer elapsed output will be made false. 
+//When the actual time value is equal to or greater then the setpoint the timer 
+//is elapsed and the timer elapsed output will be made true and remain true 
+//until the command start is made false. 
+//
+//Because the actual time will be counting from 0 to 3599 a toggle bit is used to 
+//indicate if the setpoint is valid for the positive hour (toggle is false) or 
+//the negative hour (toggle is true). This toggle bit will be remembered by 
+//making the setpoint value negative when the toggle bit is true. This negative 
+//value will be assigned to the output and will be visible on the input again in 
+//the next scan.
+//
+//Because it is not possible to use a negative 0 value but it is necessary to 
+//remember the toggle bit instead of 0 the setpoint will be 3600 or -3600 
+//(depending on the toggle bit). This 3600 value will then in this block be 
+//converted back to 0 and the status of the toggle bit will be assigned.
+//
+//                          __________________________           _____      
+//i_CMD_Start:   __________|                          |_________|     |_____
+//                                                                          
+//                         | <- CFG Value -> |                              
+//                          _________________                    _____      
+//Timer running: __________|                 |__________________|     |_____
+//                                                                          
+//                                            ________                      
+//Timer elapsed: ____________________________|        |_____________________
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Start : BOOL ;	//CMD: Start the timer
+  i_CFG_Timer_Value : INT ;	//CFG: [sec] Timer value
+  i_Setpoint : INT ;	//Setpoint (connect to output with same name)
+END_VAR
+VAR_OUTPUT
+  o_Setpoint : INT ;	//Setpoint (connect to input with same name)
+  o_Timer_Elapsed : BOOL ;	//Status of the timer (when true the timer has elapsed)
+END_VAR
+VAR_TEMP
+  t_Toggle : BOOL ;	//Toggle bit to indicate if integer value is negative or positive
+  t_Disable_Inversion : BOOL ;	//Disable inversion because integer value is already negative
+  t_Check_Toggle_Bit : BOOL ;	//Check timer toggle bit
+  t_Setpoint : INT ;	//Setpoint
+  t_Setpoint_Dint : DINT ;	//Dint value of setpoint
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear all temps and outputs and check if configuration is ok
+
+      NOP   0; 
+
+// Clear temps and outputs
+      CLR   ; 
+      =     #t_Toggle; 
+      =     #t_Disable_Inversion; 
+      =     #o_Timer_Elapsed; 
+
+      L     0; 
+      T     #o_Setpoint; 
+
+// When the start command is false end the block
+      AN    #i_CMD_Start; 
+      BEC   ; 
+
+// When no timer value has been configured set the timer elapsed output to true
+// and end the block
+      L     #i_CFG_Timer_Value; 
+      L     0; 
+      ==I   ; 
+      =     #o_Timer_Elapsed; 
+      BEC   ; 
+
+NETWORK
+TITLE =BA: Invert integer value to a positive value
+//A comparison is done to determine if the integer value is greater then 32768. 
+//When this check is true this means the first bit of the integer is true meaning 
+//that the integer value is actually a negative value.
+//
+//When the integer value is a negative value it is converted back to positive by 
+//substracting 65536 (decimal value of the first bit of the integer). Then the 
+//toggle bit is set to indicate that the incomming value is a negative value that 
+//is now converted back to a positive value.
+//
+//When the setpoint value is 3600 this value will be converted to 0 and the 
+//toggle bit will be set corresponding to the positive or negative value of the 
+//setpoint.
+      NOP   0; 
+
+// Copy input setpoint to temp
+      L     #i_Setpoint; 
+      T     #t_Setpoint; 
+
+// Check if integer value is greater then 32767
+      L     #t_Setpoint; 
+      L     L#32767; 
+      >D    ; 
+      JCN   BA01; 
+
+// Convert from negative to positive
+      L     #t_Setpoint; 
+      L     32767; 
+      AD    ; 
+      T     #t_Setpoint; 
+
+// Set toggle bit to indicate value has been converted from negative to positive
+      SET   ; 
+      =     #t_Toggle; 
+
+// Check if setpoint is 3600
+BA01: L     #t_Setpoint; 
+      L     3600; 
+      ==I   ; 
+      JCN   BA99; 
+
+// Change setpoint into 0
+      L     0; 
+      T     #t_Setpoint; 
+
+BA99: NOP   0; 
+
+NETWORK
+TITLE =CA: Preset the timer and determine the setpoint
+//When the timer is not yet preset this will be done. This means that the 
+//setpoint will be set to the sum of the current seconds value and the 
+//configured timer value (t_Setpoint = "MW_Hour_Sec" + i_CFG_Timer_Value).
+//
+//When the setpoint is greater than 3599 this means that the moment in time 
+//where the timer will elapse is in the next hour (because MW_Hour_Sec will 
+//count up from 0 to 3599 and then start again at 0). To correct the setpoint 
+//to make sure the timer will only elapse when the next hour is started the 
+//setpoint will be decremented by 3600 and the toggle bit will be set depending 
+//on the actual status of the M_Toggle_SecTimer. The toggle bit is then used to 
+//determine if the time value is a positive or a negative value.
+      NOP   0; 
+
+// Preset timer when timer is not yet preset 
+      L     #i_Setpoint; 
+      L     0; 
+      ==I   ; 
+      JCN   CA99; 
+
+// When timer is preset determine toggle bit
+      A     "M_Toggle_SecTimer"; 
+      =     #t_Toggle; 
+
+// Calculate new setpoint and determine if it is greater then 3599
+      L     "MW_Hour_Sec"; 
+      L     #i_CFG_Timer_Value; 
+      +D    ; 
+      T     #t_Setpoint_Dint; 
+
+      L     L#3599; 
+      L     #t_Setpoint_Dint; 
+      <D    ; 
+      JCN   CA90; 
+
+// Determine toggle bit for next hour
+      AN    "M_Toggle_SecTimer"; 
+      =     #t_Toggle; 
+
+// Decrease setpoint by 3600 because value is in next hour
+      L     #t_Setpoint_Dint; 
+      L     L#3600; 
+      -D    ; 
+
+CA90: T     #t_Setpoint; 
+
+CA99: NOP   0; 
+
+NETWORK
+TITLE =DA: Check timer value and determine when the timer is elapsed
+//With an XOR equation the status of the check toggle bit is determined. The 
+//check toggle bit is used as condition whether to check if the timer has already 
+//elapsed or not. This means that when the setpoint is in the next hour but the 
+//MW_Hour_Sec timer is still in the previous hour the check toggle bit will/must 
+//be false to prevent the timer will elapse to early. 
+//
+//When the timer has elapsed the setpoint will be set to -9999 to make sure the 
+//timer will remain elapsed regardless of the actual time value. 
+      NOP   0; 
+
+      X     "M_Toggle_SecTimer"; // |Sec Timer| Toggle |
+      X     #t_Toggle; // |    0    |    0   | = 1
+      =     #t_Check_Toggle_Bit; // |    1    |    0   | = 0
+      AN    #t_Check_Toggle_Bit; // |    0    |    1   | = 0
+      =     #t_Check_Toggle_Bit; // |    1    |    1   | = 1
+
+// Check if the MW_Hour_Sec timer is greater or equal to the setpoint 
+// Also check if timer is already elapsed (timer value is 9999)
+      L     "MW_Hour_Sec"; 
+      L     #t_Setpoint; 
+      >=I   ; 
+      A     #t_Check_Toggle_Bit; 
+      O(    ; 
+      L     #i_Setpoint; 
+      L     L#55537; //-9999
+      ==I   ; 
+      )     ; 
+      JCN   DA99; 
+
+// When the timer is elapsed set the timer elapsed output
+      SET   ; 
+      =     #o_Timer_Elapsed; 
+
+// Set the setpoint to -9999 to make sure the timer remains elapsed
+      L     -9999; 
+      T     #t_Setpoint; 
+
+// Set disable inversion bit because setpoint is already negative
+      SET   ; 
+      =     #t_Disable_Inversion; 
+
+DA99: NOP   0; 
+
+NETWORK
+TITLE =EA: Invert integer value to a negative value and copy to output
+//When the toggle bit is set this means that the integer value is actually a 
+//negative value. To make sure this can be determined again in the enxt scan the 
+//integer value will be inverted back to negative again. This is done by 
+//multiplying the setpoint with -1.
+//
+//This inversion should not be done when the disable inversion bit is true. This 
+//bit will be made true when the integer value is already a negative value.
+//
+//When the setpoint value is 0 this value will be converted to 3600 or -3600 
+//depending on the toggle bit (because it is not possible to create a -0 value).
+      NOP   0; 
+
+// Check if setpoint is 0
+      L     #t_Setpoint; 
+      L     0; 
+      ==I   ; 
+      JCN   EA01; 
+
+// Change setpoint into 3600 (because 0 cannot be inverted into a negative number)
+      L     3600; 
+      T     #t_Setpoint; 
+
+// Check if toggle bit is set and inversion is not disabled
+EA01: A     #t_Toggle; 
+      AN    #t_Disable_Inversion; 
+      JCN   EA02; 
+
+// Convert from positive to negative
+      L     #t_Setpoint; 
+      L     L#32768; 
+      OW    ; 
+      T     #t_Setpoint; 
+
+// Copy temp setpoint to output
+EA02: L     #t_Setpoint; 
+      T     #o_Setpoint; 
+
+END_FUNCTION
+

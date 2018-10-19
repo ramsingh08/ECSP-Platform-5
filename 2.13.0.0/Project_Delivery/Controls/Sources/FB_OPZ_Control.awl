@@ -1,0 +1,1067 @@
+FUNCTION_BLOCK "FB_OPZ_Control"
+TITLE =%version: 0.13 % CN: 50
+//FUNCTION:
+//- Control part of a Operator Zone (Manual coding).
+//
+//
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, November 16, 2017 10:29:21 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26361: OPZ01: Align Command for Conveyor mode      inajos   16-11-17   0.13
+//ra#25278: OPZ Fallback tags from OPS                  nlHdL    03-10-17   0.12
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   0.11
+//ra#23742: OPZ01: add states transport mode, disable   nlHdL    21-08-17   0.10
+//bhs_plf#1793: EventDB num update                      nlHdL    12-06-17   0.09
+//bhs_plf#1793: OPZ add report IDs Reg and Dereg        nlHdL    08-06-17   0.08
+//ra#18144:Removed network IA: reset local destination  nlJClo   22-09-16   0.07
+//ra#16996: Adjust Headers                              nlJClo   22-09-16   0.06
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.05
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.05
+//24577: wait encodedresult after encodedrequest send   nlHdL    17-07-15   0.05
+//24455: Cancel requested window OPS mess Area ID       nlHdL    29-06-15   0.04
+//23801: Predefinie temp before use                     nlHdL    21-05-15   0.03
+//23801: modified wait for PID                          nlHdL    08-05-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//
+//DESCRIPTION:
+//This block facilitates a position where baggage items can be manually 
+//identified. This position is called the manual coding station or manual coding 
+//position. All communication with OPS and HL (SAC), concerning the manual 
+//identification of baggage items is handled by this module. In addition, it is 
+//also possible to insert a new baggage item into the system at the manual coding 
+//position
+//This module looks at the destination of the baggage item that is present at the
+//manual coding section. If the destination is equal to i_Local_Destination then
+//LM and OPS are informed of the arrival of a bag that needs to be manualy 
+//identified. The item can then be manually identified while it is travelling on
+//the manual coding conveyor. If the baggage item has reached the end of the
+//manual coding conveyor without having been identified, it will stop. The 
+//baggage item will be allowed to leave the manual coding position when it has 
+//been identified (OPS will let us know when this has happened by means of a 
+//Dispatch message). The baggage item may also leave the manaual coding position
+//when its destination has been changed (this can be done by LM by means of a 
+//Package Instruction message).
+//
+//Another way to get a baggage item to leave the manual coding position is to 
+//i_Cancel_Coding high. This will result in the manual coding station being 
+//reset. During such a reset the manual coding conveyor will run for a predefined
+//period to get rid of any baggage items that are present on it and a message 
+//will be sent to OPS to cancel all coding actions.
+//
+//CREATE POSITION
+//This module makes room on the conveyor to insert a new baggage item, on the 
+//i_Create_Position. When i_Create_Position is made active, the 
+//conveyor will run long enough to make sure that any baggage items that may 
+//still be present on the manual coding positiion will be moved away.
+//
+//When the position to insert a bag is created (indicated by the Create Position
+//light being continuosly lit), a new baggage item may be positioned on the 
+//conveyor and subsequently 'manually coded'.
+//
+//STATES:
+//This block has a number of states which are used internally. These states are 
+//very usefull for monitoring and debug purposes because they will indicate what
+//the module is doing or which signals (from the operator, LM or MCS) it is 
+//waiting for. The states can be found in the s_State static and have the 
+//following meaning:
+//- Bag_On_Conveyor : A baggage item is present on the conveyor. 
+//- Bag_Needs_To_Be_Coded : The baggage item on the section which needs  
+//  to be identified (Coded). 
+//- Bag_Has_Be_Coded : A baggage item has been coded or identified.   
+//- Creating_Position : A position is being created to manually insert a new  
+//  baggage item.
+//- Position_Created : A position has been created for a new baggage item to 
+//  be manually inserted.
+//- Waiting_For_PID : Before a position is created, a Register message is sent to
+//  LM. As a result of this LM will send a PackageInstruction message which   
+//  contains, among other things, a PID. This PID is needed to send an Arrived  
+//  message to MCS. The Waiting_For_PID state indicates that a Register message 
+//  has been sent to LM but a PID has not yet been received back from LM.
+//- Resetting_MC : The Manual Coding (MC) position can be reset manually by 
+//  pushing the Cancel Coding button or it resets itself when the 'create 
+//  position' function times out. This state indicates that the manual coding 
+//  position is being reset.
+//
+//TERMINOLOGY:
+//bag                : baggage item.
+//coded              : same as manualy coded.
+//item               : baggage item.
+//manualy coded      : baggage item is or needs to be identified by an operator 
+//                     at a manual coding station.
+//manualy identified : same as manualy coded.
+//MC                 : Manual Coding, sometimes refers to the manual coding 
+//                     position.
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_DB_Event : BLOCK_DB ;	//Data structure: Event DB
+  i_Commands : "UDT_OPZ_Command";	//Data structure: Commands
+  i_Create_Position : BOOL ;	//CMD: Create a position (gap) to insert a baggage item
+  i_Cancel_Coding : BOOL ;	//CMD: Cancel coding of baggage item (resets the manual coding position)
+  i_OPS_Active : BOOL ;	//Workstation is active operator is logged in 
+  i_IO_NOT_PEC : BOOL  := TRUE;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_Encode_Response_Rcv : BOOL ;	//Encode Response received from OPS
+  i_Degraded_Mode_Active : BOOL ;	//OPS in degraded mode
+  i_CFG_Default_Record : INT ;	//CFG: Number of default record to be used to create link.
+  i_Local_Destination : INT ;	//SETT: Destination of this section. Bags with this destinaiton will be halted.
+  i_UnattendedBaggage_Time : INT  := 60;	//[seconds] SETT: Time to pass before an Unattended Baggage error is set
+  i_InsertBag_TimeOut_Time : INT  := 60;	//[seconds] SETT: Time before a time-out should be triggered for inserting a bag
+END_VAR
+VAR_OUTPUT
+  o_ER_Unattended_Baggage : BOOL ;	//DS: error, bag has been waiting for manual coding longer than configured time
+  o_SL_Bag_Present : BOOL ;	//HW: A baggage item that needs to be 'coded' is present
+  o_SL_Create_Position : BOOL ;	//HW: Indication for insertion of a new baggage item
+  o_Req_Halt : BOOL ;	//Request halt coding section
+  o_Req_Disable_Receive : BOOL ;	//Request Disable recieve coding section
+  o_Encode_Request : BOOL ;	//Encode Request is active for item
+  o_Encode_Cancel : BOOL ;	//Encode Cancel is active for item
+  o_ST_Disabled : BOOL ;	//ST: Disabled mode activated (Conveyor Mode)
+  o_LNK : INT ;	//LNK number item for encoding request
+END_VAR
+VAR
+  s_OPZ_FB_DAT : "FB_DAT";	//Block call static FB_DAT
+  s_Copy : STRUCT 	//Copy bits for flank detection
+   FP_Item_at_PEC : BOOL ;	//Positive flank detection of Item at PEC MCS
+   FP_Send_TrackingReport : BOOL ;	//Positive flank send trackign report
+   FP_Cancel_Coding : BOOL ;	//Positive flank detection of 'resetting MC' state
+   FN_Bag_Needs_To_Be_Coded : BOOL ;	//Negative flank detection of 'bag needs to be coded' state
+   FP_Send_Arrived : BOOL ;	//Positive flank detection of 'Stack Interface Hand-over bit'
+   FP_Item_at_Handover_TIP : BOOL ;	//Positive flank detection of TIP in downstream FIF
+   FP_Send_Deregister : BOOL ;	//Positive flank send Deregister
+   FP_Bag_Arrived_At_MC : BOOL ;	//Positive flank Arrived at MC
+  END_STRUCT ;	
+  s_State : STRUCT 	//State of baggage item
+   Bag_On_Conveyor : BOOL ;	//A baggage item is present on the conveyor
+   Bag_Needs_To_Be_Coded : BOOL ;	//A baggage item is present that needs to be identified
+   Bag_Has_Be_Coded : BOOL ;	//A baggage item has be identified on the conveyor
+   Resetting_MC : BOOL ;	//Manual coding position is being reset.
+   Waiting_For_PID : BOOL ;	//Waiting for a PID before a position can be created for a new baggage item
+   Arrived_Send : BOOL ;	//Arrived messages for this bag is send to MCS
+  END_STRUCT ;	
+  s_Create_Position_State : STRUCT 	//Created state
+   Creating_Position : BOOL ;	//Creating position for a new baggage item to be inserted
+   Position_Created : BOOL ;	//Position is created where a new baggage item can be inserted
+   Hand_Over_Bag : BOOL ;	//Waiting for a baggage item to be inserted after a position has been created
+   Waiting_For_Dispatch : BOOL ;	//Waiting for a Dispatch message from OPS after a position has been created
+  END_STRUCT ;	
+  s_LIC : INT ;	//Local Identification Code of item that is on OPZ
+  s_LNK : INT ;	//Link number of item
+  s_Cnt_Unattended_Bag : INT ;	//Counter for unattended baggage warning (counts in sec)
+  s_Cnt_InsertBag_Time_Out : INT ;	//Counter for time-out on new baggage item insertion (counts in sec)
+  s_Cnt_PID_Time_Out : INT ;	//Time out counter of PID
+  s_PLT_DB_Nr : INT ;	//Copy of i_DB_PLT
+  s_Section_Length : INT ;	//Section length of coding section
+  s_Displacement : INT ;	//Displacement of coding section
+  s_Insert_Bag_Time_Out : BOOL ;	//Inserting a new baggage item took too much time.
+  s_Section_Not_Empty : BOOL ;	//Check if section is empty (Run section length)
+  s_Creat_Pos_Light_Flash : BOOL ;	//When true create position light must flash
+  s_Creat_Pos_Light_On : BOOL ;	//When true create position light be on
+  s_Item_at_Handover_Up : BOOL ;	//Item at handover of upstream section
+  s_Section_Run : BOOL ;	//Section is running
+  s_PEC_Latch : BOOL ;	//PEC Latch of OPS Section
+  s_Section_Empty : BOOL ;	//If no entries section is empty
+  s_Dispatch_Received : BOOL ;	//Dispatch message received
+  s_CMD_Disable : BOOL ;	//CMD: Disable mode (Conveyor Mode)
+END_VAR
+VAR_TEMP
+  t_DB_Event_Num : INT ;	//DB event number
+  t_PID : DINT ;	//PID of the baggage item
+  t_Destination_1 : INT ;	//Destination 1 of the baggage item
+  t_Destination_2 : INT ;	//Destination 2 of the baggage item
+  t_Destination_3 : INT ;	//Destination 3 of the baggage item
+  t_Destination_4 : INT ;	//Destination 4 of the baggage item
+  t_Destination_5 : INT ;	//Destination 5 of the baggage item
+  t_Bag_PID : DINT ;	//PID of baggage item
+  t_Bag_Arrived_At_OPZ : BOOL ;	//Transfer In Progress from upstream conveyor to the MC conveyo
+  t_Bag_Destination_OPZ : BOOL ;	//Destination of item on section is Operator zone
+  t_Bag_Destination_Null : BOOL ;	//Destination of item on section is null (0)
+  t_FP_Cancel_Coding : BOOL ;	//Positive flank of Cancel Coding command
+  t_FN_Bag_NeedsToBe_Coded : BOOL ;	//Negative flank of the state 'bag needs to be coded'
+  t_Bag_Has_PID : BOOL ;	//TRUE when bag has no PID
+  t_FP_Item_At_HO_Upstrm : BOOL ;	//Positive flank of TIP in upstream FIF
+  t_PLT_Nr_Upstream : INT ;	//Position datablock number of Upstream
+  t_Found_Nr_Items : INT ;	//Number of items found
+  t_Not_Used : INT ;	//Dummy not used
+  t_Position : INT ;	//Dummy Position of search function
+  t_ECS : INT ;	//ECS number
+  t_Wait_For_PID_TimeOut : INT ;	//[seconds] SETT: Maximum time to wait for a PID
+  t_Start_PID_TimeOut : BOOL ;	//Start PID Time out timer
+  t_LNK : INT ;	//Lnk number found in PLT for tracking report
+  t_Start_Tim_Unattended : BOOL ;	//Start timer Unattended Bag
+  t_Start_Tim_InsertBag : BOOL ;	//Start timer Insert Bag
+  t_DB_Event_Zone_Num : INT ;	//DB event zone number
+  t_Report_ID : DWORD ;	//ID report messages
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+
+      OPN   #i_DB_Event; // Open Event DB
+      L     DBNO; 
+      T     #t_DB_Event_Num; // copy db number
+
+      OPN   "DB_Event_Zone"; 
+      L     DBNO; 
+      T     #t_DB_Event_Zone_Num; 
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_PLT_DB_Nr; // Determine tracking block DB number
+
+      L     DBW    0; 
+      L     0; 
+      ==I   ; 
+      R     #s_Section_Not_Empty; 
+
+      L     DBW    6; 
+      T     #t_PLT_Nr_Upstream; 
+
+      A     DBX   10.1; 
+      =     #s_Section_Run; 
+
+      AN    #i_IO_NOT_PEC; 
+      =     #s_PEC_Latch; 
+
+      L     DBW   12; 
+      T     #s_Section_Length; 
+
+      L     DBW    2; // Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      L     DBW    0; 
+      L     1; 
+      ==I   ; 
+      =     #s_Section_Empty; 
+
+      L     #t_PLT_Nr_Upstream; 
+      L     1; 
+      >I    ; 
+      JCN   AA99; 
+
+      OPN   DB [#t_PLT_Nr_Upstream]; 
+
+      A     DBX   10.6; 
+      =     #s_Item_at_Handover_Up; 
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Init
+//Initialize variables.
+      NOP   0; 
+//Flank detections FIF Upstream
+      A     #s_Item_at_Handover_Up; 
+      FP    #s_Copy.FP_Item_at_Handover_TIP; 
+      =     #t_FP_Item_At_HO_Upstrm; 
+
+
+//Other flank detections
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      FN    #s_Copy.FN_Bag_Needs_To_Be_Coded; 
+      =     #t_FN_Bag_NeedsToBe_Coded; 
+
+      A     #i_Cancel_Coding; 
+      FP    #s_Copy.FP_Cancel_Coding; 
+      =     #t_FP_Cancel_Coding; 
+
+//Clear temps
+      CLR   ; 
+      =     #t_Bag_Destination_OPZ; 
+      =     #t_Bag_Destination_Null; 
+      =     #t_Bag_Has_PID; 
+
+      L     0; 
+      T     #t_PID; 
+      T     #t_Bag_PID; 
+      T     #t_Destination_1; 
+
+// Preset the wait for PID Timeout default = 60 sec
+      L     60; 
+      T     #t_Wait_For_PID_TimeOut; 
+
+//Disable Command
+      A     #i_Commands.Disabled; 
+      S     #s_CMD_Disable; 
+
+      A     #i_Commands.Auto; 
+      R     #s_CMD_Disable; 
+NETWORK
+TITLE =CA: Get LIC for bags ON conveyor
+//When the bag starts to move onto the conveyor, copy its LIC to s_LIC
+      CLR   ; 
+      =     #t_Bag_Arrived_At_OPZ; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #s_Section_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Position,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #s_LNK,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Nr_Items);
+
+      L     #t_Found_Nr_Items; 
+      L     0; 
+      >I    ; 
+      AN    #s_CMD_Disable; 
+      =     #s_State.Bag_On_Conveyor; 
+
+      A     #s_State.Bag_On_Conveyor; 
+      JCN   CA99; 
+
+      L     #s_LNK; 
+      T     #o_LNK; 
+
+      L     #s_LNK; 
+      L     0; 
+      >I    ; 
+      =     #t_Bag_Arrived_At_OPZ; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #s_LIC);
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Check Dispatch or Cancel received
+
+      A     #i_Degraded_Mode_Active; 
+      JCN   DA01; 
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_1);
+
+      L     #t_Destination_1; 
+      L     #i_Local_Destination; 
+      <>I   ; 
+DA01: A(    ; 
+      L     #s_LIC; 
+      L     0; 
+      <>I   ; 
+      )     ; 
+      A     #i_Encode_Response_Rcv; 
+      =     #s_Dispatch_Received; 
+NETWORK
+TITLE =EA: Messages to HL
+
+      A     #t_FP_Cancel_Coding; 
+      AN    #s_State.Bag_Has_Be_Coded; 
+      A     #o_Req_Halt; 
+      AN    #s_PEC_Latch; 
+      FP    #s_Copy.FP_Send_Deregister; 
+      JCN   EA01; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+// Send Deregister report if cancel coding is received
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1206,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Zone_Num,
+           o_Return_Value           := #t_Not_Used);
+
+      L     #i_ID; 
+      L     DW#16#FFFFFF00; 
+      AD    ; 
+      T     #t_Report_ID; 
+      L     W#16#90; // Report on ID .90
+      OD    ; 
+      T     #t_Report_ID; 
+
+      CALL #s_OPZ_FB_DAT (
+           i_ID_Section             := #t_Report_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #t_Position,
+           i_Info_Physical          := 1,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+EA01: NOP   0; 
+      A     #s_Section_Not_Empty; 
+      JCN   EA99; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 10,
+           i_Window                 := 10,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Not_Used);
+
+      L     #t_LNK; 
+      L     0; //      L     #o_LNK
+      >I    ; //==I   
+      FP    #s_Copy.FP_Send_TrackingReport; 
+      JCN   EA99; 
+
+// Send Tracking report if dispatch is received
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_Return_Value           := #t_Not_Used);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Get destinations and PID for LIC
+//Get destinations for the baggage item that is present on the manual coding 
+//position. The destinations are checked when a valid LIC is known.
+      NOP   0; 
+
+      A     #s_State.Bag_On_Conveyor; 
+      JCN   FA99; 
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_1);
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_2);
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_3);
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_4);
+
+      CALL "FC_Read_Int_Record" (//read the Destination
+           i_Record_Number          := #s_LIC,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_Destination_5);
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #s_LIC,
+           i_P_DINT_Record          := "DB_UDT_LIC_Record".BIR.PID,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_DINT                   := #t_Bag_PID);
+
+// Check if the baggage item has this manual coding station set as one of its 
+// configured destinations.
+      L     #t_Destination_1; 
+      L     #i_Local_Destination; 
+      ==I   ; 
+      O(    ; 
+      L     #t_Destination_2; 
+      L     #i_Local_Destination; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Destination_3; 
+      L     #i_Local_Destination; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Destination_4; 
+      L     #i_Local_Destination; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #t_Destination_5; 
+      L     #i_Local_Destination; 
+      ==I   ; 
+      )     ; 
+      =     #t_Bag_Destination_OPZ; 
+
+
+// Check if the baggage item has no configured destinations.
+      L     #t_Destination_1; 
+      L     0; 
+      ==I   ; 
+      =     #t_Bag_Destination_Null; 
+
+
+      L     #t_Bag_PID; 
+      L     0; 
+      >D    ; 
+      =     #t_Bag_Has_PID; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: 'Bag needs to be coded' state
+//The 'bag needs to be coded' state is true when a baggage item is present at the 
+//manual coding position with the purpose of being 'manually coded'.
+      A     #t_Bag_Destination_OPZ; //AND it has the destination 'manual coding'
+      O     #t_Bag_Destination_Null; //OR bag has no destination
+      A     #t_Bag_Arrived_At_OPZ; //OR it starts to move onto the manual coding position
+      FP    #s_Copy.FP_Bag_Arrived_At_MC; 
+      S     #s_State.Bag_Needs_To_Be_Coded; //THEN the baggage item needs to be coded
+
+      A     #s_State.Resetting_MC; //OR the manual coding position is being reset
+      O     #s_Section_Empty; 
+      O(    ; 
+      A     #s_State.Bag_On_Conveyor; 
+      AN    #t_Bag_Destination_Null; 
+      A     #s_Dispatch_Received; //IF a Dispatch message was received from MCS
+      )     ; 
+      O(    ; 
+      AN    #s_State.Bag_On_Conveyor; 
+      A     #s_PEC_Latch; 
+      )     ; 
+      R     #s_State.Bag_Needs_To_Be_Coded; //THEN the baggage item no longer needs to be coded
+NETWORK
+TITLE =HA: Write arrived location to record
+//Request Encode message to be sent to OPS and a PackageReport is sent to LM when 
+//a new bag has arrived from upstream that needs to be identified.
+//
+      AN    #s_State.Bag_On_Conveyor; 
+      R     #s_State.Arrived_Send; 
+
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      A     #i_OPS_Active; 
+      A(    ; 
+      O     #t_Bag_Has_PID; 
+      O     #i_Degraded_Mode_Active; 
+      )     ; 
+      =     #o_Encode_Request; 
+      S     #s_State.Arrived_Send; 
+
+      AN    #s_Create_Position_State.Position_Created; 
+      A     #t_Bag_Destination_OPZ; 
+      JCN   HA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".Routing_Result.Arrived_Location,
+           i_DB                     := "DB_ECS_List",
+           i_INT                    := #i_Local_Destination,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: 'Bag on conveyor' state
+//The 'bag on conveyor' state indicates if a baggage item is present on this 
+//manual coding conveyor.
+//
+//If the PEC of the section upstream of the OPS gets triggered when no bag is 
+//entering the MCS, the bag-on conveyor state will stay TRUE 'for ever' or until 
+//the Cancel Coding button is pushed. A time-out is implemented to make sure that 
+//the bag-on-conveyor state gets reset after a (configurable) little while when 
+//no bag is detected on the conveyor. When a time-out situation happens and a LIC 
+//is available for the bag that was presumed to be on the OPS conveyor, the LIC 
+//is de-registered with LM and locally de-assigned.
+//
+//Like the time that a baggage item can take too long before it reaches the PEC, 
+//the baggage item can also come to quik by the PEC. The baggage item is then not 
+//seen as the baggage item that will be expected. There is a baggage item thrown 
+//on the MC conveyor in the mean time the baggage was coming from the upstream 
+//conveyor to the MC conveyor. Then both bags are cancelled. 
+//#s_State.Bag_Needs_To_Be_Coded is reset (to enable sending to downstream conv.) 
+//The next bag is coming when the window CLOSE window offset timer is completely 
+//finisched.#s_State.Bag_On_Conveyor is reset therefore.
+//
+//Both baggage items will be registered again in the downstream conveyor.
+      AN    #i_OPS_Active; 
+      R     #s_Section_Not_Empty; 
+
+      A     #i_OPS_Active; 
+      JCN   IA99; 
+
+//--------------------------- Time-out -----------------------------------------
+
+      A     #s_State.Bag_On_Conveyor; 
+      S     #s_Section_Not_Empty; 
+
+      A     #s_Section_Not_Empty; 
+      JCN   IA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #s_Section_Length,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Nr_Items);
+
+      L     #t_Found_Nr_Items; 
+      L     0; 
+      ==I   ; 
+      JCN   IA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #s_Section_Length,
+           i_Info                   := 2,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Nr_Items);
+
+      L     #t_Found_Nr_Items; 
+      L     0; 
+      ==I   ; 
+      JCN   IA99; 
+
+      SET   ; 
+      R     #s_Section_Not_Empty; 
+
+//Time out detect bag
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: 'Bag has be Coded' state
+//LAD!
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      A     #s_State.Arrived_Send; 
+      A     #s_Dispatch_Received; 
+      =     #s_State.Bag_Has_Be_Coded; 
+NETWORK
+TITLE =KA: 'Bag Present' light
+//LAD!
+//The Bag Present light will be lit when a baggage item that needs to be 'coded' 
+//is present on the manual coding conveyor. There are two scenarios where this is 
+//the case:
+//1 - A bag that needs to be 'coded' has arrived from the upstream section 
+//2 - A bag that needs to be 'coded' is put in the PEC of the conveyor during the 
+//    'create position' process.
+//Bag waiting while OPS ia active
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      A     #i_OPS_Active; 
+      =     #t_Start_Tim_Unattended; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_Tim_Unattended,
+           i_CFG_Timer_Value        := #i_UnattendedBaggage_Time,
+           i_Setpoint               := #s_Cnt_Unattended_Bag,
+           o_Setpoint               := #s_Cnt_Unattended_Bag,
+           o_Timer_Elapsed          := #o_ER_Unattended_Baggage);
+
+      A(    ; 
+      O     #s_State.Bag_Needs_To_Be_Coded; 
+      O     #s_Create_Position_State.Waiting_For_Dispatch; 
+      )     ; 
+      A(    ; 
+      ON    #o_ER_Unattended_Baggage; 
+      O     ; 
+      A     #o_ER_Unattended_Baggage; 
+      A     "M_System_Clock_1.0_sec."; 
+      )     ; 
+      =     #o_SL_Bag_Present; 
+
+NETWORK
+TITLE =LA: Control 'create position' state
+//Manage the state of this module concerning creation of a position.
+//Indicate if the create position light should be on, flashing or off.
+      NOP   0; 
+
+//Creating position
+      A     #i_Create_Position; 
+      A     #i_OPS_Active; 
+      AN    #s_Create_Position_State.Position_Created; 
+      AN    #s_Create_Position_State.Hand_Over_Bag; 
+      AN    #s_Create_Position_State.Waiting_For_Dispatch; 
+      S     #s_Create_Position_State.Creating_Position; //THEN a position is being created
+      JCN   LA01; 
+
+      SET   ; 
+      S     #s_Creat_Pos_Light_Flash; 
+
+//Create LIC and send RegisterPackage after bag detected
+LA01: A     #s_Create_Position_State.Creating_Position; 
+      AN    #s_State.Resetting_MC; 
+      AN    #s_State.Bag_Needs_To_Be_Coded; 
+      AN    #s_State.Bag_On_Conveyor; 
+      AN    #s_PEC_Latch; 
+      AN    #s_Section_Not_Empty; 
+      JCN   LA02; 
+
+      SET   ; 
+      R     #s_Create_Position_State.Creating_Position; //Position is no longer being created
+      S     #s_Create_Position_State.Position_Created; 
+      S     #s_Creat_Pos_Light_On; // Set the light on
+
+      L     0; 
+      T     #s_LIC; 
+
+LA02: NOP   0; 
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      A     #s_State.Waiting_For_PID; 
+      A     #s_PEC_Latch; 
+      JC    LA03; //Send register after timeOut
+
+      A     #s_Create_Position_State.Position_Created; 
+      A     #s_PEC_Latch; 
+      FP    #s_Copy.FP_Item_at_PEC; 
+      JCN   LA99; // Create LNK if not already created
+
+//Create new Records for default LNK record. ECS, LIC or NIR or TIC with LNK number
+      CALL "FC_Gen_Default_LNK" (
+           i_LNK                    := 0,
+           i_Default_Record         := #i_CFG_Default_Record,
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_LNK                    := #s_LNK);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".DB_PLT_Number,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := #s_PLT_DB_Nr,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 62,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 1,
+           i_LNK                    := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 123,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := 2,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+//Set expected item bit on true
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Expected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := TRUE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Unexpected_Item,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+      CALL "FC_Write_BOOL_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_BOOL_Record          := "DB_UDT_ECS_Record".CIR.Hand_Over,
+           i_DB                     := "DB_ECS_List",
+           i_BOOL                   := FALSE,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+LA03: CALL "FC_Write_Event" (//Send Register
+           i_Message_ID             := 1205,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Zone_Num,
+           o_Return_Value           := #t_Not_Used);
+
+      L     #i_ID; 
+      L     DW#16#FFFFFF00; 
+      AD    ; 
+      T     #t_Report_ID; 
+      L     W#16#91; // Report on ID .91
+      OD    ; 
+      T     #t_Report_ID; 
+
+      CALL #s_OPZ_FB_DAT (
+           i_ID_Section             := #t_Report_ID,
+           i_DB_Event               := "DB_Event_Zone",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE,
+           i_CFG_PLC_No_Msg_To_Rout := FALSE,
+           i_CFG_PLC_No_Msg_To_BPI  := FALSE);
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Trigger out E-save
+
+      A     #s_Create_Position_State.Position_Created; 
+      JCN   MA99; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := 0,
+           i_Window                 := #s_Section_Length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used,
+           o_Info                   := #t_Not_Used,
+           o_LNK                    := #t_Not_Used,
+           o_DB_PLT_Num             := #t_Not_Used,
+           o_Number_Items_Found     := #t_Found_Nr_Items);
+
+      L     #t_Found_Nr_Items; 
+      L     0; 
+      ==I   ; 
+      JCN   MA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr,
+           i_Position               := #s_Section_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Num);
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Check PID value for bag that is in process
+
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      AN    #s_State.Arrived_Send; 
+      AN    #t_Bag_Has_PID; 
+      AN    #s_State.Waiting_For_PID; 
+      =     #t_Start_PID_TimeOut; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_PID_TimeOut,
+           i_CFG_Timer_Value        := #t_Wait_For_PID_TimeOut,
+           i_Setpoint               := #s_Cnt_PID_Time_Out,
+           o_Setpoint               := #s_Cnt_PID_Time_Out,
+           o_Timer_Elapsed          := #s_State.Waiting_For_PID);
+
+      O     #t_Bag_Has_PID; 
+      O     #i_Degraded_Mode_Active; 
+      O     #s_Section_Empty; 
+      R     #s_State.Waiting_For_PID; 
+NETWORK
+TITLE =OA: From Position Created to Waiting for Dispatch
+
+      AN    #s_Create_Position_State.Waiting_For_Dispatch; 
+      A     #s_Create_Position_State.Position_Created; 
+      A     #s_State.Arrived_Send; 
+      S     #s_Create_Position_State.Waiting_For_Dispatch; 
+      R     #s_Create_Position_State.Position_Created; 
+NETWORK
+TITLE =PA: Waiting for Dispatch, waiting for bag 
+//Control the states 'waiting for Dispatch message' and 'waiting for bag to be 
+//inserted'. These states are used during the 'create position' process.
+      A     #s_Create_Position_State.Waiting_For_Dispatch; 
+      A(    ; 
+      O     #s_Dispatch_Received; //IF a Dispatch message is received
+      O     #t_FP_Cancel_Coding; 
+      )     ; 
+      R     #s_Create_Position_State.Waiting_For_Dispatch; //THEN reset the 'waiting for dispatch' state
+      S     #s_Create_Position_State.Hand_Over_Bag; 
+
+      A     #s_Create_Position_State.Hand_Over_Bag; 
+      AN    #s_Section_Not_Empty; 
+      AN    #s_PEC_Latch; 
+      R     #s_Create_Position_State.Hand_Over_Bag; 
+
+NETWORK
+TITLE =QA: Create position time-out
+//A time-out timer is started when a position is being created to insert a new 
+//baggage item. If a baggage item does not leave the manual coding position 
+//within a certain predefined period of time, an "insert bag time-out" will be 
+//triggered, resulting in the manual coding position being reset (reset of MC 
+//position is not done in this network).
+      NOP   0; 
+
+//Only count down position time-out timer when position has been created and bag is not on MCS
+//(don't count down in case of reset)
+
+      A     #s_Create_Position_State.Creating_Position; 
+      O     #s_Create_Position_State.Position_Created; 
+      =     #t_Start_Tim_InsertBag; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_Start_Tim_InsertBag,
+           i_CFG_Timer_Value        := #i_InsertBag_TimeOut_Time,
+           i_Setpoint               := #s_Cnt_InsertBag_Time_Out,
+           o_Setpoint               := #s_Cnt_InsertBag_Time_Out,
+           o_Timer_Elapsed          := #s_Insert_Bag_Time_Out);
+
+NETWORK
+TITLE =RA: Reset after create position
+
+      NOP   0; 
+
+// bag left manual coding after dispatch reset all states and switch light off 
+
+      AN    #s_Create_Position_State.Creating_Position; //IF a position has been created
+      AN    #s_Create_Position_State.Position_Created; //AND a PID is known for the baggage item to be inserted
+      AN    #s_Create_Position_State.Waiting_For_Dispatch; //AND a Dispatch message has been received from MCS
+      AN    #s_Create_Position_State.Hand_Over_Bag; 
+      JCN   RA01; 
+
+      SET   ; //AND the create position light should be off
+      R     #s_Creat_Pos_Light_Flash; 
+      R     #s_Creat_Pos_Light_On; 
+
+//function realted to 'reset manual coding position'
+
+RA01: AN    #i_OPS_Active; 
+      O     #s_Insert_Bag_Time_Out; 
+      O     #t_FP_Cancel_Coding; 
+      O(    ; 
+      A     #s_State.Resetting_MC; 
+      A     #s_Create_Position_State.Position_Created; 
+      )     ; 
+      JCN   RA99; 
+
+      R     #s_Create_Position_State.Creating_Position; //THEN a position is no longer being created
+      R     #s_Create_Position_State.Position_Created; 
+      R     #s_Create_Position_State.Waiting_For_Dispatch; //AND a Dispatch message has been received from MCS
+      R     #s_Create_Position_State.Hand_Over_Bag; 
+      R     #s_Creat_Pos_Light_Flash; //AND the create position light should be turned off
+      R     #s_Creat_Pos_Light_On; 
+
+RA99: NOP   0; 
+
+NETWORK
+TITLE =SA: 'Create position' light
+//Make the create position light go on, flash or go off, according to the create 
+//position light mode variable.
+      AN    #s_Creat_Pos_Light_On; 
+      AN    #s_Creat_Pos_Light_Flash; 
+      JCN   SA01; 
+
+      CLR   ; 
+      =     #o_SL_Create_Position; 
+
+      JU    SA03; 
+
+SA01: A     #s_Creat_Pos_Light_On; 
+      JCN   SA02; 
+      =     #o_SL_Create_Position; 
+
+      JU    SA03; 
+
+SA02: A     #s_Creat_Pos_Light_Flash; 
+      JCN   SA03; 
+
+      A     "M_OS_/0.5_sec."; 
+      R     #o_SL_Create_Position; 
+
+      A     "M_OS_/1.0_sec."; 
+      S     #o_SL_Create_Position; 
+
+SA03: NOP   0; 
+NETWORK
+TITLE =TA: Reset manual coding
+//Send a 'cancel coding' message when the manual coding position reset procedure 
+//is started. 
+      SET   ; 
+      R     #s_State.Resetting_MC; 
+
+      A     #t_FP_Cancel_Coding; 
+      =     #o_Encode_Cancel; 
+      JCN   TA99; //IF the cancel coding sequence is started
+
+      S     #s_State.Resetting_MC; 
+
+//Clear LIC from tracking if in case of reset, cancel coding or when reset is 
+      L     0; //AND 'forget' the LIC of the bag
+      T     #s_LIC; 
+
+TA99: NOP   0; 
+NETWORK
+TITLE =UA: Write output Request Halt
+//LAD!
+      A     #s_State.Bag_Needs_To_Be_Coded; 
+      AN    #s_State.Bag_Has_Be_Coded; //A bag is being inserted
+      A(    ; 
+      O     #s_PEC_Latch; 
+      O     #o_Req_Halt; 
+      )     ; 
+      AN    #s_State.Resetting_MC; 
+      =     #o_Req_Halt; 
+NETWORK
+TITLE =VA: Assign output signals
+//Assign signals to the backbone for further processing.
+      NOP   0; 
+//Stop a bag if...
+      A     #s_State.Bag_On_Conveyor; 
+      O     #s_Section_Not_Empty; 
+      O     #s_Create_Position_State.Creating_Position; //IF a position has been created
+      O     #s_Create_Position_State.Position_Created; 
+      O     #s_State.Waiting_For_PID; //AND a PID is known for the baggage item to be inserted
+      O     #s_Create_Position_State.Waiting_For_Dispatch; //AND a Dispatch message has been received from MCS
+      O     #s_Create_Position_State.Hand_Over_Bag; 
+      O     #s_State.Resetting_MC; //OR the position is being reset
+      O     #s_PEC_Latch; 
+      =     #o_Req_Disable_Receive; //THEN disable receiving of bags from the upstream conveyor
+
+      A     #s_CMD_Disable; 
+      =     #o_ST_Disabled; 
+END_FUNCTION_BLOCK
+

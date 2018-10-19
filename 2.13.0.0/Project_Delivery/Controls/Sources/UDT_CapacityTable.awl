@@ -1,0 +1,20 @@
+TYPE "UDT_CapacityTable"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by:  nlsdw %
+//              %date_created:  Tuesday, May 09, 2017 4:53:58 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version based                                 nlSdW    09-05-17   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Area_Zone_Section_ID : DINT ;	//example: AreaID 123, ZoneID 45 and SectionID 67 -> 1234567
+   Capacity : INT ;	//Capacity in bags per hour.
+  END_STRUCT ;	
+END_TYPE
+

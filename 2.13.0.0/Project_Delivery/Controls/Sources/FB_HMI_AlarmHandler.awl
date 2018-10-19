@@ -1,0 +1,979 @@
+FUNCTION_BLOCK "FB_HMI_AlarmHandler"
+TITLE = %version: 0.07 % CN: 50
+//Function:
+//Display application alarms on HMI
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:15:35 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//14163: check new alarm not correct                    nlHdL    07-01-14   0.07
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.06
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//PR11363 Check no alarms active message                nlHdL    11-09-12   0.04
+//PR6572 Changed pointer check > 0, No error First Item nlHdL    08-04-11   0.03
+//Alarm text not updating properly                      nlHdL    24-03-11   0.02
+//Initial revision                                      insmahi  10-06-10   0.01
+//
+//Description:
+//Display application alarms on HMI
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Record_Start : ANY ;	//Record in DB_Status_Index where to start from
+  i_ANY_Record_End : ANY ;	//Record in DB_Status_Index where to end 
+  i_Alarm_Array : ANY ;	//HMI alarm queue array (STAT VAR in same DI)
+  i_DB_HMI_IF : BLOCK_DB ;	//HMI Interface DB
+  i_DB_AlrmTxtLst_Default : BLOCK_DB ;	//Text list for alarms Language Default (English)
+  i_DB_AlrmTxtLst_Project : BLOCK_DB ;	//Text list for alarms Language Project (Dutch)
+  i_Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+  i_New_Activated_Alarm : INT ;	//Index number of new activated alarm
+END_VAR
+VAR_OUTPUT
+  o_Amount_Active_Alarms : INT ;	//Number of active alarms
+  o_New_Activated_Alarm : INT ;	//Index number of new activated alarm
+  o_Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+END_VAR
+VAR
+  s_Done : BOOL ;	
+  s_Too_Many_Errors_Active : BOOL ;	
+  s_Update_Visulised : BOOL ;	
+  s_Visible_Record_Pointer : DINT ;	
+  s_DS_Status : BOOL ;	
+  s_Empty_Record_Pntr : INT  := 1;	
+  s_Write_Loop_Pntr : INT  := 1;	
+  s_Erase_Loop_Pntr : INT  := 1;	
+  s_Array_Length : INT ;	
+  s_Last_Record_Array : INT ;	
+  s_Offset_To_Array : DWORD ;	
+  s_Active_Record_Pointer : DINT ;	
+  s_Pntr_To_Actual_Bit : INT ;	
+  s_Act_HMI_Text_Number : INT ;	
+  s_Alarm_Record : "UDT_HMI_Alrm_Record";	
+  s_Alarm_Record_Length : INT ;	
+  s_ID_Visual_Alarm : "UDT_ID_Comp";	
+  s_FB_HMI_Read_Record : "FB_HMI_Read_Record";	
+  s_Prev_Visible_Pointer : DINT ;	
+  s_Prev_Bit_Numb : INT ;	
+  s_DB_HMI_IF : INT ;	
+  s_DB_AlarmTextList_Selct : INT ;	//Selected DB For Alarm Text
+  s_DB_AlarmTextList_1000 : INT ;	
+  s_DB_AlrmTextListHndlr : INT ;	
+  s_Init_Language : INT ;	
+  s_ID_to_HMI : STRING  [18 ];	
+END_VAR
+VAR_TEMP
+  t_ANY_Record_Start : ANY ;	//Record in DB_Record_Handling where to start from
+  t_ANY_Record_End : ANY ;	//Record in DB_Record_Handling where to end 
+  t_ANY_Source : ANY ;	//Source ANY pointer
+  t_ANY_Destination : ANY ;	//Destination ANY pointer
+  t_RET_VAL : INT ;	//Returned value from Siemens standard Blockmove
+  t_AR1_Save : DWORD ;	
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_DB_Numb : INT ;	
+  t_Active : BOOL ;	
+  t_Rec_Byte_Adress : DINT ;	
+  t_AR1_Offset : DWORD ;	
+  t_Pntr_To_Actual_Bit : INT ;	
+  t_Visible_BitNumb : INT ;	
+  t_Off_HMI_HMI_Screen : DWORD ;	//Offset to HMI Current screen number
+  t_Off_HMI_Alarm_Number : DWORD ;	//Offset to HMI Alarm Number
+  t_Off_HMI_NumbOfAlarms : DWORD ;	//Offset to HMI Numer of Alarms
+  t_Off_Msg_Alarm_ID : DWORD ;	
+  t_Offset_Msg_Alarm_Txt : DWORD ;	
+  t_BCD : DWORD ;	
+  t_CHAR_0 : CHAR ;	//temp Character 1
+  t_CHAR_1 : CHAR ;	//temp Character 2
+  t_CHAR_2 : CHAR ;	//temp Character 3
+  t_CHAR_3 : CHAR ;	//temp Character 4
+  t_Index_Text_Number : INT ;	
+  t_String_Length : INT ;	
+  t_DB_Source : INT ;	
+  t_Current_Screen_Number : INT ;	
+  t_LED_Alarm_Active : DWORD ;	
+  t_Actual_String_Length : INT ;	//Actuele String Length
+  t_Start_ID_Found : BOOL ;	
+  t_Loop_mark_code : INT ;	
+  t_Off_MarkCode : INT ;	
+  t_DB_AlrmTxtLst_CHK : WORD ;	//DB number Alarm Text List for DB check  
+  t_DB_Length : WORD ;	//Temp Length Alarm Text List for DB check
+  t_Bool : BOOL ;	//Temp BOOL
+  t_ID : DWORD ;	
+  t_ANY_P_To_ID_On_HMI : ANY ;	
+  t_ANY_Reset_Error_Start : ANY ;	
+  t_Reset_Length_Start : INT ;	
+  t_Reset_start_address : INT ;	
+  t_ANY_Reset_Error_Stop : ANY ;	
+  t_RET_VAL_BLKMOV : INT ;	
+  t_Pntr_Visible_Alarm : INT ;	//Temp index number displayed alarm on HMI
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initialisation
+//Get relative addres out of AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      T     #t_AR2_Store_Restore; // Store AR2
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+      L     DINO; 
+
+      OPN   #i_DB_HMI_IF; 
+      L     DBW  126; // Check the select language for the alarms
+      L     #s_Init_Language; // Init the DB number of the alarm text list
+      ==I   ; 
+      JCN   AA06; // Set active DB number of the alarm text list
+
+      O     "M_First_Scan"; 
+      ON    #s_Done; 
+      JCN   AA99; 
+      S     #s_Done; 
+
+      OPN   #i_DB_HMI_IF; // Get DB number of interface datablock
+      L     DBNO; 
+      T     #s_DB_HMI_IF; 
+
+      L     P##s_Alarm_Record_Length; // Load pointer to lenght (just after definition)
+      L     P##s_Alarm_Record; // Pointer to error definition
+      -D    ; // Length in bits
+      SRD   3; // Convert length in bytes
+      T     #s_Alarm_Record_Length; // Length of error definition in bytes 
+
+// The alarm queue Array length is determed when the PLC starts up for the first time
+// and the pointers to it are calculated.
+
+      L     P##i_Alarm_Array; // Copy ANY pointer 
+      L     #t_AR2_Mask; // Add AR2 Mask to pointer
+      +D    ; 
+      LAR1  ; 
+
+      L     W [AR1,P#2.0]; // Byte2..3=Repetition factor(Number of bytes)
+      L     #s_Alarm_Record_Length; // Calculate array length
+      /I    ; 
+      L     1; // correct array[0] is not be used
+      -I    ; 
+      T     #s_Array_Length; // Store calculate array length
+      L     1; // correct array[last] is not be used
+      -I    ; // Calculate last array record number
+      T     #s_Last_Record_Array; // Store last array record number
+
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     #t_DB_Numb; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      AD    DW#16#FFFFFF; // Filter coding of memory area out of pointer
+      T     #s_Offset_To_Array; // Store pointer to array
+
+      L     DINO; // Check if DB is correct (External declared 'Alarm array' in same instance DB as this FB)
+      L     #t_DB_Numb; 
+      <>I   ; 
+      JCN   AA04; 
+      CALL "STP" ;// This FB has used the external array as if it is in the same DI and could only used as multi-instance
+AA04: NOP   0; 
+
+// Clear alarm array
+      L     W [AR1,P#2.0]; // Byte2..3=Repetition factor(Number of bytes)
+AA05: T     #t_Rec_Byte_Adress; 
+      L     1; 
+      -I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      LAR1  ; 
+
+      L     B#16#0; // Clear
+      T     DIB [AR1,P#0.0]; 
+
+      L     #t_Rec_Byte_Adress; 
+      LOOP  AA05; 
+      L     1; // Init to first array element
+      T     #s_Empty_Record_Pntr; 
+      T     #s_Write_Loop_Pntr; 
+      T     #s_Erase_Loop_Pntr; 
+
+AA06: OPN   #i_DB_HMI_IF; 
+      L     DBW  126; // Check the select language for the alarms
+      T     #s_Init_Language; // Init the DB number of the alarm text list
+      L     1; 
+      <I    ; 
+      JCN   AA08; 
+
+      OPN   #i_DB_AlrmTxtLst_Default; // Get DB number of alarm text list Default
+      L     DBNO; 
+      T     #s_DB_AlarmTextList_Selct; 
+
+      JU    AA99; // End network
+
+AA08: OPN   #i_DB_AlrmTxtLst_Project; // Get DB number of alarm text list Project(Specific)
+      L     DBNO; 
+      T     #s_DB_AlarmTextList_Selct; // 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Data Offsets
+//Initialise the data offsets
+      NOP   0; // Offsets in "i_DB_HMI_IF" for HMI interfacing
+      L     P#0.0; // Offset to HMI_Screen variable (Current_Type/Current_Number/Current_Field)
+      T     #t_Off_HMI_HMI_Screen; 
+
+      L     P#36.0; // Offset to Alarm Number
+      T     #t_Off_HMI_Alarm_Number; 
+      L     P#38.0; // Offset to Number of Alarms
+      T     #t_Off_HMI_NumbOfAlarms; 
+
+      L     P#40.0; // Offset to Alarm ID text
+      T     #t_Off_Msg_Alarm_ID; 
+
+      L     P#84.0; // Offset to Alarm message text
+      T     #t_Offset_Msg_Alarm_Txt; 
+
+      L     P#128.0; 
+      T     #t_LED_Alarm_Active; // Offset to set LED Alarm active
+NETWORK
+TITLE =CA: Copy ANY pointers ( Start and End record pointers)
+
+      L     P##i_ANY_Record_Start; // Copy ANY pointer
+      L     #t_AR2_Mask; // Add AR2 Mask to pointer
+      +D    ; 
+      LAR1  ; 
+      LAR2  P##t_ANY_Record_Start; 
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+
+      L     P##i_ANY_Record_End; // Copy ANY pointer
+      L     #t_AR2_Mask; // Add AR2 Mask to pointer
+      +D    ; 
+      LAR1  ; 
+      LAR2  P##t_ANY_Record_End; // This temp var here used for copy of "End pointer"
+      L     D [AR1,P#0.0]; // Copy ANY pointer
+      T     LD [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type, Byte2..3=Repetition factor
+      L     W [AR1,P#4.0]; // Byte4..5=DB number 
+      T     LW [AR2,P#4.0]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      T     LD [AR2,P#6.0]; 
+
+      L     #t_AR2_Store_Restore; // Restore AR2 
+      LAR2  ; 
+NETWORK
+TITLE =DA: Get DS-status from records
+//The called FB scans all availble records which are declared in 
+//"DB_HMI_Index". Every call this FB checks next record.
+//If the record contains a DS status the dataword number is reported as a pointer 
+//to store and also the bit number of the DS-status within the record.
+// 
+      CALL #s_FB_HMI_Read_Record (
+           i_ANY_Record_Start       := #t_ANY_Record_Start,
+           i_ANY_Record_End         := #t_ANY_Record_End,
+           o_DS_Status              := #s_DS_Status,
+           o_Pntr                   := #s_Active_Record_Pointer,
+           o_Pntr_To_Actual_Bit     := #s_Pntr_To_Actual_Bit);
+
+NETWORK
+TITLE =EA: Visualised pointer
+// 
+      L     #i_Pntr_Visible_Alarm; // Pionter to visualised alarm 
+      T     #t_Pntr_Visible_Alarm; 
+      L     #s_Last_Record_Array; // IF all elements of alarm queue array are assigned
+      ==I   ; 
+      =     #s_Too_Many_Errors_Active; // Then "Too many errors active" to visualise on HMI
+
+      L     #t_Pntr_Visible_Alarm; // Actual record number
+      L     #s_Alarm_Record_Length; // Record length 
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      LAR1  ; 
+
+      L     DIW [AR1,P#4.0]; // Read visualised bit number 
+      T     #t_Visible_BitNumb; 
+      L     DID [AR1,P#0.0]; 
+      L     DW#16#FFFFFF; // Check if array[n] it contains a pointer  (n=io_Pntr_Visible_Alarm)
+      AD    ; 
+      T     #s_Visible_Record_Pointer; 
+
+      L     DID [AR1,P#0.0]; // Read visualised DW pointer
+      L     0; 
+      <>D   ; // Check if array[n] it contains a pointer  (n=io_Pntr_Visible_Alarm)
+      JC    EA99; 
+
+      L     #t_Pntr_Visible_Alarm; // IF no pointer in position array[n]
+      L     1; 
+      >I    ; 
+      JC    EA01; 
+      JU    EA02; // Set minimal value
+EA01: -I    ; // Decrement pointer to array[n-1]
+EA02: T     #t_Pntr_Visible_Alarm; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Scan for empty record
+//Scans every cycle one record in the array untill it found a empty one 
+//(scan forwards).
+//After this it will also look every cycle if the previous record is cleared 
+//(Scan Backwards).
+      L     #s_Empty_Record_Pntr; 
+      L     #s_Array_Length; // Load array length
+      ==I   ; 
+      JCN   FA02; 
+      L     #s_Last_Record_Array; // Load last pointer to s_Empty_Record_Pntr if maximum length is reached
+      T     #s_Empty_Record_Pntr; 
+
+
+FA02: L     #s_Empty_Record_Pntr; // Actual record number
+      L     #s_Alarm_Record_Length; // Record length 
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      LAR1  ; 
+
+//; Scan for empty record forwards
+      L     DID [AR1,P#0.0]; // Load  s_Array_Record_Pointer Byte
+      L     0; 
+      <>D   ; // IF NOT equal  to 0
+      JCN   FA01; // ELSE
+
+//* Raise #s_Empty_Record_Pntr for next scan
+      L     #s_Empty_Record_Pntr; // Actual record number
+      L     1; 
+      +I    ; // Add 1 for next cycle
+      T     #s_Empty_Record_Pntr; 
+      L     #s_Array_Length; // Load array length
+      ==I   ; 
+      JCN   FA99; 
+      JU    GA99; 
+
+//; Scan for empty record backwards
+FA01: L     #s_Empty_Record_Pntr; // Actual record number
+      L     1; 
+      -I    ; 
+      L     #s_Alarm_Record_Length; // Record length                
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      LAR1  ; 
+
+      L     DID [AR1,P#0.0]; // Load  s_Array_Record_Pointer
+      L     0; 
+      ==D   ; 
+      JCN   FA99; 
+
+//* lower #s_Empty_Record_Pntr for next scan
+      L     #s_Empty_Record_Pntr; // Actual record number
+      L     1; 
+      -I    ; // Add 1 for next cycle
+      T     #s_Empty_Record_Pntr; 
+      L     0; 
+      ==I   ; 
+      JCN   FA99; 
+
+      L     1; // Load 1 to s_Empty_Record_Pntr if maximum length is reached
+      T     #s_Empty_Record_Pntr; 
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Scan for new active alarms
+//When a 'Detailed Status' is present, search the whole array in one scan if it's 
+//already active. When the record pointer is found jump out of the loop and do 
+//nothing. 
+//When the record pointer is not found in the array then write it in the first 
+//empty record of the array.
+      L     #i_New_Activated_Alarm; 
+      T     #o_New_Activated_Alarm; 
+
+      A     #s_DS_Status; // If error active 
+      JCN   GA99; // Else
+      L     #s_Offset_To_Array; // Load first record pointer
+      LAR1  ; 
+
+      L     #s_Active_Record_Pointer; //Store active record pointer into alarm array
+      L     DW#16#86000000; 
+      OD    ; // Store active bit number into alarm array
+      T     #s_Active_Record_Pointer; 
+
+      L     #s_Alarm_Record_Length; 
+      SLW   3; 
+      T     #t_AR1_Offset; 
+
+//* Scan loop to detect new errors from record
+      L     #s_Empty_Record_Pntr; // Load array length as loop value
+GA01: T     #s_Write_Loop_Pntr; 
+
+      A(    ; 
+      L     DID [AR1,P#0.0]; // Load s_Array_Record_Pointer
+      L     #s_Active_Record_Pointer; // Load active record Pointer
+      ==D   ; 
+      )     ; 
+      A(    ; 
+      L     DIW [AR1,P#4.0]; // Same DS bit ?
+      L     #s_Pntr_To_Actual_Bit; 
+      ==I   ; 
+      )     ; 
+      JCN   GA03; 
+      JU    GA99; // If equal then stop scan and don't write 
+
+GA03: TAR1  ; 
+      L     #t_AR1_Offset; 
+      +D    ; // Add record lenght to record pointer
+      LAR1  ; 
+
+
+      L     #s_Write_Loop_Pntr; // Load #s_Write_Loop_Pntr
+      LOOP  GA01; // Lower loop value with 1 and jump back for next scan
+
+//* After searching the whole record and no match is found, it's a new one
+//* Write the active error pointer to the next empty record
+
+      L     #s_Empty_Record_Pntr; // Actual record number
+      L     #s_Alarm_Record_Length; // Record lenght
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; 
+      +D    ; 
+      LAR1  ; 
+      L     #s_Active_Record_Pointer; //Store active record pointer into alarm array
+      T     DID [AR1,P#0.0]; 
+      L     #s_Pntr_To_Actual_Bit; // Store active bit number into alarm array
+      T     DIW [AR1,P#4.0]; 
+      L     #s_Empty_Record_Pntr; 
+      T     #o_New_Activated_Alarm; // Set output when a new alarm is detected
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Scan if errors are still active.
+//Scans every cycle one Array pointer if it's active, otherwise erase it
+//
+//- When a value is found it will be checked by the array pointer value.
+//
+//- When the value of the pointer is 0, then overwrite with the next pointer. 
+//  Array[n+1] is shifted into Array[n].
+//  When there is a value now, next cycle the same array pointer will be checked 
+//  if it is still active. Otherwise the erase loop pointer will be raised with 1.
+//
+//When the error has to be checked it will search by the array pointer if it's 
+//still active. 
+//
+//- When the error is gone, the array will be cleared by overwriting with 
+//  the next array pointer. Array[n+1] is shifted into Array[n]. 
+//  When there is a value now, next cycle the same array 
+//  pointer will be checked if it is still active. Otherwise the erase loop 
+//  pointer will be raised with 1.
+      L     #s_Erase_Loop_Pntr; // #s_Erase_Loop_Pntr for this scan
+      L     #s_Alarm_Record_Length; // Record lenght
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      LAR1  ; 
+      T     #t_AR1_Save; // Backup pointer for later instructions
+
+//* Scan for an active error
+      L     DID [AR1,P#0.0]; // Load pointer from alarm Array
+      L     DW#16#FFFFFF; 
+      AD    ; 
+      T     #t_Rec_Byte_Adress; // Store active bit number into alarm array
+
+      L     DID [AR1,P#0.0]; //* check if error is still active
+      L     0; 
+      ==D   ; 
+      JC    HA03; // If no pointer stored then jump to shift 
+
+      L     DIW [AR1,P#4.0]; // Load bit number from alarm array
+      T     #t_Pntr_To_Actual_Bit; 
+
+      CALL "FC_HMI_Check_AlmStat" (//* check if error is still active
+           i_Rec_Byte_Adress        := #t_Rec_Byte_Adress,
+           i_Pntr_To_Actual_Bit     := #t_Pntr_To_Actual_Bit,
+           o_Alrm_Active            := #t_Active);
+
+      A     #t_Active; // Alarm still active ?
+      JC    HA04; 
+
+//* If s_Array_Record_Pointer empty or alarm status is cleared
+//* copy next s_Array_Record_Pointer to actual. Array[n+1] is shifted to Array [n]
+
+HA03: L     #t_AR1_Save; 
+      LAR1  ; 
+
+      L     #s_Array_Length; // #s_Erase_Loop_Pntr for this scan
+      L     1; 
+      +I    ; 
+      L     #s_Alarm_Record_Length; // Record lenght
+      *I    ; 
+      SLD   3; // Convert to pointer format
+      L     #s_Offset_To_Array; // Add record offset
+      +D    ; 
+      L     #t_AR1_Save; 
+      -D    ; 
+      L     P#6.0; 
+      -D    ; 
+      SRD   3; 
+      T     #t_Reset_Length_Start; // Length of data to copy
+
+      TAR2  #t_AR2_Store_Restore; 
+
+      LAR2  P##t_ANY_Reset_Error_Start; 
+      L     W#16#1002; // Set to S7 and format BYTE
+      T     LW [AR2,P#0.0]; // Transfer to ANY pointer
+
+      L     #t_Reset_Length_Start; // Length of data to copy
+      T     LW [AR2,P#2.0]; // Transfer to ANY pointer
+
+      L     DINO; // Start loading input pointer to ANY pointer
+      T     LW [AR2,P#4.0]; // Transfer DB number to ANY pointer
+
+      L     #t_AR1_Save; 
+      L     P#6.0; 
+      +I    ; 
+      L     DW#16#85000000; // Instance
+      OD    ; 
+      T     LD [AR2,P#6.0]; // Transfer memory area and offset to ANY pointer
+
+
+      LAR2  P##t_ANY_Reset_Error_Stop; 
+      L     W#16#1002; // Set to S7 and format BYTE
+      T     LW [AR2,P#0.0]; // Transfer to ANY pointer
+
+      L     #t_Reset_Length_Start; // Length of data to copy
+      T     LW [AR2,P#2.0]; // Transfer to ANY pointer
+
+      L     DINO; // Start loading input pointer to ANY pointer
+      T     LW [AR2,P#4.0]; // Transfer DB number to ANY pointer
+
+      L     #t_AR1_Save; 
+      L     DW#16#85000000; //Instance
+      OD    ; 
+      T     LD [AR2,P#6.0]; // Transfer memory area and offset to ANY pointer
+
+      LAR2  #t_AR2_Store_Restore; 
+
+      CALL "BLKMOV" (//Shift UP
+           SRCBLK                   := #t_ANY_Reset_Error_Start,
+           RET_VAL                  := #t_RET_VAL_BLKMOV,
+           DSTBLK                   := #t_ANY_Reset_Error_Stop);
+
+      L     DID [AR1,P#0.0]; // When the shifted array elements contains pointer value
+      L     0; 
+      <>D   ; 
+      JC    HA99; // Scan next cycle this same array position again. So then is checked if the shifted value is still active.
+
+HA04: L     #s_Erase_Loop_Pntr; // Raise #s_Erase_Loop_Pntr for next scan
+      L     1; 
+      +I    ; // Add 1 for next cycle
+      T     #s_Erase_Loop_Pntr; 
+      L     #s_Array_Length; // All array elements checked ?
+      >=I   ; 
+      JCN   HA05; 
+      L     1; // Preset s_Erase_Loop_Pntr to first arrya element if maximum array length is reached
+      T     #s_Erase_Loop_Pntr; 
+
+HA05: L     #s_Erase_Loop_Pntr; // Check #s_Erase_Loop_Pntr reach the empty record
+      L     #s_Empty_Record_Pntr; 
+      >=I   ; 
+      JCN   HA99; 
+      L     1; // Preset s_Erase_Loop_Pntr to first array element if empty array element is reached
+      T     #s_Erase_Loop_Pntr; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Amount of active alarms
+
+      L     #s_Empty_Record_Pntr; // Calculate amount of active alarms
+      L     1; 
+      -I    ; 
+      T     #o_Amount_Active_Alarms; // Store amount of active alarms
+NETWORK
+TITLE =JA: Show actual and amount on HMI
+//Update status to HMI by writing in the interface DB.
+      OPN   #i_DB_HMI_IF; 
+
+      L     #o_Amount_Active_Alarms; // If there are alarms
+      L     0; 
+      >I    ; 
+      JCN   JA01; 
+      L     W#16#300; 
+JA01: LAR1  #t_LED_Alarm_Active; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Pntr_Visible_Alarm; 
+      LAR1  #t_Off_HMI_Alarm_Number; // Set pointer to alarm number
+      T     DBW [AR1,P#0.0]; 
+
+      L     #o_Amount_Active_Alarms; // Number of alarms to HMI
+      LAR1  #t_Off_HMI_NumbOfAlarms; // Set pointer to number of alarms
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Pntr_Visible_Alarm; 
+      T     #o_Pntr_Visible_Alarm; 
+NETWORK
+TITLE =KA: Visualise alarm on HMI
+//On change the data to the HMI to visualise the alarm is updated
+      LAR1  #t_Off_HMI_HMI_Screen; // Set pointer to HMI Current screen 
+      L     DBW [AR1,P#2.0]; // (Offset P#2.0) Get current screen number showed by HMI
+      T     #t_Current_Screen_Number; 
+      L     2; // 2 = Alarm screen number
+      <>I   ; 
+      S     #s_Update_Visulised; // Update when screen is re-activated
+      JC    LA99; // Don't update if not the alarm screen is active (because field properties don't allways function correctly, such as the "hide" property)
+
+      L     #s_Prev_Visible_Pointer; // Visible pointer changed ?
+      L     #s_Visible_Record_Pointer; 
+      T     #s_Prev_Visible_Pointer; 
+      <>D   ; 
+      S     #s_Update_Visulised; // Then update
+
+      L     #s_Prev_Bit_Numb; // IF visible bit number changed ?
+      L     #t_Visible_BitNumb; 
+      T     #s_Prev_Bit_Numb; 
+      <>I   ; 
+      S     #s_Update_Visulised; // Then update
+
+      A     #s_Update_Visulised; 
+      JCN   LA99; 
+      R     #s_Update_Visulised; 
+
+      OPN   #i_DB_HMI_IF; 
+
+      L     #o_Amount_Active_Alarms; 
+      L     0; 
+      ==I   ; // IF no record to visualise 
+      JCN   KA01; // ELSE
+      L     1; // THEN Message number 1 = 'No alarms active' 
+      T     #t_Index_Text_Number; 
+      JU    LA01; // Display system msg
+
+KA01: A     #s_Too_Many_Errors_Active; // IF "too many errors active" THEN overwrite error with system message
+      JCN   KA99; // ELSE
+      L     2; // THEN Message number 2 = 'Too many alarms active' 
+      T     #t_Index_Text_Number; 
+      JU    LA01; // Display system msg
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Handle Visible record ID
+//IF the text number = o (=undefined) the detailed status bit number is added to 
+//the text messgage.
+//
+      CALL "FC_HMI_Get_ID_AlmTxt" (
+           i_Rec_Byte_Adress        := #s_Visible_Record_Pointer,
+           i_Pntr_To_Actual_Bit     := #t_Visible_BitNumb,
+           i_ANY_ID_AlmTxt          := #s_ID_Visual_Alarm,
+           i_DB_HMI_IF_Num          := #s_DB_HMI_IF,
+           o_Act_HMI_Text_Number    := #s_Act_HMI_Text_Number);
+
+
+      L     #s_Act_HMI_Text_Number; 
+      L     0; // 0 = undefined
+      >I    ; // IF defined 
+      JC    LA02; // THEN visualise alarm
+
+// If Text Number=0   convert it to char for display
+      L     #t_Visible_BitNumb; 
+      ITD   ; 
+      DTB   ; //convert integer to BCD
+      T     #t_BCD; //save BCD for calculations
+      L     DW#16#F0F; //select char2 and char4
+      AD    ; 
+      L     DW#16#3030; //add hex30 to char2 and char4
+      OD    ; 
+      T     #t_CHAR_3; //save char3 
+      SRD   8; 
+      T     #t_CHAR_1; //save char1
+      L     #t_BCD; //load saved BCD
+      L     DW#16#F0F0; //select char1 and char3
+      AD    ; 
+      L     DW#16#30300; //add hex30 to char2 and char0
+      OD    ; 
+      SRD   4; 
+      T     #t_CHAR_2; //save char2
+      SRD   8; 
+      T     #t_CHAR_0; //save char0      
+
+
+      L     #s_DB_AlarmTextList_Selct; // Alarm text list DB number for low part alarm messages
+      T     #t_DB_Source; 
+      OPN   DB [#t_DB_Source]; 
+
+      L     #t_CHAR_1; // Transfer bit number of "undefined alarm" message
+      T     DBB   20; 
+      L     #t_CHAR_2; 
+      T     DBB   21; 
+      L     #t_CHAR_3; 
+      T     DBB   22; 
+
+      OPN   #i_DB_HMI_IF; // (Re)Open interface DB
+
+      L     #s_DB_AlarmTextList_Selct; // System msg
+      T     #t_DB_Source; 
+      L     0; // Message number 0 = "*** UNDEFINED bit ... ***"
+      T     #t_Index_Text_Number; 
+      L     42; // 32 = 30 chars in string + 2 for string lenght indicators
+      T     #t_String_Length; 
+
+      L     #s_Act_HMI_Text_Number; // Load message list number
+      T     DBW   82; // Msg_Alarm_Msg_Text_List_Number
+
+      JU    LA03; // Display Alarm
+
+LA01: NOP   0; // Display system msg
+
+      LAR1  #t_Off_Msg_Alarm_ID; 
+      L     0; // Clear ID string by modify length 
+      T     DBB [AR1,P#1.0]; // Length sting
+
+      L     -1; // -1 = Hide value (IF value = -1 the field is hide by visibility property)
+      T     DBW   82; // Msg_Alarm_Msg_Text_List_Number
+
+
+      L     #s_DB_AlarmTextList_Selct; 
+      T     #t_DB_Source; 
+      L     42; // 32 = 30 chars in string + 2 for string lenght indicators
+      T     #t_String_Length; 
+      JU    LA10; 
+
+LA02: L     #s_Act_HMI_Text_Number; // Load message list number
+      T     DBW   82; // Msg_Alarm_Msg_Text_List_Number
+
+      L     #s_DB_AlarmTextList_Selct; // Alarm text list DB number for low part alarm messages
+      T     #t_DB_Source; 
+      L     #s_Act_HMI_Text_Number; // Tekst list index number
+      T     #t_Index_Text_Number; 
+      L     42; // 22 = 20 chars in string + 2 for string lenght indicators
+      T     #t_String_Length; 
+
+LA03: NOP   0; 
+
+//***************************
+// Copy Message ID to HMI   *
+//***************************
+      L     #s_ID_Visual_Alarm.Mark_Code[1]; // First char of markcode
+      T     #s_ID_to_HMI[1]; 
+      L     #s_ID_Visual_Alarm.Mark_Code[2]; // Second char of markcode
+      T     #s_ID_to_HMI[2]; 
+      L     #s_ID_Visual_Alarm.Mark_Code[3]; // Check for 3rd char of markcode 
+      L     0; 
+      ==I   ; 
+      JCN   LA04; 
+      L     ' '; // Fill with a "space"
+      T     #s_ID_to_HMI[3]; 
+      T     #s_ID_to_HMI[4]; 
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      JU    LA08; 
+LA04: L     #s_ID_Visual_Alarm.Mark_Code[3]; 
+      T     #s_ID_to_HMI[3]; 
+      L     #s_ID_Visual_Alarm.Mark_Code[4]; // Check for 4th char of markcode 
+      L     0; 
+      ==I   ; 
+      JCN   LA05; 
+      L     ' '; // Fill with a "space"
+      T     #s_ID_to_HMI[4]; 
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      JU    LA08; 
+LA05: L     #s_ID_Visual_Alarm.Mark_Code[4]; 
+      T     #s_ID_to_HMI[4]; 
+
+      L     #s_ID_Visual_Alarm.Mark_Code[5]; // Check for 5th char of markcode 
+      L     0; 
+      ==I   ; 
+      JCN   LA06; 
+      L     ' '; // Fill with a "space"
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      JU    LA08; 
+LA06: L     #s_ID_Visual_Alarm.Mark_Code[5]; 
+      T     #s_ID_to_HMI[5]; 
+
+      L     #s_ID_Visual_Alarm.Mark_Code[6]; // Check for 6th char of markcode 
+      L     0; 
+      ==I   ; 
+      JCN   LA07; 
+      L     ' '; // Fill with a "space"
+      T     #s_ID_to_HMI[6]; 
+      JU    LA08; 
+LA07: L     #s_ID_Visual_Alarm.Mark_Code[6]; 
+      T     #s_ID_to_HMI[6]; 
+
+
+LA08: L     ' '; // Always space before ID
+      T     #s_ID_to_HMI[7]; 
+
+      L     #s_ID_Visual_Alarm.ID; // Load Current SSM ID
+      T     #t_ID; // Transfer to temp
+
+// ID format AAAAZZSS convert ID to Char 
+// Convert Section ID to ASCII
+      L     #t_ID; //Component ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[17]; 
+
+      L     #t_ID; //Component ID
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[16]; 
+
+      L     '.'; // Add '.' Add dot
+      T     #s_ID_to_HMI[15]; 
+
+// Convert the ZZ ID to ASCII
+      L     #t_ID; // Componet ID
+      SRD   4; 
+      T     #t_ID; // Componet ID
+      L     DW#16#F; // Select last
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[14]; 
+
+      L     #t_ID; // Componet ID 
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[13]; 
+
+      L     '.'; // Add '.'  (dot)
+      T     #s_ID_to_HMI[12]; 
+
+// Convert AAAA ID to ASCII
+      L     #t_ID; // Componet ID
+      SRD   4; 
+      T     #t_ID; // Componet ID
+      L     DW#16#F; // Select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[11]; 
+
+      L     #t_ID; // Componet ID
+      SRD   4; 
+      T     #t_ID; // Componet ID
+      L     DW#16#F; // Select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[10]; 
+
+      L     #t_ID; // Componet ID
+      SRD   4; 
+      T     #t_ID; // Componet ID
+      L     DW#16#F; // Select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[9]; 
+
+      L     #t_ID; // Componet ID 
+      SRD   4; 
+      T     #t_ID; // Componet ID
+      L     DW#16#F; // Select last 
+      AW    ; 
+      L     DW#16#30; // Add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[8]; 
+
+// Prepare pointer for ID to HMI
+      L     P##t_ANY_P_To_ID_On_HMI; // Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; // Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; // Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     30; // Store data length in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #s_DB_HMI_IF; // Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_Off_Msg_Alarm_ID; // Load mesaage offset
+      T     LD [AR1,P#6.0]; // And store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+//  Write Actul length in the ID pointer
+      L     P##s_ID_to_HMI; //Set pointer to ID variable
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     17; // Copy only 17 CHAR
+      T     B [AR1,P#1.0]; // Write string 'actual' length
+
+// Move the current compoent ID to the HMI diasplay location
+      CALL "BLKMOV" (// Write ID to HMI interface DB
+           SRCBLK                   := #s_ID_to_HMI,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #t_ANY_P_To_ID_On_HMI);
+
+
+//************************************************************
+// Copy the alarm text to HMI                                *
+//************************************************************
+LA10: LAR1  P##t_ANY_Source; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     #t_String_Length; // Number of bytes to be copied 
+      T     LW [AR1,P#2.0]; 
+      L     #t_DB_Source; // DB number with message text
+      T     LW [AR1,P#4.0]; 
+      L     #t_Index_Text_Number; // List number
+      L     #t_String_Length; // index by string length
+      *D    ; 
+      SLD   3; // Convert in byte 
+      OD    DW#16#84000000; // DATA Block
+      T     LD [AR1,P#6.0]; 
+
+// Destination ANY pointer to "Alarm Text" field
+      LAR1  P##t_ANY_Destination; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     42; // Number of bytes can be copied String[30]=32 bytes (destination)
+      T     LW [AR1,P#2.0]; 
+      L     #s_DB_HMI_IF; // DB number HMI interface
+      T     LW [AR1,P#4.0]; 
+      L     #t_Offset_Msg_Alarm_Txt; // Offset to sting in DB
+      OD    DW#16#84000000; // Data Block
+      T     LD [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy source data into static
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #t_ANY_Destination);
+
+LA99: NOP   0; 
+END_FUNCTION_BLOCK
+

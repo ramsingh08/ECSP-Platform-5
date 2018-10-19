@@ -1,0 +1,30 @@
+TYPE "UDT_Zone_HMI_IF_Mode"
+TITLE =%version: 0.01 % CN: 11
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, November 14, 2016 1:46:05 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#45674 Initial version based on FB_HMI_IF_SSM       inajos   27-09-16   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Zone_ID : STRING  [30 ];	//Selected zone ID 
+   Zone_Status : INT ;	//Selected zone Status
+   Zone_Active_No : INT ;	//Active zone Number
+   Zone_Total_No : INT ;	//Total Number of zones with modes
+   Zone_Function_No : INT ;	//Zone Function Number for (up/down or straight divert etc...)
+   Zone_Available_Commands : STRUCT 	//Available Commands for zone
+    Auto : BOOL ;	
+    Semi_Auto_Fixed_Straight : BOOL ;	
+    Semi_Auto_Fixed_Sort1 : BOOL ;	
+    Semi_Auto_Fixed_Sort2 : BOOL ;	
+    Manual : BOOL ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

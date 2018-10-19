@@ -1,0 +1,42 @@
+TYPE "UDT_VBS_Status"
+TITLE =%version: 0.06 % CN: 10 
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Monday, June 18, 2018 11:12:29 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#29647: Removed HAC PEC Switch gap error            inajos   18-06-18   0.06
+//ra#21265: VBZ01 HAC PEC to VBS                        nlHdL    18-05-17   0.05
+//ra#17145: VBS_Status is missing external stop         nlHdL    16-09-16   0.04
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.03
+//ra#15818: Update the VBZ according MCFV decomposition nlHdL    18-07-16   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.03
+//Added status                                          nlJBax   04-04-11   0.02
+//Initial version                                       nlHdL    17-09-10   0.01                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Items : BOOL ;	//Items present on the section
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   Spare_0_6 : BOOL ;	//Spare_0_6
+   Spare_0_7 : BOOL ;	//Spare_0_7
+   LMS_ASI_Not_Prsnt : BOOL ;	//LMS ASI slave not present
+   LMS_ASI_Error : BOOL ;	//LMS ASI slave error
+   LMS_Not_Auto : BOOL ;	//LMS not Automatic
+   LMS_Not_Hthy : BOOL ;	//LMS not Healthy
+   HAC_PEC_Blk : BOOL ;	//Hand-over Area Clear PEC blockage
+   Spare_1_5 : BOOL ;	//Spare_1_5
+   Spare_1_6 : BOOL ;	//Spare_1_6
+   Spare_1_7 : BOOL ;	//Spare_1_7
+  END_STRUCT ;	
+END_TYPE
+

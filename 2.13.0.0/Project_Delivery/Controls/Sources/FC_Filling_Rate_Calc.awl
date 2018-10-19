@@ -1,0 +1,65 @@
+FUNCTION "FC_Filling_Rate_Calc" : VOID
+TITLE =%version: 0.01 % CN: 30
+//Function:
+//Determine the filling rate within a route segment DB
+//
+//History:
+//This version  %created_by: nltsil %
+//              %date_created: Thursday, September 29, 2016 2:53:31 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nltsil   29-09-16   0.01
+//
+//Description:
+//The function of this block is to calculate the fill rate within a route segment 
+//DB. For some functions within a Tubtrax system we require the filling rate over 
+//several route segment DB's to be known. By coupling more than one 
+//FC_Filling_Rate_T blocks, the total filling rate of a complete area (loop) can 
+//be determined. OBT count is not considered.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Total_Avail_Win_Count : INT ;	//Total number of available windows (incl. upstream)
+  i_Total_SBT_Count : INT ;	//Total SBT count (incl. upstream)
+END_VAR
+VAR_OUTPUT
+  o_Filling_Rate : INT ;	//[%] Total filling rate (incl. upstream)
+END_VAR
+VAR_TEMP
+  t_Calc_Fill_Rate : INT ;	//Calculated fill rate	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Calculate filling rate
+//The filling rate is calculated by divided the total number of occupied windows 
+//by the total number of available windows. This value is multiplied by 100 to get
+//a percentage value.
+      NOP   0; 
+
+      L     #i_Total_SBT_Count; 
+      L     100; 
+      *D    ; 
+      L     #i_Total_Avail_Win_Count; 
+      /D    ; 
+      T     #t_Calc_Fill_Rate; 
+
+      L     #t_Calc_Fill_Rate; 
+      L     100; 
+      >I    ; 
+      JCN   DA99; 
+
+      L     100; 
+      T     #t_Calc_Fill_Rate; 
+
+DA99: NOP   0; 
+
+      L     #t_Calc_Fill_Rate; 
+      T     #o_Filling_Rate; 
+
+END_FUNCTION
+

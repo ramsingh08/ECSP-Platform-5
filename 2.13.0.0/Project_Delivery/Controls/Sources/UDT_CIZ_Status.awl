@@ -1,0 +1,43 @@
+TYPE "UDT_CIZ_Status"
+TITLE =%version: 0.07 % CN: 10 
+//History:
+//This version  %created_by: nlsdw %
+//              %date_created: Wednesday, May 31, 2017 2:36:45 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:     Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#1740: Add desk active informational           nlSdW    31-05-17   0.07
+//ra#10430: RAW: Make status according to MCFV          nlJClo   10-06-16   0.06
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   0.05
+//ra#10430: RAW: Make CIZ configurable according MCFV   nlHdL    11-05-16   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//CR19512 Update sources according S7 Manager           nlHdL    07-03-13   0.04
+//CR6232 Update according CTCL                          nlple    10-01-11   0.03
+//Renamed to UDT_CIZ_Status                             nlHdL    15-11-10   0.02 
+//Initial version CIZ control Status                    nlHdL    17-09-10   0.01 
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   PBB_ASI_NotPrsnt : BOOL ;	//ASI slave PBB not present
+   PBB_ASI_Error : BOOL ;	//ASI slave PBB error
+   TRS1_ASI_Not_Prsnt : BOOL ;	//ASI slave TRS1 not present
+   TRS1_ASI_Error : BOOL ;	//ASI slave TRS1 error
+   TRS2_ASI_Not_Prsnt : BOOL ;	//ASI slave TRS2 not present
+   TRS2_ASI_Error : BOOL ;	//ASI slave TRS2 error
+   TRS3_ASI_Not_Prsnt : BOOL ;	//ASI slave TRS3 not present
+   TRS3_ASI_Error : BOOL ;	//ASI slave TRS3 error
+   LCC_ASI_Not_Prsnt : BOOL ;	//ASI slave LCC not present
+   LCC_ASI_Error : BOOL ;	//ASI slave LCC error
+   Unexp_Detection : BOOL ;	//Unexpected item detection if desk off and PEC EOS dispatch blocked
+   Length_Check : BOOL ;	//Baggage item is too long to enter the system
+   Desk_Disabled : BOOL ;	//Check in Desk is disabled (automatic key switch switched off)
+   Desk_Active : BOOL ;	//Check in Desk is activated (on/off key switch switched on)
+   Spare_1_6 : BOOL ;	//Spare
+   Spare_1_7 : BOOL ;	//Spare
+  END_STRUCT ;	
+END_TYPE
+

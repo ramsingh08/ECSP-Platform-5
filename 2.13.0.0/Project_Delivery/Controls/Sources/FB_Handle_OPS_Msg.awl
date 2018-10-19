@@ -1,0 +1,422 @@
+FUNCTION_BLOCK "FB_Handle_OPS_Msg"
+TITLE =%version: 0.11 % CN: 42
+//
+//Function:
+//Handle received message.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, April 23, 2018 10:58:27 AM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#10058: OPS logged on wrong in availability report nlHdL    23-04-18   0.11
+//ina#5615: AvailabilityReport include OperationalState nlHdL    19-12-17   0.10
+//ina#7642: Mode request message conditions Updated     inajos   20-11-17   0.09
+//ra#23284: OPS handle Fallback tags                    nlHdL    03-10-17   0.08
+//ra#24442: OPS Add state disable                       nlHdL    21-08-17   0.07
+//ina#5385: AvailabilityReport change event number      nlHdL    22-05-17   0.06
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.05
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.05
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.05
+//25651: OPS Resend encoderequest                       nlHdL    08-08-16   0.05
+//24575: OPZ PackageReport send periodically            nlHdL    17-07-15   0.04
+//24499: Availability Report send after 30 sec time     nlHdL    09-07-15   0.03
+//24499: FIFO handling done incorrect for OPS/Lifesign  nlHdL    09-07-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//
+//Description:
+//This FB handles the received message. It divides the received message depending 
+//on message characteristic over the specific message handlers.
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Recv_FIFO : BLOCK_DB ;	//CFG: DB of used Receive FIFO
+  i_DB_Send_FIFO : BLOCK_DB ;	//CFG: DB number of Send FIFO
+  i_DB_Event : BLOCK_DB ;	//CFG: Local Event DB
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CFG_Airport_No : INT ;	//CFG: Airport Number(Only 4 Numeric value Max 9999)
+  i_CFG_LifeSignReq_Interv : INT ;	//CFG: [sec] Interval for sending a LifeSignRequest msg (0 = send no LifeSigns)
+  i_CFG_NumLifeSignMiss_Er : INT ;	//CFG: Number of LifeSignResponses to be missed before an error is set
+  i_LNK : INT ;	//LNK record number of item on OPZ
+  i_Encode_Request : BOOL ;	//Encode Request is active for item
+  i_Encode_Cancel : BOOL ;	//Encode Cancel is active for item
+  i_OPS_Disable : BOOL ;	//OPZ ST Disable (Transport mode)
+END_VAR
+VAR_OUTPUT
+  o_Err_No_Lifesigns : BOOL ;	//DS: A predefined number of LifeSignResponses have not been received
+  o_OPS_Active : BOOL ;	//Workstation is active operator is logged in 
+  o_EncodeResult_Received : BOOL ;	//Encode Result command received
+  o_OPS_Degraded_Mode : BOOL ;	//OPS Degraded mode
+  o_OPS_DetailedState : "UDT_OPS_Status";	//OPS Detailed State
+END_VAR
+VAR
+  s_OPS_LifeSign : "FB_OPS_LifeSign";	//Block call static FB_OPS_LifeSign
+  s_Rcv_OPS_EncodeRes : "FB_Rcv_OPS_EncodeRes";	//Block call static FB_Rcv_OPS_EncodeRes
+  s_Rec_Message_Type_ID : INT ;	//Message type ID from received message
+  s_WS_OperationMode : INT ;	//Operation Mode of the WorkStation
+  s_WS_OperationSate : INT ;	//Operation State of the WorkStation
+  s_WS_TechnicalState : INT ;	//Technical State of the WorkStation
+  s_WS_DetailedState : ARRAY  [0 .. 15 ] OF //Detailed State of the WorkStation
+  BOOL ;	
+  s_WS_FunctionMode : WORD ;	//Function Mode of the WorkStation
+  s_WS_DetailedWord : WORD ;	//Detailed State as word of the WorkStation
+  s_TimeSpoint_ModeRequest : INT ;	//Timer value for Mode Request message
+  s_TimeSpoint_AvaiRep : INT ;	//Timer value for Availability Report message
+  s_TimeSpoint_Snd_Encode : INT ;	//Timer value for resending Encoded Request and package Report
+  s_LIC : INT ;	//LIC number of item
+  s_Message_Received : BOOL ;	//Message received from WorkStation
+  s_Time_Elapsed_Modereq : BOOL ;	//Timer Elapsed for sending Mode Request message
+  s_Time_Elapsed_AvaiRep : BOOL ;	//Timer Elapsed for sending Availability Report message
+  s_Time_Elapsed_Encode : BOOL ;	//Timer Elapsed for sending Encoded Request and package Report
+  s_OPS_Logged_In : BOOL ;	//Logged in message has been received
+  s_FP_Snd_Encode_Request : BOOL ;	//Flank positive send encode request
+  s_FP_Snd_Encode_Cancel : BOOL ;	//Flank positive send encode cancel
+  s_FP_OPS_Active : BOOL ;	//Flank Positve OPS is active
+  s_FN_OPS_Active : BOOL ;	//Flank Negative OPS is active
+  s_FP_Oper_Mode_Sys : BOOL ;	//Flank Positive Operation Mode System
+  s_FP_Oper_Mode_Deg : BOOL ;	//Flank Positive Operation Mode Degraded
+END_VAR
+VAR_TEMP
+  t_Ret_Val_Int : INT ;	//Integer return value
+  t_DB_Event_Nr : INT ;	//DB event number
+  t_Available_Value : INT ;	//Availble value 0= Not 1= Available
+  t_DB_Recv_OPS_FIFO_Num : INT ;	//DB Number of OPS FIFO receive messages
+  t_DB_Snd_OPS_FIFO_Num : INT ;	//DB Number of OPS FIFO receive messages
+  t_FunctionMode_Report : WORD ;	//Function mode shifted left
+  t_OperationState_Report : WORD ;	//Function mode shifted left
+  t_StartTimer_AvailRep : BOOL ;	//Timer start Availability Report
+  t_StartTimerModereq : BOOL ;	//Timer start mode request
+  t_OS_FP_OPS_Available : BOOL ;	//One Shot FP OPS is available
+  t_OS_FN_OPS_Available : BOOL ;	//One Shot FN OPS is available
+  t_OS_FP_EncodeRequest : BOOL ;	//One Shot FP send encode request
+  t_StartTimerEncoded : BOOL ;	//Timer start resend encoded request
+  t_Encode_Active : BOOL ;	//Encode active
+  t_OS_FP_Oper_Mode_Sys : BOOL ;	//One Shot FP Operation Mode System
+  t_OS_FP_Oper_Mode_Deg : BOOL ;	//One Shot FP Operation Mode Degraded
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check FIFO for new messages
+
+      OPN   #i_DB_Event; // Determin event DB nr
+      L     DBNO; 
+      T     #t_DB_Event_Nr; 
+
+      OPN   #i_DB_Send_FIFO; // Determine send FIFO's DB nr
+      L     DBNO; 
+      T     #t_DB_Snd_OPS_FIFO_Num; 
+
+      OPN   #i_DB_Recv_FIFO; // Determine receive FIFO's DB nr
+      L     DBNO; 
+      T     #t_DB_Recv_OPS_FIFO_Num; 
+
+      AN    DBX    0.0; // When FIFO is not empty (empty bit is first bit in FIFO DB)
+      =     #s_Message_Received; 
+      JCN   AA99; 
+
+      L     DBW   12; // Position of the record
+      L     1; 
+      -I    ; 
+      L     DBW    4; // The length of each message in the DB_FIFO ("Record_Data_Length")
+      *I    ; 
+      +     14; // Length of the general record in DB_FIFO/Offset to the first message in the DB_FIFO
+      SLD   3; 
+      LAR1  ; // Store the Offset, to the first available message, in the Accumulator 1.
+
+      L     DBW [AR1,P#8.0]; // Retrieve the message type from the first available message from DB_FIFO
+      T     #s_Rec_Message_Type_ID; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Handle OPS Lifesign
+
+      CALL #s_OPS_LifeSign (
+           i_ID                     := #i_ID,
+           i_DB_Send_OPS_FIFO       := #i_DB_Send_FIFO,
+           i_DB_Recv_OPS_FIFO       := #i_DB_Recv_FIFO,
+           i_CFG_Lifesign_Interval  := #i_CFG_LifeSignReq_Interv,
+           i_CFG_NumLifeSgnMiss_Err := #i_CFG_NumLifeSignMiss_Er,
+           i_Event_DB               := #i_DB_Event,
+           o_LifeSign_Err           := #o_Err_No_Lifesigns);
+NETWORK
+TITLE =CA: Receive OPS ModeStateReport
+
+      OPN   #i_DB_Recv_FIFO; 
+      L     DBNO; 
+      T     #t_DB_Recv_OPS_FIFO_Num; 
+
+      CALL "FC_Rcv_OPS_ModeSRep" (
+           i_DB_Recv_OPS_FIFO_Num   := #t_DB_Recv_OPS_FIFO_Num,
+           i_OperationalMode        := #s_WS_OperationMode,
+           i_OperationalState       := #s_WS_OperationSate,
+           i_TechnicalState         := #s_WS_TechnicalState,
+           i_DetailedState          := #s_WS_DetailedWord,
+           i_FunctionMode           := #s_WS_FunctionMode,
+           o_OperationalMode        := #s_WS_OperationMode,
+           o_OperationalState       := #s_WS_OperationSate,
+           o_TechnicalState         := #s_WS_TechnicalState,
+           o_DetailedState          := #s_WS_DetailedWord,
+           o_FunctionMode           := #s_WS_FunctionMode);
+
+//Convert DetailedWord to Detailed State Bits
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_WS_DetailedWord,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_WS_DetailedState);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_WS_DetailedState,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #o_OPS_DetailedState);
+
+      L     #s_WS_OperationSate; 
+      L     2; 
+      ==I   ; 
+      =     #s_OPS_Logged_In; 
+
+      L     2; 
+      A     #s_OPS_Logged_In; 
+      JCN   CA01; 
+      L     1; 
+CA01: T     #t_OperationState_Report; 
+NETWORK
+TITLE =DA: Create Availablity Report
+
+      AN    #i_OPS_Disable; 
+      A     #s_OPS_Logged_In; 
+      =     #o_OPS_Active; 
+
+      A     #o_OPS_Active; 
+      FP    #s_FP_OPS_Active; 
+      =     #t_OS_FP_OPS_Available; 
+
+      A     #o_OPS_Active; 
+      FN    #s_FN_OPS_Active; 
+      =     #t_OS_FN_OPS_Available; 
+
+      AN    #s_Time_Elapsed_AvaiRep; 
+      AN    #t_OS_FP_OPS_Available; 
+      AN    #t_OS_FN_OPS_Available; 
+      =     #t_StartTimer_AvailRep; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_StartTimer_AvailRep,
+           i_CFG_Timer_Value        := 30,
+           i_Setpoint               := #s_TimeSpoint_AvaiRep,
+           o_Setpoint               := #s_TimeSpoint_AvaiRep,
+           o_Timer_Elapsed          := #s_Time_Elapsed_AvaiRep);
+
+      A     #t_OS_FP_OPS_Available; 
+      O     #t_OS_FN_OPS_Available; 
+      O     #s_Time_Elapsed_AvaiRep; 
+      JCN   DA99; 
+
+      L     0; 
+      A     #o_OPS_Active; 
+      JCN   DA01; 
+      L     1; 
+DA01: T     #t_Available_Value; 
+      L     #s_WS_FunctionMode; 
+      SLW   8; 
+      T     #t_FunctionMode_Report; 
+      L     #t_Available_Value; 
+      OW    ; 
+      T     #t_Available_Value; // [zxyy] z= Operational State, x= Function mode, yy= availability
+
+      L     #t_OperationState_Report; 
+      SLW   12; 
+      L     #t_Available_Value; 
+      OW    ; 
+      T     #t_Available_Value; // [zxyy] z= Operational State, x= Function mode, yy= availability
+
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1221,
+           i_Event_value            := #t_Available_Value,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Create Mode Request Message
+
+
+//Operation Modes
+      L     #s_WS_OperationMode; 
+      L     1; 
+      ==I   ; 
+      FP    #s_FP_Oper_Mode_Sys; 
+      =     #t_OS_FP_Oper_Mode_Sys; 
+
+      L     #s_WS_OperationMode; 
+      L     2; 
+      ==I   ; 
+      =     #o_OPS_Degraded_Mode; 
+      FP    #s_FP_Oper_Mode_Deg; 
+      =     #t_OS_FP_Oper_Mode_Deg; 
+
+//Mode Request Conditions
+      AN    #o_Err_No_Lifesigns; //Healthy
+      AN    #t_OS_FP_Oper_Mode_Sys; //Operation Mode System
+      AN    #t_OS_FP_Oper_Mode_Deg; //Operation Mode Degraded
+      AN    #s_Time_Elapsed_Modereq; //Own Repeat Timer
+      =     #t_StartTimerModereq; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_StartTimerModereq,
+           i_CFG_Timer_Value        := 30,
+           i_Setpoint               := #s_TimeSpoint_ModeRequest,
+           o_Setpoint               := #s_TimeSpoint_ModeRequest,
+           o_Timer_Elapsed          := #s_Time_Elapsed_Modereq);
+
+      A     #s_Time_Elapsed_Modereq; //Timer
+      O     #t_OS_FP_Oper_Mode_Sys; //Operation Mode System
+      O     #t_OS_FP_Oper_Mode_Deg; //Operation Mode Degraded
+      JCN   EA99; 
+
+      CALL "FC_Crt_OPS_ModeReq" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_Snd_OPS_FIFO_Num,
+           i_OperationalMode        := #s_WS_OperationMode,
+           i_FunctionMode           := #s_WS_FunctionMode,
+           i_DB_Event_Num           := #t_DB_Event_Nr);
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Receive Encode Result
+
+      AN    #i_Encode_Request; 
+      R     #o_EncodeResult_Received; 
+
+      A     #i_Encode_Request; 
+      JCN   FA99; 
+
+      L     #i_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   FA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_INT                    := #s_LIC);
+
+      CALL #s_Rcv_OPS_EncodeRes (
+           i_DB_Recv_OPS_FIFO_Num   := #t_DB_Recv_OPS_FIFO_Num,
+           i_LIC                    := #s_LIC,
+           i_DB_Event_Nr            := #t_DB_Event_Nr,
+           i_CFG_Airport_No         := #i_CFG_Airport_No,
+           i_ID                     := #i_ID,
+           o_EncodeResult_Received  := #o_EncodeResult_Received);
+
+      A     #o_EncodeResult_Received; 
+      JCN   FA99; 
+
+      L     0; 
+      T     #s_LIC; 
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Send Encode request and Package report
+
+      A     #i_Encode_Request; 
+      A     #o_OPS_Active; 
+      =     #t_Encode_Active; 
+
+      A     #t_Encode_Active; 
+      FP    #s_FP_Snd_Encode_Request; 
+      =     #t_OS_FP_EncodeRequest; 
+
+      L     #i_LNK; 
+      L     0; 
+      >I    ; 
+      JCN   GA99; 
+
+      AN    #s_Time_Elapsed_Encode; 
+      AN    #t_OS_FP_EncodeRequest; 
+      A     #t_Encode_Active; 
+      =     #t_StartTimerEncoded; 
+
+      CALL "FC_On_Dly_Timer_Sec" (
+           i_CMD_Start              := #t_StartTimerEncoded,
+           i_CFG_Timer_Value        := 30,
+           i_Setpoint               := #s_TimeSpoint_Snd_Encode,
+           o_Setpoint               := #s_TimeSpoint_Snd_Encode,
+           o_Timer_Elapsed          := #s_Time_Elapsed_Encode);
+
+      A     #t_OS_FP_EncodeRequest; 
+      O     #s_Time_Elapsed_Encode; 
+      JCN   GA99; 
+
+      CALL "FC_Crt_EncodeRequest" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_Snd_OPS_FIFO_Num,
+           i_LIC_Nr                 := #s_LIC,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           i_EncodeReqType          := 2);
+
+//Send Package Report when item has arrived on OPS
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1211,
+           i_Event_value            := #i_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           o_Return_Value           := #t_Ret_Val_Int);
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Send Encode cancel
+
+      A     #i_Encode_Cancel; 
+      A     #o_OPS_Active; 
+      FP    #s_FP_Snd_Encode_Cancel; 
+      JCN   HA99; 
+
+
+      CALL "FC_Crt_EncodeRequest" (
+           i_ID                     := #i_ID,
+           i_FIFO_TCTC_DB_num       := #t_DB_Snd_OPS_FIFO_Num,
+           i_LIC_Nr                 := #s_LIC,
+           i_DB_Event_Num           := #t_DB_Event_Nr,
+           i_EncodeReqType          := 1);
+
+      L     0; 
+      T     #s_LIC; 
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Clear FIFO DB
+
+      OPN   #i_DB_Recv_FIFO; 
+//Check if record stored > 0
+      L     DBW    6; 
+      L     0; 
+      >I    ; 
+      JCN   IA99; 
+
+//Move to next message
+      L     DBW   12; 
+      L     1; 
+      +I    ; 
+      T     DBW   12; 
+      L     DBW    8; 
+      >I    ; 
+      JCN   IA01; 
+//If amount is lapsed goto first record
+      L     1; 
+      T     DBW   12; 
+
+IA01: L     DBW    6; 
+      L     1; 
+      -I    ; 
+      T     DBW    6; 
+      L     0; 
+      ==I   ; 
+      S     DBX    0.0; 
+//Decrease record stored, and if empty set empty bit
+IA99: NOP   0; 
+END_FUNCTION_BLOCK
+

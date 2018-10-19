@@ -1,0 +1,27 @@
+DATA_BLOCK "DB_HandAreaTabIndex"
+TITLE =%version: 0.04 % CN: 20
+//History:
+//This version  %created_by: nlsdw %
+//              %date_created: Thursday, May 18, 2017 4:05:33 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22511: Added comments for manual addition          nlSdW    18-05-17   0.04
+//ra#22511: Added insert key to generate the DB         nlSdW    01-05-17   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.02
+//Initial Version renamed from DB_TranslTableIndex      nlHdL    18-02-14   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   Insert : INT ;	//Insertion point for the S7 Code Generator
+  END_STRUCT ;	//Example MMM_ZZ_SS : "UDT_HandAreaTabIndex"
+BEGIN
+END_DATA_BLOCK
+

@@ -1,0 +1,2012 @@
+FUNCTION_BLOCK "FB_HMI_Menu_Control"
+TITLE =%version: 0.06 % CN: 50 
+//Function:
+//Menu control of a operator panel (KTP400)
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created:  Monday, November 14, 2016 2:55:40 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189:Updated Code and extra commands              inajos    20-10-16  0.06
+//ra#13652 Added the Zone Modes Code                    inajos   20-09-16   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.04
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.04
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.04
+//14162: Update comment of variable                     nlHdL    17-06-15   0.04
+//14163: Removed IO parameter added In- or Output       nlHdL    06-01-14   0.03
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.02
+//Initial revision                                      insmahi  10-06-10   0.01
+//
+//Description:
+//Menu control of a operator panel (KTP400)
+//The functions of menu control are:
+//- Navigation of menu screens
+//- Handle HMI password levels
+//- Output pressed command
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Menu : BLOCK_DB ;	//DB HMI Menu navigation configuration 
+  i_DB_HMI_IF : BLOCK_DB ;	//HMI Interface DB
+  i_Amount_Active_Alarms : INT ;	//Amount of active alarms
+  i_Total_No_SSM : INT ;	//Total No Of SSM
+  i_Total_No_Zones : INT ;	//Total No Of Zones with Modes
+  i_Total_No_Manual_Scrn : INT ;	//Total No Of Manual Screens
+  i_Total_No_Oper_Scrn : INT ;	//Total No Of Operator Screens
+  i_HMI_Req_Node_ID : DWORD ;	//External Request Node-ID Root/Tree/Branch/Leaf [4-bytes]
+  i_New_Activated_Alarm : INT ;	//Index number of new activated alarm
+  i_Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+END_VAR
+VAR_OUTPUT
+  o_HMI_Command : INT ;	//HMI Command interface
+  o_HMI_Act_Node_ID : DWORD ;	//Actual Node-ID Root/Tree/Branch/Leaf [4-bytes]
+  o_HMI_Alive : BOOL ;	//HMI device is alive
+  o_HMI_Error : BOOL ;	//HMI device communication error
+  o_Current_SSM_No : INT  := 1;	//Current no of SSM selected
+  o_Current_Zone_No : INT  := 1;	//Current no of Zone selected
+  o_Current_Manual_Scrn_No : INT  := 1;	//Current no of Manual Screen Selected
+  o_Current_Oper_Scrn_No : INT ;	//Current no of Operator Screen Selected
+  o_HMI_Req_Node_ID : DWORD ;	//External Request Node-ID Root/Tree/Branch/Leaf [4-bytes]
+  o_New_Activated_Alarm : INT ;	//Index number of new activated alarm
+  o_Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+END_VAR
+VAR
+  s_New_Screen_Number : INT ;	//Semaphore new requested screen number
+  s_Active_Screen_Number : INT ;	//Actual actived screen number
+  s_HMI_Screen : STRUCT 	//Data Structure HMI Screen
+   Current_Type : INT ;	//Current screen type
+   Current_Screen_Number : INT ;	//Actual screen number on HMI
+   Current_Field : INT ;	//Current field number
+  END_STRUCT ;	
+  s_New_Node_Index : INT ;	//Semaphore new requested node index
+  s_Active_Node_Index : INT ;	//Active node index number
+  s_Active_Node : "UDT_HMI_Menu_Node";	//Active node record
+  s_Active_Node_Length : INT ;	//Length of node record (for pointer calculation) (Do not move)
+  s_Offset_Record_Node : INT ;	//Offset to node record
+  s_Number_Of_Nodes : INT ;	//Number of nodes in DB_HMI_Menu
+  s_DB_Menu_Number : INT ;	//Data block number
+  s_TMR_Alarm_Scroll : DINT ;	//[msec] key striked for alarm scroll
+  s_Key_Data : "UDT_HMI_Keys_Prop";	//Data of striked key
+  s_Previous_Node_ID : DWORD ;	//Remainder previous node ID in dword format
+  s_Active_Node_ID : DWORD ;	//Active node ID in dword format
+  s_Entered_Node_ID : DWORD ;	//Entered node ID in dword format / Semaphore new requested node ID
+  s_Internal_Node_ID : DWORD ;	//(for monitoring) Internal requested node ID in dword format
+  s_External_Node_ID : DWORD ;	//(for monitoring) External requested node ID in dword format
+  s_Key : STRUCT 	//HMI key status
+   Pressed : STRUCT 	//Key pressed continuously on HMI
+    Function1 : BOOL ;	
+    Function2 : BOOL ;	
+    Function3 : BOOL ;	
+    Function4 : BOOL ;	
+    Function5 : BOOL ;	
+    Function6 : BOOL ;	
+    Function7 : BOOL ;	
+    Function8 : BOOL ;	
+    Command1 : BOOL ;	
+    Command2 : BOOL ;	
+    Command3 : BOOL ;	
+    Command4 : BOOL ;	
+    Command5 : BOOL ;	
+    Command6 : BOOL ;	
+    Command7 : BOOL ;	
+    Command8 : BOOL ;	
+    ESC : BOOL ;	//Key ESC
+    ACK : BOOL ;	//Key ACK
+    ENTER : BOOL ;	//Key ENTER
+   END_STRUCT ;	
+   Striked : STRUCT 	//Flank Positive key pressed on HMI
+    Function1 : BOOL ;	
+    Function2 : BOOL ;	
+    Function3 : BOOL ;	
+    Function4 : BOOL ;	
+    Function5 : BOOL ;	
+    Function6 : BOOL ;	
+    Function7 : BOOL ;	
+    Function8 : BOOL ;	
+    Command1 : BOOL ;	
+    Command2 : BOOL ;	
+    Command3 : BOOL ;	
+    Command4 : BOOL ;	
+    Command5 : BOOL ;	
+    Command6 : BOOL ;	
+    Command7 : BOOL ;	
+    Command8 : BOOL ;	
+    ESC : BOOL ;	//Key ESC
+    ACK : BOOL ;	//Key ACK
+    ENTER : BOOL ;	//Key ENTER
+   END_STRUCT ;	
+   Enabled : STRUCT 	//Flank Positive key pressed on HMI
+    Function1 : BOOL ;	
+    Function2 : BOOL ;	
+    Function3 : BOOL ;	
+    Function4 : BOOL ;	
+    Function5 : BOOL ;	
+    Function6 : BOOL ;	
+    Function7 : BOOL ;	
+    Function8 : BOOL ;	
+    Command1 : BOOL ;	
+    Command2 : BOOL ;	
+    Command3 : BOOL ;	
+    Command4 : BOOL ;	
+    Command5 : BOOL ;	
+    Command6 : BOOL ;	
+    Command7 : BOOL ;	
+    Command8 : BOOL ;	
+    ESC : BOOL ;	//Key ESC
+    ACK : BOOL ;	//Key ACK
+    ENTER : BOOL ;	//Key ENTER
+   END_STRUCT ;	
+   Any_Pressed : BOOL ;	//Any key is pressed on HMI
+   Same_Pressed : BOOL ;	//Still only same key is pressed
+   Copy_Pressed : DWORD ;	//Remainder to detect same key pressed
+  END_STRUCT ;	
+  s_Password_Keys : "UDT_HMI_Menu_Passw";	//Password levels
+  s_Passw_Keys_Length : INT ;	//Length of password record (for pointer calculation) (Do not move)
+  s_NumberOf_Passw_Keys : INT ;	//Number of password records
+  s_Password : STRUCT 	//Data Structure password
+   Actual_Level : INT ;	//Actual password level
+   Requested_Level : INT ;	//Requested password level
+   Login_Level : INT ;	//Level of entered password
+   Input : INT ;	//Entered password value on HMI
+   Request : BOOL ;	//Semaphore request password for this key
+   Prompt : BOOL ;	//Prompt password screen
+   Valid : BOOL ;	//Password is vallid
+   Expired : BOOL ;	//Password is expired
+   Interrupt : BOOL ;	//Password prompt is interrupted	
+   Remaind_Entered_Node : DWORD ;	//Remaind entered node while password input is activated
+   Remaind_Act_Screen : INT ;	//Remaind actual screen (of actual node) while password input screen is activated
+   HMI_Status_Line : INT ;	//Status line of password screen status (linked to tekstlist HMI)
+   Expire_Time : INT ;	//[sec] preset expire time of last enterd password
+  END_STRUCT ;	
+  s_Act_Timer : STRUCT 	//Actual timer values
+   Screen_Expired : INT ;	//Actuale timer screen expired
+   Password_Expired : INT ;	//Actuale timer password expired
+   Password_Status_Msg : INT ;	//Actuale timer password status message
+   Password_Prompt : INT ;	//Actuale timer password prompt
+   Watchdog_Screen_Compare : INT ;	//Actuale timer watchdog screen compare
+   Operator_Serve : INT ;	//Actuale timer operator serve
+   HMI_Alive : INT ;	//Actuale timer HMI alive
+   HMI_Error : INT ;	//Actuale timer HMI error
+  END_STRUCT ;	
+  s_Entered_Command : INT ;	//Command pressed on HMI
+  s_Done : BOOL ;	//Initialisation is done
+  s_FP_HMI_Start_Up : BOOL ;	//HMI device is restarted
+  s_Copy_FP_HMI_Start_Up : BOOL ;	//H-flag FP
+  s_ScreenIsActual : BOOL ;	//HMI shows actual screen
+  s_FP_Screen_Expired : BOOL ;	//Live time of showed screen is expired
+  s_Copy_FP_Screen_Expired : BOOL ;	//H-flag FP
+  s_Screen_Updated : BOOL ;	//Retrigger semaphore when screen is updated
+  s_FP_HMI_Mismatch : BOOL ;	//Promped screennumber does not match with actual node screen number
+  s_TO_HMI_Mismatch : BOOL ;	//Time-Out screennumber does not match with actual node screen number
+  s_Copy_FP_HMI_Mismatch : BOOL ;	//H-flag FP
+  s_Navigation_Left : BOOL ;	//Navigation above F1 key
+  s_Navigation_Right : BOOL ;	//Navigation above F4 key
+  s_New_Alarm_Activated : BOOL ;	//New alarm activated
+  s_Alrm_Node_Active : BOOL ;	//New alarm node activated
+  s_Alarm_Active : BOOL ;	//Alarm active on HMI
+  s_Wait_Show_New_Alarm : BOOL ;	//Waiting to show new alarm
+  s_FN_Alarm_Active : BOOL ;	//FN alarm is active
+  s_OS_No_Alarm : BOOL ;	//One Shot No alarms active
+  s_HMI_Alive : BOOL ;	//HMI panel Alive
+  s_HMI_Not_Alive : BOOL ;	//HMI panel not Alive
+  s_FP_HMI_Alive : BOOL ;	//FP copy
+  s_FN_HMI_Alive : BOOL ;	//FN copy
+  s_Alive_Sign : INT ;	//Alive sign bar value
+  s_New_Alarm_Pntr : INT ;	//Pointer new alarm
+  s_Node_ID : STRUCT 	//Node_ID reference
+   Alarm : DWORD  := DW#16#1010000;	
+   Main : DWORD  := DW#16#1000000;	
+   Modes : DWORD  := DW#16#1030000;	
+   Manual_Scrn : DWORD  := DW#16#1030001;	//Manual Screen Number
+   Operator : DWORD  := DW#16#1030002;	//Operator Screen Number
+  END_STRUCT ;	
+  s_Main_Node_Active : BOOL ;	//Main Node Active
+  s_Modes_Node_Active : BOOL ;	//Modes Node Active
+  s_TMR_Main_Scroll : DWORD ;	//Timer value for scrolling alarms
+  s_TMR_Modes_Scroll : DWORD ;	
+  s_Navigation_Left_1 : BOOL ;	//Navigation above Function1 key
+  s_Navigation_Right_1 : BOOL ;	//Navigation above Function8 key
+  s_Navigation_Left_2 : BOOL ;	//Navigation above Function1 key
+  s_Navigation_Right_2 : BOOL ;	//Navigation above Function8 key
+  s_Manual_Node_Active : BOOL ;	//Manual Node Active
+  s_Navigation_Left_3 : BOOL ;	//Navigation above Function1 key
+  s_Navigation_Right_3 : BOOL ;	//Navigation above Function8 key
+  s_Operator_Node_Active : BOOL ;	//Operator Node Active
+  s_Navigation_Left_4 : BOOL ;	//Navigation above Function1 key
+  s_Navigation_Right_4 : BOOL ;	//Navigation above Function8 key
+END_VAR
+VAR_TEMP
+  t_RET_VAL : INT ;	//Return Value function call
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_ANY_P : ANY ;	//ANY pointer
+  t_Search_Index : INT ;	//Search index pointer
+  t_Search_Direction : INT ;	//Search direction (increment/decrement)	
+  t_Search_Node : DWORD ;	//Search node ID
+  t_Tmr_Start : BOOL ;	//Timer start 
+  t_Tmr_Done : BOOL ;	//Timer done
+  t_Init : BOOL ;	//Initialisation
+  t_Show_New_Alarm : BOOL ;	//Temp to show new alarm
+  t_Off_HMI_Coordinat_Area : DWORD ;	//Offset to HMI Interface Area in DB_HMI_IF
+  t_Off_HMI_Job_Mailbox : DWORD ;	//Offset to OP77 Job Mailbox in DB_HMI_IF
+  t_Off_HMI_Function_Keys : DWORD ;	//Offset to HMI Function Keys in DB_HMI_IF
+  t_Off_HMI_System_Keys : DWORD ;	//Offset to HMI System Keys in DB_HMI_IF
+  t_Off_HMI_LEDs : DWORD ;	//Offset to HMI LEDs in DB_HMI_IF
+  t_Off_HMI_HMI_Screen : DWORD ;	//Offset to HMI Current screen number
+  t_Off_HMI_Navigation : DWORD ;	//Offset to HMI Navigation arrows
+  t_Off_HMI_Passw_Status : DWORD ;	//Offset to HMI Password status
+  t_Off_HMI_Password_Input : DWORD ;	//Offset to HMI Password input value
+  t_Off_HMI_Prompt_Elapse : DWORD ;	//Offset to HMI Password prompt elapse bar
+  t_Off_HMI_Alive_Sign : DWORD ;	//Offset to HMI Alive sign bar value
+  t_Function_Keys : STRUCT 	//Data Structure Function keys
+   Function1 : BOOL ;	
+   Function2 : BOOL ;	
+   Function3 : BOOL ;	
+   Function4 : BOOL ;	
+   Function5 : BOOL ;	
+   Function6 : BOOL ;	
+   Function7 : BOOL ;	
+   Function8 : BOOL ;	
+   Command1 : BOOL ;	
+   Command2 : BOOL ;	
+   Command3 : BOOL ;	
+   Command4 : BOOL ;	
+   Command5 : BOOL ;	
+   Command6 : BOOL ;	
+   Command7 : BOOL ;	
+   Command8 : BOOL ;	
+  END_STRUCT ;	
+  t_System_Keys : STRUCT 	//Data Structure System keys
+   ACK : BOOL ;	//Key ACK
+   ESC : BOOL ;	//Key ESC
+   ENTER : BOOL ;	//Key ENTER
+  END_STRUCT ;	
+  t_Function1 : BOOL ;	//Temp Function1 key is pressed
+  t_Function8 : BOOL ;	//Temp Function8 key is pressed
+  t_LogOff : BOOL ;	//Temp Log Off
+  t_Pntr_Visible_Alarm : INT ;	//Temp index number displayed alarm on HMI
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get relative addres out of AR2
+//Address register:10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Z=Operand area y=Byte address   x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: General lenghts/offsets for internal calculations (bytes)
+//Here the offset to data in the used datablocks is layed down.
+      NOP   0; 
+// Offsets in "i_DB_HMI_IF" for HMI interfacing
+      L     P#0.0; // Offset to HMI_Screen variable (Current_Type/Current_Number/Current_Field)
+      T     #t_Off_HMI_HMI_Screen; 
+
+      L     P#10.0; // Offset to Coordination Area in DB_HMI_IF 
+      T     #t_Off_HMI_Coordinat_Area; 
+
+      L     P#12.0; // Offset to Job Mailbox in DB_HMI_IF 
+      T     #t_Off_HMI_Job_Mailbox; 
+
+      L     P#20.0; // Offset to HMI Function Keys in DB_HMI_IF 
+      T     #t_Off_HMI_Function_Keys; 
+
+      L     P#22.0; // Offset to HMI System Keys in DB_HMI_IF 
+      T     #t_Off_HMI_System_Keys; 
+
+      L     P#24.0; // Offset to HMI LEDs in DB_HMI_IF 
+      T     #t_Off_HMI_LEDs; 
+
+      L     P#26.0; // Offset to Navigation arrows
+      T     #t_Off_HMI_Navigation; 
+      L     P#28.0; // Offset to Password.Status
+      T     #t_Off_HMI_Passw_Status; 
+      L     P#30.0; // Offset to Password.Value
+      T     #t_Off_HMI_Password_Input; 
+      L     P#32.0; // Offset to Password.Prompt_Elapse_Bar
+      T     #t_Off_HMI_Prompt_Elapse; 
+      L     P#34.0; // Offset to Communication_Alive_Sign
+      T     #t_Off_HMI_Alive_Sign; 
+NETWORK
+TITLE =CA: Startup of HMI device
+
+      LAR1  #t_Off_HMI_Coordinat_Area; // Set pointer to Coordination Area (Interface Area)
+
+      OPN   #i_DB_HMI_IF; // Open Interface DB
+      A     DBX [AR1,P#1.0]; // IF bit HMI_Start_Up = True (Interface Area 1.0)
+      FP    #s_Copy_FP_HMI_Start_Up; 
+      =     #s_FP_HMI_Start_Up; 
+      A     DBX [AR1,P#1.2]; // Get HMI Alive
+      =     #s_HMI_Alive; 
+NETWORK
+TITLE =DA: Initialisation
+// 
+      OPN   #i_DB_HMI_Menu; // Open DB
+      L     #s_DB_Menu_Number; // Get DB number prev PLC scan
+      L     DBNO; // Get DB number
+      T     #s_DB_Menu_Number; 
+      <>I   ; // IF other DB_HMI_Menu is configured
+      R     #s_Done; // Re-initialise
+
+      ON    #s_Done; // IF init
+      O     "M_First_Scan"; 
+      O     #s_FP_HMI_Start_Up; 
+      =     #t_Init; 
+      JCN   DA99; // ELSE
+
+      L     P##s_Passw_Keys_Length; // Pointer to end of data record
+      L     P##s_Password_Keys; // Pointer to begin of data record
+      -D    ; // Length in bits
+      SRD   3; // Convert length in bytes
+      T     #s_Passw_Keys_Length; // Store record length
+
+      L     #s_Passw_Keys_Length; // Record length of all password key levels
+      L     4; // 2 Integers = 4 bytes
+      /I    ; 
+      T     #s_NumberOf_Passw_Keys; 
+
+      L     #s_Passw_Keys_Length; //In 'DB_HMI_Menu' Password keys are stored in front of
+      T     #s_Offset_Record_Node; //node records
+
+      L     P##s_Active_Node_Length; // Pointer to end of data record
+      L     P##s_Active_Node; // Pointer to begin of data record
+      -D    ; // Length in bits
+      SRD   3; // Record length in bytes
+      T     #s_Active_Node_Length; // Store record length
+
+      L     DBLG; // Get DB length
+      L     #s_Offset_Record_Node; // Offset to first record
+      -I    ; 
+      L     #s_Active_Node_Length; // Record length
+      /I    ; // Calculate number of records
+      T     #s_Number_Of_Nodes; // Number of records in HMI menu DB
+
+      L     1; // Init to first node menu (first record of menu DB)
+      T     #s_New_Node_Index; 
+
+      SET   ; 
+      R     #s_Password.Request; 
+      R     #s_Password.Prompt; 
+      R     #s_Password.Valid; 
+      S     #s_Done; // This initialisation is done
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Check Operator Panel Alive
+//Check if the HMI_Alive bit toggles. 
+//The "Life bit" from the HMI is inverted by the HMI device at intervals of 
+//approximately one second. By querying this bit in the PLC program, you can 
+//check whether or not the connection to the HMI device still exists.
+      SET   ; // IF Operator Panel Alive bit does not toggle
+      =     #t_Tmr_Start; 
+
+      A     #s_HMI_Alive; 
+      FP    #s_FP_HMI_Alive; 
+      R     #t_Tmr_Start; 
+
+      A     #s_HMI_Alive; 
+      FN    #s_FN_HMI_Alive; 
+      R     #t_Tmr_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (// Timer-out Operator Panel not reaction time
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 20,
+           i_Current_Value          := #s_Act_Timer.HMI_Alive,
+           o_Status                 := #s_HMI_Not_Alive,// HMI device faulted ('tag' data from HMI invallid)
+           o_Current_Value          := #s_Act_Timer.HMI_Alive);
+
+      AN    #s_HMI_Not_Alive; 
+      =     #o_HMI_Alive; // ELSE HMI device is communicating
+
+      CALL "FC_On_Dly_T_0.1s" (// Timer-out Operator Panel error
+           i_Start                  := #s_HMI_Not_Alive,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 600,
+           i_Current_Value          := #s_Act_Timer.HMI_Error,
+           o_Status                 := #o_HMI_Error,// HMI device faulted => Error
+           o_Current_Value          := #s_Act_Timer.HMI_Error);
+
+NETWORK
+TITLE =FA: Check current HMI screennumber
+//Check if the requested screennumber is equeal with the current screen number on 
+//the HMI. IF NOT THEN re-initialise.
+      OPN   #i_DB_HMI_IF; 
+      LAR1  #t_Off_HMI_HMI_Screen; // Set pointer to HMI Current screen 
+      L     DBW [AR1,P#0.0]; // (Offset P#0.0) Get current type showed by HMI
+      T     #s_HMI_Screen.Current_Type; 
+      L     DBW [AR1,P#2.0]; // (Offset P#2.0) Get current screen number showed by HMI
+      T     #s_HMI_Screen.Current_Screen_Number; 
+      L     DBW [AR1,P#6.0]; // (Offset P#6.0) Get current field showed by HMI
+      T     #s_HMI_Screen.Current_Field; 
+
+      L     #s_Active_Screen_Number; 
+      L     #s_HMI_Screen.Current_Screen_Number; 
+      ==I   ; 
+      =     #s_ScreenIsActual; //Check if HMI shows the actual active screen number. Status drops as long HMI updated because activate screen cost some communication time and update time of the HMI device.
+
+      AN    #s_ScreenIsActual; // Trigger Time-Out HMI does not show active screen number
+      AN    #s_TO_HMI_Mismatch; // Retrigger when time out
+      =     #t_Tmr_Start; // Start timer 
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 50,// [*0,1 sec]
+           i_Current_Value          := #s_Act_Timer.Watchdog_Screen_Compare,
+           o_Status                 := #s_TO_HMI_Mismatch,
+           o_Current_Value          := #s_Act_Timer.Watchdog_Screen_Compare);
+
+      A     #s_TO_HMI_Mismatch; 
+      FP    #s_Copy_FP_HMI_Mismatch; 
+      =     #s_FP_HMI_Mismatch; 
+      R     #s_Done; 
+NETWORK
+TITLE =GA: Enable key
+//Activation of a new screen take some time before it is showed. 
+//To prevent accidently excecute of commands, command-keys are only accepted when 
+//the HMI is fully updated.
+//If screen number is not fully updated the keys which are used as navition keys 
+//(=not used as command keys) are enabled. 
+//Keys which are used as command keys are disbled as long the HMI is not fully 
+//updated.
+      A     #s_ScreenIsActual; // Accept keys if HMI is fully updated
+      =     #s_Key.Enabled.Function1; 
+      =     #s_Key.Enabled.Function2; 
+      =     #s_Key.Enabled.Function3; 
+      =     #s_Key.Enabled.Function4; 
+      =     #s_Key.Enabled.Function5; 
+      =     #s_Key.Enabled.Function6; 
+      =     #s_Key.Enabled.Function7; 
+      =     #s_Key.Enabled.Function8; 
+      =     #s_Key.Enabled.Command1; 
+      =     #s_Key.Enabled.Command2; 
+      =     #s_Key.Enabled.Command3; 
+      =     #s_Key.Enabled.Command4; 
+      =     #s_Key.Enabled.Command5; 
+      =     #s_Key.Enabled.Command6; 
+      =     #s_Key.Enabled.Command7; 
+      =     #s_Key.Enabled.Command8; 
+      =     #s_Key.Enabled.ESC; 
+      =     #s_Key.Enabled.ENTER; 
+      JC    GA99; // Then all keys are enabled
+
+      L     #s_Active_Node.On_Key.Function1.Command; // Check if key is a used as command-key (>0) or navigation-key (=0)
+      L     0; 
+      ==I   ; // IF key used as command than the screen should be showed before accepted
+      =     #s_Key.Enabled.Function1; // Key is used as navigation key (not used as commend key) so enabled
+
+      L     #s_Active_Node.On_Key.Function2.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function2; 
+
+      L     #s_Active_Node.On_Key.Function3.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function3; 
+
+      L     #s_Active_Node.On_Key.Function4.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function4; 
+
+      L     #s_Active_Node.On_Key.Function5.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function5; 
+
+
+      L     #s_Active_Node.On_Key.Function6.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function6; 
+
+
+      L     #s_Active_Node.On_Key.Function7.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function7; 
+
+
+      L     #s_Active_Node.On_Key.Function8.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Function8; 
+
+
+      L     #s_Active_Node.On_Key.Command1.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command1; 
+
+      L     #s_Active_Node.On_Key.Command2.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command2; 
+
+      L     #s_Active_Node.On_Key.Command3.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command3; 
+
+      L     #s_Active_Node.On_Key.Command4.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command4; 
+
+      L     #s_Active_Node.On_Key.Command5.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command5; 
+
+      L     #s_Active_Node.On_Key.Command6.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command6; 
+
+      L     #s_Active_Node.On_Key.Command7.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command7; 
+
+      L     #s_Active_Node.On_Key.Command8.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.Command8; 
+
+
+      L     #s_Active_Node.On_Key.ESC.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.ESC; 
+
+      L     #s_Active_Node.On_Key.ENTER.Command; 
+      L     0; 
+      ==I   ; 
+      =     #s_Key.Enabled.ENTER; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Key handling
+//HMI not alive:
+//When the communication is disconnect a release of a key of the OP77 device is 
+//not detected. The bit (TAG) which is set by the HMI device (OP77) by pressing 
+//the key will not reset when release the key while not connected.
+//If the connection is restored also the bit will not reset. 
+//So the 'key communication tags' are cleared by the PLC when a communication 
+//faulure (not alive) is detected.
+//
+//The "#s_ScreenIsActual" is used to accept a striked command only if the screen 
+//on the HMI is fully updated. 
+//When switching to an other screen the OP77 device drops key status of the 
+//softkey event "SetBitWhileKeyPressed". But accept a new press of the key 
+//already before the screen itselve is fully updated. 
+//To wait till the OP reports the "Current_Screen_Number" accedently activating a 
+//function of the new screen is prevented.
+//Only the "Striked" status (FP) is used to update outputs statusus. By block the 
+//"Striked" status the key as pressed again before accepting it.
+      OPN   #i_DB_HMI_IF; // Open Interface DB
+
+      A     #s_HMI_Not_Alive; // IF not alive 
+      JCN   HA01; // ELSE (alive)
+      L     0; // THEN reset data because device is offline 
+      LAR1  #t_Off_HMI_Function_Keys; // Set pointer to HMI Function Keys
+      T     DBW [AR1,P#0.0]; // Clear double-word with Fucntion Keys status from HMI
+      LAR1  #t_Off_HMI_System_Keys; // Set pointer to HMI System Keys
+      T     DBW [AR1,P#0.0]; // Load double-word with System Keys status from HMI
+
+HA01: LAR1  #t_Off_HMI_Function_Keys; // Set pointer to HMI Function Keys
+      L     DBW [AR1,P#0.0]; // Load double-word with Fucntion Keys status from HMI
+      LAR1  P##t_Function_Keys; 
+      T     W [AR1,P#0.0]; // HMI function keys
+
+      LAR1  #t_Off_HMI_System_Keys; // Set pointer to HMI System Keys
+      L     DBW [AR1,P#0.0]; // Load double-word with System Keys status from HMI
+      LAR1  P##t_System_Keys; 
+      T     W [AR1,P#0.0]; // HMI system keys
+
+      A     #t_Function_Keys.Function1; 
+      FP    #s_Key.Pressed.Function1; 
+      A     #s_Key.Enabled.Function1; 
+      =     #s_Key.Striked.Function1; 
+
+      A     #t_Function_Keys.Function2; 
+      FP    #s_Key.Pressed.Function2; 
+      A     #s_Key.Enabled.Function2; 
+      =     #s_Key.Striked.Function2; 
+
+      A     #t_Function_Keys.Function3; 
+      FP    #s_Key.Pressed.Function3; 
+      A     #s_Key.Enabled.Function3; 
+      =     #s_Key.Striked.Function3; 
+
+      A     #t_Function_Keys.Function4; 
+      FP    #s_Key.Pressed.Function4; 
+      A     #s_Key.Enabled.Function4; 
+      =     #s_Key.Striked.Function4; 
+
+      A     #t_Function_Keys.Function5; 
+      FP    #s_Key.Pressed.Function5; 
+      A     #s_Key.Enabled.Function5; 
+      =     #s_Key.Striked.Function5; 
+
+      A     #t_Function_Keys.Function6; 
+      FP    #s_Key.Pressed.Function6; 
+      A     #s_Key.Enabled.Function6; 
+      =     #s_Key.Striked.Function6; 
+
+      A     #t_Function_Keys.Function7; 
+      FP    #s_Key.Pressed.Function7; 
+      A     #s_Key.Enabled.Function7; 
+      =     #s_Key.Striked.Function7; 
+
+      A     #t_Function_Keys.Function8; 
+      FP    #s_Key.Pressed.Function8; 
+      A     #s_Key.Enabled.Function8; 
+      =     #s_Key.Striked.Function8; 
+
+      A     #t_Function_Keys.Command1; 
+      FP    #s_Key.Pressed.Command1; 
+      A     #s_Key.Enabled.Command1; 
+      =     #s_Key.Striked.Command1; 
+
+      A     #t_Function_Keys.Command2; 
+      FP    #s_Key.Pressed.Command2; 
+      A     #s_Key.Enabled.Command2; 
+      =     #s_Key.Striked.Command2; 
+
+      A     #t_Function_Keys.Command3; 
+      FP    #s_Key.Pressed.Command3; 
+      A     #s_Key.Enabled.Command3; 
+      =     #s_Key.Striked.Command3; 
+
+      A     #t_Function_Keys.Command4; 
+      FP    #s_Key.Pressed.Command4; 
+      A     #s_Key.Enabled.Command4; 
+      =     #s_Key.Striked.Command4; 
+
+      A     #t_Function_Keys.Command5; 
+      FP    #s_Key.Pressed.Command5; 
+      A     #s_Key.Enabled.Command5; 
+      =     #s_Key.Striked.Command5; 
+
+      A     #t_Function_Keys.Command6; 
+      FP    #s_Key.Pressed.Command6; 
+      A     #s_Key.Enabled.Command6; 
+      =     #s_Key.Striked.Command6; 
+
+      A     #t_Function_Keys.Command7; 
+      FP    #s_Key.Pressed.Command7; 
+      A     #s_Key.Enabled.Command7; 
+      =     #s_Key.Striked.Command7; 
+
+      A     #t_Function_Keys.Command8; 
+      FP    #s_Key.Pressed.Command8; 
+      A     #s_Key.Enabled.Command8; 
+      =     #s_Key.Striked.Command8; 
+
+      A     #t_System_Keys.ESC; 
+      FP    #s_Key.Pressed.ESC; 
+      A     #s_Key.Enabled.ESC; 
+      =     #s_Key.Striked.ESC; 
+
+      A     #t_System_Keys.ACK; 
+      FP    #s_Key.Pressed.ACK; 
+      A     #s_Key.Enabled.ACK; 
+      =     #s_Key.Striked.ACK; 
+      A     #t_System_Keys.ENTER; 
+      FP    #s_Key.Pressed.ENTER; 
+      A     #s_Key.Enabled.ENTER; 
+      =     #s_Key.Striked.ENTER; 
+NETWORK
+TITLE =IA: Key Touched when any key pressed on HMI
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function2; 
+      O     #s_Key.Pressed.Function3; 
+      O     #s_Key.Pressed.Function4; 
+      O     #s_Key.Pressed.Function5; 
+      O     #s_Key.Pressed.Function6; 
+      O     #s_Key.Pressed.Function7; 
+      O     #s_Key.Pressed.Function8; 
+      O     #s_Key.Pressed.Command1; 
+      O     #s_Key.Pressed.Command2; 
+      O     #s_Key.Pressed.Command3; 
+      O     #s_Key.Pressed.Command4; 
+      O     #s_Key.Pressed.Command5; 
+      O     #s_Key.Pressed.Command6; 
+      O     #s_Key.Pressed.Command7; 
+      O     #s_Key.Pressed.Command8; 
+      O     #s_Key.Pressed.ESC; 
+      O     #s_Key.Pressed.ENTER; 
+      O     #s_Key.Pressed.ACK; 
+      =     #s_Key.Any_Pressed; 
+
+      L     P##s_Key; // Get pointer
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     #s_Key.Copy_Pressed; 
+      L     W [AR1,P#0.0]; // Current pressed keys
+      T     #s_Key.Copy_Pressed; // pressed keys previous PLC scan
+      <>D   ; // Detect if any key pressed or released
+      R     #s_Key.Same_Pressed; // THEN reset because "NOT" the same key is pressed anymore
+
+      AN    #s_Key.Any_Pressed; // IF no key pressed 
+      R     #s_Key.Same_Pressed; // THEN reset same key pressed to be sure
+NETWORK
+TITLE =JA: Actual screen expired
+//When a screen is up for this time-out then execute screen expired event. 
+//Declare in the menu configuration-DB e.g. go-to first node-ID 
+      AN    #s_Screen_Updated; // Retrigger while screen update
+      AN    #s_Key.Any_Pressed; // Retrigger while key pressed
+      =     #t_Tmr_Start; 
+
+      SET   ; // Clear
+      R     #s_Screen_Updated; // Retrigger semaphore
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 3000,// 3000 / 60 / 10 = 5 min
+           i_Current_Value          := #s_Act_Timer.Screen_Expired,
+           o_Status                 := #t_Tmr_Done,
+           o_Current_Value          := #s_Act_Timer.Screen_Expired);
+
+      A     #t_Tmr_Done; // IF time out current screen
+      FP    #s_Copy_FP_Screen_Expired; 
+      =     #s_FP_Screen_Expired; 
+NETWORK
+TITLE =KA: Goto External requested Node_ID
+//Handle the external requested goto Node-ID
+      L     #i_HMI_Req_Node_ID; // IF external request goto Node-ID
+      L     DW#16#0; 
+      <>D   ; // THEN handle external request
+      JCN   KA99; // ELSE
+
+      L     #s_Entered_Node_ID; // IF semphore free
+      L     DW#16#0; 
+      ==D   ; // THEN handle external request
+      JCN   KA99; // ELSE
+
+      L     #i_HMI_Req_Node_ID; // Copy external semaphore request Node-ID
+      T     #s_External_Node_ID; // (for monitoring)
+      T     #s_Entered_Node_ID; // internal semaphore
+
+      L     DW#16#0; // Clear semaphore external request
+      T     #o_HMI_Req_Node_ID; 
+
+      A     #s_Password.Prompt; // IF password screen is prompted
+      S     #s_Password.Interrupt; // THEN close by interrupt(semaphore)
+
+KA99: NOP   0; 
+NETWORK
+TITLE =LA: Search index of new entered node
+//When a new node-ID is entered (requested) here the node-ID is searched to 
+//determe the index to the node-ID record.
+//
+//To speed up a new search a search direction is determed.
+//If the requeste node-ID < actual node-ID then a backward search is executed.
+//If the requeste node-ID > actual node-ID then a forward search is executed.
+      L     #s_Entered_Node_ID; // IF new node is entered
+      L     DW#16#0; // THEN search for the node index
+      <>D   ; 
+      JCN   LA99; // ELSE
+      L     #s_Entered_Node_ID; // New entered node
+      L     #s_Active_Node_ID; // Actual node
+      >D    ; // IF entered > actual THEN forward search Else backward search
+      JC    LA01; 
+      L     -1; // Backward search direction
+      JU    LA02; 
+LA01: L     1; // Forward search direction
+LA02: T     #t_Search_Direction; 
+
+      L     #s_Active_Node_Index; // Initiate search pointer
+      T     #t_Search_Index; 
+
+      OPN   #i_DB_HMI_Menu; // Open DB
+
+LA03: L     #t_Search_Direction; // Calculatie search pointer to next record
+      L     #t_Search_Index; 
+      +I    ; 
+      T     #t_Search_Index; 
+
+      L     #t_Search_Index; // Last record reached ?
+      L     #s_Number_Of_Nodes; 
+      <=I   ; 
+      JC    LA04; 
+      L     1; // Preset to first record
+      T     #t_Search_Index; 
+      JU    LA06; 
+LA04: L     #t_Search_Index; // First record reached ?
+      L     1; 
+      >=I   ; 
+      JC    LA06; 
+      L     #s_Number_Of_Nodes; // Preset to last record
+      T     #t_Search_Index; 
+
+LA06: L     #t_Search_Index; 
+      L     #s_Active_Node_Index; 
+      ==I   ; // IF search = actual then nothing found so end of loop so invallid requested node-ID.
+      JC    LA10; 
+
+      L     #t_Search_Index; // Index [1..NumberOfNodes]
+      +     -1; // convert to [0..NumberOfNodes-1] for pointer calculation
+      L     #s_Active_Node_Length; // Data length of record
+      *I    ; 
+      L     #s_Offset_Record_Node; // Offset to first record
+      +I    ; 
+      SLD   3; // Conversion to pointer byte => bit format
+      LAR1  ; // Initialize address register 1 with pointer to first 
+
+      L     DBD [AR1,P#0.0]; // read 4 byts of data = Node_ID
+      T     #t_Search_Node; 
+
+      L     #t_Search_Node; // IF Node_ID[search index] = entered Node ID
+      L     #s_Entered_Node_ID; 
+      ==D   ; // THEN Node_ID is found
+      JCN   LA03; // ELSE repeat/next search
+
+      L     #t_Search_Index; // Save found index
+      T     #s_New_Node_Index; 
+
+      L     #s_Active_Node_ID; // Store active node as previous (to restore)
+      T     #s_Previous_Node_ID; 
+LA10: L     DW#16#0; // Clear request
+      T     #s_Entered_Node_ID; 
+
+LA99: NOP   0; 
+NETWORK
+TITLE =MA:  Get node record data
+//After search the index of the requested node-ID here the record data is read.
+      L     0; 
+      L     #s_New_Node_Index; // IF semaphore request for New_Node_Index
+      <>I   ; // Then Calculate pointer to data in HMI-menu DB
+      JCN   MA99; // ELSE
+      T     #s_Active_Node_Index; // Copy semaphore to active node index
+      L     0; // Clear semaphore
+      T     #s_New_Node_Index; 
+
+// Calculate ANY pointer to new/active node
+      L     P##t_ANY_P; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     #s_Active_Node_Length; //Store number (=data length) in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #s_DB_Menu_Number; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     #s_Active_Node_Index; //Calculate startaddress
+      +     -1; //Index [1..m] to [0..n]
+      L     #s_Active_Node_Length; //record length 
+      *D    ; 
+      L     #s_Offset_Record_Node; //Offset to first record
+      +I    ; 
+      SLD   3; //Convert byte address to bit pointer format
+      T     LD [AR1,P#6.0]; //and store in ANY
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy record of new node
+           SRCBLK                   := #t_ANY_P,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Active_Node);
+
+      L     P##s_Active_Node; //Node ID in first 4 bytes of the record
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     D [AR1,P#0.0]; // read data (struct of 4 bytes)
+      T     #s_Active_Node_ID; // to DWORD variable (for quick compare)
+
+      L     #s_Active_Node.Screen_Number; 
+      T     #s_New_Screen_Number; // Semaphore activate new screen number
+
+//Navigation arrows above F1 and F4 key
+      L     #s_Active_Node.On_Key.Function1.Node.Root; // IF Current node contains a next node-ID for F1 
+      L     #s_Active_Node.On_Key.Function1.Node.Tree; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.Function1.Node.Branch; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.Function1.Node.Leaf; 
+      OW    ; 
+      L     0; 
+      <>D   ; 
+      =     #s_Navigation_Left; 
+
+      L     #s_Active_Node.On_Key.Function8.Node.Root; // IF Current node contains a next node-ID for F4 
+      L     #s_Active_Node.On_Key.Function8.Node.Tree; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.Function8.Node.Branch; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.Function8.Node.Leaf; 
+      OW    ; 
+      L     0; 
+      <>D   ; 
+      =     #s_Navigation_Right; 
+
+MA99: NOP   0; 
+NETWORK
+TITLE =NA: Get Key action when key is striked.
+//All key striked actions are stord in active node record.
+//Here get the action of the corresponding key.
+//The 'not'-key events 'password expired' and 'screen expired' are configured 
+//like a key event so handled in the same way as a key-event.
+      A     #s_Password.Expired; 
+      JCN   NA01; 
+      CALL "BLKMOV" (//Password expired (handled same as a pressed key)
+           SRCBLK                   := #s_Active_Node.On_Key.Password_Expired,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA01: A     #s_FP_Screen_Expired; 
+      JCN   NA02; 
+      CALL "BLKMOV" (//Screen expired (handled same as a pressed key)
+           SRCBLK                   := #s_Active_Node.On_Key.Screen_Expired,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA02: NOP   0; 
+
+      O     #s_Password.Prompt; // Skip when password handling
+      ON    #s_Key.Any_Pressed; // Skip if no key is pressed (quick jump)
+      JC    NA99; 
+
+      A     #s_Key.Striked.Function1; 
+      JCN   NA10; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function1,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA10: A     #s_Key.Striked.Function2; 
+      JCN   NA11; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function2,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA11: A     #s_Key.Striked.Function3; 
+      JCN   NA12; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function3,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA12: A     #s_Key.Striked.Function4; 
+      JCN   NA13; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function4,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+NA13: A     #s_Key.Striked.Function5; 
+      JCN   NA14; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function5,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+NA14: A     #s_Key.Striked.Function6; 
+      JCN   NA15; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function6,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+NA15: A     #s_Key.Striked.Function7; 
+      JCN   NA16; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function7,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+
+NA16: A     #s_Key.Striked.Function8; 
+      JCN   NA20; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Function8,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+
+NA20: A     #s_Key.Striked.Command1; 
+      JCN   NA21; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command1,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA21: A     #s_Key.Striked.Command2; 
+      JCN   NA22; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command2,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA22: A     #s_Key.Striked.Command3; 
+      JCN   NA23; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command3,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA23: A     #s_Key.Striked.Command4; 
+      JCN   NA24; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command4,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA24: A     #s_Key.Striked.Command5; 
+      JCN   NA25; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command5,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA25: A     #s_Key.Striked.Command6; 
+      JCN   NA26; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command6,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA26: A     #s_Key.Striked.Command7; 
+      JCN   NA27; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command7,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA27: A     #s_Key.Striked.Command8; 
+      JCN   NA30; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.Command8,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+
+NA30: A     #s_Key.Striked.ESC; 
+      JCN   NA31; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.ESC,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA31: A     #s_Key.Striked.ENTER; 
+      JCN   NA32; 
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Active_Node.On_Key.ENTER,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Key_Data);
+      JU    NA80; 
+NA32: JU    NA99; //No key pressed
+
+NA80: L     #s_Key_Data.Node.Root; // Get node ID of striked key
+      SLD   8; 
+      L     #s_Key_Data.Node.Tree; 
+      OD    ; 
+      SLD   8; 
+      L     #s_Key_Data.Node.Branch; 
+      OD    ; 
+      SLD   8; 
+      L     #s_Key_Data.Node.Leaf; 
+      OD    ; 
+      T     #s_Entered_Node_ID; // Node_ID in dword format
+      T     #s_Internal_Node_ID; // (for monitoring)
+
+      L     #s_Key_Data.Command; // Get command of striked key
+      T     #s_Entered_Command; 
+
+      L     #s_Key_Data.Password_Level; // Get password level of striked key
+      T     #s_Password.Requested_Level; 
+      L     0; 
+      >I    ; 
+      S     #s_Password.Request; // A password level is requested for this key
+
+      SET   ; 
+      S     #s_Key.Same_Pressed; // Semaphore to detect same key is pressed continiously
+
+NA99: NOP   0; 
+NETWORK
+TITLE =OA: Disable entered command
+
+      L     #s_Password.Actual_Level; // Actual vallid password level
+      L     #s_Password.Requested_Level; // Level which is requisted for last pressed key
+      >=I   ; 
+      A     #s_Key.Same_Pressed; // and still same key is pressed (so not released or an other key is pressed)
+      JC    OA99; 
+      L     0; // Clear:
+      T     #s_Entered_Command; // Command
+OA99: NOP   0; 
+NETWORK
+TITLE =PA: Password expired
+
+      A(    ; 
+      L     #s_Entered_Command; 
+      L     1324; //Operator Screen Command 4 value
+      ==I   ; 
+      )     ; 
+      =     #t_LogOff; 
+
+
+
+      A     #s_Password.Valid; // If password valid
+      JCN   PA01; // ELSE
+
+      L     #s_Password.Actual_Level; // Calculate pointer to password keys level table
+      +     -1; 
+      L     4; // 4 byte (2 integers per record)
+      *I    ; 
+      SLD   3; 
+      L     P##s_Password_Keys; // Pointer to begin of data record
+      +D    ; 
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#2.0]; // read data (Integer = Word) = password expire time[Search_Index] (offset 2 byte in record)
+      T     #s_Password.Expire_Time; 
+PA01: NOP   0; 
+
+      A     #s_Password.Valid; // If password valid
+      AN    #s_Key.Any_Pressed; // and no retrigger (to restart timer)
+      AN    #s_Password.Prompt; // and not when password handling (prevent passsword expired event while entering new password)
+      =     #t_Tmr_Start; // Start password expiration time
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := #s_Password.Expire_Time,
+           i_Current_Value          := #s_Act_Timer.Password_Expired,
+           o_Status                 := #t_Tmr_Done,
+           o_Current_Value          := #s_Act_Timer.Password_Expired);
+
+      L     #s_Password.Expire_Time; // IF setting > 0 ELSE password expire time is disabled
+      L     0; 
+      >I    ; 
+      A     #t_Tmr_Done; // Time out password expiration time
+      A     #s_Password.Valid; // (for One-Shot)
+      O     #t_LogOff; 
+      =     #s_Password.Expired; // One shot password expired
+      R     #s_Password.Valid; // Password is not vallid anymore
+
+      AN    #s_Password.Valid; // IF password not vallid
+      JCN   PA99; // ELSE
+      L     0; // THEN clear level
+      T     #s_Password.Actual_Level; 
+PA99: NOP   0; 
+NETWORK
+TITLE =QA: Update Password status line
+//Password status message via HMI textlist:
+//  1: "Password level invalid"
+//  2: "Enter password"
+//  3: "Invalid password"
+//IF password screen is activate the status is preset 
+//   to 1="Password level invalid"
+//IF a invallid password is entered the status is preset 
+//   to 3="Invalid password"
+//Here these statuses are overruled after a time by status 
+//      2="Enter password"
+      L     #s_Password.HMI_Status_Line; // Password status 
+      L     2; // 2="Enter password"
+      <>I   ; // IF status is not 'Enter password' 
+      =     #t_Tmr_Start; // THEN elapse timer and after this time show "Enter password"
+
+      CALL "FC_On_Dly_T_0.1s" (
+           i_Start                  := #t_Tmr_Start,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 25,// [*0.1 sec]
+           i_Current_Value          := #s_Act_Timer.Password_Status_Msg,
+           o_Status                 := #t_Tmr_Done,
+           o_Current_Value          := #s_Act_Timer.Password_Status_Msg);
+
+      A     #t_Tmr_Done; // IF time-out replace tekst
+      JCN   QA01; // ELSE
+      L     2; // 2="Enter password"
+      T     #s_Password.HMI_Status_Line; 
+QA01: NOP   0; 
+
+      L     #s_Password.HMI_Status_Line; // Password status 
+      OPN   #i_DB_HMI_IF; 
+      LAR1  #t_Off_HMI_Passw_Status; // Set pointer to password status
+      T     DBW [AR1,P#0.0]; // to HMI password status (Variable for HMI Tekslist)
+NETWORK
+TITLE =RA: Prompt Password input
+
+      O     #s_Password.Request; // IF Semaphore request password input
+      O(    ; 
+      A     #s_Password.Valid; // OR if password valid
+      A     "M_OS_New_Minute"; // (with a time base)
+      )     ; 
+      JCN   RA01; 
+
+// Get password level data. This data is stored in DB_HMI_Menu
+// Calculate ANY pointer 
+      L     P##t_ANY_P; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Stor 10 (hex) for S7 in ANY
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     #s_Passw_Keys_Length; //Store number (=data length) in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #s_DB_Menu_Number; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     DW#16#0; //Offset to pasword level data = 0
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (// Copy record 
+           SRCBLK                   := #t_ANY_P,
+           RET_VAL                  := #t_RET_VAL,
+           DSTBLK                   := #s_Password_Keys);
+
+RA01: NOP   0; 
+
+      L     #s_Password.Actual_Level; // Check "Actual" password level fulfil "requested" level
+      L     #s_Password.Requested_Level; 
+      >=I   ; 
+      A     #s_Password.Valid; // IF password already valid
+      R     #s_Password.Request; // THEN Clear semaphore
+
+      A     #s_Password.Request; // IF Semaphore request password input
+      R     #s_Password.Request; // Clear semaphore 
+      S     #s_Password.Prompt; // Prompt password input
+      JCN   RA99; // ELSE
+
+      L     #s_Active_Screen_Number; // Remaind current active screen
+      T     #s_Password.Remaind_Act_Screen; 
+
+      L     #s_Entered_Node_ID; // Remind entered node
+      T     #s_Password.Remaind_Entered_Node; 
+      L     0; // And clear because first password has to be entered
+      T     #s_Entered_Node_ID; 
+
+      L     999; // 999 = "Password" screen number
+      T     #s_New_Screen_Number; // Actived password screen
+      L     1; // 1 = "Password level invalid"
+      T     #s_Password.HMI_Status_Line; // Password status line
+
+RA99: NOP   0; 
+NETWORK
+TITLE =SA: Enter key Password prompt
+//On Enter event while password input then
+//Skip password screen and re-activate previous screen 
+      CALL "FC_On_Dly_T_0.1s" (// Time-out password prompt
+           i_Start                  := #s_Password.Prompt,
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 600,// [*0.1 sec]
+           i_Current_Value          := #s_Act_Timer.Password_Prompt,
+           o_Status                 := #t_Tmr_Done,
+           o_Current_Value          := #s_Act_Timer.Password_Prompt);
+
+      L     #s_Act_Timer.Password_Prompt; 
+      OPN   #i_DB_HMI_IF; 
+      LAR1  #t_Off_HMI_Prompt_Elapse; // Set pointer to password elapse bar
+      T     DBW [AR1,P#0.0]; // HMI Password.Prompt_Elapse_Bar
+
+
+      O     #t_Tmr_Done; // Time out password promt
+      O     #s_Key.Striked.ENTER; 
+
+      O     #s_Password.Interrupt; // OR Interrupt 
+      A     #s_Password.Prompt; // while Password input active
+      R     #s_Password.Prompt; // Reset password input
+      R     #s_Password.Interrupt; // Reset semaphore
+      JCN   SA99; // ELSE jump
+
+      L     0; // Clear:
+      T     #s_Password.Remaind_Entered_Node; // Clear entered node
+
+      L     #s_Password.Remaind_Act_Screen; // Restore previous screen
+      T     #s_New_Screen_Number; 
+SA99: NOP   0; 
+NETWORK
+TITLE =TA: Validation entered Password
+//IF password is pompted wait till a password is entered on the HMI.
+//When a password is entered here in a loop the corresponding level is searched.
+      A     #s_Password.Prompt; // IF Password screen is prompted
+      JCN   TA99; // ELSE
+
+      OPN   #i_DB_HMI_IF; 
+      LAR1  #t_Off_HMI_Password_Input; // Set pointer to password value 
+      L     DBW [AR1,P#0.0]; // Get HMI password value (input by operator)
+      T     #s_Password.Input; 
+      L     0; 
+      T     DBW [AR1,P#0.0]; // and clear entered password
+
+      L     #s_Password.Input; // IF password is entered
+      L     0; 
+      >I    ; 
+      JCN   TA99; // ELSE
+
+      L     0; // Init
+      T     #s_Password.Login_Level; 
+      T     #t_Search_Index; 
+
+TA35: L     #t_Search_Index; // Calculate pointer to password keys level table
+      L     4; // 4 byte (2 integers per record)
+      *I    ; 
+      SLD   3; 
+      L     P##s_Password_Keys; // Pointer to begin of data record
+      +D    ; 
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#0.0]; // read data (Integer = Word) = password level[Search_Index]
+      L     #s_Password.Input; // entered password on HMI
+      ==I   ; // IF password found 
+      JC    TA40; // THEN level is determined
+
+      L     #t_Search_Index; // ELSE increase search index
+      +     1; 
+      T     #t_Search_Index; 
+      L     #s_NumberOf_Passw_Keys; // All passwords checked ?
+      L     #t_Search_Index; 
+      >I    ; 
+      JC    TA35; // Repeat
+      JU    TA60; // Password is not found
+
+TA40: L     #t_Search_Index; // Password is found
+      +     1; // Convert/Correct index to login level
+      T     #s_Password.Login_Level; // Login level of entered password
+
+      SET   ; // IF password is found in login level list
+      S     #s_Password.Valid; // THEN password is valid
+
+TA60: NOP   0; // When search is finished ...
+
+      L     #s_Password.Actual_Level; 
+      L     #s_Password.Login_Level; 
+      >I    ; 
+      JC    TA65; 
+      T     #s_Password.Actual_Level; // IF Actual < Login THEN get new login level to Actual
+
+TA65: L     #s_Password.Actual_Level; // Check actual (entered) password level
+      L     #s_Password.Requested_Level; 
+      >=I   ; // IF actual level fulfil requested password
+      JC    TA80; // THEN password level = OK
+
+      L     3; // ELSE status 3='Invallid password' entered
+      T     #s_Password.HMI_Status_Line; 
+      JU    TA99; 
+
+TA80: SET   ; // IF Entered Password level is valid
+      R     #s_Password.Prompt; // THEN reset prompt password screen
+
+      L     #s_Password.Remaind_Entered_Node; // IF Password was requesterd to entering a node 
+      L     0; 
+      <>D   ; // THEN goto new node
+      JCN   TA84; // ELSE stay in same screen because password was required for a command.                             
+      L     #s_Password.Remaind_Entered_Node; // New entered node (was remaind while prompted for entering the password)
+      T     #s_Entered_Node_ID; 
+      JU    TA99; 
+TA84: L     #s_Password.Remaind_Act_Screen; // Restore previous screen
+      T     #s_New_Screen_Number; 
+      JU    TA99; 
+
+TA99: NOP   0; 
+NETWORK
+TITLE =UA: Evaluate actual alarm bits to HMI
+//Detect if new alarm is activated and take over the number so the new alarm will 
+//be visable.
+      L     0; 
+      L     #i_New_Activated_Alarm; // New alarm activated ?
+      <>I   ; 
+      =     #s_New_Alarm_Activated; // One shot new alarm active
+      S     #s_Screen_Updated; // Retrigger semaphore screen update by new alarm
+      JCN   UA99; 
+      T     #s_New_Alarm_Pntr; // Take over new alarm to visable alarm
+      L     0; 
+      T     #o_New_Activated_Alarm; // Clear semaphore
+UA99: NOP   0; 
+NETWORK
+TITLE =VA: Number of errors
+
+      L     #i_Amount_Active_Alarms; // Alarms active ?
+      L     0; 
+      >I    ; 
+      =     #s_Alarm_Active; 
+      FN    #s_FN_Alarm_Active; 
+      =     #s_OS_No_Alarm; 
+NETWORK
+TITLE =WA: New alarm screen
+//IF a new alarm is raised the alarms screen is prompted on the HMI to 
+//show the new raised alarm.
+//This screen can be closed by ESC (if no Key event is configured in the 
+//menu-DB). 
+//Then the previous node will be activated.
+//Note: If "On_Key.ESC" is configured in the DB_HMI_Menu
+//      the ESC will follow that node/command.
+      L     #i_Pntr_Visible_Alarm; 
+      T     #t_Pntr_Visible_Alarm; 
+
+      L     #s_Node_ID.Alarm; // IF alam node active ?
+      L     #s_Active_Node_ID; 
+      ==D   ; 
+      =     #s_Alrm_Node_Active; // Then new alarm screen is active    
+
+      AN    #s_Key.Any_Pressed; // Retrigger while key pressed
+      =     #t_Tmr_Start; 
+
+      CALL "FC_On_Dly_T_0.1s" (// IF operator uses the HMI (by press keys) a new alarm is not raised directly
+           i_Start                  := #t_Tmr_Start,// so the operator has the posiblity to control the HMI when new alarms are raising
+           i_Enable_Dly             := TRUE,
+           i_Time_Value             := 40,
+           i_Current_Value          := #s_Act_Timer.Operator_Serve,
+           o_Status                 := #t_Tmr_Done,
+           o_Current_Value          := #s_Act_Timer.Operator_Serve);
+
+      A     #s_New_Alarm_Activated; // IF New alarm raised
+      AN    #t_Tmr_Done; // AND Operator uses the HMI
+      S     #s_Wait_Show_New_Alarm; // Wait to show the new alarm 
+
+      A     #t_Tmr_Done; // Operator not use the HMI (anymore)
+      A     #s_Wait_Show_New_Alarm; // And there was a new alarm raised
+      R     #s_Wait_Show_New_Alarm; 
+      =     #t_Show_New_Alarm; // Now the new alarm can showed
+
+      A     #s_Alrm_Node_Active; // Then new alarm screen    
+      JCN   WA02; 
+
+      A     #s_OS_No_Alarm; // IF no alarm active THEN go to previous
+      JC    WA01; 
+      L     #s_Active_Node.On_Key.ESC.Node.Root; // ESC Key event configured ?
+      L     #s_Active_Node.On_Key.ESC.Node.Tree; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.ESC.Node.Branch; 
+      OW    ; 
+      L     #s_Active_Node.On_Key.ESC.Node.Leaf; 
+      OW    ; 
+      L     #s_Key_Data.Command; 
+      OW    ; 
+      L     B#16#0; 
+      ==I   ; 
+      A     #s_Key.Striked.ESC; // ESC-key striked
+      JC    WA01; // IF ESC-striked and no "On Key" event for ESC is configured THEN go to previous
+
+      JU    WA02; 
+
+WA01: L     #s_Previous_Node_ID; // Restore previous node
+      T     #s_Entered_Node_ID; 
+
+WA02: O(    ; 
+      A     #s_New_Alarm_Activated; // New alarm raised
+      AN    #s_Wait_Show_New_Alarm; // Operator is useing the HMI (by press keys) a new alarm is not raised directly
+      )     ; 
+      O     #t_Show_New_Alarm; //  Show the new alarm (after delay)
+      O(    ; 
+      A     #s_FP_HMI_Start_Up; // pop up when HMI start-up and there is an unacked alarm
+      A     #s_Alarm_Active; 
+      )     ; 
+      JCN   WA99; 
+
+      L     #s_Node_ID.Alarm; // Activate "New Alarm" node (Node with screen number of unaknowledged alarms)
+      T     #s_Entered_Node_ID; 
+
+      L     #s_New_Alarm_Pntr; // Take over new alarm to visable alarm
+      T     #t_Pntr_Visible_Alarm; 
+WA99: NOP   0; 
+NETWORK
+TITLE =XA: Navigate alarms
+
+      A     #s_Alrm_Node_Active; // IF alarm node is active
+      A     #s_Alarm_Active; // AND alarm active
+      JCN   XA90; // ELSE
+
+      CLR   ; 
+      =     #t_Function1; 
+      =     #t_Function8; 
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function8; 
+      JC    XA11; 
+      L     0; 
+      T     #s_TMR_Alarm_Scroll; 
+      JU    XA19; 
+XA11: L     5000; 
+      L     #s_TMR_Alarm_Scroll; 
+      <=D   ; 
+      JC    XA13; // Fast scroll
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_TMR_Alarm_Scroll; 
+      L     500; 
+      >=D   ; 
+      JC    XA12; // Slow scroll
+      JU    XA19; 
+XA12: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function8; 
+      JU    XA19; 
+XA13: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function8; 
+
+XA19: L     #t_Pntr_Visible_Alarm; 
+      L     1; 
+      >I    ; 
+      =     #s_Navigation_Left; // Show Left navigation arrow
+      JCN   XA20; 
+
+      O     #s_Key.Striked.Function1; // To previous alarm (n-1)
+      O     #t_Function1; 
+      JCN   XA20; 
+      L     #t_Pntr_Visible_Alarm; 
+      L     1; 
+      -I    ; 
+      T     #t_Pntr_Visible_Alarm; 
+
+XA20: L     #t_Pntr_Visible_Alarm; 
+      L     #i_Amount_Active_Alarms; 
+      <I    ; 
+      =     #s_Navigation_Right; // Show Right navigation arrow
+      JCN   XA90; 
+
+      O     #s_Key.Striked.Function8; // To next alarm (n+1)
+      O     #t_Function8; 
+      JCN   XA90; 
+      L     #t_Pntr_Visible_Alarm; 
+      L     1; 
+      +I    ; 
+      T     #t_Pntr_Visible_Alarm; 
+
+XA90: L     #t_Pntr_Visible_Alarm; 
+      T     #o_Pntr_Visible_Alarm; 
+
+NETWORK
+TITLE =YA: Navigate Start/stop Manager Screen
+
+      L     #s_Node_ID.Main; // IF Main node active ?
+      L     #s_Active_Node_ID; 
+      ==D   ; 
+      =     #s_Main_Node_Active; // Then new alarm screen is active    
+      A     #s_Main_Node_Active; // IF Main node is active
+      JCN   YA99; // ELSE
+
+      CLR   ; 
+      =     #t_Function1; 
+      =     #t_Function8; 
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function8; 
+      JC    YA11; 
+      L     0; 
+      T     #s_TMR_Main_Scroll; 
+      JU    YA19; 
+YA11: L     5000; 
+      L     #s_TMR_Main_Scroll; 
+      <=D   ; 
+      JC    YA13; // Fast scroll
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_TMR_Alarm_Scroll; 
+      L     500; 
+      >=D   ; 
+      JC    YA12; // Slow scroll
+      JU    YA19; 
+YA12: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function8; 
+      JU    YA19; 
+YA13: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function8; 
+
+YA19: L     #o_Current_SSM_No; 
+      L     1; 
+      >I    ; 
+      =     #s_Navigation_Left_1; // Show Left navigation arrow
+      JCN   YA20; 
+
+      O     #s_Key.Striked.Function1; // To previous SSM (n-1)
+      O     #t_Function1; 
+      JCN   YA20; 
+      L     #o_Current_SSM_No; 
+      L     1; 
+      -I    ; 
+      T     #o_Current_SSM_No; 
+
+YA20: L     #o_Current_SSM_No; 
+      L     #i_Total_No_SSM; 
+      <I    ; 
+      =     #s_Navigation_Right_1; // Show Right navigation arrow
+      JCN   YA99; 
+
+      O     #s_Key.Striked.Function8; // To next SSM (n+1)
+      O     #t_Function8; 
+      JCN   YA99; 
+      L     #o_Current_SSM_No; 
+      L     1; 
+      +I    ; 
+      T     #o_Current_SSM_No; 
+
+YA99: NOP   0; 
+NETWORK
+TITLE =YB: Navigate Zone Modes Screen
+
+      L     #s_Node_ID.Modes; // IF Modes node active ?
+      L     #s_Active_Node_ID; 
+      ==D   ; 
+      =     #s_Modes_Node_Active; // Then new alarm screen is active    
+      A     #s_Modes_Node_Active; // IF Modes node is active
+      JCN   YB99; // ELSE
+
+      CLR   ; 
+      =     #t_Function1; 
+      =     #t_Function8; 
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function8; 
+      JC    YB11; 
+      L     0; 
+      T     #s_TMR_Modes_Scroll; 
+      JU    YB19; 
+YB11: L     5000; 
+      L     #s_TMR_Modes_Scroll; 
+      <=D   ; 
+      JC    YB13; // Fast scroll
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_TMR_Alarm_Scroll; 
+      L     500; 
+      >=D   ; 
+      JC    YB12; // Slow scroll
+      JU    YB19; 
+YB12: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function8; 
+      JU    YB19; 
+YB13: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function8; 
+
+YB19: L     #o_Current_Zone_No; 
+      L     1; 
+      >I    ; 
+      =     #s_Navigation_Left_2; // Show Left navigation arrow
+      JCN   YB20; 
+
+      O     #s_Key.Striked.Function1; // To previous Zone (n-1)
+      O     #t_Function1; 
+      JCN   YB20; 
+      L     #o_Current_Zone_No; 
+      L     1; 
+      -I    ; 
+      T     #o_Current_Zone_No; 
+
+YB20: L     #o_Current_Zone_No; 
+      L     #i_Total_No_Zones; 
+      <I    ; 
+      =     #s_Navigation_Right_2; // Show Right navigation arrow
+      JCN   YB99; 
+
+      O     #s_Key.Striked.Function8; // To next Zone (n+1)
+      O     #t_Function8; 
+      JCN   YB99; 
+      L     #o_Current_Zone_No; 
+      L     1; 
+      +I    ; 
+      T     #o_Current_Zone_No; 
+
+YB99: NOP   0; 
+
+NETWORK
+TITLE =YC: Navigate Manual Mode Screen
+
+      L     #s_Node_ID.Manual_Scrn; // IF Modes node active ?
+      L     #s_Active_Node_ID; 
+      ==D   ; 
+      =     #s_Manual_Node_Active; // Then new alarm screen is active    
+      A     #s_Manual_Node_Active; // IF Modes node is active
+      JCN   YC99; // ELSE
+
+      CLR   ; 
+      =     #t_Function1; 
+      =     #t_Function8; 
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function8; 
+      JC    YC11; 
+      L     0; 
+      T     #s_TMR_Modes_Scroll; 
+      JU    YC19; 
+YC11: L     5000; 
+      L     #s_TMR_Modes_Scroll; 
+      <=D   ; 
+      JC    YC13; // Fast scroll
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_TMR_Alarm_Scroll; 
+      L     500; 
+      >=D   ; 
+      JC    YC12; //Slow scroll
+      JU    YC19; 
+YC12: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function8; 
+      JU    YC19; 
+YC13: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function8; 
+
+YC19: L     #o_Current_Manual_Scrn_No; 
+      L     1; 
+      >I    ; 
+      =     #s_Navigation_Left_3; // Show Left navigation arrow
+      JCN   YC20; 
+
+      O     #s_Key.Striked.Function1; // To previous Zone (n-1)
+      O     #t_Function1; 
+      JCN   YC20; 
+      L     #o_Current_Manual_Scrn_No; 
+      L     1; 
+      -I    ; 
+      T     #o_Current_Manual_Scrn_No; 
+
+YC20: L     #o_Current_Manual_Scrn_No; 
+      L     #i_Total_No_Manual_Scrn; 
+      <I    ; 
+      =     #s_Navigation_Right_3; // Show Right navigation arrow
+      JCN   YC99; 
+
+      O     #s_Key.Striked.Function8; // To next Zone (n+1)
+      O     #t_Function8; 
+      JCN   YC99; 
+      L     #o_Current_Manual_Scrn_No; 
+      L     1; 
+      +I    ; 
+      T     #o_Current_Manual_Scrn_No; 
+
+YC99: NOP   0; 
+
+NETWORK
+TITLE =YD: Navigate Operator Mode Screen
+
+      L     #s_Node_ID.Operator; // IF Modes node active ?
+      L     #s_Active_Node_ID; 
+      ==D   ; 
+      =     #s_Operator_Node_Active; // Then new alarm screen is active    
+      A     #s_Operator_Node_Active; // IF Modes node is active
+      JCN   YD99; // ELSE
+
+      CLR   ; 
+      =     #t_Function1; 
+      =     #t_Function8; 
+
+      O     #s_Key.Pressed.Function1; 
+      O     #s_Key.Pressed.Function8; 
+      JC    YD11; 
+      L     0; 
+      T     #s_TMR_Modes_Scroll; 
+      JU    YD19; 
+YD11: L     5000; 
+      L     #s_TMR_Modes_Scroll; 
+      <=D   ; 
+      JC    YD13; // Fast scroll
+      L     "MW_Prev_Cycle_Time"; 
+      +D    ; 
+      T     #s_TMR_Alarm_Scroll; 
+      L     500; 
+      >=D   ; 
+      JC    YD12; //Slow scroll
+      JU    YD19; 
+YD12: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.5_sec."; 
+      =     #t_Function8; 
+      JU    YD19; 
+YD13: A     #s_Key.Pressed.Function1; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function1; 
+      A     #s_Key.Pressed.Function8; 
+      A     "M_OS_/0.05_sec."; 
+      =     #t_Function8; 
+
+YD19: L     #o_Current_Oper_Scrn_No; 
+      L     1; 
+      >I    ; 
+      =     #s_Navigation_Left_4; // Show Left navigation arrow
+      JCN   YD20; 
+
+      O     #s_Key.Striked.Function1; // To previous Zone (n-1)
+      O     #t_Function1; 
+      JCN   YD20; 
+      L     #o_Current_Oper_Scrn_No; 
+      L     1; 
+      -I    ; 
+      T     #o_Current_Oper_Scrn_No; 
+
+YD20: L     #o_Current_Oper_Scrn_No; 
+      L     #i_Total_No_Oper_Scrn; 
+      <I    ; 
+      =     #s_Navigation_Right_4; // Show Right navigation arrow
+      JCN   YD99; 
+
+      O     #s_Key.Striked.Function8; // To next Zone (n+1)
+      O     #t_Function8; 
+      JCN   YD99; 
+      L     #o_Current_Oper_Scrn_No; 
+      L     1; 
+      +I    ; 
+      T     #o_Current_Oper_Scrn_No; 
+
+YD99: NOP   0; 
+
+NETWORK
+TITLE =ZA: Activate screen
+//Unfortunately the 'tag' "current screen number" is only updated by the OP77B if 
+//the screen number is realy changed. In case of a download of the interface DB 
+//this 'tag' is cleared. 
+//In case of a init to we have to active the "Start screen" as strange number.
+//Afterwards the screen of the root is activated. 
+//Else it is possible the same number as currently active on the OP77B requested 
+//and this is not is not updated. The OP77B than only shows a sandglass.
+      A     #t_Init; // In case of a init activate "Start screen"
+      JCN   ZA01; // ELSE
+
+      LAR1  #t_Off_HMI_Job_Mailbox; // Set pointer to Job Mailbox (HMI Interface Area)
+      OPN   #i_DB_HMI_IF; // Open OP77 Interface DB 
+
+      L     8; // 8="Start screen" number 
+      T     #s_Active_Screen_Number; 
+      JU    ZA02; 
+
+ZA01: L     #s_New_Screen_Number; // IF semaphore request for New_Screen_Number
+      L     0; 
+      >I    ; 
+      JCN   ZA99; // ELSE
+
+      LAR1  #t_Off_HMI_Job_Mailbox; // Set pointer to Job Mailbox (HMI Interface Area)
+      OPN   #i_DB_HMI_IF; // Open OP77 Interface DB 
+
+      L     DBW [AR1,P#0.0]; // IF HMI returns Job number '0'
+      L     0; 
+      ==I   ; // THEN job number not busy 
+      JCN   ZA99; // ELSE wait 
+      SET   ; 
+      S     #s_Screen_Updated; 
+
+// execute screen activation 
+      L     #s_New_Screen_Number; // Get screen number from semaphore
+      T     #s_Active_Screen_Number; 
+      L     0; // Clear semaphore
+      T     #s_New_Screen_Number; 
+// Create PLC job to give a trigger to the HMI device for new screen.
+// Fill "Job mailbox" area pointer:
+ZA02: L     51; // Display selection
+      T     DBW [AR1,P#0.0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[0] = Job number
+
+      L     #s_Active_Screen_Number; 
+      T     DBW [AR1,P#2.0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[1] = Parameter 1 Screen number
+      L     0; 
+      T     DBW [AR1,P#4.0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[2] = Parameter 2
+      T     DBW [AR1,P#6.0]; // "DB_x".HMI_Interface_Area.Job_Mailbox_Area[3] = Parameter 3 Field number
+
+ZA99: NOP   0; 
+NETWORK
+TITLE =ZB: Navigation indicators
+//Show navigation arrows above the F1 and F8 function keys. The arrow is shown 
+//when the key configuration of current node contains a node-ID.
+      LAR1  #t_Off_HMI_Navigation; // Set pointer to HMI navigation arrows above F1 an F4
+      OPN   #i_DB_HMI_IF; // Open Menu DB
+
+      A(    ; 
+      A     #s_Navigation_Left; 
+      O     ; 
+      A     #s_Navigation_Left_1; 
+      A     #s_Main_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Left_2; 
+      A     #s_Modes_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Left_3; 
+      A     #s_Manual_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Left_4; 
+      A     #s_Operator_Node_Active; 
+      )     ; 
+      AN    #s_Password.Prompt; // Skip when password handling
+      =     DBX [AR1,P#0.0]; // HMI_Navigation.Left show F1 arrow
+
+      A(    ; 
+      A     #s_Navigation_Right; 
+      O     ; 
+      A     #s_Navigation_Right_1; 
+      A     #s_Main_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Right_2; 
+      A     #s_Modes_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Right_3; 
+      A     #s_Manual_Node_Active; 
+      O     ; 
+      A     #s_Navigation_Right_4; 
+      A     #s_Operator_Node_Active; 
+      )     ; 
+      AN    #s_Password.Prompt; // Skip when password handling
+      =     DBX [AR1,P#0.1]; // HMI_Navigation.Right show F4 arrow
+NETWORK
+TITLE =ZC: Output Command
+
+      L     #s_Entered_Command; // Current entered command number (Configerd by DB-menu for each Key)
+      T     #o_HMI_Command; // To output
+
+      L     #s_Active_Node_ID; // THEN Current node ID
+      T     #o_HMI_Act_Node_ID; // To output
+NETWORK
+TITLE =ZD: Alive sign
+//Because no message is shown by the OP device when there is no communication 
+//there is a small bar in the corner of the screen which shows the communication 
+//alive. When it's moves there is communication, so PLC runnning and 
+//communication 
+//OK.
+      A     "M_OS_/1.0_sec."; // Increment every second the value for the alive sign bar.
+      JCN   ZD99; 
+      L     #s_Alive_Sign; 
+      +     1; 
+      T     #s_Alive_Sign; 
+      L     3; // Alive_Sign value [0..3]
+      <=I   ; 
+      JC    ZD99; 
+      L     0; 
+      T     #s_Alive_Sign; 
+ZD99: NOP   0; 
+
+      OPN   #i_DB_HMI_IF; 
+      LAR1  #t_Off_HMI_Alive_Sign; // Set pointer to Communication_Alive_Sign
+      L     #s_Alive_Sign; 
+      T     DBW [AR1,P#0.0]; // Communication_Alive_Sign
+END_FUNCTION_BLOCK
+

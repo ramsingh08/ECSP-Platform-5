@@ -1,0 +1,206 @@
+FUNCTION "FC_HandAreaTableUpd" : VOID
+TITLE =%version: 0.03 %  CN: 32
+//Function: 
+//Update handling area destinations for the given LIC
+//                                                                           
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   maandag 7 december 2015 16:07:04 %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//20144: Added FC_HandAreaTableUpd to library           nlHdL    18-08-14   0.03
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.02
+//Initial Revision                                      nlHHop   01-04-14   0.01
+//
+//Description:
+//Update handling area destinations for the given LIC
+//                                                                           
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HandlingArea_Num : INT ;	//DB number of handling area update table
+  i_LIC_nr : INT ;	//LIC Number
+  i_Def_Dest_1 : INT ;	//First default destination
+  i_Def_Dest_2 : INT ;	//Second default destination
+  i_Def_Dest_3 : INT ;	//Third default destination
+  i_Def_Dest_4 : INT ;	//Fourth default destination
+  i_Def_Dest_5 : INT ;	//Fifth default destination
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_DB_HandlingArea_Num : INT ;	//DB number of routing table
+  t_Loop_Counter : INT ;	//Loop Counter for creating a pointer
+  t_Destination_1 : INT ;	//First destination
+  t_Destination_2 : INT ;	//Second destination
+  t_Destination_3 : INT ;	//Third destination
+  t_Destination_4 : INT ;	//Fourth destination
+  t_Destination_5 : INT ;	//Fifth destination
+  t_RET_VAL : INT ;	//Return Value function call
+  t_AR1 : DWORD ;	
+  t_P_Start : DWORD ;	//Create a pointer to start of DB
+  t_Dest_Handl_Area : BYTE ;	//Destination handling area
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Save the contents of the address register AR1
+
+      TAR1  #t_AR1; 
+
+NETWORK
+TITLE =BA: Get destination handling area
+
+      CALL "FC_Read_Byte_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_BYTE_Record          := "DB_UDT_LIC_Record".BIR.Dest_Handling_Area,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BYTE                   := #t_Dest_Handl_Area);
+
+NETWORK
+TITLE =CA: Create a pointer to the start of DB
+
+      L     #i_DB_HandlingArea_Num; 
+      T     #t_DB_HandlingArea_Num; 
+      OPN   DB [#t_DB_HandlingArea_Num]; 
+
+// Create a pointer to start of DB
+      L     P#DBX 0.0; 
+      T     #t_P_Start; 
+      LAR1  ; 
+NETWORK
+TITLE =DA: Get entry for destination 1-5
+
+      NOP   0; 
+// First check the destination
+      L     0; 
+      L     #t_Dest_Handl_Area; 
+      <I    ; 
+      JCN   DA40; 
+
+      L     DBLG; 
+      L     10; 
+      /D    ; 
+      L     #t_Dest_Handl_Area; 
+      >=I   ; 
+      JCN   DA40; 
+
+      L     #t_P_Start; 
+      LAR1  ; 
+
+// Create pointer to destination
+      L     #t_Dest_Handl_Area; 
+      L     1; 
+      -I    ; //Destination 1 is at position 0
+      T     #t_Loop_Counter; 
+
+DA01: L     0; 
+      L     #t_Loop_Counter; 
+      <I    ; 
+      JCN   DA02; 
+
+      L     P#10.0; 
+      +AR1  ; 
+
+      L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+      JU    DA01; 
+
+// Check values of destination 1
+DA02: L     0; // destination 1 must be greater than 0
+      L     W [AR1,P#0.0]; 
+      >=I   ; 
+      JC    DA50; 
+
+      L     W [AR1,P#0.0]; 
+      T     #t_Destination_1; 
+
+      L     W [AR1,P#2.0]; 
+      T     #t_Destination_2; 
+
+      L     W [AR1,P#4.0]; 
+      T     #t_Destination_3; 
+
+      L     W [AR1,P#6.0]; 
+      T     #t_Destination_4; 
+
+      L     W [AR1,P#8.0]; 
+      T     #t_Destination_5; 
+
+      JU    DA99; 
+
+DA40: CALL "FC_Write_Event" (// Report event: Record_Function: DB length is too small or record to big (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #i_LIC_nr,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_RET_VAL);
+
+DA50: L     #i_Def_Dest_1; 
+      T     #t_Destination_1; 
+
+      L     #i_Def_Dest_2; 
+      T     #t_Destination_2; 
+
+      L     #i_Def_Dest_3; 
+      T     #t_Destination_3; 
+
+      L     #i_Def_Dest_4; 
+      T     #t_Destination_4; 
+
+      L     #i_Def_Dest_5; 
+      T     #t_Destination_5; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE = EA: Restore the contents of the address register AR1
+
+      LAR1  #t_AR1; 
+
+NETWORK
+TITLE =FA: Write destinations
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_1,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination_1,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_2,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination_2,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_3,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination_3,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_4,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination_4,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_LIC_nr,
+           i_P_INT_Record           := "DB_UDT_LIC_Record".BIR.Destination_5,
+           i_DB                     := "DB_LIC_List",
+           i_INT                    := #t_Destination_5,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+END_FUNCTION
+

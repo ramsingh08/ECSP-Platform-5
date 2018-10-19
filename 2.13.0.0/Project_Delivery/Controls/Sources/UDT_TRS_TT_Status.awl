@@ -1,0 +1,74 @@
+TYPE "UDT_TRS_TT_Status"
+TITLE =%version: 0.07 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, June 19, 2017 8:41:23 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#22982: Softstarter error during start up           nlHdL    19-06-17   0.07
+//ra#16000: Update UDT Statuses accoording list         nlHdL    12-10-16   0.06
+//ra#16000: Update UDT Statuses accoording list         nlHdL    20-09-16   0.05
+//ra#15834: Added ASI and circuit breaker errors        nlDY     16-08-16   0.04
+//ra#14800: Added errors and warnings                   nlDY     05-07-16   0.03
+//Initial version based on version 0.08 of TRS          nlHdL    08-06-16   0.01                                        
+//
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Items : BOOL ;	//Items present on the section
+   Running : BOOL ;	//Section is running
+   Started : BOOL ;	//Started
+   Req_Halt : BOOL ;	//Request Halt
+   Req_Stop : BOOL ;	//Request Stop
+   Ext_Stop : BOOL ;	//External Stop Component is operationally off and not available
+   spare_0_6 : BOOL ;	//Spare_0_6
+   spare_0_7 : BOOL ;	//Spare_0_7
+   MS_Not_Auto : BOOL ;	//Maintenance Switch of motor in 'OFF' position	
+   PPI_Error : BOOL ;	//PPI error	
+   EOS_PEC_Blk : BOOL ;	//Photo Cell blockage	
+   EOS_PEC_Miss : BOOL ;	//Successive missings at the PEC	
+   EOS_PEC_BadTr : BOOL ;	//Update Tracking Performance is below warning level	
+   THO_400VAC : BOOL ;	//Thermal Overload (400Vac)
+   THO_Overload : BOOL ;	//Thermal overload MTR 1	
+   THO_2_Overload : BOOL ;	//Thermal overload MTR 2	
+   THO_3_Overload : BOOL ;	//Thermal overload MTR 3	
+   THO_4_Overload : BOOL ;	//Thermal overload MTR 4	
+   ASI_Not_Prsnt : BOOL ;	//ASI slave not present	
+   ASI_Error : BOOL ;	//ASI slave error	
+   ASI_2_NotPrsnt : BOOL ;	//ASI slave 2 not present	
+   ASI_2_Error : BOOL ;	//ASI slave 2 error	
+   ASI_3_NotPrsnt : BOOL ;	//ASI slave 3 not present	
+   ASI_3_Error : BOOL ;	//ASI slave 3 error	
+   ASI_4_NotPrsnt : BOOL ;	//ASI slave 4 not present 
+   ASI_4_Error : BOOL ;	//ASI slave 4 error 
+   LMS_Not_Auto : BOOL ;	//LMS not automatic	
+   LMS_Error : BOOL ;	//LMS Error
+   MTR1_Not_Connected_Warn : BOOL ;	//Motor 1 not connected warning
+   MTR2_Not_Connected_Warn : BOOL ;	//Motor 2 not connected warning
+   MTR3_Not_Connected_Warn : BOOL ;	//Motor 3 not connected warning
+   MTR4_Not_Connected_Warn : BOOL ;	//Motor 4 not connected warning
+   MTR1_Not_Connected_Error : BOOL ;	//Motor 1 not connected error
+   MTR2_Not_Connected_Error : BOOL ;	//Motor 2 not connected error
+   MTR3_Not_Connected_Error : BOOL ;	//Motor 3 not connected error
+   MTR4_Not_Connected_Error : BOOL ;	//Motor 4 not connected error
+   MTR_Multi_Not_Connected : BOOL ;	//Multiple motors not connected 
+   spare_4_5 : BOOL ;	//spare_4_5
+   spare_4_6 : BOOL ;	//spare_4_6
+   spare_4_7 : BOOL ;	//spare_4_7
+   spare_5_0 : BOOL ;	//spare_5_0
+   spare_5_1 : BOOL ;	//spare_5_1
+   spare_5_2 : BOOL ;	//spare_5_2
+   spare_5_3 : BOOL ;	//spare_5_3
+   spare_5_4 : BOOL ;	//spare_5_4
+   spare_5_5 : BOOL ;	//spare_5_5
+   spare_5_6 : BOOL ;	//spare_5_6
+   spare_5_7 : BOOL ;	//spare_5_7
+  END_STRUCT ;	
+END_TYPE
+

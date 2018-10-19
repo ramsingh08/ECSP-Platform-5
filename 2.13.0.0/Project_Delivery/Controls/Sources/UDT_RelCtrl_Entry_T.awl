@@ -1,0 +1,25 @@
+TYPE "UDT_RelCtrl_Entry_T"
+TITLE =%version: 0.02 % CN: 10 
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:50:45 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.02
+//19370: Add 2e item to Releasecontrol table update     nlHdL    19-05-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Revision based on version 0.03                nlHdL    26-02-14   0.01
+//
+FAMILY : VIBES
+
+
+  STRUCT 	
+   No_Of_Tubs : INT ;	//Number of tubs to be released
+   Capacity_Restriction : INT ;	//[ms] Minimum time between two released tubs
+  END_STRUCT ;	
+END_TYPE
+

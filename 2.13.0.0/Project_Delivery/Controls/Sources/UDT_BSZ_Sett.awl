@@ -1,0 +1,21 @@
+TYPE "UDT_BSZ_Sett"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by: inpmah %
+//              %date_created: Wednesday, February 14, 2018 7:45:06 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial revision                                      inpmah   14-02-18   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Offset_FWD : INT ;	//[cm] Distance between EOS PEC (FWD) and induct position
+   Offset_REV : INT ;	//[cm] Distance between EOS PEC (REV) and induct position
+   Decision_Point : "UDT_DecisionP_Sett";	//Settings for the decision point of BSZ
+  END_STRUCT ;	
+END_TYPE
+

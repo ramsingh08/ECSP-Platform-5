@@ -1,0 +1,33 @@
+TYPE "UDT_OPZ_Int_Prog"
+TITLE =%version: 1.03 % CN: 11 
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Tuesday, October 03, 2017 9:55:07 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25278: OPZ Fallback tags from OPS                  nlHdL    03-10-17   1.03
+//ra#21368: Added Req_Halt                              nljclo   20-03-17   1.02
+//ra#16996: Initial version                             nljclo   12-09-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Bag_Present : BOOL ;	// Bag present
+   Unattended_Bag : BOOL ;	// Unattended bag
+   SL_Create_Position : BOOL ;	// Signal light create position
+   PB_Cancel_Coding : BOOL ;	// Pushbutton cancel coding
+   PB_Create_Pos : BOOL ;	// Pushbutton create position
+   OPS_Active : BOOL ;	// Operator station active
+   EncodeResult_Received : BOOL ;	//Encode Result received from OPS
+   Encode_Request : BOOL ;	//Encode Request command
+   Encode_Cancel : BOOL ;	//Encode Cancel command
+   Degraded_Mode : BOOL ;	//Degraded mode OPS is active
+   LNK : INT ;	//LNK number of item for OPS
+   OPS_DetailedState : "UDT_OPS_Status";	//OPS Detailed State
+   Req_Halt : BOOL ;	// Request to halt
+  END_STRUCT ;	
+END_TYPE
+

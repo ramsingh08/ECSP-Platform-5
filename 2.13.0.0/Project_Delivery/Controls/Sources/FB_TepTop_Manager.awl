@@ -1,0 +1,816 @@
+FUNCTION_BLOCK "FB_TepTop_Manager"
+TITLE =%version: 1.03 % CN: 40
+//Function:
+//Calculate Total Empty Positions, Total Occupied Positions in a Zone
+//
+//History:
+//This version  %created_by:   nljclo %
+//              %date_created:   Friday, April 08, 2016 2:25:15 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#12638 add IHO and no trailing edge + no PLT check  nlJClo   08-04-16   1.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//14162: Update comment of variable                     nlHdL    17-06-15   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.06 of PLT version 0
+//
+//Description:                                  
+//Determine for a zone with a maximum of 6 sections:
+//Total Empty (and available) Positions for the upstream zone
+//Total of Occupied Positions for the downstream zone 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+
+VAR_INPUT
+  i_CFG_DB_PLT_1st_Section : BLOCK_DB ;	//Data Structure: Position DataBlock first section
+  i_CFG_Num_Dwnstr : INT ;	//CFG: [Num] Number of sections for TEPTOP [1-6]
+  i_CFG_TEP_Offset : INT ;	//CFG: Offset TEP counter	
+END_VAR
+VAR_OUTPUT
+  o_TEP : INT ;	//Zone Total Empty Positions 
+  o_TOP : INT ;	//Zone Total Occupied Positions 
+END_VAR
+VAR
+  s_Section_1 : "UDT_TepTop";	//Data Structure Section 1
+  s_Section_2 : "UDT_TepTop";	//Data Structure Section 2
+  s_Section_3 : "UDT_TepTop";	//Data Structure Section 3
+  s_Section_4 : "UDT_TepTop";	//Data Structure Section 4
+  s_Section_5 : "UDT_TepTop";	//Data Structure Section 5
+  s_Section_6 : "UDT_TepTop";	//Data Structure Section 6
+  s_Conveyor_PLT_No : ARRAY  [1 .. 6 ] OF //Static conveyor PLT nr for loop counter
+  INT ;	
+  s_Position : INT ;	//Temporary Position
+  s_Info : INT ;	//Temporary Info
+  s_Data : INT ;	//Temporary Data 
+  s_TEP_count : INT ;	//Temporary count value
+END_VAR
+VAR_TEMP
+  t_Loop_PLT_No : INT ;	//Temp memory Loop PLT nr
+  t_Num_of_Sections_1 : INT ;	//Temp memory number of sections after 1st section
+  t_Section_counter : INT ;	//Temp memory section loop counter
+  t_PLT_Memory : INT ;	//Temp memory downstream PLT nr
+  t_Read_PLT_nr : INT ;	//Temp memory read PLT_DB
+  t_PLT_nr : INT ;	//Temp PLT DB of search function
+  t_IHO_PLT : BOOL ;	//Temp Item in Hand Over from PLT
+  t_Trailing_Edge : BOOL ;	//Temp Trailing edge found in PLT
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Clear values
+//Reset all count value's to 0 before calculations start
+      L     0; 
+      T     #t_Num_of_Sections_1; 
+      T     #t_PLT_Memory; 
+      T     #t_Section_counter; 
+      T     #s_Conveyor_PLT_No[1]; 
+      T     #s_Conveyor_PLT_No[2]; 
+      T     #s_Conveyor_PLT_No[3]; 
+      T     #s_Conveyor_PLT_No[4]; 
+      T     #s_Conveyor_PLT_No[5]; 
+      T     #s_Conveyor_PLT_No[6]; 
+
+      T     #o_TEP; 
+      T     #o_TOP; 
+      T     #s_Section_1.Nr_Leading_Edge_Sect; 
+      T     #s_Section_2.Nr_Leading_Edge_Sect; 
+      T     #s_Section_3.Nr_Leading_Edge_Sect; 
+      T     #s_Section_4.Nr_Leading_Edge_Sect; 
+      T     #s_Section_5.Nr_Leading_Edge_Sect; 
+      T     #s_Section_6.Nr_Leading_Edge_Sect; 
+      T     #s_TEP_count; 
+
+NETWORK
+TITLE =BA: Search downstream sections for PLT_DB nr
+//Search in the PLT_DB of the most downstream section (at decision point) for the
+//PLT_DB nr of the 1st upstream connected section.
+//Repeat the search function for as many sections that are connected 
+//[CFG_Numb_of_Upstr_Sect}
+      OPN   #i_CFG_DB_PLT_1st_Section; // Open the PLT_DB of the last section
+      L     DBNO; // Read out the PLT_DB nr.
+      T     #s_Conveyor_PLT_No[1]; // Transfer to Static memory Array PLT 1
+      T     #t_Loop_PLT_No; // Transfer to temp
+      L     0; // Check if DB is present
+      <>I   ; 
+      JCN   BA99; // If not, Jump to end
+
+      L     #i_CFG_Num_Dwnstr; // Load setting
+      L     1; // Only if more than 1 section configured
+      >I    ; // use loop counter
+      JCN   BA99; 
+
+      L     #i_CFG_Num_Dwnstr; // Load setting
+      L     1; // -1 for loop counter
+      -I    ; 
+BA12: T     #t_Num_of_Sections_1; // into temp loop counter
+
+      OPN   DB [#t_Loop_PLT_No]; // Open currrent PLT_DB
+      L     DBW    8; // Load PLT_DB nr of downstream section
+      T     #t_PLT_Memory; // Transfer temp memory
+      T     #t_Loop_PLT_No; // Transfer temp loop memory
+      L     0; // Check if DB is present
+      <>I   ; 
+      JCN   BA99; // If not, Jump to end
+
+      L     #t_Section_counter; // Load section counter 
+      L     1; // increase counter +1 every loop
+      +I    ; 
+      T     #t_Section_counter; 
+
+      L     #t_Section_counter; // Depending on counter value
+      JL    BA10; // Jump to label
+
+      JU    BA10; 
+      JU    BA01; // Jump if loop counter =1
+      JU    BA02; // Jump if loop counter =2
+      JU    BA03; // Jump if loop counter =3
+      JU    BA04; // Jump if loop counter =4
+      JU    BA05; // Jump if loop counter =5
+
+BA10: NOP   0; 
+
+BA01: L     #t_PLT_Memory; // Load Upstream PLT_DB nr out of actual PLT_DB
+      T     #s_Conveyor_PLT_No[2]; // Transfer to array PLT_DB nr 2 
+      JU    BA11; 
+
+BA02: L     #t_PLT_Memory; // Load Upstream PLT_DB nr out of actual PLT_DB
+      T     #s_Conveyor_PLT_No[3]; // Transfer to array PLT_DB nr 3 
+      JU    BA11; 
+
+BA03: L     #t_PLT_Memory; // Load Upstream PLT_DB nr out of actual PLT_DB
+      T     #s_Conveyor_PLT_No[4]; // Transfer to array PLT_DB nr 4
+      JU    BA11; 
+
+BA04: L     #t_PLT_Memory; // Load Upstream PLT_DB nr out of actual PLT_DB
+      T     #s_Conveyor_PLT_No[5]; // Transfer to array PLT_DB nr 5
+      JU    BA11; 
+
+BA05: L     #t_PLT_Memory; // Load Upstream PLT_DB nr out of actual PLT_DB
+      T     #s_Conveyor_PLT_No[6]; // Transfer to array PLT_DB nr 6
+      JU    BA11; 
+
+//Loop counter                          
+BA11: L     #t_Num_of_Sections_1; // Check number of section setting
+      LOOP  BA12; // with actual value loop counter
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: TEP Section 1
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[1]; // Load Found PLT_DB
+      T     #s_Section_1.DB_Num_PLT_Sect; // Into PLT_DB nr1
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_1.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_1.Connected; 
+      JCN   CA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_1.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_1.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_1.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_1.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_1.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_1.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_1.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_1.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_1.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_1.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    CA03; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty 
+      AN    #s_Section_1.Running; // If section is running
+      JCN   CA02; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+CA02: A(    ; 
+      L     #s_Section_1.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    #t_IHO_PLT; // And No Item in Hand Over (For items longer the the section length)
+      JCN   CA03; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_1.Nr_TEP_Sec; 
+      JU    CA99; 
+
+CA03: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_1.Nr_TEP_Sec; 
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: TEP Section 2
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[2]; // Load Found PLT_DB
+      T     #s_Section_2.DB_Num_PLT_Sect; // Into PLT_DB nr2
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_2.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_2.Connected; 
+      JCN   DA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_2.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_2.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_2.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_2.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_2.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_2.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_2.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_2.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_2.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_2.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    DA03; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty 
+      AN    #s_Section_2.Running; // If section is running
+      JCN   DA02; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+DA02: A(    ; 
+      L     #s_Section_2.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   DA03; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_2.Nr_TEP_Sec; 
+      JU    DA99; 
+
+DA03: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_2.Nr_TEP_Sec; 
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: TEP Section 3
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[3]; // Load Found PLT_DB
+      T     #s_Section_3.DB_Num_PLT_Sect; // Into PLT_DB nr3
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_3.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_3.Connected; 
+      JCN   EA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_3.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_3.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_3.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_3.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_3.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_3.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_3.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_3.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_3.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_3.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    EA03; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty 
+      AN    #s_Section_3.Running; // If section is running
+      JCN   EA02; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+EA02: A(    ; 
+      L     #s_Section_3.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    #t_IHO_PLT; // And No Item in Hand Over (For items longer the the section length)
+      JCN   EA03; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_3.Nr_TEP_Sec; 
+      JU    EA99; 
+
+EA03: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_3.Nr_TEP_Sec; 
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: TEP Section 4
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[4]; // Load Found PLT_DB
+      T     #s_Section_4.DB_Num_PLT_Sect; // Into PLT_DB nr4
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_4.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_4.Connected; 
+      JCN   FA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_4.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_4.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_4.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_4.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_4.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_4.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_4.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_4.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_4.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_4.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    FA03; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty 
+      AN    #s_Section_4.Running; // If section is running
+      JCN   FA02; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+FA02: A(    ; 
+      L     #s_Section_4.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    #t_IHO_PLT; // And No Item in Hand Over (For items longer the the section length)
+      JCN   FA03; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_4.Nr_TEP_Sec; 
+      JU    FA99; 
+
+FA03: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_4.Nr_TEP_Sec; 
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: TEP Section 5
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[5]; // Load Found PLT_DB
+      T     #s_Section_5.DB_Num_PLT_Sect; // Into PLT_DB nr5
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_5.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_5.Connected; 
+      JCN   GA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_5.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_5.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_5.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_5.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_5.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_5.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_5.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_5.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_5.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_5.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    GA03; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty 
+      AN    #s_Section_5.Running; // If section is running
+      JCN   GA02; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+GA02: A(    ; 
+      L     #s_Section_5.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    #t_IHO_PLT; // And No Item in Hand Over (For items longer the the section length)
+      JCN   GA03; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_5.Nr_TEP_Sec; 
+      JU    GA99; 
+
+GA03: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_5.Nr_TEP_Sec; 
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: TEP Section 6
+//Open PLT_DB 1st section.
+//Determine if the section PLT_DB is connected to the input
+//Determine the length, running and available signal of the section.
+// 
+//Search the complete length for items (leading edge and trailing edge)
+//
+//If no items are found, TEP for this section = 1
+//If one or more items are found, TEP for this section = 0
+      L     #s_Conveyor_PLT_No[6]; // Load Found PLT_DB
+      T     #s_Section_6.DB_Num_PLT_Sect; // Into PLT_DB nr6
+      T     #t_Read_PLT_nr; 
+
+// Check if section is connected
+      L     #s_Section_6.DB_Num_PLT_Sect; 
+      L     1; 
+      >I    ; 
+      =     #s_Section_6.Connected; 
+      JCN   HA99; 
+
+// Open PLT DB and read out value's
+      OPN   DB [#t_Read_PLT_nr]; 
+      L     DBW   12; 
+      T     #s_Section_6.Length; 
+
+      A     DBX   10.1; 
+      =     #s_Section_6.Running; 
+
+      A     DBX   10.4; 
+      =     #s_Section_6.Available; 
+
+      A     DBX   10.6; 
+      =     #t_IHO_PLT; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_6.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_6.Length,
+           i_Info                   := 1,// leading edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_6.Nr_Leading_Edge_Sect);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_Section_6.DB_Num_PLT_Sect,
+           i_Position               := 0,
+           i_Window                 := #s_Section_6.Length,
+           i_Info                   := 2,// trailing edge of item
+           o_Position               := #s_Position,
+           o_Info                   := #s_Info,
+           o_LNK                    := #s_Data,
+           o_DB_PLT_Num             := #t_PLT_nr,
+           o_Number_Items_Found     := #s_Section_6.Nr_Trailing_Edge_Sect);
+
+      L     #s_Section_6.Nr_Trailing_Edge_Sect; 
+      L     0; 
+      >I    ; 
+      =     #t_Trailing_Edge; // Trailing edge detected
+
+      AN    #t_Trailing_Edge; 
+      A     #t_IHO_PLT; 
+      JC    HA02; // Item in Hand Over and no trailing edge (For items longer the the section length)
+
+// Check if section is empty   
+      AN    #s_Section_6.Running; // If section is running
+      JCN   HA01; // only check for leading edge
+      AN    #t_Trailing_Edge; 
+HA01: A(    ; 
+      L     #s_Section_6.Nr_Leading_Edge_Sect; // AND NO leading edge detected
+      L     0; 
+      ==I   ; 
+      )     ; 
+      AN    #t_IHO_PLT; // And No Item in Hand Over (For items longer the the section length)
+      JCN   HA02; 
+      L     1; // THEN TEP nr Section = 1
+      T     #s_Section_6.Nr_TEP_Sec; 
+      JU    HA99; 
+
+HA02: L     0; // ELSE TEP nr Section = 0
+      T     #s_Section_6.Nr_TEP_Sec; 
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: TEP Values of all connected sections
+//Count only "section TEP" if section PLT DB is connected and available.
+//If section is empty, but NOT avalable, TEP = 0
+//TEP value for each section is max.1 independant of the length
+//TOP values are always counted = total amount of positive edge [1] of all 
+//connected sections.
+//
+//Do NOT count downstream TEP, if section is NOT available: 
+//                         section 1 - section 2 - section 3 - section n
+//to upstream <--   TEP=4      1      -     1     -     1     -      1
+//
+//to upstream <--   TEP=3      1      -     1     -     1     -      0
+//
+//to upstream <--   TEP=1      1      -     0     -     1     -      1
+      NOP   0; 
+//Load TEP start value
+      L     #i_CFG_TEP_Offset; 
+      T     #s_TEP_count; 
+
+//Check where to start for TEP other sections
+      L     #i_CFG_Num_Dwnstr; 
+      JL    END; 
+
+      JU    IA14; // Jump if loop counter = 0
+      JU    IA10; // Jump if loop counter = 1
+      JU    IA08; // Jump if loop counter = 2
+      JU    IA06; // Jump if loop counter = 3
+      JU    IA04; // Jump if loop counter = 4
+      JU    IA02; // Jump if loop counter = 5
+      JU    IA00; // Jump if loop counter = 6
+END:  JU    IA14; // Jump if loop counter > 6
+
+// 6th Downstream Section TEP value
+IA00: A     #s_Section_6.Connected; // AND section is connected
+      A     #s_Section_6.Available; // AND section is available
+      JCN   IA01; 
+      L     #s_Section_6.Nr_TEP_Sec; // Load TEP section 6
+      L     #s_TEP_count; 
+      +I    ; 
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA02; 
+
+IA01: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter 
+
+
+// 5th Downstream Section TEP value
+IA02: A     #s_Section_5.Connected; // AND section is connected
+      A     #s_Section_5.Available; // AND section is available
+      JCN   IA03; 
+      L     #s_Section_5.Nr_TEP_Sec; // Load TEP section 5
+      L     #s_TEP_count; // Into TEP counter
+      +I    ; 
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA04; 
+
+IA03: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter 
+
+
+// 4th Downstream Section TEP value
+IA04: A     #s_Section_4.Connected; // AND section is connected
+      A     #s_Section_4.Available; // AND section is available
+      JCN   IA05; 
+      L     #s_Section_4.Nr_TEP_Sec; // Load TEP section 4
+      L     #s_TEP_count; // Load previous TEP value
+      +I    ; 
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA06; 
+
+IA05: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter 
+
+
+// 3rd Downstream Section TEP value
+IA06: A     #s_Section_3.Connected; // AND section is connected
+      A     #s_Section_3.Available; // AND section is available
+      JCN   IA07; 
+      L     #s_Section_3.Nr_TEP_Sec; // Load TEP section 3
+      L     #s_TEP_count; // Load previous TEP value
+      +I    ; // ADD
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA08; 
+
+IA07: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter 
+
+
+// 2nd Downstream Section TEP value
+IA08: A     #s_Section_2.Connected; // AND section is connected
+      A     #s_Section_2.Available; // AND section is available
+      JCN   IA09; 
+      L     #s_Section_2.Nr_TEP_Sec; // Load TEP section 2
+      L     #s_TEP_count; // Load previous TEP value
+      +I    ; // ADD
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA10; 
+
+IA09: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter
+
+
+// 1st Section TEP value
+IA10: A     #s_Section_1.Connected; // AND section is connected
+      A     #s_Section_1.Available; // AND section is available
+      JCN   IA11; 
+      L     #s_Section_1.Nr_TEP_Sec; // Load TEP section 1
+      L     #s_TEP_count; // Load previous TEP value
+      +I    ; // ADD
+      T     #s_TEP_count; // Into TEP counter
+      JU    IA12; 
+
+IA11: L     0; // IF NOT available
+      T     #s_TEP_count; // reset TEP counter
+
+// Check for valid CFG number
+IA12: L     #i_CFG_Num_Dwnstr; // Configuration input
+      L     1; // < 1
+      <I    ; 
+      JCN   IA13; 
+      L     0; // Load 0
+      T     #o_TEP; // Into output
+      T     #s_Section_1.Nr_Leading_Edge_Sect; 
+      T     #s_Section_2.Nr_Leading_Edge_Sect; 
+      T     #s_Section_3.Nr_Leading_Edge_Sect; 
+      T     #s_Section_4.Nr_Leading_Edge_Sect; 
+      T     #s_Section_5.Nr_Leading_Edge_Sect; 
+      T     #s_Section_6.Nr_Leading_Edge_Sect; 
+      JU    IA14; 
+IA13: L     #s_TEP_count; // Load TEP value
+      T     #o_TEP; // Into output
+IA14: NOP   0; 
+NETWORK
+TITLE =JA: Calculate TEP/TOP value
+// Add all items found in all sections, to calculate TOP value
+      L     #s_Section_1.Nr_Leading_Edge_Sect; 
+      L     #s_Section_2.Nr_Leading_Edge_Sect; 
+      +I    ; 
+      L     #s_Section_3.Nr_Leading_Edge_Sect; 
+      +I    ; 
+      L     #s_Section_4.Nr_Leading_Edge_Sect; 
+      +I    ; 
+      L     #s_Section_5.Nr_Leading_Edge_Sect; 
+      +I    ; 
+      L     #s_Section_6.Nr_Leading_Edge_Sect; 
+      +I    ; 
+      T     #o_TOP; 
+END_FUNCTION_BLOCK
+

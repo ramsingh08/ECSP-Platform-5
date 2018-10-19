@@ -1,0 +1,264 @@
+DATA_BLOCK "DB_HMI_VDZ21_Index"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Tuesday, May 30, 2017 10:56:38 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#53655:Initial revision                             inajos   30-05-17   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   VDZ_00_01 : "UDT_IF_HMI_Man";	//Auto,Semi Auto
+   VDZ_00_02 : "UDT_IF_HMI_Man";	//Manual Mode
+   VDZ_00_03 : "UDT_IF_HMI_Man";	//Upper Maintenance 
+   VDZ_00_04 : "UDT_IF_HMI_Man";	//Lower Maintenance
+   VDZ_00_05 : "UDT_IF_HMI_Man";	//Go To Infeed
+   VDZ_00_06 : "UDT_IF_HMI_Man";	//Go To Outfeed
+   SWS_00_01 : "UDT_IF_HMI_Man";	//Lift Control
+   SWS_00_02 : "UDT_IF_HMI_Man";	//Lift Reference Travel
+   TRS_00_03 : "UDT_IF_HMI_Man";	//Carrier Conveyor Fwd,Rev,Stop
+  END_STRUCT ;	
+BEGIN
+   VDZ_00_01.Mark_Code := 'VDZ'; 
+   VDZ_00_01.ID := DW#16#0; 
+   VDZ_00_01.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_01.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_01.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_01.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_01.Display_Bits.Button1_bit := TRUE; 
+   VDZ_00_01.Display_Bits.Button2_bit := FALSE; 
+   VDZ_00_01.Display_Bits.Button3_bit := FALSE; 
+   VDZ_00_01.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_01.Fixed.Function_No := 4; 
+   VDZ_00_01.Fixed.Par_ID_Name := 1; 
+   VDZ_00_01.Fixed.Par_Mode_Name := 1; 
+   VDZ_00_01.Fixed.Status := 0; 
+   VDZ_00_01.Fixed.Button1 := 10; 
+   VDZ_00_01.Fixed.Button2 := 34; 
+   VDZ_00_01.Fixed.Button3 := 35; 
+   VDZ_00_01.Fixed.Button4 := 0; 
+   VDZ_00_01.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_01.Display_Menu_Bits.Button2 := TRUE; 
+   VDZ_00_01.Display_Menu_Bits.Button3 := TRUE; 
+   VDZ_00_01.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_01.Display_Menu_Bits.Button5 := TRUE; 
+   VDZ_00_01.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_01.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_01.Display_Menu_Bits.Button8 := FALSE; 
+   VDZ_00_02.Mark_Code := 'VDZ'; 
+   VDZ_00_02.ID := DW#16#0; 
+   VDZ_00_02.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_02.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_02.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_02.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_02.Display_Bits.Button1_bit := FALSE; 
+   VDZ_00_02.Display_Bits.Button2_bit := TRUE; 
+   VDZ_00_02.Display_Bits.Button3_bit := FALSE; 
+   VDZ_00_02.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_02.Fixed.Function_No := 4; 
+   VDZ_00_02.Fixed.Par_ID_Name := 1; 
+   VDZ_00_02.Fixed.Par_Mode_Name := 1; 
+   VDZ_00_02.Fixed.Status := 0; 
+   VDZ_00_02.Fixed.Button1 := 0; 
+   VDZ_00_02.Fixed.Button2 := 1; 
+   VDZ_00_02.Fixed.Button3 := 0; 
+   VDZ_00_02.Fixed.Button4 := 0; 
+   VDZ_00_02.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button2 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button3 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button5 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_02.Display_Menu_Bits.Button8 := FALSE; 
+   VDZ_00_03.Mark_Code := 'VDZ'; 
+   VDZ_00_03.ID := DW#16#0; 
+   VDZ_00_03.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_03.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_03.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_03.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_03.Display_Bits.Button1_bit := FALSE; 
+   VDZ_00_03.Display_Bits.Button2_bit := TRUE; 
+   VDZ_00_03.Display_Bits.Button3_bit := TRUE; 
+   VDZ_00_03.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_03.Fixed.Function_No := 4; 
+   VDZ_00_03.Fixed.Par_ID_Name := 1; 
+   VDZ_00_03.Fixed.Par_Mode_Name := 3; 
+   VDZ_00_03.Fixed.Status := 0; 
+   VDZ_00_03.Fixed.Button1 := 0; 
+   VDZ_00_03.Fixed.Button2 := 21; 
+   VDZ_00_03.Fixed.Button3 := 22; 
+   VDZ_00_03.Fixed.Button4 := 0; 
+   VDZ_00_03.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button2 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button3 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button5 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_03.Display_Menu_Bits.Button8 := FALSE; 
+   VDZ_00_04.Mark_Code := 'VDZ'; 
+   VDZ_00_04.ID := DW#16#0; 
+   VDZ_00_04.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_04.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_04.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_04.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_04.Display_Bits.Button1_bit := FALSE; 
+   VDZ_00_04.Display_Bits.Button2_bit := TRUE; 
+   VDZ_00_04.Display_Bits.Button3_bit := TRUE; 
+   VDZ_00_04.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_04.Fixed.Function_No := 4; 
+   VDZ_00_04.Fixed.Par_ID_Name := 1; 
+   VDZ_00_04.Fixed.Par_Mode_Name := 3; 
+   VDZ_00_04.Fixed.Status := 0; 
+   VDZ_00_04.Fixed.Button1 := 0; 
+   VDZ_00_04.Fixed.Button2 := 23; 
+   VDZ_00_04.Fixed.Button3 := 24; 
+   VDZ_00_04.Fixed.Button4 := 0; 
+   VDZ_00_04.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button2 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button3 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button5 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_04.Display_Menu_Bits.Button8 := FALSE; 
+   VDZ_00_05.Mark_Code := 'VDZ'; 
+   VDZ_00_05.ID := DW#16#0; 
+   VDZ_00_05.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_05.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_05.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_05.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_05.Display_Bits.Button1_bit := FALSE; 
+   VDZ_00_05.Display_Bits.Button2_bit := TRUE; 
+   VDZ_00_05.Display_Bits.Button3_bit := TRUE; 
+   VDZ_00_05.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_05.Fixed.Function_No := 4; 
+   VDZ_00_05.Fixed.Par_ID_Name := 1; 
+   VDZ_00_05.Fixed.Par_Mode_Name := 3; 
+   VDZ_00_05.Fixed.Status := 0; 
+   VDZ_00_05.Fixed.Button1 := 0; 
+   VDZ_00_05.Fixed.Button2 := 26; 
+   VDZ_00_05.Fixed.Button3 := 27; 
+   VDZ_00_05.Fixed.Button4 := 0; 
+   VDZ_00_05.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button2 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button3 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button5 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_05.Display_Menu_Bits.Button8 := FALSE; 
+   VDZ_00_06.Mark_Code := 'VDZ'; 
+   VDZ_00_06.ID := DW#16#0; 
+   VDZ_00_06.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   VDZ_00_06.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   VDZ_00_06.Display_Bits.ID_Text_bit := TRUE; 
+   VDZ_00_06.Display_Bits.ID_Status_Text_bit := TRUE; 
+   VDZ_00_06.Display_Bits.Button1_bit := FALSE; 
+   VDZ_00_06.Display_Bits.Button2_bit := TRUE; 
+   VDZ_00_06.Display_Bits.Button3_bit := TRUE; 
+   VDZ_00_06.Display_Bits.Button4_bit := FALSE; 
+   VDZ_00_06.Fixed.Function_No := 4; 
+   VDZ_00_06.Fixed.Par_ID_Name := 1; 
+   VDZ_00_06.Fixed.Par_Mode_Name := 3; 
+   VDZ_00_06.Fixed.Status := 0; 
+   VDZ_00_06.Fixed.Button1 := 0; 
+   VDZ_00_06.Fixed.Button2 := 30; 
+   VDZ_00_06.Fixed.Button3 := 31; 
+   VDZ_00_06.Fixed.Button4 := 0; 
+   VDZ_00_06.Display_Menu_Bits.Button1 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button2 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button3 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button4 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button5 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button6 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button7 := FALSE; 
+   VDZ_00_06.Display_Menu_Bits.Button8 := FALSE; 
+   SWS_00_01.Mark_Code := 'SWS'; 
+   SWS_00_01.ID := DW#16#1; 
+   SWS_00_01.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   SWS_00_01.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   SWS_00_01.Display_Bits.ID_Text_bit := TRUE; 
+   SWS_00_01.Display_Bits.ID_Status_Text_bit := TRUE; 
+   SWS_00_01.Display_Bits.Button1_bit := FALSE; 
+   SWS_00_01.Display_Bits.Button2_bit := TRUE; 
+   SWS_00_01.Display_Bits.Button3_bit := TRUE; 
+   SWS_00_01.Display_Bits.Button4_bit := FALSE; 
+   SWS_00_01.Fixed.Function_No := 4; 
+   SWS_00_01.Fixed.Par_ID_Name := 1; 
+   SWS_00_01.Fixed.Par_Mode_Name := 3; 
+   SWS_00_01.Fixed.Status := 0; 
+   SWS_00_01.Fixed.Button1 := 0; 
+   SWS_00_01.Fixed.Button2 := 2; 
+   SWS_00_01.Fixed.Button3 := 3; 
+   SWS_00_01.Fixed.Button4 := 0; 
+   SWS_00_01.Display_Menu_Bits.Button1 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button2 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button3 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button4 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button5 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button6 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button7 := FALSE; 
+   SWS_00_01.Display_Menu_Bits.Button8 := FALSE; 
+   SWS_00_02.Mark_Code := 'SWS'; 
+   SWS_00_02.ID := DW#16#1; 
+   SWS_00_02.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   SWS_00_02.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   SWS_00_02.Display_Bits.ID_Text_bit := TRUE; 
+   SWS_00_02.Display_Bits.ID_Status_Text_bit := TRUE; 
+   SWS_00_02.Display_Bits.Button1_bit := FALSE; 
+   SWS_00_02.Display_Bits.Button2_bit := TRUE; 
+   SWS_00_02.Display_Bits.Button3_bit := FALSE; 
+   SWS_00_02.Display_Bits.Button4_bit := FALSE; 
+   SWS_00_02.Fixed.Function_No := 4; 
+   SWS_00_02.Fixed.Par_ID_Name := 1; 
+   SWS_00_02.Fixed.Par_Mode_Name := 3; 
+   SWS_00_02.Fixed.Status := 0; 
+   SWS_00_02.Fixed.Button1 := 0; 
+   SWS_00_02.Fixed.Button2 := 25; 
+   SWS_00_02.Fixed.Button3 := 0; 
+   SWS_00_02.Fixed.Button4 := 0; 
+   SWS_00_02.Display_Menu_Bits.Button1 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button2 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button3 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button4 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button5 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button6 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button7 := FALSE; 
+   SWS_00_02.Display_Menu_Bits.Button8 := FALSE; 
+   TRS_00_03.Mark_Code := 'TRS'; 
+   TRS_00_03.ID := DW#16#3; 
+   TRS_00_03.Display_Bits.Par_ID_Name_Bit := TRUE; 
+   TRS_00_03.Display_Bits.Par_Mode_Name_bit := TRUE; 
+   TRS_00_03.Display_Bits.ID_Text_bit := TRUE; 
+   TRS_00_03.Display_Bits.ID_Status_Text_bit := TRUE; 
+   TRS_00_03.Display_Bits.Button1_bit := TRUE; 
+   TRS_00_03.Display_Bits.Button2_bit := TRUE; 
+   TRS_00_03.Display_Bits.Button3_bit := TRUE; 
+   TRS_00_03.Display_Bits.Button4_bit := FALSE; 
+   TRS_00_03.Fixed.Function_No := 4; 
+   TRS_00_03.Fixed.Par_ID_Name := 1; 
+   TRS_00_03.Fixed.Par_Mode_Name := 2; 
+   TRS_00_03.Fixed.Status := 0; 
+   TRS_00_03.Fixed.Button1 := 32; 
+   TRS_00_03.Fixed.Button2 := 33; 
+   TRS_00_03.Fixed.Button3 := 5; 
+   TRS_00_03.Fixed.Button4 := 0; 
+   TRS_00_03.Display_Menu_Bits.Button1 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button2 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button3 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button4 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button5 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button6 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button7 := FALSE; 
+   TRS_00_03.Display_Menu_Bits.Button8 := FALSE; 
+END_DATA_BLOCK
+

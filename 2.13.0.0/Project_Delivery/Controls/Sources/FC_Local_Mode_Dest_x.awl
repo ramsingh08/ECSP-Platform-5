@@ -1,0 +1,365 @@
+FUNCTION "FC_Local_Mode_Dest_x" : VOID
+TITLE =%version: 0.08 % CN: 33
+//Function:
+//Retreive data for instance DB and check the destination with the fixed mode for
+//direction 1, and for direction 2. 
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 6:59:31 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.08
+//bhs_plf#2415: Clear dir_c temps                       nlHdL    01-08-17   0.07
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.03
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.02
+//Initial Revision                                      nlHdL    03-10-11   0.01
+//
+//Description:
+//Retreive data for instance DB and check the destination with the fixed mode for
+//direction 1, and for direction 2. 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Fixed_Mode_Dir_A : BOOL ;	//The hardware is fixed in direction A
+  i_Fixed_Mode_Dir_B : BOOL ;	//The hardware is fixed in direction B
+  i_Fixed_Mode_Dir_C : BOOL ;	//The hardware is fixed in direction C
+  i_CFG_Dir_C : BOOL ;	//Included direction C
+  i_ANY_Decision_mess : ANY ;	//ANY pointer to the Decision messages
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_Rep_Route : INT ;	//Replay Route message for tracking report
+END_VAR
+VAR_TEMP
+  t_Destination : INT ;	//Destination
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_Preference_C : BYTE ;	//Preference for Direction C
+  t_DecisionLvl : BYTE ;	//Decision Level	
+  t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+  t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+  t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  t_DINO : INT ;	//DB number of instance	
+  t_DecisionLvl_int : INT ;	//Decision level int value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Decision_mess; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Preference_A; 
+
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Preference_B; 
+
+      L     DIB [AR2,P#5.0]; 
+      T     #t_DecisionLvl; 
+
+      L     DIB [AR2,P#6.0]; 
+      T     #t_FailedReason_A; 
+
+      L     DIB [AR2,P#7.0]; 
+      T     #t_FailedReason_B; 
+
+      L     DINO; 
+      T     #t_DINO; 
+
+//Clear temps
+      L     0; 
+      T     #t_Preference_C; 
+      T     #t_FailedReason_C; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   AA99; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Preference_C; 
+
+      L     DIB [AR2,P#8.0]; 
+      T     #t_FailedReason_C; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Check if Local Mode for the direction
+
+      AN    #i_Fixed_Mode_Dir_A; 
+      AN    #i_Fixed_Mode_Dir_B; 
+      AN    #i_Fixed_Mode_Dir_C; 
+      BEC   ; 
+//No local mode end block
+
+      AN    #i_CFG_Dir_C; 
+      JCN   BA10; //Goto check A B C
+
+      L     #t_Preference_A; 
+      L     0; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Preference_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      BEC   ; 
+// If there is no direction end block
+
+      A     #i_Fixed_Mode_Dir_A; 
+      JCN   BA01; 
+// If equipment is in fixed dir A mode (Local mode)
+
+      L     #t_Preference_B; 
+      L     0; 
+      >I    ; 
+      JCN   BA01; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_B; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 2,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      JU    BA99; 
+//End fixed mode dir 1
+
+BA01: A     #i_Fixed_Mode_Dir_B; 
+      JCN   BA99; 
+// If equipment is in fixed dir B mode (Local mode)
+
+      L     #t_Preference_A; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_A; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 1,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+//End fixed mode dir 2
+      JU    BA99; 
+
+//Check with direction A B C
+BA10: NOP   0; 
+
+      L     #t_Preference_A; 
+      L     0; 
+      ==I   ; 
+      A(    ; 
+      L     #t_Preference_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Preference_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      BEC   ; 
+// If there is no direction end block
+
+      A     #i_Fixed_Mode_Dir_A; 
+      JCN   BA12; 
+// If equipment is in fixed dir A mode (Local mode)
+
+      L     #t_Preference_B; 
+      L     0; 
+      >I    ; 
+      JCN   BA11; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_B; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 2,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA11: L     #t_Preference_C; 
+      L     0; 
+      >I    ; 
+      JCN   BA12; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_C; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 3,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA12: A     #i_Fixed_Mode_Dir_B; 
+      JCN   BA14; 
+// If equipment is in fixed dir B mode (Local mode)
+
+      L     #t_Preference_A; 
+      L     0; 
+      >I    ; 
+      JCN   BA13; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_A; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 1,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA13: L     #t_Preference_C; 
+      L     0; 
+      >I    ; 
+      JCN   BA14; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_C; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 3,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+
+BA14: A     #i_Fixed_Mode_Dir_C; 
+      JCN   BA99; 
+// If equipment is in fixed dir C mode (Local mode)
+
+      L     #t_Preference_A; 
+      L     0; 
+      >I    ; 
+      JCN   BA15; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_A; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 1,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA15: L     #t_Preference_B; 
+      L     0; 
+      >I    ; 
+      JCN   BA99; 
+
+//Failed Reason = 6 ("Local mode")
+      L     6; 
+      T     #t_FailedReason_B; 
+
+      L     #t_DecisionLvl; 
+      T     #t_DecisionLvl_int; 
+
+      CALL "FC_Exec_Failed_Dir" (
+           i_Rep_Route              := #i_Rep_Route,
+           i_Failed_Direction       := 2,
+           i_Failed_Reason          := 6,
+           i_Failed_Destination     := #t_Destination,
+           i_Failed_Decisionlvl     := #t_DecisionLvl_int,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Write data of destination x to FB
+
+      L     P##i_ANY_Decision_mess; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     #t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   CA99; 
+
+      L     #t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+
+CA99: NOP   0; 
+END_FUNCTION
+

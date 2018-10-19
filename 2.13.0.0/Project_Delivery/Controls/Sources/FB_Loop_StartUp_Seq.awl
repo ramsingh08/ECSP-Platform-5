@@ -1,0 +1,266 @@
+FUNCTION_BLOCK "FB_Loop_StartUp_Seq"
+TITLE =%version: 0.01 %  CN: 40
+//Function:
+//Module to control the start-up sequence of a loop. This module handles the 
+//start up sequnce for one power group in the loop.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:12:11 %
+//              %release:  VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.01
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.01
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.01
+//Initial revision                                      nlHHop   19-11-13   0.01
+//
+//Description:
+//When a start request is recieved this module will set a request halt signal to 
+//all sections in one powergroup of the loop. This is done to make sure that the 
+//start-up sequence of the loop can be controlled. The halt requests are cleared 
+//one by one from upstream towards downstream with a configurable interval time. 
+//
+//When a halt request is cleared the upstream section will have an overrule 
+//dieback signal active that will be used to indicate the downstream section is 
+//running even if this is not actually happening.
+//                                                             
+FAMILY : General
+VERSION : 0.1
+
+
+VAR_INPUT
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CFG_Interval_Time : INT  := 250;	//CFG: [ms] Time between startup of each section
+END_VAR
+VAR
+  s_Interval_Expired : BOOL ;	//Next interval is expired
+  s_Cnt_Interval : INT ;	//Counter to count down the interval time
+  s_Request_Halt : DWORD ;	//Halt request word with bits
+  s_Overrule_Die_Back : DWORD ;	//Overrule dieback word with bits
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Count down interval timer to determine the start-up interval
+
+      NOP   0; 
+
+// Count down interval timer
+      L     #s_Cnt_Interval; 
+      L     0; 
+      <=I   ; 
+// Preset counter
+      JCN   AA01; 
+      L     #i_CFG_Interval_Time; 
+      T     #s_Cnt_Interval; 
+// Decrease counter with previous cycle time
+AA01: L     #s_Cnt_Interval; 
+      L     "MW_Prev_Cycle_Time"; 
+      -I    ; 
+// Keep counter 0 when becoming negative
+      JPZ   AA02; 
+      L     0; 
+AA02: T     #s_Cnt_Interval; 
+// Determine when interval timer has elapsed
+      L     #s_Cnt_Interval; 
+      L     0; 
+      <=I   ; 
+      =     #s_Interval_Expired; 
+
+NETWORK
+TITLE =BA: Make 32 bit register for halt requests for 1 powergroup
+//The s_Request_Halt double word contains 32 bits. When a start command is 
+//received all bits will become true. At the first 0.25 second the first bit will 
+//become false, then after 0,25 second the second bit will become false, and so 
+//on till all 32 bits are handled.
+//
+//The result will be that all transport sections will be halted when a start 
+//command is active. Then the transport sections will not be halted anymore one 
+//by one, starting with the first one and ending with the last one in the 
+//powergroup.
+      NOP   0; 
+
+// Shift left word evey 0,25 second 
+      A     #s_Interval_Expired; 
+      JCN   BA01; 
+      L     #s_Request_Halt; 
+      SLD   1; 
+      T     #s_Request_Halt; 
+
+// Preset all bits
+BA01: A     #i_CMD_Start; 
+      JCN   BA02; 
+      L     DW#16#FFFFFFFF; 
+      T     #s_Request_Halt; 
+BA02: NOP   0; 
+
+NETWORK
+TITLE =CA: Make 32 bit register for overrule dieback for 1 powergroup
+//The s_Overrule_Die_Back double word contains 32 bits. When a start command is 
+//received the first bit will become true. At the first 0.25 second the first bit 
+//will become false and the second bit will become true, then after 0,25 second 
+//the second bit will become false and the third bit will become true, and so on 
+//till all 32 bits are handled.
+//
+//The result will be that all transport sections will be manipulated to think the 
+//downstream section is running to make sure the section can start even though 
+//its downstream section might not be running.
+      NOP   0; 
+
+// Shift left word evey 0,25 second 
+      A     #s_Interval_Expired; 
+      JCN   CA01; 
+      L     #s_Overrule_Die_Back; 
+      SLD   1; 
+      T     #s_Overrule_Die_Back; 
+
+// Preset first bit
+CA01: A     "DB_Loop_StartUp_Seq".Sequence_1.Request_Halt; 
+      JCN   CA99; 
+      L     1; 
+      T     #s_Overrule_Die_Back; 
+CA99: NOP   0; 
+
+NETWORK
+TITLE =DA: Copy request halt bits to DB_Loop_Control for one powergroup
+
+      LAR1  P##s_Request_Halt; 
+
+      A     DIX [AR1,P#3.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_1.Request_Halt; 
+      A     DIX [AR1,P#3.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_2.Request_Halt; 
+      A     DIX [AR1,P#3.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_3.Request_Halt; 
+      A     DIX [AR1,P#3.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_4.Request_Halt; 
+      A     DIX [AR1,P#3.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_5.Request_Halt; 
+      A     DIX [AR1,P#3.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_6.Request_Halt; 
+      A     DIX [AR1,P#3.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_7.Request_Halt; 
+      A     DIX [AR1,P#3.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_8.Request_Halt; 
+      A     DIX [AR1,P#2.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_9.Request_Halt; 
+      A     DIX [AR1,P#2.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_10.Request_Halt; 
+      A     DIX [AR1,P#2.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_11.Request_Halt; 
+      A     DIX [AR1,P#2.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_12.Request_Halt; 
+      A     DIX [AR1,P#2.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_13.Request_Halt; 
+      A     DIX [AR1,P#2.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_14.Request_Halt; 
+      A     DIX [AR1,P#2.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_15.Request_Halt; 
+      A     DIX [AR1,P#2.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_16.Request_Halt; 
+      A     DIX [AR1,P#1.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_17.Request_Halt; 
+      A     DIX [AR1,P#1.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_18.Request_Halt; 
+      A     DIX [AR1,P#1.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_19.Request_Halt; 
+      A     DIX [AR1,P#1.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_20.Request_Halt; 
+      A     DIX [AR1,P#1.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_21.Request_Halt; 
+      A     DIX [AR1,P#1.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_22.Request_Halt; 
+      A     DIX [AR1,P#1.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_23.Request_Halt; 
+      A     DIX [AR1,P#1.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_24.Request_Halt; 
+      A     DIX [AR1,P#0.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_25.Request_Halt; 
+      A     DIX [AR1,P#0.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_26.Request_Halt; 
+      A     DIX [AR1,P#0.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_27.Request_Halt; 
+      A     DIX [AR1,P#0.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_28.Request_Halt; 
+      A     DIX [AR1,P#0.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_29.Request_Halt; 
+      A     DIX [AR1,P#0.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_30.Request_Halt; 
+      A     DIX [AR1,P#0.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_31.Request_Halt; 
+      A     DIX [AR1,P#0.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_32.Request_Halt; 
+
+NETWORK
+TITLE =EA: Copy overrule dieback to DB_Loop_Control for 1 powergroup
+
+      LAR1  P##s_Overrule_Die_Back; 
+
+      A     DIX [AR1,P#3.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_1.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_2.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_3.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_4.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_5.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_6.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_7.Overrule_Die_Back; 
+      A     DIX [AR1,P#3.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_8.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_9.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_10.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_11.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_12.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_13.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_14.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_15.Overrule_Die_Back; 
+      A     DIX [AR1,P#2.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_16.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_17.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_18.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_19.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_20.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_21.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_22.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_23.Overrule_Die_Back; 
+      A     DIX [AR1,P#1.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_24.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.0]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_25.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.1]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_26.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.2]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_27.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.3]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_28.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.4]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_29.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.5]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_30.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.6]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_31.Overrule_Die_Back; 
+      A     DIX [AR1,P#0.7]; 
+      =     "DB_Loop_StartUp_Seq".Sequence_32.Overrule_Die_Back; 
+
+END_FUNCTION_BLOCK
+

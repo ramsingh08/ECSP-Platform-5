@@ -1,0 +1,19 @@
+TYPE "UDT_RelCtrlTabIndex"
+TITLE =%version: 0.01 % CN: 11 
+//History:
+//This version  %created_by:  nlsdw %
+//              %date_created:  Monday, June 19, 2017 11:09:50 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial Version                                       nlSdW    19-06-17   0.01
+//
+FAMILY : General
+
+  STRUCT 	
+    Area_Zone_Section_ID : DINT ;	//(AreaID * 10000) + (ZoneID * 100) + SectionID (example: AreaID 1234 and ZoneID 
+    RelCtrlTable_DB_Number : INT ;	//DB number of Release Control Table that belongs to Area_Zone_Section_ID
+  END_STRUCT ;	
+END_TYPE
+

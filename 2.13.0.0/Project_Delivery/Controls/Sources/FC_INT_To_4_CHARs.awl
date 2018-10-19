@@ -1,0 +1,101 @@
+FUNCTION "FC_INT_To_4_CHARs" : VOID
+TITLE =%version: 0.02 % CN: 30
+//Function: 
+//Convert an Integer to four Characters
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:01:50 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.02
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Copied from SSS                                       nlMRe    16-04-10   0.01
+//Based on FC_INT_To_4_CHARs 1.5
+//
+//Description:
+//When called, this function converts the integer i_integer_number into ASCII 
+//format and returns the result through 4 Chars. The integer must be 
+//positive within the range 0 to +9999. When the integer is out of range the 
+//conversion will not be carried out and the BR-bit will be set to zero.
+//Example: 1234 is converted in '1234' (31 32 33 34 hex.)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_INT : INT ;	//Integer input
+END_VAR
+VAR_OUTPUT
+  o_CHAR_1 : CHAR ;	//Result First Char
+  o_CHAR_2 : CHAR ;	//Result Second Char
+  o_CHAR_3 : CHAR ;	//Result Third Char
+  o_CHAR_4 : CHAR ;	//Result Fourth Char
+END_VAR
+VAR_TEMP
+  t_BCD : DWORD ;	//In BCD Format
+  t_Event_Data : INT ;	//Temp event data
+END_VAR
+BEGIN
+NETWORK
+TITLE =CI: check integer
+//Checks input i_integer_number on range. 
+//Integer must be between 0 and +9999. If not, BR = 0 and there is no 
+//conversion.
+      A(    ; 
+      L     #i_INT; 
+      L     9999; 
+      <=I   ; //IF integer <= 9999..
+      )     ; 
+      A(    ; 
+      L     #i_INT; 
+      L     0; 
+      >=I   ; //AND integer >= 0..
+      )     ; 
+      SAVE  ; //..THEN BR-bit := 1
+      JC    IA01; //if BR-bit=0 then no execution
+
+      L     #i_INT; 
+      T     #t_Event_Data; 
+
+//    CALL  FC    93                    // Report event Integer out of range (8022)
+//       i_EventID             :=8022
+//       i_Event_Severity_Level:=1
+//       i_AreaID              :=MW172
+//       i_ZoneID              :=MW174
+//       i_SectionID           :=MW176
+//       i_ElementID           :=0
+//       i_Event_Data          :=#t_Event_Data
+
+      BEU   ; //if BR-bit=0 then no execution
+NETWORK
+TITLE =IA: convert integer to ASCII
+//Converts integer-number into ASCII-format an returns value through 
+//o_ASCII_number.
+IA01: L     #i_INT; 
+      ITD   ; 
+      DTB   ; //convert integer to BCD
+      T     #t_BCD; //save BCD for calculations
+      L     DW#16#F0F; //select char2 and char4
+      AD    ; 
+      L     DW#16#3030; //add hex30 to char2 and char4
+      OD    ; 
+      T     #o_CHAR_4; //save char4 
+      SRD   8; 
+      T     #o_CHAR_2; //save char2
+      L     #t_BCD; //load saved BCD
+      L     DW#16#F0F0; //select char1 and char3
+      AD    ; 
+      L     DW#16#30300; //add hex30 to char1 and char3
+      OD    ; 
+      SRD   4; 
+      T     #o_CHAR_3; //save char3
+      SRD   8; 
+      T     #o_CHAR_1; //save char1      
+END_FUNCTION
+

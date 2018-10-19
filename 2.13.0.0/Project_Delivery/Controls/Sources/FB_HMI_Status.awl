@@ -1,0 +1,950 @@
+FUNCTION_BLOCK "FB_HMI_Status"
+TITLE =%version: 0.04 % CN: 30
+//
+//Function:    
+//Control Zone HMI Operator Display
+// 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, November 23, 2017 8:30:53 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//bhs_plf#4510: Version header should be 0.0            nlHdL    23-11-17   0.04
+//ra#26556:Add VCZ11 Function Status                    inajos  23-11-17   0.03
+//ra#53661:Add VDZ21,VDZ24 Function status              inajos  30-05-17   0.02
+//ra#13189:Initial revision                             inajos  27-10-16   0.01
+//
+//Description:
+//Various Code for respective screen status is coded here.
+//The status numbers are mapped as per the zone KTP text list.
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_IF_Mode : BLOCK_DB ;	//HMI Interface DB for zones with modes
+  i_OP_Status : BLOCK_DB ;	//Status to OP
+  i_Screen_Number : INT ;	//KTP Current Screen Number
+  i_Function_No : INT ;	//Zone Function Number
+END_VAR
+VAR_OUTPUT
+  o_Status_No : INT ;	//Status Number
+END_VAR
+VAR
+  s_HMI_Status : INT ;	//HMI_Status
+  s_OP_SVD_Status : STRUCT 	
+   Auto : BOOL ;	
+   Fixed_Up : BOOL ;	
+   Fixed_Down : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Manual : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Pos_SWS_Up : BOOL ;	
+   Pos_SWS_Down : BOOL ;	
+   TRS1_Manual_Run : BOOL ;	
+   TRS2_Manual_Run : BOOL ;	
+   TRS3_Manual_Run : BOOL ;	
+   Spare_1_5 : BOOL ;	
+   Spare_1_6 : BOOL ;	
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+  s_OP_TMZ_Status : STRUCT 	
+   Req_Insert_Carrier : BOOL ;	
+   Carrier_Removed : BOOL ;	
+   Dispatch_Carrier : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Spare_0_5 : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Spare_1_0 : BOOL ;	
+   Spare_1_1 : BOOL ;	
+   Spare_1_2 : BOOL ;	
+   Spare_1_3 : BOOL ;	
+   Spare_1_4 : BOOL ;	
+   Spare_1_5 : BOOL ;	
+   Spare_1_6 : BOOL ;	
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+  s_OP_VDZ24_Status : STRUCT 	
+   Auto : BOOL ;	
+   Fixed_Infeed1 : BOOL ;	
+   Fixed_Infeed2 : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Manual : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Pos_Infeed1 : BOOL ;	
+   Pos_Infeed2 : BOOL ;	
+   Pos_Outfeed : BOOL ;	
+   Pos_Maint_Up : BOOL ;	
+   Pos_Maint_Down : BOOL ;	
+   TRS_Manual_Fwd : BOOL ;	
+   TRS_Manual_Rev : BOOL ;	
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+  s_OP_VDZ21_Status : STRUCT 	
+   Auto : BOOL ;	
+   Spare_0_1 : BOOL ;	
+   Spare_0_2 : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Manual : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Pos_Infeed : BOOL ;	
+   Spare_1_2 : BOOL ;	
+   Pos_Outfeed : BOOL ;	
+   Pos_Maint_Up : BOOL ;	
+   Pos_Maint_Down : BOOL ;	
+   TRS_Manual_Fwd : BOOL ;	
+   TRS_Manual_Rev : BOOL ;	
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+  s_OP_VCZ_Status : STRUCT 	
+   Auto : BOOL ;	
+   Spare_0_1 : BOOL ;	
+   Spare_0_2 : BOOL ;	
+   Spare_0_3 : BOOL ;	
+   Spare_0_4 : BOOL ;	
+   Manual : BOOL ;	
+   Spare_0_6 : BOOL ;	
+   Spare_0_7 : BOOL ;	
+   Spare_1_0 : BOOL ;	
+   Spare_1_1 : BOOL ;	
+   Spare_1_2 : BOOL ;	
+   TRS2_Manual_Run : BOOL ;	
+   Spare_1_4 : BOOL ;	
+   Spare_1_5 : BOOL ;	
+   Spare_1_6 : BOOL ;	
+   Spare_1_7 : BOOL ;	
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Man_Status_Address : INT ;	//Adress of Status Number
+  t_Oper_Status_Address : INT ;	//Adress of Status Number
+  t_OP_Status_Address : INT ;	//Address of OP Status
+  t_Status : INT ;	//Status
+  t_Ret_Value : INT ;	//Return Value
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:Initialisation
+
+//From       i_DB_HMI_IF_Mode 
+
+      L     P#122.0; //Manual Screen Status
+      T     #t_Man_Status_Address; 
+
+      L     P#160.0; //Operator Screen Status
+      T     #t_Oper_Status_Address; 
+
+//From       i_OP_Status
+
+      L     P#0.0; 
+      T     #t_OP_Status_Address; //Offset of OP Status
+
+NETWORK
+TITLE =BA: SVD Status
+//
+//
+//o_Hmi_Status Value = Display Text
+//Refer Zone HMI Status_List for text number
+
+      L     #i_Function_No; 
+      L     1; 
+      ==I   ; 
+      JCN   BA99; 
+
+      OPN   #i_OP_Status; //Open DB
+      L     #t_OP_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Status; 
+
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Status,
+           RET_VAL                  := #t_Ret_Value,
+           DSTBLK                   := #s_OP_SVD_Status);
+
+
+      L     0; 
+      T     #s_HMI_Status; 
+
+//SVD Screen 1 Status Code
+
+      L     #i_Screen_Number; 
+      L     1; 
+      ==I   ; 
+      JCN   BA05; 
+
+      A     #s_OP_SVD_Status.Auto; 
+      AN    #s_OP_SVD_Status.Fixed_Up; 
+      AN    #s_OP_SVD_Status.Fixed_Down; 
+      AN    #s_OP_SVD_Status.Manual; 
+      JCN   BA01; 
+      L     23; // 23 = "Auto"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA01: AN    #s_OP_SVD_Status.Auto; 
+      A     #s_OP_SVD_Status.Fixed_Up; 
+      AN    #s_OP_SVD_Status.Fixed_Down; 
+      AN    #s_OP_SVD_Status.Manual; 
+      JCN   BA02; 
+      L     24; // 24 = "Semi Auto Fixed Up"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA02: AN    #s_OP_SVD_Status.Auto; 
+      AN    #s_OP_SVD_Status.Fixed_Up; 
+      A     #s_OP_SVD_Status.Fixed_Down; 
+      AN    #s_OP_SVD_Status.Manual; 
+      JCN   BA03; 
+      L     25; // 25 = "Semi Auto Fixed Down"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA03: AN    #s_OP_SVD_Status.Auto; 
+      AN    #s_OP_SVD_Status.Fixed_Up; 
+      AN    #s_OP_SVD_Status.Fixed_Down; 
+      A     #s_OP_SVD_Status.Manual; 
+      JCN   BA05; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+//SVD Screen 2 Status Code
+
+BA05: L     #i_Screen_Number; 
+      L     2; 
+      ==I   ; 
+      JCN   BA11; 
+
+      AN    #s_OP_SVD_Status.Manual; 
+      JCN   BA10; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA10: A     #s_OP_SVD_Status.Manual; 
+      JCN   BA11; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+//SVD Screen 3 Status Code
+
+BA11: L     #i_Screen_Number; 
+      L     3; 
+      ==I   ; 
+      JCN   BA15; 
+
+      AN    #s_OP_SVD_Status.Pos_SWS_Up; 
+      AN    #s_OP_SVD_Status.Pos_SWS_Down; 
+      JCN   BA12; 
+      L     4; // 4 = "Undefined"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA12: A     #s_OP_SVD_Status.Manual; 
+      A     #s_OP_SVD_Status.Pos_SWS_Up; 
+      AN    #s_OP_SVD_Status.Pos_SWS_Down; 
+      JCN   BA13; 
+      L     5; // 5 = "Sws Up"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA13: A     #s_OP_SVD_Status.Manual; 
+      AN    #s_OP_SVD_Status.Pos_SWS_Up; 
+      A     #s_OP_SVD_Status.Pos_SWS_Down; 
+      JCN   BA15; 
+      L     6; // 6 = "Sws Down"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+//SVD Screen 4 Status Code
+
+BA15: L     #i_Screen_Number; 
+      L     4; 
+      ==I   ; 
+      JCN   BA20; 
+
+      AN    #s_OP_SVD_Status.TRS1_Manual_Run; 
+      JCN   BA16; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA16: A     #s_OP_SVD_Status.Manual; 
+      A     #s_OP_SVD_Status.TRS1_Manual_Run; 
+      JCN   BA20; 
+      L     2; // 2 = "Manual Started"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+//SVD Screen 5 Status Code
+
+BA20: L     #i_Screen_Number; 
+      L     5; 
+      ==I   ; 
+      JCN   BA25; 
+
+      AN    #s_OP_SVD_Status.TRS2_Manual_Run; 
+      JCN   BA21; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA21: A     #s_OP_SVD_Status.Manual; 
+      A     #s_OP_SVD_Status.TRS2_Manual_Run; 
+      JCN   BA25; 
+      L     2; // 2 = "Manual Started"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+
+//SVD Screen 6 Status Code
+
+BA25: L     #i_Screen_Number; 
+      L     6; 
+      ==I   ; 
+      JCN   BA99; 
+
+      AN    #s_OP_SVD_Status.TRS3_Manual_Run; 
+      JCN   BA26; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    BA98; 
+
+BA26: A     #s_OP_SVD_Status.Manual; 
+      A     #s_OP_SVD_Status.TRS3_Manual_Run; 
+      JCN   BA99; 
+      L     2; // 2 = "Manual Started"
+      T     #s_HMI_Status; 
+
+
+BA98: L     #s_HMI_Status; 
+      T     #o_Status_No; //Status to pass For another Block
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Man_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     #s_HMI_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: TMZ Status
+
+      L     #i_Function_No; 
+      L     2; 
+      ==I   ; 
+      JCN   CA99; 
+
+      OPN   #i_OP_Status; //Open DB
+      L     #t_OP_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Status; 
+
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Status,
+           RET_VAL                  := #t_Ret_Value,
+           DSTBLK                   := #s_OP_TMZ_Status);
+
+      L     0; 
+      T     #s_HMI_Status; 
+
+//SVD Screen 1 Status Code
+
+      L     #i_Screen_Number; 
+      L     1; 
+      ==I   ; 
+      JCN   CA99; 
+
+      AN    #s_OP_TMZ_Status.Req_Insert_Carrier; 
+      AN    #s_OP_TMZ_Status.Carrier_Removed; 
+      AN    #s_OP_TMZ_Status.Dispatch_Carrier; 
+      JCN   CA01; 
+      L     22; // 22 = "Ready to Insert Carrier"
+      T     #s_HMI_Status; 
+      JU    CA98; 
+
+CA01: A     #s_OP_TMZ_Status.Req_Insert_Carrier; 
+      JCN   CA02; 
+      L     19; // 19 = "Creating Position"
+      T     #s_HMI_Status; 
+      JU    CA98; 
+
+CA02: A     #s_OP_TMZ_Status.Carrier_Removed; 
+      JCN   CA03; 
+      L     20; // 20 = "Carrier Removed"
+      T     #s_HMI_Status; 
+      JU    CA98; 
+
+CA03: A     #s_OP_TMZ_Status.Dispatch_Carrier; 
+      JCN   CA99; 
+      L     21; // 21 = "Dispatching Carrier"
+      T     #s_HMI_Status; 
+      JU    CA98; 
+
+
+CA98: L     #s_HMI_Status; 
+      T     #o_Status_No; //For another Block
+
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Oper_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     #s_HMI_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA:VDZ24 Status
+//
+//
+      L     #i_Function_No; 
+      L     3; 
+      ==I   ; 
+      JCN   DA99; 
+
+      OPN   #i_OP_Status; //Open DB
+      L     #t_OP_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Status; 
+
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Status,
+           RET_VAL                  := #t_Ret_Value,
+           DSTBLK                   := #s_OP_VDZ24_Status);
+
+
+      L     0; 
+      T     #s_HMI_Status; 
+
+// Screen 1 Status Code
+//Auto,Fixed Infeed1,Fixed Infeed2,Manual
+
+      L     #i_Screen_Number; 
+      L     1; 
+      ==I   ; 
+      JCN   DA05; 
+
+      A     #s_OP_VDZ24_Status.Auto; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Manual; 
+      JCN   DA01; 
+      L     23; // 23 = "Auto"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA01: AN    #s_OP_VDZ24_Status.Auto; 
+      A     #s_OP_VDZ24_Status.Fixed_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Manual; 
+      JCN   DA02; 
+      L     16; // 16 = "Fixed Infeed1"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA02: AN    #s_OP_VDZ24_Status.Auto; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed1; 
+      A     #s_OP_VDZ24_Status.Fixed_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Manual; 
+      JCN   DA03; 
+      L     17; // 17 = "Fixed Infeed2"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA03: AN    #s_OP_VDZ24_Status.Auto; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Fixed_Infeed2; 
+      A     #s_OP_VDZ24_Status.Manual; 
+      JCN   DA05; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+// Screen 2 Status Code
+//Not Manual,Manual
+
+DA05: L     #i_Screen_Number; 
+      L     2; 
+      ==I   ; 
+      JCN   DA11; 
+
+      AN    #s_OP_VDZ24_Status.Manual; 
+      JCN   DA10; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA10: A     #s_OP_VDZ24_Status.Manual; 
+      JCN   DA11; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+// Screen 3/4/5/6/7/8/9 Status Code
+//Maintenance Up/Down,Infeed1,Infeed2,Outfeed
+
+DA11: L     #i_Screen_Number; 
+      L     3; 
+      ==I   ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     4; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     5; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     6; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     8; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     9; 
+      ==I   ; 
+      )     ; 
+      JCN   DA20; 
+
+      AN    #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ24_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ24_Status.Pos_Maint_Down; 
+      JCN   DA12; 
+      L     4; // 4 = "Undefined"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA12: A     #s_OP_VDZ24_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ24_Status.Pos_Maint_Down; 
+
+      JCN   DA13; 
+      L     10; // 10 = "Maintenance Up Position"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+
+DA13: A     #s_OP_VDZ24_Status.Pos_Maint_Down; 
+      AN    #s_OP_VDZ24_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Pos_Outfeed; 
+
+      JCN   DA14; 
+      L     11; //11 = "Maintenance Down Position"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA14: A     #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Pos_Outfeed; 
+
+
+      JCN   DA15; 
+      L     12; //12 = "Infeed1 Position"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA15: A     #s_OP_VDZ24_Status.Pos_Infeed2; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Outfeed; 
+
+
+      JCN   DA16; 
+      L     13; //13 = "Infeed2 Position"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA16: A     #s_OP_VDZ24_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed1; 
+      AN    #s_OP_VDZ24_Status.Pos_Infeed2; 
+
+
+      JCN   DA20; 
+      L     14; //14 = "Outfeed Position"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA20: L     #i_Screen_Number; 
+      L     10; 
+      ==I   ; 
+      JCN   DA99; 
+
+      AN    #s_OP_VDZ24_Status.Manual; 
+      JCN   DA21; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA21: A     #s_OP_VDZ24_Status.Manual; 
+      A     #s_OP_VDZ24_Status.TRS_Manual_Fwd; 
+      AN    #s_OP_VDZ24_Status.TRS_Manual_Rev; 
+      JCN   DA22; 
+      L     34; // 34 = "Manual Started Forward"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA22: A     #s_OP_VDZ24_Status.Manual; 
+      A     #s_OP_VDZ24_Status.TRS_Manual_Rev; 
+      AN    #s_OP_VDZ24_Status.TRS_Manual_Fwd; 
+      JCN   DA23; 
+      L     35; // 1 = "Manual Started Reverse"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+DA23: A     #s_OP_VDZ24_Status.Manual; 
+      AN    #s_OP_VDZ24_Status.TRS_Manual_Rev; 
+      AN    #s_OP_VDZ24_Status.TRS_Manual_Fwd; 
+      JCN   DA99; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    DA98; 
+
+
+DA98: L     #s_HMI_Status; 
+      T     #o_Status_No; //Status to pass For another Block
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Man_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     #s_HMI_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+DA99: NOP   0; 
+
+
+NETWORK
+TITLE =EA:VDZ21 Status
+//
+//
+      L     #i_Function_No; 
+      L     4; 
+      ==I   ; 
+      JCN   EA99; 
+
+      OPN   #i_OP_Status; //Open DB
+      L     #t_OP_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Status; 
+
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Status,
+           RET_VAL                  := #t_Ret_Value,
+           DSTBLK                   := #s_OP_VDZ21_Status);
+
+
+      L     0; 
+      T     #s_HMI_Status; 
+
+// Screen 1 Status Code
+//Auto,Fixed Infeed1,Fixed Infeed2,Manual
+
+      L     #i_Screen_Number; 
+      L     1; 
+      ==I   ; 
+      JCN   EA05; 
+
+      A     #s_OP_VDZ21_Status.Auto; 
+      AN    #s_OP_VDZ21_Status.Manual; 
+      JCN   EA01; 
+      L     23; // 23 = "Auto"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+
+EA01: AN    #s_OP_VDZ21_Status.Auto; 
+      A     #s_OP_VDZ21_Status.Manual; 
+      JCN   EA05; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+// Screen 2 Status Code
+//Not Manual,Manual
+
+EA05: L     #i_Screen_Number; 
+      L     2; 
+      ==I   ; 
+      JCN   EA11; 
+
+      AN    #s_OP_VDZ21_Status.Manual; 
+      JCN   EA10; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA10: A     #s_OP_VDZ21_Status.Manual; 
+      JCN   EA11; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+// Screen 3/4/5/6/7/8 Status Code
+//Maintenance Up/Down,Infeed,Outfeed
+
+EA11: L     #i_Screen_Number; 
+      L     3; 
+      ==I   ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     4; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     5; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     6; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     7; 
+      ==I   ; 
+      )     ; 
+      O(    ; 
+      L     #i_Screen_Number; 
+      L     8; 
+      ==I   ; 
+      )     ; 
+
+      JCN   EA20; 
+
+      AN    #s_OP_VDZ21_Status.Pos_Infeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ21_Status.Pos_Maint_Down; 
+      JCN   EA12; 
+      L     4; // 4 = "Undefined"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA12: A     #s_OP_VDZ21_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ21_Status.Pos_Infeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Maint_Down; 
+
+      JCN   EA13; 
+      L     10; // 10 = "Maintenance Up Position"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+
+EA13: A     #s_OP_VDZ21_Status.Pos_Maint_Down; 
+      AN    #s_OP_VDZ21_Status.Pos_Maint_Up; 
+      AN    #s_OP_VDZ21_Status.Pos_Infeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Outfeed; 
+
+      JCN   EA14; 
+      L     11; //11 = "Maintenance Down Position"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA14: A     #s_OP_VDZ21_Status.Pos_Infeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Outfeed; 
+
+      JCN   EA16; 
+      L     12; //12 = "Infeed1 Position"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA16: A     #s_OP_VDZ21_Status.Pos_Outfeed; 
+      AN    #s_OP_VDZ21_Status.Pos_Infeed; 
+
+      JCN   EA20; 
+      L     14; //14 = "Outfeed Position"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA20: L     #i_Screen_Number; 
+      L     9; 
+      ==I   ; 
+      JCN   EA99; 
+
+      AN    #s_OP_VDZ21_Status.Manual; 
+      JCN   EA21; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA21: A     #s_OP_VDZ21_Status.Manual; 
+      A     #s_OP_VDZ21_Status.TRS_Manual_Fwd; 
+      AN    #s_OP_VDZ21_Status.TRS_Manual_Rev; 
+      JCN   EA22; 
+      L     34; // 34 = "Manual Started Forward"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA22: A     #s_OP_VDZ21_Status.Manual; 
+      A     #s_OP_VDZ21_Status.TRS_Manual_Rev; 
+      AN    #s_OP_VDZ21_Status.TRS_Manual_Fwd; 
+      JCN   EA23; 
+      L     35; // 35 = "Manual Started Reverse"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+EA23: A     #s_OP_VDZ21_Status.Manual; 
+      AN    #s_OP_VDZ21_Status.TRS_Manual_Rev; 
+      AN    #s_OP_VDZ21_Status.TRS_Manual_Fwd; 
+      JCN   EA99; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    EA98; 
+
+
+EA98: L     #s_HMI_Status; 
+      T     #o_Status_No; //Status to pass For another Block
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Man_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     #s_HMI_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+EA99: NOP   0; 
+
+
+NETWORK
+TITLE =FA:VCZ Status
+//
+//
+      L     #i_Function_No; 
+      L     5; 
+      ==I   ; 
+      JCN   FA99; 
+
+      OPN   #i_OP_Status; //Open DB
+      L     #t_OP_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Status; 
+
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Status,
+           RET_VAL                  := #t_Ret_Value,
+           DSTBLK                   := #s_OP_VCZ_Status);
+
+
+      L     0; 
+      T     #s_HMI_Status; 
+
+// Screen 1 Status Code
+//Auto,Manual
+
+      L     #i_Screen_Number; 
+      L     1; 
+      ==I   ; 
+      JCN   FA05; 
+
+      A     #s_OP_VCZ_Status.Auto; 
+      AN    #s_OP_VCZ_Status.Manual; 
+      JCN   FA01; 
+      L     23; // 23 = "Auto"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+
+FA01: AN    #s_OP_VCZ_Status.Auto; 
+      A     #s_OP_VCZ_Status.Manual; 
+      JCN   FA05; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+// Screen 2 Status Code
+//Not Manual,Manual
+
+FA05: L     #i_Screen_Number; 
+      L     2; 
+      ==I   ; 
+      JCN   FA11; 
+
+      AN    #s_OP_VCZ_Status.Manual; 
+      JCN   FA10; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+FA10: A     #s_OP_VCZ_Status.Manual; 
+      JCN   FA11; 
+      L     1; // 1 = "Manual"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+//Manual Start/Stop
+
+FA11: L     #i_Screen_Number; 
+      L     3; 
+      ==I   ; 
+      JCN   FA99; 
+
+      AN    #s_OP_VCZ_Status.Manual; 
+      JCN   FA21; 
+      L     18; // 18 = "Not Manual"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+FA21: A     #s_OP_VCZ_Status.Manual; 
+      A     #s_OP_VCZ_Status.TRS2_Manual_Run; 
+      JCN   FA22; 
+      L     2; // 2 = "Manual Started"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+FA22: A     #s_OP_VCZ_Status.Manual; 
+      AN    #s_OP_VCZ_Status.TRS2_Manual_Run; 
+      JCN   FA99; 
+      L     3; // 3 = "Manual Stopped"
+      T     #s_HMI_Status; 
+      JU    FA98; 
+
+
+FA98: L     #s_HMI_Status; 
+      T     #o_Status_No; //Status to pass For another Block
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Man_Status_Address; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+      L     #s_HMI_Status; 
+      T     DBW [AR1,P#0.0]; 
+
+FA99: NOP   0; 
+
+
+END_FUNCTION_BLOCK
+

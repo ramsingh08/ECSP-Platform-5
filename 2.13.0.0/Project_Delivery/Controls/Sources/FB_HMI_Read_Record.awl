@@ -1,0 +1,496 @@
+FUNCTION_BLOCK "FB_HMI_Read_Record"
+TITLE =%version: 0.05 % CN: 40 
+//Function:
+//This function scans all record defined in "DB_HMI_Index".
+//IF DS is active a pointer to number and bitnumber are stored in the alarm queue.
+//
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  maandag 7 december 2015 16:11:02 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//14162: Update comment of variable                     nlHdL    17-06-15   0.05
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.04
+//Update for new DB_Status_Index                        nlMRe    21-09-10   0.03
+//Replace UDT definition                                nlMRe    20-09-10   0.02
+//Initial revision                                      inSMahi  10-06-10   0.01
+//
+//Description:
+//
+//This function scans all record defined in "DB_HMI_Index".
+//In case a 'Detailed' status is active and it has to be displayed by the HMI,
+//this function outputs the 'data-word' number and bitnumber which are used as
+//pointers to store in the alarm queue.
+//Every call of this FB the next record or bit within the record is checked.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Record_Start : ANY ;	//Record in DB_Status_Index where to start from
+  i_ANY_Record_End : ANY ;	//Record in DB_Status_Index where to end 
+END_VAR
+VAR_OUTPUT
+  o_DS_Status : BOOL ;	//Detailed Status Present
+  o_Pntr : DINT ;	//Pointer to first DW of record in 'DB_Record_Handling'
+  o_Pntr_To_Actual_Bit : INT ;	//Pointer to Detailed Status bit within record
+END_VAR
+VAR
+  s_Index_Actual_Rec : INT ;	//Index to actual record number. 
+  s_Total_Num_Recs : INT ;	//Total number of Records
+  s_Rec_Pointer : DWORD ;	//Pointer to a ANY pointer in DB_Record_Handling
+  s_Component_Rec_Pointer : STRUCT 	//Component Record Pointer
+   Length : INT ;	//Record length in bytes
+   Pntr : DWORD ;	//Pointer
+   Comp_Type_DB_No : INT ;	//Component DB type No.
+  END_STRUCT ;	
+  s_Done : BOOL ;	//Done bit init block
+  s_Init_Search_Loop : BOOL ;	//Init search loop
+  s_DS_Present_In_Record : BOOL ;	//DS present within active record
+  s_Busy_Within_Record : BOOL ;	//Busy with active record
+  s_DS_Status : BOOL ;	//DS status
+  s_Text_Present : BOOL ;	//Text is present for DS bit
+  s_Error_Definition : "UDT_Comp_Status";	//Error definition of component
+  s_Error_Def_Length : INT ;	//Length of error definition in bytes
+  s_Pntr_To_Status_Bit : INT ;	//Pointer number to status bit
+  s_Act_DS_Bit_Number : INT ;	//Actuele Bit number in DS record
+  s_Act_HMI_Text_Number : INT ;	//Actuele HMI text number for DS bit
+  s_Rec_DW_Numb : DINT ;	//Actuele DataWord number of DS record
+  s_Component_Byte_Adres : DINT ;	//Component Byte adress number
+  s_Monitor : STRUCT 	//Monitor data structure
+   Comp_Type_DB_Fault : STRUCT 	//Last found record information in case Component Type DB fault
+    Record_Index : INT ;	//Index to record in DB_Record_Handling
+    Record_DW_Numb : DINT ;	//DataWord number to record in DB_Record_Handling
+    Comp_Typ_DB_Numb : INT ;	//Type DB number of record
+    DB_Not_Present : BOOL ;	//Fault: Data block not present
+    Length_Fault : BOOL ;	//Fault: Data block length incorrect
+   END_STRUCT ;	
+   Record_Handling_Fault : STRUCT 	//Last found record information in case Record Handling Fault
+    Record_Index : INT ;	//Index to record in DB_Record_Handling
+    Record_DW_Numb : DINT ;	//DataWord number to record in DB_Record_Handling
+    Error_Code_ID : WORD ;	//Error code of ID
+    Error_Code_Stat : WORD ;	//Error code of Status
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Instance start address
+  t_Stored_AR1 : DWORD ;	//Store AR1 pointer
+  t_Off_ANY_Inst_ID : DWORD ;	//Offset to instance ID ANY pointers in the DB_Record_Handling
+  t_off_ANY_Inst_Type_DB : DWORD ;	//Offset to instance Type DB ANY pointers in the record
+  t_Off_Error_Code_ID : DWORD ;	//Offset in to error code ID from start record in DB_Record_Handling 
+  t_Off_ANY_Status_Index : DWORD ;	//Offset from Rec_Index start to position of ANY to "Status.ANY_Instance"
+  t_Off_Error_Code_Stat : DWORD ;	//Offset from Rec_Index start to position of error code
+  t_Off_ANY_Inst_Comp : DWORD ;	//Offset in bytes to component type block_DB in from the status record (2 bytes b
+  t_Record_Length_Pointer : DWORD ;	//Record length of rec index in pointer format
+  t_Search_Loop_Cntr : WORD ;	//Loop Counter
+  t_Nr_Bytes_To_Scan : INT ;	//Number of Bytes in record to scan
+  t_Nr_Bits_To_Scan : INT ;	//Lenght Actual status record in bits for searching errors
+  t_DB_Num : INT ;	//Temp to open instance DB for preparing ANY pointer 
+  t_Comp_Typ_DB : WORD ;	//DB number reference list errors actual component being scanned  
+  t_DB_Length : WORD ;	//Temp Length Component Type DB
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_Comp_Type_Not_Present : BOOL ;	//Component Type DB not present
+  t_Comp_Type_Length_Fault : BOOL ;	//Component Type DB Length Fault
+  t_Bool : BOOL ;	//Temp BOOL
+  t_Text_In_Range : BOOL ;	//Text number is with range
+  t_Text_In_High_Range : BOOL ;	//Text number in high range
+  t_HMI_Text_Number : INT ;	//Errorlist code to be display when "0" no errors present or undefined
+  t_Error_Def_No : INT ;	//Error defination Number
+  t_Record_Start_Pnt : DWORD ;	//Start adress first record in DB_Record_Handling to scan records from 
+  t_Record_End_Pntr : DWORD ;	//Start adress last record in DB_Record_Handling to scan records from 
+  t_UDT_DSBit_Rec_Length : INT ;	//Length UDT_DSBit_Rec
+  t_UDT_ID_Element_Length : INT ;	//Length UDT_ID_Element
+  t_Number_Of_Elements : INT ;	//Temp Number of elements
+  t_Off_Start_DSBitRecords : INT ;	//Offset to start DS Bit Records in Comp type DB
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Load Base_Address on temp.
+//AR2 contains the Base_Address. The Base_Address is the start address of the 
+//instance of this block. When using symbolical pointers (P##...) to instance 
+//variables, the Base_Address must be added to it.
+      TAR2  ; // Load Address Register 2   
+      AD    DW#16#FFFFFF; // Filter LSB 3 bytes out
+      T     #t_Base_Address; // Store Base Address on temp
+NETWORK
+TITLE =BA: Separated variables
+//This network contains the variables which are dependend on the function of this 
+//block. These are separated from the code to make modification without searching 
+//through the code possible. When modifying this function block.
+//
+//offsets within 'DB_HMI_Index'
+//00.0:  ComponentID
+//12.0:  Component Type DB Number
+//14.0:  Component Status start address in DB_Status
+//
+//
+//Depending on the function of this block the right offsets to the required 
+//records are loaded on temps, which will be used further on in the code.
+//In case a record at another address must be handled, only this network needs to 
+//be modified.
+      L     P#16.0; // Length of Record as pointer format
+      T     #t_Record_Length_Pointer; 
+
+// Offsets in DB_Status_Index
+
+      L     P#0.0; // Offset in DB_HMI_Index to ID record
+      T     #t_Off_ANY_Inst_ID; 
+
+      L     P#12.0; // Offset in DB_HMI_Index for Type DB Number
+      T     #t_off_ANY_Inst_Type_DB; 
+
+      L     P#14.0; //Offset to ANY_Instance_Status
+      T     #t_Off_ANY_Status_Index; 
+
+      L     P#0.0; // Offset to component type block_DB relative to the status record  //  0.0
+      T     #t_Off_ANY_Inst_Comp; // (P#2.0 = 2 bytes before status record in  datablock DB Status of component)
+
+// Lengths in DB_xxx_Type
+      L     4; // Lenght UDT_DSBit_Rec Record
+      T     #t_UDT_DSBit_Rec_Length; 
+
+NETWORK
+TITLE =CA: Init
+//When the PLC is started or the instance DB is downloaded the search loop is 
+//restarted.
+      O     "M_First_Scan"; // Restart in if the first Scan
+      ON    #s_Done; // To init while download instance
+      JCN   CA01; 
+      S     #s_Done; 
+      S     #s_Init_Search_Loop; 
+      R     #s_Busy_Within_Record; 
+      L     0; // reset within record pointer
+      T     #s_Pntr_To_Status_Bit; 
+
+CA01: SET   ; // Init for this call
+      R     #s_DS_Status; // clear 'Detailed Status' bit 
+NETWORK
+TITLE =DA: Get the num.of records to scan out of i_ANY_Record_ pointers
+//The pointers i_ANY_Record_Start and i_ANY_Record_End are used to define the 
+//amount of components to scan. The pointers are stored in the DB_Record_Handling 
+//as UDTs with a fixed lenght (UDT_Record_Index). 
+//
+//First component to scan = i_ANY_Record_Start = Component number 1
+//Last component to scan = i_ANY_Record_End = Component number N
+//
+//The amount of components to scan (N = s_Total_Num_Of_Comp) can be found in this 
+//way: (Address end pointer - Address start pointer) / Lenght UDT
+      L     P##i_ANY_Record_Start; // Pointer to first record in DB_Record_Handling to scan
+      L     #t_Base_Address; 
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Record_Start_Pnt; // start adress first record in DB_Record_Handling
+
+      L     P##i_ANY_Record_End; // Pointer to last record in DB_Record_Handling to scan
+      L     #t_Base_Address; 
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address 
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Record_End_Pntr; // start adress last record in DB_Record_Handling
+
+      L     #t_Record_End_Pntr; 
+      L     #t_Record_Start_Pnt; 
+      -D    ; 
+      L     #t_Record_Length_Pointer; // lenght of one record in DB_Record_Handling
+      /D    ; 
+      L     1; 
+      +I    ; // increment 1 to compensate for last record 
+      T     #s_Total_Num_Recs; // Total number of compnents to scan      
+NETWORK
+TITLE =EA: Increment to handle next record
+
+      A     #s_Busy_Within_Record; // IF bits within record are checked
+      JC    EA99; // THEN this scan used to check next bit within record
+
+      L     #s_Index_Actual_Rec; //IF all entries are handled ?
+      L     #s_Total_Num_Recs; 
+      >=I   ; 
+      S     #s_Init_Search_Loop; // THEN init to restart search loop
+      JC    EA99; 
+
+      L     #s_Index_Actual_Rec; //Increment the Actual record index
+      +     1; 
+      T     #s_Index_Actual_Rec; 
+
+      L     #s_Rec_Pointer; //Increment Pointer to next record
+      L     #t_Record_Length_Pointer; //With length of record
+      +D    ; 
+      T     #s_Rec_Pointer; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Restart to first record
+
+      A     #s_Init_Search_Loop; // Init search loop (Restart to first record)
+      JCN   FA99; 
+      R     #s_Init_Search_Loop; 
+
+      L     1; // Init to first Index number
+      T     #s_Index_Actual_Rec; 
+
+      L     #t_Record_Start_Pnt; // Pointer to first record
+      T     #s_Rec_Pointer; // Init the Record Pointer to first record
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Record Pointer as Dataword number
+// 
+      L     #s_Rec_Pointer; 
+      SRD   3; //Bit to byte addres
+      T     #s_Rec_DW_Numb; 
+NETWORK
+TITLE =HA: Prepare pointers to Component of record
+// 
+      OPN   "DB_Status_Index"; // DB status index
+
+      L     #s_Rec_Pointer; // Pointer to actual record in DB_HMI_Index
+      L     #t_Off_ANY_Status_Index; 
+      +D    ; 
+      LAR1  ; // Pointer to "Status.ANY_Instance" of actual record
+
+      L     DBW [AR1,P#0.0]; // Load Pointer
+      T     #s_Component_Byte_Adres; 
+      SLD   3; // Convert byte to bit adress
+      T     #s_Component_Rec_Pointer.Pntr; // Start Address
+
+      L     #s_Rec_Pointer; // Pointer to actual record in DB_Record_Handling
+      L     #t_off_ANY_Inst_Type_DB; 
+      +D    ; 
+      LAR1  ; 
+
+      L     DBW [AR1,P#0.0]; 
+      T     #s_Component_Rec_Pointer.Comp_Type_DB_No; // Component type DB Number
+      T     #t_Comp_Typ_DB; // Component type DB Number
+
+      OPN   DB [#t_Comp_Typ_DB]; 
+      L     DBB    1; 
+      BTI   ; 
+      L     8; // Convert BITS to BYTE
+      /I    ; 
+      T     #s_Component_Rec_Pointer.Length; 
+NETWORK
+TITLE =IA: Quick search
+//Via the quick search is checked if any 'detailed-status' bit in the record is 
+//set on DWORD/WORD/BYTE base. 
+//(byte will never occur because S7 reserves always even number of bytes)
+//While reading the data is checked if a any 'detailed-status' bit is set within
+//the record and the ' in present record' is set.
+      L     #s_Component_Rec_Pointer.Length; // Length number of bytes of record
+      T     #t_Nr_Bytes_To_Scan; 
+
+      L     #s_Component_Rec_Pointer.Pntr; // Load the pointer to the first DW of actual record
+      LAR1  ; 
+      T     #t_Stored_AR1; 
+
+      OPN   "DB_Status"; // Open DB ststus
+
+      L     0; 
+      T     #t_Search_Loop_Cntr; // Loop Counter
+      SET   ; 
+      R     #s_DS_Present_In_Record; // Init
+
+IA03: L     #t_Search_Loop_Cntr; // Loop Counter
+      +I    ; 
+      T     #t_Search_Loop_Cntr; // Loop Counter
+
+      L     #t_Nr_Bytes_To_Scan; // Number of Bytes in Input Variable
+      L     #t_Search_Loop_Cntr; // Loop Counter
+      -I    ; 
+      L     4; // IF Number of Bytes - Loop counter is
+      >=I   ; //    greater or equal then 4.
+      JC    IA04; // THEN Copy a DWORD
+      L     #t_Nr_Bytes_To_Scan; // ELSE Number of Bytes in Input Variable
+      L     #t_Search_Loop_Cntr; //   Loop Counter
+      -I    ; 
+      L     2; //   IF Number of Bytes - Loop counter is
+      >=I   ; //      greater or equal then 2.
+      JC    IA05; //   THEN Copy a WORD
+      L     #t_Nr_Bytes_To_Scan; //   ELSE Number of Bytes in Input Variable
+      L     #t_Search_Loop_Cntr; //     Loop Counter
+      -I    ; 
+      L     1; //     IF Number of Bytes - Loop counter is
+      >=I   ; //        greater or equal then 1.
+      JC    IA06; //     THEN Copy a BYTE
+      JU    IA99; //     ELSE ready with coping
+
+IA04: L     DBD [AR1,P#0.0]; // Load the Data of the Data field in Source Block
+      L     0; 
+      <>D   ; 
+      S     #s_DS_Present_In_Record; 
+
+      +AR1  P#4.0; // Increase Adress register 1 with 4 for next data field
+      L     4; // LOAD 4 to add to loop counter
+      JU    IA03; 
+
+IA05: NOP   0; 
+      L     DBW [AR1,P#0.0]; // Load the Data of the Data field in Source Block
+      L     0; 
+      <>I   ; 
+      S     #s_DS_Present_In_Record; 
+
+      +AR1  P#2.0; // Increase Adress register 1 with 2 for next data field
+      L     2; // LOAD 2 to add to loop counter
+      JU    IA03; 
+
+IA06: L     DBB [AR1,P#0.0]; // Load the Data of the Data field in Source Block
+      L     0; 
+      <>I   ; 
+      S     #s_DS_Present_In_Record; 
+
+      +AR1  P#1.0; // Increase Adress register 1 with 1 for next data field
+      L     1; // LOAD 1 to add to loop counter
+      JU    IA03; 
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Found within record
+//IF any 'detailed-status' bit is set within record search within the record is 
+//triggerd.
+      A     #s_DS_Present_In_Record; // IF record contains a 'Detailed status'
+      JC    JA01; // THEN 
+      R     #s_Busy_Within_Record; // ELSE Not busy within record (anymore)
+      L     0; // reset within record pointer
+      T     #s_Pntr_To_Status_Bit; 
+      JU    ZA01; // No 'Detailed status' in this record (skip)
+
+JA01: SET   ; // Search within record
+      S     #s_Busy_Within_Record; 
+
+      L     #t_Nr_Bytes_To_Scan; 
+      L     8; 
+      *I    ; // Multiply x 8 Transform from bytes to bits
+      T     #t_Nr_Bits_To_Scan; // Bits in status record that needs to be scanned 
+NETWORK
+TITLE =KA: Search bit within record
+//Check which bit is set within record
+      L     #t_Stored_AR1; // Create pointer to actual bit in status record
+      L     #s_Pntr_To_Status_Bit; 
+      +D    ; 
+      LAR1  ; 
+
+      A     DBX [AR1,P#0.0]; // IF actual value scanned status bit = "1"
+      =     #s_DS_Status; 
+      JCN   KA01; 
+      L     #s_Pntr_To_Status_Bit; 
+      T     #s_Act_DS_Bit_Number; 
+
+KA01: L     #s_Pntr_To_Status_Bit; // Increment to next bit within record
+      L     1; 
+      +I    ; 
+      T     #s_Pntr_To_Status_Bit; 
+      L     #t_Nr_Bits_To_Scan; // All bits handled ?
+      <I    ; 
+      JC    KA02; 
+      L     0; // IF all bits handled
+      T     #s_Pntr_To_Status_Bit; // clear pointer
+      SET   ; 
+      R     #s_Busy_Within_Record; // Reset busy
+KA02: NOP   0; 
+
+      AN    #s_DS_Status; // IF no detailed status
+      JC    ZA01; // THEN skip
+NETWORK
+TITLE =LA: Check component type DB
+//Check if the component type DB is present and 
+//check if the component type DB has the correct length 
+//(equals actual status length)
+      L     #s_Component_Rec_Pointer.Comp_Type_DB_No; // DB Number for the coponent data type 
+      T     #t_Comp_Typ_DB; 
+
+      L     P##s_Error_Def_Length; // Load pointer to lenght (just after error definition)
+      L     P##s_Error_Definition; // Pointer to error definition
+      -D    ; // Length in bits
+      SRD   3; // Convert length in bytes
+      T     #s_Error_Def_Length; // Length of error definition in bytes 
+
+      L     2; // !!! ( Note to be delete after test) !!!
+      T     #t_Off_Start_DSBitRecords; 
+
+      OPN   DB [#t_Comp_Typ_DB]; // Open component type DB
+      L     DBLG; // Load the lenght of the Comp type DB
+      T     #t_DB_Length; 
+
+      L     #t_DB_Length; // Lenght of Comp. type DB
+      L     #t_Off_Start_DSBitRecords; 
+      -I    ; 
+      L     #s_Error_Def_Length; // Length of ID in bytes 
+      /I    ; 
+      L     #t_Nr_Bits_To_Scan; // Number of bits in status record
+      <>I   ; 
+      =     #t_Comp_Type_Length_Fault; // AND Check if component type DB is long enough / or to long
+
+      A     #t_Comp_Type_Length_Fault; // THEN stop search within record
+      R     #s_DS_Present_In_Record; 
+      R     #s_Busy_Within_Record; 
+      R     #s_Text_Present; 
+      JCN   LA99; 
+// Store to monitor in case of incorrect 'Component type DB'
+      L     #s_Index_Actual_Rec; // Index to actual record in DB_Record_Handling
+      T     #s_Monitor.Comp_Type_DB_Fault.Record_Index; 
+      L     #s_Rec_DW_Numb; // Pointer to actual record in DB_Record_Handling
+      T     #s_Monitor.Comp_Type_DB_Fault.Record_DW_Numb; 
+      L     #t_Comp_Typ_DB; 
+      T     #s_Monitor.Comp_Type_DB_Fault.Comp_Typ_DB_Numb; 
+
+      A     #t_Comp_Type_Length_Fault; 
+      JC    ZA01; // Incorrect 'Component type DB' (Skip) componet
+LA99: NOP   0; 
+NETWORK
+TITLE =MA: Check text list number
+//Get error text list number and check if error must be displayed.
+//
+      CALL "FC_HMI_Get_TxtListNo" (
+           i_DB_Number              := #t_Comp_Typ_DB,
+           i_Pntr_To_Actual_Bit     := #s_Act_DS_Bit_Number,
+           i_Off_Start_DSBitRecords := #t_Off_Start_DSBitRecords,
+           o_TxtListNumber          := #t_HMI_Text_Number);
+
+      A(    ; // IF text number in range 0..1500
+      L     #t_HMI_Text_Number; 
+      L     0; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_HMI_Text_Number; 
+      L     1500; 
+      <=I   ; 
+      )     ; 
+      =     #t_Text_In_Range; // Low range text
+
+      A     #t_Text_In_Range; // IF
+      =     #s_Text_Present; // THEN text number present
+
+      L     #t_HMI_Text_Number; // IF valid text list number then ...
+      A     #s_Text_Present; 
+      JC    MA99; 
+      L     0; // ELSE clear
+MA99: T     #s_Act_HMI_Text_Number; 
+NETWORK
+TITLE =ZA: End => update output
+
+ZA01: A     #s_DS_Status; // IF 'Detail Status' found within record
+      A     #s_Text_Present; // And it has a valid text list number
+      =     #o_DS_Status; // THEN 'Deatail Status' present is found.
+      JCN   ZA02; 
+      L     #s_Rec_DW_Numb; // Found First Data Word number of record in "DB_HMI_Index"
+      T     #o_Pntr; 
+
+      L     #s_Act_DS_Bit_Number; // Found Datail Status bit number within record [0..x]
+      T     #o_Pntr_To_Actual_Bit; 
+
+      JU    ZA99; 
+ZA02: L     0; // ELSE clear
+      T     #o_Pntr; 
+      T     #o_Pntr_To_Actual_Bit; 
+ZA99: NOP   0; 
+END_FUNCTION_BLOCK
+

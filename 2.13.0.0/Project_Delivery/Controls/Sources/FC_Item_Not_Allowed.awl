@@ -1,0 +1,202 @@
+FUNCTION "FC_Item_Not_Allowed" : VOID
+TITLE =%version: 1.03 % CN: 33
+//FUNCTION:
+//This module checks if an item that is not allowed for the configured direction 
+//is passing a configured window in the PLT DB.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:08:09 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.03
+//21918: Item not allowed check direction modified      nlHdL    30-04-15   1.03
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.04 of PLT version 0
+//
+//Description:
+//This module checks if an item that is not allowed for the configured direction 
+//is passing a configured window in the PLT DB.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_DB_Event_Num : INT ;	//Number of DB event
+  i_CFG_Direction : INT ;	//CFG: [Dir] Direction to compare with the taken direction  
+  i_CFG_UnSecure_Not_Allow : INT ;	//CFG: [Dir] Direction where unsecure Items are not allowed. Dir 1 or 2 or 'don't
+  i_CFG_Dimen_SC_Not_Allow : INT ;	//CFG: [Dir] Direction where SC bags are not allowed. Direction 1 or 2 or 'don't 
+  i_CFG_Position : INT ;	//CFG: [cm] Position in PLT
+  i_CFG_Window : INT ;	//CFG: [cm] Window in PLT
+END_VAR
+VAR_OUTPUT
+  o_ST_Not_Allowed_Item : BOOL ;	//ST: Detected item is not allowed in this direction
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Unused integer
+  t_Number_Items_Found : INT ;	//Number of items found in PLT
+  t_LNK : INT ;	//LNK number from PLT DB
+  t_LIC : INT ;	//LIC number of the corresponding LNK
+  t_ECS : INT ;	//ECS number of the corresponding LNK
+  t_SuccesDirTaken : INT ;	//Succesful Direction Taken from ECS list
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_PEC_Latch : BOOL ;	//PEC Latch signal from PLT DB
+  t_Item_Allowed : BOOL ;	//When TRUE item is allowed
+  t_Item_Secure : BOOL ;	//When TRUE item is secure
+  t_Item_Class_ST : BOOL ;	//When TRUE item class is standard
+  t_Section_Run : BOOL ;	//Section run
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+//Read all required parameters from the PLT DB and CLEAR o_ST_Not_Allowed_Item
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      OPN   DB [#t_PLT_DB_Nr]; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; 
+
+      A     DBX   10.7; 
+      =     #t_PEC_Latch; 
+
+      CLR   ; 
+      =     #o_ST_Not_Allowed_Item; 
+
+      SET   ; 
+      =     #t_Item_Allowed; 
+
+NETWORK
+TITLE =BA: Search for items in PLT DB
+//Search for items in PLT DB. When no items are found the block is ended.
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #i_DB_PLT_Num,
+           i_Position               := #i_CFG_Position,
+           i_Window                 := #i_CFG_Window,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Number_Items_Found);
+
+// IF No entries found then Block End
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      A     #t_Section_Run; 
+      BEC   ; 
+
+      L     #t_Number_Items_Found; 
+      L     0; 
+      ==I   ; 
+      O(    ; 
+      AN    #t_PEC_Latch; 
+      AN    #t_Section_Run; 
+      )     ; 
+      BEC   ; 
+
+NETWORK
+TITLE =CA: Determine ECS and LIC number and read info from ECS record
+
+      NOP   0; 
+//Read ECS and LIC number assigned to found LNK
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".ECS,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_ECS);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+//Read information from ECS record
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_ECS,
+           i_P_INT_Record           := "DB_UDT_ECS_Record".Routing_Result.SuccesDirTaken,
+           i_DB                     := "DB_ECS_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_SuccesDirTaken);
+
+NETWORK
+TITLE =DA: Check if the item is allowed
+//This network checks if the item is allowed for the set direction. If the item 
+//has a LNK value of 0 the item is marked as not allowed.
+      NOP   0; 
+
+//End block when the direction taken is equal to the configured direction
+      L     #t_SuccesDirTaken; 
+      L     #i_CFG_Direction; 
+      ==I   ; 
+      BEC   ; 
+
+//Check security status of item
+      L     #i_CFG_UnSecure_Not_Allow; // IF Positive (filled with a direction)
+      L     0; 
+      >I    ; 
+      A(    ; 
+      L     #i_CFG_Direction; 
+      L     #i_CFG_UnSecure_Not_Allow; 
+      ==I   ; 
+      )     ; 
+      JCN   DA01; 
+
+      CALL "FC_Security_Check" (
+           i_LIC                    := #t_LIC,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Item_Secure            := #t_Item_Secure);
+
+      AN    #t_Item_Secure; 
+      R     #t_Item_Allowed; 
+
+//Check physical class of item
+DA01: L     #i_CFG_Dimen_SC_Not_Allow; // IF Positive (filled with a direction)
+      L     0; 
+      >I    ; 
+      A(    ; 
+      L     #i_CFG_Direction; 
+      L     #i_CFG_Dimen_SC_Not_Allow; 
+      ==I   ; 
+      )     ; 
+      JCN   DA02; 
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #t_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Physical_Class_ST,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Item_Class_ST);
+
+      AN    #t_Item_Class_ST; 
+      R     #t_Item_Allowed; 
+
+//IF there is no LNK number item is not allowed
+DA02: L     #t_LNK; 
+      L     0; 
+      ==I   ; // If LNK number = 0
+      R     #t_Item_Allowed; // RESET Item secure
+NETWORK
+TITLE =EA: Make status not allowed item
+//When a not allowed item is found and the PEC is latched the not allowed item 
+//status will be active.
+      NOP   0; 
+
+      AN    #t_Item_Allowed; // AND item is NOT secure
+      A     #t_PEC_Latch; // AND PEC is latched
+      =     #o_ST_Not_Allowed_Item; // SET status bag not allowed
+
+END_FUNCTION
+

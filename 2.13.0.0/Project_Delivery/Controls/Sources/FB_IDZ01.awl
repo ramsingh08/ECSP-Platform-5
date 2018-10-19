@@ -1,0 +1,539 @@
+FUNCTION_BLOCK "FB_IDZ01"
+TITLE =%version: 0.45 % CN: 60 
+//Function:
+//- Identification Zone (IDZ-01)
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, October 16, 2017 8:34:20 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#25562: Remove degraded input BSO of IDZ            nlHdL    16-10-17   0.45
+//ra#24634: Update DAT Layer                            nlHdL    01-09-17   0.44
+//ra#47812: Flow control configuration                  nlJClo   24-01-17   0.43
+//ra#18817: Clear PLT function Update                   inajos   06-12-16   0.42
+//ra#17285:changed FAM name to RAW                      nlJClo   22-09-16   0.41
+//ra#15587: Update Tracking block of IDZ01              nlHdL    19-07-16   0.40
+//ra#15587: Add current IDZ to lib as base for flex zo  nlHdL    12-07-16   0.39
+//ra#15587: Add current IDZ to lib as base for flex zo  nlHdL    12-07-16   0.39
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.39
+//18028: Modify HardWare block LMS for Eaton Siemens    nlHdL    08-05-14   0.39
+//17442: Generic block for handling Fieldbus device     nlHdL    18-04-14   0.38
+//12269: CFG_Record_Type removed. Default LNK           nlHdL    09-01-14   0.37
+//16765: Change E-save symbol no common sett            nlHdL    16-12-13   0.36
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.35
+//PR15114 UDT sett.TRS1 changed for UDT_EQP_Basic_Sett  nlple    05-09-13   0.34
+//CR13606: Add CFG LM Send No message on LPN identical. nlHdL    22-04-13   0.33
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.32
+//PR10014 Add Start-Up distance to block call           nlHdL    12-09-12   0.31
+//CR10001 Remove PEC TRS1 (Slave) to be conform JES     nlple    29-05-12   0.30
+//PR9153 Disable command on zone level (conveyor mode)  nlHdL    06-04-12   0.29
+//PR9832 Added Section ID on basic block in zone        nlHdL    06-04-12   0.28
+//PR9153 Added BSO Disable command (conveyor mode)      nlHdL    06-04-12   0.27
+//CR7918 Init cascade if i_Cascade_Delay_Time = 0       nlHHop   26-03-12   0.26
+//CR8536 Dedicated IO available sections/object         nlple    14-12-11   0.25 
+//CR7243 changed i_Previous_Offset > i_Dwnstr_PLT_Pos   nlHdL    05-07-11   0.24
+//Added zone iinputs default record and halt TRS1, TRS2 nlHdL    24-03-11   0.23
+//CR6340 Added input default record                     nlple    27-01-11   0.22
+//CR6319 Added ST PEC missing in req.stop sections      nlple    26-01-11   0.21
+//Update IDZ according KIEV                             nlJBax   11-01-11   0.20
+//Changed delay on, off and min prod length
+//ATR -> BSO Blockcall                                  nlJBax   26-10-10   0.19
+//ATR -> BSO                                            nlJBax   26-10-10   0.18
+//Remove input "CFG_Del_Empty_Window_Code"              nlMRE    25-10-10   0.16
+//PR5827: UDT_XXX_Sett for all sections in the zone     nlMRe    22-10-10   0.15
+//SAC reporting block for ATR object added              inPNa    29-09-10   0.14  
+//CR7515 Update block call Hardware with statisticals   nlHdL    24-09-10   0.13
+//Added ID, EXT-Inputs & EXT-Outputs                    inPNa    23-09-10   0.12
+//WP5260 Added i_CMD_Send_Stat                          nlHdL    20-09-10   0.11
+//Update block interfaces                               nlMRe    17-09-10   0.10
+//Modified according to Coding Convention               inPNa    16-09-10   0.09
+//Added ID in zone level for Data layer                 inPNa    16-09-10   0.08
+//Implemented data Layer                                inPNa    16-09-10   0.07
+//Modified according to Coding Convention               inPNa    15-09-10   0.06
+//Update after interface change                         nlMRe    08-09-10   0.05
+//PR5566 Remove i_ID                                    nlMRe    24-08-10   0.04
+//PR5403 Latest modified block                          inPNa    29-07-10   0.03
+//PR5403 Revision equipment block                       inPNa    19-07-10   0.02
+//Upload all software                                   inPNa    09-07-10   0.01
+//Initial version                                       inPNa    09-07-10   1
+//
+//Description:
+//The TRS1 is slave conveyor follow the Master conveyor TRS2
+//The TRS2 will be controlled with the following transport control functions:
+//- Window control
+//- Gap control
+//- Flap filtering
+//- Die-back control
+//- Energy saving
+//- Cascade starting
+//- Delay start-up after die-back
+//- Run signal equipment
+//- Flow Control
+//- Energy Saving
+//- Displacement
+//- External interfacing
+//- Tracking
+//The hardware LMS block fulfils the following functions:
+//- Monitoring ASI address (not present/error)
+//- Monitoring motor connection
+//- Monitoring LMS healthy
+//- Run motor signal
+//  
+//The ATR Barcode scanner object fullfill the following function
+//- when there is a new data available in " DB_ATR_Data_Sick", evaluate the data 
+//& according to the Mode & action table it will handle the LPC data. 
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_CMD_Enable : BOOL ;	//CMD: Enable command
+  i_CMD_Start : BOOL ;	//CMD: Start command
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CMD_Send_Stat : BOOL ;	//CMD: Send Statistical
+  i_CMD_Disable : BOOL ;	//CMD: Disable mode (Overrule BSO)
+  i_Safety_OK : BOOL ;	//Safety is OK signal
+  i_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_BSO_Setting : "UDT_BSO_Sett";	//Data Structure: Setting Record
+  i_BSO_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_BSO_Data_DB : BLOCK_DB ;	//Data Structure: Interface Data Block SICK Scanner
+  i_BSO_CFG_Heartbeat_Time : INT  := 60;	//CFG: [sec]The time between heartbeat signals from the scanner
+  i_BSO_CFG_Airport_No : INT ;	//CFG: Unique Airport Number
+  i_BSO_CFG_LM : BOOL ;	//HLC message for LM or SAC. LM No messages LPC equal
+  i_BSO_FieldB_NotPrsnt : BOOL ;	//Fieldbus Slave has an error
+  i_BSO_FieldB_Err : BOOL ;	//Fieldbus Slave is not present	
+  i_TRS1_Setting : "UDT_EQP_Basic_Sett";	//Data Structure: Setting Record TRS1
+  i_TRS1_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS1_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS1
+  i_TRS1_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS1_CFG_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_TRS1_CFG_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_TRS1_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS1_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_TRS1_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS1_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS1_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS1_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_TRS1_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+  i_TRS2_Setting : "UDT_TRS_Trk1dir_Sett";	//Data Structure: Setting Record TRS2
+  i_TRS2_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_TRS2_DB_PLT : BLOCK_DB ;	//Data Structure: Position DataBlock TRS2
+  i_TRS2_DB_PLT_Downstr : BLOCK_DB ;	//Data Structure: Position DataBlock Downstream section
+  i_TRS2_CFG_Conv_Speed : INT ;	//CFG: [mm/sec] Conveyor Speed
+  i_TRS2_CFG_Run_Out_Dist : INT  := 14;	//CFG: [cm] Run out distance for the section
+  i_TRS2_CFG_Start_Up_Dist : INT  := 7;	//CFG: [cm] Distance from standstill to nominal speed.
+  i_TRS2_CFG_Default_Rec : INT ;	//CFG: Number of default record to be used to create link.
+  i_TRS2_Minimum_Gap : INT ;	//[cm] TRS2 Minimum gap length between products (0 = no gap control) 
+  i_TRS2_Add_Gap_Stop : INT ;	//[cm] TRS2 Additional gap after stop of upstream conveyor
+  i_TRS2_Minimum_H2H : INT ;	//[cm] TRS2 Minimum head to head length (0 = no head to head control)
+  i_TRS2_Add_H2H_Stop : INT ;	//[cm] TRS2 Additional head to head length after stop of upstream conveyor
+  i_TRS2_Available_IO : BOOL ;	//Signal for indication IO is OK (no Fieldbus or IO error)
+  i_TRS2_LMS_NotPrsnt : BOOL ;	//HW: Section ASI LMS is not present
+  i_TRS2_LMS_Error : BOOL ;	//HW: Section ASI LMS has an error
+  i_TRS2_IO_NOT_PEC : BOOL ;	//HW: Fail safe signal of Photo Electric Cell (TRUE=No product detected)
+  i_TRS2_IO_LMS_Auto : BOOL ;	//HW: Switch of Local Motor Starter is in 'Automatic' position
+  i_TRS2_IO_LMS_Healthy : BOOL ;	//HW: "Healthy signal" of Local Motor Starter
+  i_TRS2_Ext_Dis_Send : BOOL ;	//Request signal from external disable send products
+  i_TRS2_Ext_Req_Halt : BOOL ;	//Request signal from external to halt (no restart needed)
+END_VAR
+VAR_OUTPUT
+  o_Ready_To_Restart : BOOL ;	//Ready To Restart to system control
+  o_ST_Disabled : BOOL ;	//ST: Disabled mode activated (Conveyor Mode)
+  o_BSO_Scanner_Trigger : BOOL ;	//Trigger Signal to SICK Scanner 		
+  o_BSO_ST_Scanner_Warning : BOOL ;	//ST: Scanner Warning
+  o_BSO_ST_Scanner_Error : BOOL ;	//ST: Scanner Error
+  o_BSO_ST_Comm_Error : BOOL ;	//ST: No communication with scanner
+  o_BSO_ST_Multiple_Read : BOOL ;	//ST: Multiple read has been received
+  o_BSO_ST_No_Read : BOOL ;	//ST: The scanner data was a no-read
+  o_BSO_ST_No_Data_Recv : BOOL ;	//ST: No-data was received
+  o_BSO_ST_Unex_Data_Recv : BOOL ;	//ST: Unexpected data has been received
+  o_BSO_ST_DP_NotPrsnt : BOOL ;	//ST: Fieldbus Slave not present
+  o_BSO_ST_DP_Error : BOOL ;	//ST: Fieldbus Slave error
+  o_BSO_ST_Succ_No_Read : BOOL ;	//ST: Too many successive no-reads situations have occured
+  o_BSO_ST_Succ_No_Dat_Rec : BOOL ;	//ST: Too many successive no-data situations have occured
+  o_BSO_ST_Suc_Unex_Dat_Rc : BOOL ;	//ST: Too many successive unexpected-data situations have occured
+  o_BSO_ST_Inva_Data_Recv : BOOL ;	//ST: Invalid-data was received
+  o_TRS1_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS1_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS1_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS1_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS1_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS1_ST_Started : BOOL ;	//ST: Started
+  o_TRS1_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS1_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS1_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS1_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_TRS1_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS1_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS1_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+  o_TRS2_IO_MTR_Fwd : BOOL ;	//HW: Run signal to motor forward of conveyor
+  o_TRS2_IO_MTR_Rev : BOOL ;	//HW: Run signal to motor reverse of conveyor
+  o_TRS2_IO_Disable_QS : BOOL ;	//HW: Disable quick stop function
+  o_TRS2_ST_PEC_Blk : BOOL ;	//ST: PEC Blockage
+  o_TRS2_ST_Items : BOOL ;	//ST: Items present on section
+  o_TRS2_ST_Running : BOOL ;	//ST: Section is running
+  o_TRS2_ST_Started : BOOL ;	//ST: Started
+  o_TRS2_ST_Req_Halt : BOOL ;	//ST: Request Halt
+  o_TRS2_ST_Req_Stop : BOOL ;	//ST: Request Stop
+  o_TRS2_ST_ASI_NotPrsnt : BOOL ;	//ST: ASI slave is not present
+  o_TRS2_ST_ASI_Err : BOOL ;	//ST: ASI slave has an error
+  o_TRS2_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  o_TRS2_ST_LMS_Not_Hthy : BOOL ;	//ST: The local motor starter is reporting not Healthy
+  o_TRS2_ST_PEC_Miss : BOOL ;	//ST: PEC successive missings
+  o_TRS2_ST_Badtrack : BOOL ;	//ST: TRS1 Update tracking performance is below warning level
+  o_TRS2_EXT_Outputs : "UDT_External_Outputs";	//External Outputs
+END_VAR
+VAR
+  s_TRS1 : STRUCT 	//Data structure
+   Req_Motor_Forward : BOOL ;	//Request to run the motor to HW
+   PEC_Position : INT ;	//Total position of the PEC
+   LPOS : INT ;	//Position of the bag
+   Req_Stop : BOOL ;	//Request stop to the basic
+  END_STRUCT ;	
+  s_TRS1_FB_EQP_Basic : "FB_EQP_Basic";	//Data structure
+  s_TRS1_FB_HW_MTR_LMS : "FB_HW_MTR_LMS";	//Data structure
+  s_TRS1_FB_DAT : "FB_DAT";	//Data structure
+  s_TRS2 : STRUCT 	//Data structure
+   Req_Motor_Forward : BOOL ;	//Request to run the motor to HW
+   PEC_Position : INT ;	//Total position of the PEC
+   LPOS : INT ;	//Position of the bag
+   Req_Stop : BOOL ;	//Request stop to the basic
+  END_STRUCT ;	
+  s_TRS2_FB_EQP_PEC : "FB_EQP_PEC";	//Data structure
+  s_TRS2_FB_EQP_Basic : "FB_EQP_Basic";	//Data structure
+  s_TRS2_FB_TRK_Track : "FB_TRK_Track";	//Data structure
+  s_TRS2_FB_HW_MTR_LMS : "FB_HW_MTR_LMS";	//Data structure
+  s_TRS2_FB_DAT : "FB_DAT";	//Data structure
+  s_BSO_FB_BSO_SICK : "FB_BSO_SICK";	//Data structure
+  s_BSO_FB_DAT : "FB_DAT";	//Data structure
+  s_TRS1_Ready_To_Restart : BOOL ;	//TRS1 Ready To Restart to system control
+  s_TRS2_Ready_To_Restart : BOOL ;	//TRS2 Ready To Restart to system control
+  s_BSO_Ready_To_Restart : BOOL ;	//BSO Ready To Restart to system control
+  s_BSO_Halt_TRS : BOOL ;	//BSO Halt requested to TRS
+  s_TRS1_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+  s_TRS2_ST_LMS_Not_Auto : BOOL ;	//ST: The local motor starter is reporting not Automatic
+END_VAR
+VAR_TEMP
+  t_Update_performance : INT ;	//STAT: [%] Ratio between succesful updates and missings
+  t_Average_Slip : INT ;	//STAT: [cm] Average slip
+  t_Number_Of_Items : INT ;	//STAT: [#] Number of baggage items that reached the update PEC
+  t_Data_Last_Updated : INT ;	//Data Last updated
+  t_Position_Last_Update : INT ;	//Position Last updated
+  t_Deviation_Last_Update : INT ;	//Deviation Last update
+  t_TRS2_Request_Halt : BOOL ;	//Request Halt for TRS2
+  t_OS_Data_Updated : BOOL ;	//Data at the outputs has been updated
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: TRS1 Transport section-1 Slave conveyor
+// External stop request
+      A     #o_TRS1_ST_ASI_NotPrsnt; 
+      O     #o_TRS1_ST_ASI_Err; 
+      O     #o_TRS1_ST_LMS_Not_Hthy; 
+      O     #o_TRS1_ST_LMS_Not_Auto; 
+      =     #s_TRS1.Req_Stop; 
+
+// Call Equipment
+      CALL #s_TRS1_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS1_ID,
+           i_Basic_Offset           := #i_TRS1_Setting.Offset,
+           i_DB_PLT                 := #i_TRS1_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS1_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS1_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #i_TRS1_CFG_Start_Up_Dist,
+           i_Minimum_Gap            := 0,
+           i_Add_Gap_Stop           := 0,
+           i_Minimum_H2H            := 0,
+           i_Add_H2H_Stop           := 0,
+           i_CFG_Cascade_Delay_Time := 0,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS1.PEC_Position,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := TRUE,
+           i_CFG_Del_Window_Codes   := TRUE,
+           i_Available_IO           := #i_TRS1_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS1.Req_Stop,
+           i_Ext_Req_Halt           := #i_TRS1_Ext_Req_Halt,
+           i_Ext_Req_Dis_Send       := FALSE,
+           i_Ext_Req_Rst_ESave      := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #s_TRS1_ST_LMS_Not_Auto,
+           o_External               := #o_TRS1_EXT_Outputs,
+           o_Motor_Run              := #s_TRS1.Req_Motor_Forward,
+           o_ST_Items               := #o_TRS1_ST_Items,
+           o_ST_Running             := #o_TRS1_ST_Running,
+           o_ST_Started             := #o_TRS1_ST_Started,
+           o_ST_Request_Halt        := #o_TRS1_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS1_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS1_Ready_To_Restart);
+
+// Call Hardware
+      CALL #s_TRS1_FB_HW_MTR_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_TRS1_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS1_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS1_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS1_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS1_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS1.Req_Motor_Forward,
+           o_IO_MTR_Fwd             := #o_TRS1_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_TRS1_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS1_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_TRS1_ST_ASI_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS1_ST_ASI_Err,
+           o_ST_LMS_Not_Auto        := #s_TRS1_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS1_ST_LMS_Not_Hthy);
+
+//Copy Static to Output
+      A     #s_TRS1_ST_LMS_Not_Auto; 
+      =     #o_TRS1_ST_LMS_Not_Auto; 
+
+//Data to SAC
+      CALL #s_TRS1_FB_DAT (
+           i_ID_Section             := #i_TRS1_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =BA: TRS2 Transport section-2 Master conveyor
+
+      CALL #s_TRS2_FB_EQP_PEC (
+           i_Setting                := #i_TRS2_Setting.PEC_1D,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Dwnstr_PLT_Pos         := 0,
+           i_CFG_Blockage_Length    := 250,
+           i_CFG_Delay_On_Filter    := 0,
+           i_CFG_Delay_Off_Filter   := 20,
+           i_CFG_Min_Product_Length := 0,
+           i_CFG_Preset_PEC_Latch   := #s_TRS2_ST_LMS_Not_Auto,
+           i_CFG_Track_Present      := TRUE,
+           i_CFG_Reset_Block_PEC_Oc := FALSE,
+           i_IO_NOT_PEC             := #i_TRS2_IO_NOT_PEC,
+           i_Eqp_Available_IO       := #i_TRS2_Available_IO,
+           i_CMD_Reset              := #i_CMD_Reset,
+           o_LPOS                   := #s_TRS2.LPOS,
+           o_PEC_Position           := #s_TRS2.PEC_Position,
+           o_ST_PEC_Blk             := #o_TRS2_ST_PEC_Blk);
+
+//Halt requested
+      A     #i_CMD_Start; 
+      R     #s_BSO_Halt_TRS; 
+
+      A     #o_BSO_ST_Scanner_Error; 
+      A     #o_BSO_ST_DP_NotPrsnt; 
+      A     #o_BSO_ST_DP_Error; 
+      A     #o_BSO_ST_Succ_No_Read; 
+      A     #o_BSO_ST_Succ_No_Dat_Rec; 
+      A     #o_BSO_ST_Suc_Unex_Dat_Rc; 
+      A     #o_BSO_ST_Inva_Data_Recv; 
+      A     #o_BSO_ST_Comm_Error; 
+      AN    #i_CMD_Disable; 
+      S     #s_BSO_Halt_TRS; 
+
+      A     #i_TRS2_Ext_Req_Halt; 
+      O     #s_BSO_Halt_TRS; 
+      =     #t_TRS2_Request_Halt; 
+
+// External stop request
+      A     #o_TRS2_ST_PEC_Blk; 
+      O     #o_TRS2_ST_ASI_NotPrsnt; 
+      O     #o_TRS2_ST_ASI_Err; 
+      O     #o_TRS2_ST_LMS_Not_Hthy; 
+      O     #o_TRS2_ST_LMS_Not_Auto; 
+      O     #o_TRS2_ST_PEC_Miss; 
+      =     #s_TRS2.Req_Stop; 
+
+// Call Equipment  
+      CALL #s_TRS2_FB_EQP_Basic (
+           i_ID_Section             := #i_TRS2_ID,
+           i_Basic_Offset           := #i_TRS2_Setting.Basic.Offset,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_DB_PLT_DwnStr          := #i_TRS2_DB_PLT_Downstr,
+           i_DB_Event               := "DB_Event_Section",
+           i_CFG_Conveyor_Speed     := #i_TRS2_CFG_Conv_Speed,
+           i_CFG_Run_Out_Distance   := #i_TRS2_CFG_Run_Out_Dist,
+           i_CFG_Start_Up_Distance  := #i_TRS2_CFG_Start_Up_Dist,
+           i_Minimum_Gap            := #i_TRS2_Minimum_Gap,
+           i_Add_Gap_Stop           := #i_TRS2_Add_Gap_Stop,
+           i_Minimum_H2H            := #i_TRS2_Minimum_H2H,
+           i_Add_H2H_Stop           := #i_TRS2_Add_H2H_Stop,
+           i_CFG_Cascade_Delay_Time := 300,
+           i_CFG_Strt_Up_T_E_Save   := "DB_Setting".common.Start_Up_Time_E_Save,
+           i_CFG_Run_Out_E_Save     := "DB_Setting".common.Run_Out_Time_E_Save,
+           i_CFG_Stop_T_E_Save      := "DB_Setting".common.Stop_Time_E_Save,
+           i_PPI_Displacement       := 0,
+           i_Dwnstr_PLT_Pos         := #s_TRS2.PEC_Position,
+           i_CFG_Disbl_E_Save       := "DB_Setting".common.Disable_Energy_Saving,
+           i_CFG_Slave_Mode         := FALSE,
+           i_CFG_Del_Window_Codes   := FALSE,
+           i_Available_IO           := #i_TRS2_Available_IO,
+           i_Safety_OK              := #i_Safety_OK,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_Ext_Req_Stop           := #s_TRS2.Req_Stop,
+           i_Ext_Req_Halt           := #t_TRS2_Request_Halt,
+           i_Ext_Req_Dis_Send       := #i_TRS2_Ext_Dis_Send,
+           i_Ext_Req_Rst_ESave      := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_Clr_PLT_Data           := #s_TRS2_ST_LMS_Not_Auto,
+           o_External               := #o_TRS2_EXT_Outputs,
+           o_Motor_Run              := #s_TRS2.Req_Motor_Forward,
+           o_ST_Items               := #o_TRS2_ST_Items,
+           o_ST_Running             := #o_TRS2_ST_Running,
+           o_ST_Started             := #o_TRS2_ST_Started,
+           o_ST_Request_Halt        := #o_TRS2_ST_Req_Halt,
+           o_ST_Request_Stop        := #o_TRS2_ST_Req_Stop,
+           o_Ready_To_Restart       := #s_TRS2_Ready_To_Restart);
+
+// Call Tracking 
+      CALL #s_TRS2_FB_TRK_Track (
+           i_Setting                := #i_TRS2_Setting.Tracking,
+           i_DB_PLT                 := #i_TRS2_DB_PLT,
+           i_Event_DB               := "DB_Event_Section",
+           i_Position_PEC_Update    := #s_TRS2.PEC_Position,
+           i_LPOS                   := #s_TRS2.LPOS,
+           i_Length_Dif_Accepted    := 0,
+           i_CFG_Num_Missing_Error  := 3,
+           i_CFG_Upd_Perf_WN_Level  := 80,
+           i_CFG_Weighing_Factor    := 10,
+           i_CFG_Default_Record     := #i_TRS2_CFG_Default_Rec,
+           i_Trigger_Send_Stat      := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CFG_Clear_Double_Data  := FALSE,
+           i_OS_Direction_Change    := FALSE,
+           i_HW_MTR_Not_Auto        := #s_TRS2_ST_LMS_Not_Auto,
+           o_ST_PEC_Miss            := #o_TRS2_ST_PEC_Miss,
+           o_ST_PEC_BadTrack        := #o_TRS2_ST_Badtrack,
+           o_Update_Performance     := #t_Update_performance,
+           o_Average_Slip           := #t_Average_Slip,
+           o_Number_Of_Items        := #t_Number_Of_Items,
+           o_OS_Data_Updated        := #t_OS_Data_Updated,
+           o_Data_Last_Update       := #t_Data_Last_Updated,
+           o_Position_Last_Update   := #t_Position_Last_Update,
+           o_Deviation_Last_Update  := #t_Deviation_Last_Update);
+
+// Call Hardware
+      CALL #s_TRS2_FB_HW_MTR_LMS (
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_Event_DB               := "DB_Event_Section",
+           i_Available_IO           := #i_TRS2_Available_IO,
+           i_Quick_Stop             := FALSE,
+           i_LMS_NotPrsnt           := #i_TRS2_LMS_NotPrsnt,
+           i_LMS_Error              := #i_TRS2_LMS_Error,
+           i_IO_LMS_Auto            := #i_TRS2_IO_LMS_Auto,
+           i_IO_LMS_Healthy         := #i_TRS2_IO_LMS_Healthy,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_CMD_Req_Motor_Forward  := #s_TRS2.Req_Motor_Forward,
+           o_IO_MTR_Fwd             := #o_TRS2_IO_MTR_Fwd,
+           o_IO_MTR_Rev             := #o_TRS2_IO_MTR_Rev,
+           o_IO_MTR_Dis_Quick_Stop  := #o_TRS2_IO_Disable_QS,
+           o_ST_ASI_NotPrsnt        := #o_TRS2_ST_ASI_NotPrsnt,
+           o_ST_ASI_Err             := #o_TRS2_ST_ASI_Err,
+           o_ST_LMS_Not_Auto        := #s_TRS2_ST_LMS_Not_Auto,
+           o_ST_LMS_Not_Hthy        := #o_TRS2_ST_LMS_Not_Hthy);
+
+
+//Copy Static to Output
+      A     #s_TRS2_ST_LMS_Not_Auto; 
+      =     #o_TRS2_ST_LMS_Not_Auto; 
+
+
+//Data to SAC
+      CALL #s_TRS2_FB_DAT (
+           i_ID_Section             := #i_TRS2_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =CA: Automatic Tag Reader Object
+// 
+      CALL #s_BSO_FB_BSO_SICK (
+           i_BSO_Data_DB            := #i_BSO_Data_DB,
+           i_TRS1_PLT_DB            := #i_TRS1_DB_PLT,
+           i_TRS2_PLT_DB            := #i_TRS2_DB_PLT,
+           i_DB_Event               := "DB_Event_Section",
+           i_Setting                := #i_BSO_Setting,
+           i_CFG_Num_No_Read_Error  := 3,
+           i_CFG_Num_No_Data_Err    := 3,
+           i_CFG_Num_Unexp_Data_Err := 3,
+           i_CFG_Heartbeat_Interval := #i_BSO_CFG_Heartbeat_Time,
+           i_CFG_Airport_No         := #i_BSO_CFG_Airport_No,
+           i_CFG_LM                 := #i_BSO_CFG_LM,
+           i_Safety_OK              := #i_Safety_OK,
+           i_Available_IO           := #i_Available_IO,
+           i_CMD_Enable             := #i_CMD_Enable,
+           i_CMD_Start              := #i_CMD_Start,
+           i_CMD_Send_Stat          := #i_CMD_Send_Stat,
+           i_CMD_Reset              := #i_CMD_Reset,
+           i_FieldB_NotPrsnt        := #i_BSO_FieldB_NotPrsnt,
+           i_FieldB_Error           := #i_BSO_FieldB_Err,
+           o_ST_Scanner_Warning     := #o_BSO_ST_Scanner_Warning,
+           o_ST_Scanner_Error       := #o_BSO_ST_Scanner_Error,
+           o_ST_Multiple_Read       := #o_BSO_ST_Multiple_Read,
+           o_ST_No_Read             := #o_BSO_ST_No_Read,
+           o_ST_No_Data_Recv        := #o_BSO_ST_No_Data_Recv,
+           o_ST_Unex_Data_Recv      := #o_BSO_ST_Unex_Data_Recv,
+           o_ST_FieldB_NotPrsnt     := #o_BSO_ST_DP_NotPrsnt,
+           o_ST_FieldB_Error        := #o_BSO_ST_DP_Error,
+           o_ST_Succ_No_Read        := #o_BSO_ST_Succ_No_Read,
+           o_ST_Succ_No_Data_Rec    := #o_BSO_ST_Succ_No_Dat_Rec,
+           o_ST_Succ_Unex_Data_Rec  := #o_BSO_ST_Suc_Unex_Dat_Rc,
+           o_ST_Inva_Data_Recv      := #o_BSO_ST_Inva_Data_Recv,
+           o_ST_Communication_Error := #o_BSO_ST_Comm_Error,
+           o_Ready_To_Restart       := #s_BSO_Ready_To_Restart,
+           o_Scanner_Trigger        := #o_BSO_Scanner_Trigger);
+
+//Data to SAC
+      CALL #s_BSO_FB_DAT (
+           i_ID_Section             := #i_BSO_ID,
+           i_DB_Event               := "DB_Event_Section",
+           i_PLC_Log_FIFO_DB        := "DB_LOG_Event_FIFO",
+           i_CFG_BPI_Log_Level      := "DB_Setting".common.External_Log_Level,
+           i_CFG_PLC_Log_Level      := "DB_Setting".common.Internal_Log_Level,
+           i_CFG_PLC_Log_Route_Msgs := FALSE,
+           i_CFG_PLC_LOG_BPI_Stat   := FALSE);
+
+NETWORK
+TITLE =DA: Zone disabled
+//Report Disable mode for BSO
+      A     #i_CMD_Disable; 
+      =     #o_ST_Disabled; 
+
+NETWORK
+TITLE =EA: Zone Signals
+//LAD!
+      O     #s_TRS1_Ready_To_Restart; 
+      O     #s_TRS2_Ready_To_Restart; 
+      O     #s_BSO_Ready_To_Restart; 
+      O     ; 
+
+      A     #i_CMD_Disable; 
+      A     #s_BSO_Halt_TRS; 
+      =     #o_Ready_To_Restart; 
+END_FUNCTION_BLOCK
+

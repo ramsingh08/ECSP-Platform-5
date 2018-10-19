@@ -1,0 +1,499 @@
+FUNCTION "FC_Check_Pref_Dest_x" : VOID
+TITLE =%version: 0.08 % CN: 33
+//Function:
+//Retreive data for instance DB and then check the preffered destination
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Thursday, September 07, 2017 7:00:07 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23996: PLC going to STOP when used in UNZ01        inrjoi   07-09-17   0.08
+//bhs_plf#2415: Clear dir_c temps                       nlHdL    01-08-17   0.07
+//ra#8938: Extra direction decision point and routing   nlHdL    23-02-16   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.04
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.03
+//PR11727 Add synergy key words 'created_by' and date   nlHdL    14-11-12   0.02
+//Initial Revision                                      nlHdL    28-09-11   0.01
+//
+//Description:
+//Retreive data for instance DB and then check the preffered destination
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_Direction_A : ANY ;	//ANY pointer to the Direction A messages
+  i_ANY_Direction_B : ANY ;	//ANY pointer to the Direction B messages
+  i_ANY_Direction_C : ANY ;	//ANY pointer to the Direction C messages
+  i_ANY_Preferred_Dir : ANY ;	//ANY pointer to the preferred direction
+  i_CFG_Dir_C : BOOL ;	//Included direction C
+END_VAR
+VAR_TEMP
+  t_Direction : BYTE ;	//Direction selected
+  t_DINO : INT ;	//DB number of instance	
+  t_Dir_A : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_B : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+  t_Dir_C : STRUCT 	
+   t_Destination : INT ;	//Destination
+   t_Preference_A : BYTE ;	//Preference for Direction A
+   t_Preference_B : BYTE ;	//Preference for Direction B
+   t_Preference_C : BYTE ;	//Preference for Direction C
+   t_DecisionLvl : BYTE ;	//Decision Level	
+   t_FailedReason_A : BYTE ;	//Failed Reason for Direction A	
+   t_FailedReason_B : BYTE ;	//Failed Reason for Direction B
+   t_FailedReason_C : BYTE ;	//Failed Reason for Direction C
+  END_STRUCT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Retreive data of destination x from FB
+
+      L     P##i_ANY_Direction_A; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Dir_A.t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_A.t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_A.t_Preference_B; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_Dir_A.t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_A.t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_A.t_FailedReason_B; 
+
+//Clear temps
+      L     0; 
+      T     #t_Dir_A.t_Preference_C; 
+      T     #t_Dir_A.t_FailedReason_C; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   AA01; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_A.t_Preference_C; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_A.t_FailedReason_C; 
+
+AA01: L     P##i_ANY_Direction_B; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Dir_B.t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_B.t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_B.t_Preference_B; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_Dir_B.t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_B.t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_B.t_FailedReason_B; 
+
+//Clear temps
+      L     0; 
+      T     #t_Dir_B.t_Preference_C; 
+      T     #t_Dir_B.t_FailedReason_C; 
+
+      A     #i_CFG_Dir_C; 
+      JCN   AA02; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_B.t_Preference_C; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_B.t_FailedReason_C; 
+
+      L     P##i_ANY_Direction_C; 
+      LAR1  ; 
+
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     DIW [AR2,P#0.0]; 
+      T     #t_Dir_C.t_Destination; 
+
+      L     DIB [AR2,P#2.0]; 
+      T     #t_Dir_C.t_Preference_A; 
+      L     DIB [AR2,P#3.0]; 
+      T     #t_Dir_C.t_Preference_B; 
+      L     DIB [AR2,P#5.0]; 
+      T     #t_Dir_C.t_DecisionLvl; 
+      L     DIB [AR2,P#6.0]; 
+      T     #t_Dir_C.t_FailedReason_A; 
+      L     DIB [AR2,P#7.0]; 
+      T     #t_Dir_C.t_FailedReason_B; 
+
+      L     DIB [AR2,P#4.0]; 
+      T     #t_Dir_C.t_Preference_C; 
+      L     DIB [AR2,P#8.0]; 
+      T     #t_Dir_C.t_FailedReason_C; 
+
+AA02: L     0; 
+      T     #t_Direction; 
+
+      L     DINO; 
+      T     #t_DINO; 
+
+//Check if there is already a preferred dir
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      A(    ; 
+      L     DIB [AR2,P#2.0]; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR2,P#6.0]; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      BEC   ; 
+//End block Dir A is succes
+
+      A(    ; 
+      L     DIB [AR2,P#3.0]; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR2,P#7.0]; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      BEC   ; 
+//End block Dir B is succes
+
+      A     #i_CFG_Dir_C; 
+      JCN   AA99; 
+
+      A(    ; 
+      L     DIB [AR2,P#4.0]; 
+      L     0; 
+      >I    ; 
+      )     ; 
+      A(    ; 
+      L     DIB [AR2,P#8.0]; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      BEC   ; 
+//End block Dir C is succes
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Check if preffered 1 is active and determine direction
+
+      A(    ; 
+      L     #t_Dir_A.t_Preference_A; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA01; 
+
+      L     1; 
+      T     #t_Direction; 
+
+      JU    BA99; 
+
+BA01: A(    ; 
+      L     #t_Dir_B.t_Preference_B; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA12; 
+
+      L     2; 
+      T     #t_Direction; 
+      JU    BA99; 
+
+BA12: A     #i_CFG_Dir_C; 
+      A(    ; 
+      L     #t_Dir_C.t_Preference_C; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA02; 
+
+      L     3; 
+      T     #t_Direction; 
+      JU    BA99; 
+
+
+BA02: A(    ; 
+      L     #t_Dir_A.t_Preference_A; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA03; 
+
+      L     1; 
+      T     #t_Direction; 
+
+      JU    BA99; 
+
+BA03: A(    ; 
+      L     #t_Dir_B.t_Preference_B; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA13; 
+
+      L     2; 
+      T     #t_Direction; 
+      JU    BA99; 
+
+BA13: A     #i_CFG_Dir_C; 
+      A(    ; 
+      L     #t_Dir_C.t_Preference_C; 
+      L     2; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BA99; 
+
+      L     3; 
+      T     #t_Direction; 
+      JU    BA99; 
+
+//End block if no direction is set
+
+BA99: NOP   0; 
+NETWORK
+TITLE =BB: check 2e alternative if Dir_C is active
+
+      A     #i_CFG_Dir_C; 
+      JCN   BB99; 
+
+      L     #t_Direction; 
+      L     0; 
+      ==I   ; 
+      JCN   BB99; 
+
+      A(    ; 
+      L     #t_Dir_A.t_Preference_A; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BB01; 
+
+      L     1; 
+      T     #t_Direction; 
+
+      JU    BB99; 
+
+BB01: A(    ; 
+      L     #t_Dir_B.t_Preference_B; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BB02; 
+
+      L     2; 
+      T     #t_Direction; 
+      JU    BB99; 
+
+BB02: A(    ; 
+      L     #t_Dir_C.t_Preference_C; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      JCN   BB99; 
+
+      L     3; 
+      T     #t_Direction; 
+
+BB99: NOP   0; 
+NETWORK
+TITLE =CA: Write data to preferred direction
+
+      L     P##i_ANY_Preferred_Dir; 
+      LAR1  ; 
+
+      OPN   DI [#t_DINO]; 
+      L     D [AR1,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+      LAR2  ; 
+
+      L     #t_Direction; 
+      L     0; 
+      ==I   ; 
+      JCN   CA01; 
+
+      L     #t_Dir_A.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+      JU    CA99; 
+
+CA01: L     #t_Direction; 
+      L     1; 
+      ==I   ; 
+      JCN   CA02; 
+
+      L     #t_Dir_A.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_A.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_A.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_A.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_A.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_A.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_A.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_Dir_A.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+      JU    CA99; 
+
+CA02: L     #t_Direction; 
+      L     2; 
+      ==I   ; 
+      JCN   CA03; 
+
+      L     #t_Dir_B.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_B.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_B.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_B.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_B.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_B.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_B.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_Dir_B.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+CA03: A     #i_CFG_Dir_C; 
+      A(    ; 
+      L     #t_Direction; 
+      L     3; 
+      ==I   ; 
+      )     ; 
+      JCN   CA99; 
+
+      L     #t_Dir_C.t_Destination; 
+      T     DIW [AR2,P#0.0]; 
+
+      L     #t_Dir_C.t_Preference_A; 
+      T     DIB [AR2,P#2.0]; 
+      L     #t_Dir_C.t_Preference_B; 
+      T     DIB [AR2,P#3.0]; 
+      L     #t_Dir_C.t_Preference_C; 
+      T     DIB [AR2,P#4.0]; 
+      L     #t_Dir_C.t_DecisionLvl; 
+      T     DIB [AR2,P#5.0]; 
+      L     #t_Dir_C.t_FailedReason_A; 
+      T     DIB [AR2,P#6.0]; 
+      L     #t_Dir_C.t_FailedReason_B; 
+      T     DIB [AR2,P#7.0]; 
+      L     #t_Dir_C.t_FailedReason_C; 
+      T     DIB [AR2,P#8.0]; 
+      L     #t_Direction; 
+      T     DIB [AR2,P#9.0]; 
+
+CA99: NOP   0; 
+END_FUNCTION
+

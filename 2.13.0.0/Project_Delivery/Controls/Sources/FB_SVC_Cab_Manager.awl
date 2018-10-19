@@ -1,0 +1,273 @@
+FUNCTION_BLOCK "FB_SVC_Cab_Manager"
+TITLE =%version: 0.03 % CN: 42
+//Function:
+//Module which covered all components within a cabinet for Verticross area
+//This includeds info about the PLC, Profinet, PN coupler etc.,
+//
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Tuesday, August 15, 2017 1:17:02 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24059: Updated after testing                       inrjoi   15-08-17   0.03
+//ra#24059: CCC10 status report not inline with EM      inrjoi   15-08-17   0.02
+//Initial version                                       inrjoi   26-07-17   0.01
+//
+//
+//Description:
+//The FB_SVC_Cab_Manager collects the information which is not covered by the 
+//area, zone or section layers. This information about the PLC, Profinet, 
+//Safety system and additional equipment located inside the main cabinet.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+  i_CCC_Mainswitch_ON : BOOL  := TRUE;	//Mainswitch CCC is switched ON
+  i_SS_Auto : BOOL ;	//Auto/External run selector switch (0 = Auto, 1 = External run)
+  i_Ext_Up_PWR : BOOL ;	//External power from upper area
+  i_Ext_Low_PWR : BOOL ;	//External power from lower area
+  i_KS_Main_PWR_1 : BOOL ;	//Key switch for main power supply 1
+  i_KS_Main_PWR_2 : BOOL ;	//Key switch for main power supply 1
+  i_No_Fire_Alarm_1 : BOOL ;	//Fire alarm 1 from upper adjacent area(FALSE = Fire alarm active)
+  i_No_Fire_Alarm_2 : BOOL ;	//Fire alarm 2 from lower adjacent area(FALSE = Fire alarm active)
+  i_PN_Mstr_Err : BOOL ;	//Profinet: Master has an error
+  i_PN_Mstr_NotPrsnt : BOOL ;	//Profinet: Master is not present
+  i_PN1_Err : BOOL ;	//Profinet: Slave 1 has an error
+  i_PN1_NotPrsnt : BOOL ;	//Profinet: Slave 1 is not present
+  i_ELP_HLTY : BOOL ;	//Ethernet link protector is healthy
+  i_ELP_CB_HLTY : BOOL ;	//Circuit breaker for ethernet link protector is healthy
+END_VAR
+VAR_OUTPUT
+  o_Enable_CMD : BOOL ;	//Signal: Enable command from cabinet to area
+  o_Controlled_Stop : BOOL ;	//Signal: Controlled stop of area
+  o_ST_Mainswitch_OFF : BOOL ;	//ST: Mainswitch OFF
+  o_ST_PLC_Hardware_Error : BOOL ;	//ST: PLC Hardware failure
+  o_ST_Fire_Alarm : BOOL ;	//ST: Fire Alarm detected
+  o_ST_PN_Mstr_NotPrsnt : BOOL ;	//ST: Profinet Master Network is not present
+  o_ST_PN_Mstr_Err : BOOL ;	//ST: Profinet Master Network has an error
+  o_ST_PN1_NotPrsnt : BOOL ;	//ST: PN slave 1 is not present
+  o_ST_PN1_Err : BOOL ;	//ST: PN slave 1 has an error
+  o_ST_ETH_Linkp_Error : BOOL ;	//ST: Ethernet linkprotector error
+  o_ST_CB_LINKP : BOOL ;	//ST: Circuitbreaker linkprotector
+  o_ST_No_Power_GRP01 : BOOL ;	//ST: Power failure Group 1
+  o_ST_No_Power_GRP02 : BOOL ;	//ST: Power failure Group 2
+  o_ST_No_Power : BOOL ;	//ST: Power failure
+  o_ST_External_Run_ON : BOOL ;	//ST: Transport mode
+END_VAR
+VAR
+  s_Status : "UDT_CCC10_Status";	//Detailed statuses
+END_VAR
+VAR_TEMP
+  t_Suppress_Errors : BOOL ;	//Suppress other errors
+  t_Direct_Stop : BOOL ;	//Temp Direct stop cabinet
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: System Guarding
+//Here the status information concerning the PLC-hardware is collected.
+      A     #i_CMD_Reset; 
+      R     #s_Status.Mainswitch_OFF; 
+      R     #s_Status.PLC_Hardware_Error; 
+      R     #s_Status.PN_Master_Error; 
+      R     #s_Status.PN_Master_NotPrsnt; 
+      R     #s_Status.Fire_Alarm; 
+      R     #s_Status.PN_Switch_Error; 
+      R     #s_Status.PN_Switch_NotPrsnt; 
+      R     #s_Status.ETH_Linkp_Error; 
+      R     #s_Status.CB_LINKP; 
+      R     #s_Status.No_Power; 
+
+      A     "DB_Diagnose_HW".Module_Not_Present[1]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[2]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[3]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[4]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[5]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[6]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[7]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[8]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[9]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[10]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[11]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[12]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[13]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[14]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[15]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[16]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[17]; 
+      O     "DB_Diagnose_HW".Module_Not_Present[18]; 
+      O     "DB_Diagnose_HW".Module_Error[1]; 
+      O     "DB_Diagnose_HW".Module_Error[2]; 
+      O     "DB_Diagnose_HW".Module_Error[3]; 
+      O     "DB_Diagnose_HW".Module_Error[4]; 
+      O     "DB_Diagnose_HW".Module_Error[5]; 
+      O     "DB_Diagnose_HW".Module_Error[6]; 
+      O     "DB_Diagnose_HW".Module_Error[7]; 
+      O     "DB_Diagnose_HW".Module_Error[8]; 
+      O     "DB_Diagnose_HW".Module_Error[9]; 
+      O     "DB_Diagnose_HW".Module_Error[10]; 
+      O     "DB_Diagnose_HW".Module_Error[11]; 
+      O     "DB_Diagnose_HW".Module_Error[12]; 
+      O     "DB_Diagnose_HW".Module_Error[13]; 
+      O     "DB_Diagnose_HW".Module_Error[14]; 
+      O     "DB_Diagnose_HW".Module_Error[15]; 
+      O     "DB_Diagnose_HW".Module_Error[16]; 
+      O     "DB_Diagnose_HW".Module_Error[17]; 
+      O     "DB_Diagnose_HW".Module_Error[18]; 
+      S     #s_Status.PLC_Hardware_Error; 
+
+// Mainswitch Off
+      AN    #i_CCC_Mainswitch_ON; 
+      S     #s_Status.Mainswitch_OFF; 
+
+//ProfiNet errors
+      A     #i_PN_Mstr_NotPrsnt; 
+      S     #s_Status.PN_Master_NotPrsnt; 
+
+      A     #i_PN_Mstr_Err; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      S     #s_Status.PN_Master_Error; 
+
+//Fire alarm
+      AN    #i_No_Fire_Alarm_1; 
+      ON    #i_No_Fire_Alarm_2; 
+      S     #s_Status.Fire_Alarm; 
+NETWORK
+TITLE =BA: Suppress errors
+
+      NOP   0; 
+
+//Suppress errors in first scan or when DP master not present/error or mainswitch off
+      A     "M_First_Scan"; 
+      O     #s_Status.PN_Master_NotPrsnt; 
+      O     #s_Status.PN_Master_Error; 
+      O     #s_Status.Mainswitch_OFF; 
+      =     #t_Suppress_Errors; 
+NETWORK
+TITLE =CA:Profinet devices
+//Collect status of the profinet devices
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.PN_Switch_Error; 
+      R     #s_Status.PN_Switch_NotPrsnt; 
+
+      A     #t_Suppress_Errors; 
+      JC    CA99; 
+
+//Ethernet Switch (ring master)
+      A     #i_PN1_NotPrsnt; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      AN    #s_Status.PN_Master_Error; 
+      S     #s_Status.PN_Switch_NotPrsnt; 
+
+      A     #i_PN1_Err; 
+      AN    #s_Status.PN_Master_NotPrsnt; 
+      AN    #s_Status.PN_Master_Error; 
+      AN    #s_Status.PN_Switch_NotPrsnt; 
+      S     #s_Status.PN_Switch_Error; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Power supply 1 and 2
+
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.No_Power; 
+
+// Main PS1 is OFF
+      AN    #i_Ext_Up_PWR; 
+      AN    #t_Suppress_Errors; 
+      =     #s_Status.No_Power_GRP01; 
+
+// Main PS1 is OFF
+      AN    #i_Ext_Low_PWR; 
+      AN    #t_Suppress_Errors; 
+      =     #s_Status.No_Power_GRP02; 
+
+// Key switch main power 1 selected, up power OFF
+      AN    #i_Ext_Up_PWR; 
+      A     #i_KS_Main_PWR_1; 
+      O(    ; // Key switch main power 2 selected, low power OFF
+      AN    #i_Ext_Low_PWR; 
+      A     #i_KS_Main_PWR_2; 
+      )     ; 
+      AN    #t_Suppress_Errors; 
+      S     #s_Status.No_Power; 
+NETWORK
+TITLE =EA: Handle ethernet link protector
+
+      A     #i_CMD_Reset; 
+      O     #t_Suppress_Errors; 
+      R     #s_Status.CB_LINKP; 
+      R     #s_Status.ETH_Linkp_Error; 
+
+      AN    #t_Suppress_Errors; 
+      AN    #i_ELP_CB_HLTY; 
+      S     #s_Status.CB_LINKP; 
+
+      AN    #t_Suppress_Errors; 
+      AN    #s_Status.CB_LINKP; 
+      AN    #i_ELP_HLTY; 
+      S     #s_Status.ETH_Linkp_Error; 
+NETWORK
+TITLE =FA: Handle commands
+//Set the controlled stop and direct stop output signals.
+      A     #s_Status.PLC_Hardware_Error; 
+      O     #s_Status.Fire_Alarm; 
+      =     #o_Controlled_Stop; 
+
+      A     #s_Status.PN_Switch_NotPrsnt; 
+      O     #s_Status.Mainswitch_OFF; 
+// Option to stop is Phase fault is detected.
+      O     #s_Status.No_Power; 
+      =     #t_Direct_Stop; 
+
+      AN    #t_Direct_Stop; 
+      =     #o_Enable_CMD; //Enable the area if no direct stop is active
+NETWORK
+TITLE =GA: Write output signals
+
+      A     #s_Status.Mainswitch_OFF; 
+      =     #o_ST_Mainswitch_OFF; 
+
+      A     #s_Status.PLC_Hardware_Error; 
+      =     #o_ST_PLC_Hardware_Error; 
+
+      A     #s_Status.Fire_Alarm; 
+      =     #o_ST_Fire_Alarm; 
+
+      A     #s_Status.PN_Master_Error; 
+      =     #o_ST_PN_Mstr_Err; 
+
+      A     #s_Status.PN_Master_NotPrsnt; 
+      =     #o_ST_PN_Mstr_NotPrsnt; 
+
+      A     #s_Status.PN_Switch_Error; 
+      =     #o_ST_PN1_Err; 
+
+      A     #s_Status.PN_Switch_NotPrsnt; 
+      =     #o_ST_PN1_NotPrsnt; 
+
+      A     #s_Status.No_Power_GRP01; 
+      =     #o_ST_No_Power_GRP01; 
+
+      A     #s_Status.No_Power_GRP02; 
+      =     #o_ST_No_Power_GRP02; 
+
+      A     #s_Status.No_Power; 
+      =     #o_ST_No_Power; 
+
+      A     #i_SS_Auto; 
+      =     #o_ST_External_Run_ON; 
+
+      A     #s_Status.CB_LINKP; 
+      =     #o_ST_CB_LINKP; 
+
+      A     #s_Status.ETH_Linkp_Error; 
+      =     #o_ST_ETH_Linkp_Error; 
+END_FUNCTION_BLOCK
+

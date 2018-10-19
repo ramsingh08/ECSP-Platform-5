@@ -1,0 +1,166 @@
+FUNCTION "FC_Rcv_OPS_ModeSRep" : VOID
+TITLE =%version: 0.02 % CN: 32
+//Function:
+//Create EncodeRequest message for OPS station and write message to
+//the FIFO DB.
+//
+//History:
+//This version  %created_by:  nljclo %
+//              %date_created:  Wednesday, September 21, 2016 2:33:04 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.02
+//24499: FIFO handling done incorrect for OPS/Lifesign  nlHdL    09-07-15   0.02
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+//Description:
+//The ModeRequest message contains a message header and a message body like 
+//displayed below.
+//Message header:
+// -> Event time
+// -> Message type
+// -> Message identifier
+// -> Sending area ID
+//Message body:
+// -> OperationalMode 2= system
+// -> Functionmode
+// -> Filler
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_Recv_OPS_FIFO_Num : INT ;	//DB number of receive FIFO
+  i_OperationalMode : INT ;	//Mode state report - Operational Mode
+  i_OperationalState : INT ;	//Mode state report - Operational State
+  i_TechnicalState : INT ;	//Mode state report - Technical State
+  i_DetailedState : WORD ;	
+  i_FunctionMode : WORD ;	//Mode state report - Function Mode
+END_VAR
+VAR_OUTPUT
+  o_OperationalMode : INT ;	//Mode state report - Operational Mode
+  o_OperationalState : INT ;	//Mode state report - Operational State
+  o_TechnicalState : INT ;	//Mode state report - Technical State
+  o_DetailedState : WORD ;	
+  o_FunctionMode : WORD ;	//Mode state report - Function Mode
+END_VAR
+VAR_TEMP
+  t_DB_Recv_OPS_FIFO : INT ;	//Number of the Receive DB FIFO that contain the LifeSign Signals	
+  t_Message_Received : BOOL ;	//New Message Received
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Set message header
+//In this network the message header is created and copied into 
+//DB_OPS_OutgoingMsgs.
+//
+//Message header:
+// -> Event time [DATE_AND_TIME]
+// -> Message type [INT]
+// -> Message identifier [DINT]
+// -> Sending area ID [DINT]
+      NOP   0; 
+
+      L     #i_DB_Recv_OPS_FIFO_Num; 
+      T     #t_DB_Recv_OPS_FIFO; 
+
+      L     #i_OperationalMode; 
+      T     #o_OperationalMode; 
+
+      L     #i_OperationalState; 
+      T     #o_OperationalState; 
+
+      L     #i_TechnicalState; 
+      T     #o_TechnicalState; 
+
+      L     #i_FunctionMode; 
+      T     #o_FunctionMode; 
+
+      L     #i_DetailedState; 
+      T     #o_DetailedState; 
+
+NETWORK
+TITLE =BA: Create message Body
+//Put requested Mode in Message
+      NOP   0; 
+// Check if new message is present
+      OPN   DB [#t_DB_Recv_OPS_FIFO]; 
+
+      L     DBW    6; // When the DB_FIFO is empty the record "Num_Of_Records_stored" within the DB is equal to "0"
+      L     0; 
+      ==I   ; 
+      JC    CA99; // IF DB_FIFO is empty then end this Network
+
+// Create pointer to the message type within the first available message
+// The first available message within the FIFO DB is specified via the entry "Next_Record_Retrieve"
+// Calculate the Offset to the first available message
+      L     0; 
+      LAR1  ; 
+
+      L     DBW   12; // Position of the record
+      L     1; 
+      -I    ; 
+      L     DBW    4; // The length of each message in the DB_FIFO ("Record_Data_Length")
+      *I    ; 
+      +     14; // Length of the general record in DB_FIFO/Offset to the first message in the DB_FIFO
+      SLD   3; 
+      LAR1  ; // Store the Offset, to the first available message, in the Accumulator 1.
+
+// Retrieve the message type from the message to check if it is a lifesign request or lifesign response (200 or 201)
+      A(    ; // IF the retrieved message is a Lifesign Request
+      L     DBW [AR1,P#8.0]; // Retrieve the message type from the first available message from DB_FIFO
+      L     54; // Compare the retrieved message type with 54. (ModeSateReport
+      ==D   ; 
+      )     ; 
+      JCN   CA99; // If the message is a lifesign request, then retrieve the record
+
+      L     DBW [AR1,P#18.0]; 
+      T     #o_OperationalMode; 
+
+      L     DBW [AR1,P#20.0]; 
+      T     #o_OperationalState; 
+
+      L     DBW [AR1,P#22.0]; 
+      T     #o_TechnicalState; 
+
+      L     DBW [AR1,P#24.0]; 
+      T     #o_DetailedState; 
+
+      L     DBW [AR1,P#26.0]; 
+      T     #o_FunctionMode; 
+
+
+// Update FiFo header entry is used as ModeStateRequest
+      L     DBW    6; 
+      L     1; 
+      -I    ; 
+      T     DBW    6; 
+
+      L     DBW   12; 
+      L     1; 
+      +I    ; 
+      T     DBW   12; 
+
+      L     DBW    8; 
+      >I    ; 
+      JCN   CA01; 
+
+      L     1; 
+      T     DBW   12; 
+
+CA01: SET   ; 
+      =     #t_Message_Received; 
+
+      L     DBW    6; 
+      L     0; 
+      ==I   ; 
+      S     DBX    0.0; 
+
+CA99: NOP   0; 
+END_FUNCTION
+

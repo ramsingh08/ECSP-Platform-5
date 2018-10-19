@@ -1,0 +1,406 @@
+FUNCTION_BLOCK "FB_TF_TT_Full_Status"
+TITLE =%version: 0.12 % CN: 40
+//Function:
+//Module to check the percentage of occupation of a carrousel.
+//
+//History:
+//This version  %created_by:  nldy %
+//              %date_created:  Friday, October 21, 2016 9:43:15 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18049: s_Check_Distance to double int              nlDY     21-10-16   0.12
+//ra#17941: Full error state changes                    nlDY     19-10-16   0.11
+//ra#16800: Rename remaining items to recirulating bags nlDY     12-10-16   0.10
+//ra#16800: Report remaining items                      nlDY     28-09-16   0.09
+//ra#13806: Get PEC Latch signal from PLT DB            nlJClo   07-06-16   0.08
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   0.07
+//ra#10431: RAW: Make ARZ configurable according MCFV   nlHdL    10-05-16   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//24690: Mod-His lined up                               nlwwij   25-09-13   0.07
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.06
+//CR6239 Minor modification after emulation test        nlple    12-01-11   0.05
+//Modified Input & output name                          nlHEb    16-09-10   0.04
+//Correct initial value                                 nlHEb    08-09-10   0.03
+//Correct family name                                   nlMRe    19-08-10   0.02
+//Initial Release                                       nlHEb    18-08-10   0.01
+//
+//Description:
+//The percentage of occupation of a carrousel calculation is based on a detection 
+//on one PEC somewhere on the carrousel. When the situation is permanent changing 
+//this module is not able to give precisly the occupied situation of the 
+//carrousel.
+//
+FAMILY : RAW
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT : BLOCK_DB ;	//Data structure: Position datablock
+  i_CFG_Window_Length : INT  := 120;	//CFG: [cm] Window length
+  i_CFG_Full_Error_Time : INT  := 30;	//CFG: [sec] Time after which the full error becomes active
+  i_CFG_Full_level_1 : INT  := 10;	//CFG: [%] Carrousel full level 1 reached
+  i_CFG_Full_level_2 : INT  := 25;	//CFG: [%] Carrousel full level 2 reached
+  i_CFG_Full_level_3 : INT  := 75;	//CFG: [%] Carrousel full level 3 reached
+  i_CFG_Full_level_4 : INT  := 90;	//CFG: [%] Carrousel full level 4 reached
+  i_CFG_Time_Recirc_Bags : INT ;	//CFG: [sec] Time after which recirculating bags are reported (0= no report)
+  i_PEC_Latch : BOOL ;	//Latched signal of PEC
+  i_CMD_Reset : BOOL ;	//CMD: Reset command
+END_VAR
+VAR_OUTPUT
+  o_ST_Full_level_1 : BOOL ;	//ST: Carrousel full level 1 reached
+  o_ST_Full_level_2 : BOOL ;	//ST: Carrousel full level 2 reached
+  o_ST_Full_level_3 : BOOL ;	//ST: Carrousel full level 3 reached
+  o_ST_Full_level_4 : BOOL ;	//ST: Carrousel full level 4 reached
+  o_ST_Full_Error : BOOL ;	//ST: Carrousel full level 4 error
+  o_ST_Recirculating_Bags : BOOL ;	//ST: Recirculating bags warning (carrousel cannot Esave)
+  o_Items_Present : BOOL ;	//Items present
+END_VAR
+VAR
+  s_DB_Num_PLT : INT ;	//Number of the PLT DB
+  s_Cnt_Total_Carrousel : INT ;	//Counter complete revolution carrousel
+  s_Cnt_Window_available : INT ;	//Counter window available
+  s_Cnt_Number_Of_Windows : INT ;	//Counter number of windows available
+  s_Cnt_Full_Error_Active : INT ;	//Counter before lane full error becomes active
+  s_Space_Available : INT ;	//[cm] Space available on the carrousel
+  s_Percentage_Available : INT ;	//Percentage space available on the carrousel
+  s_Percentage_Occupied : INT ;	//Percentage space occupied on the carrousel
+  s_Displacement : INT ;	//Displacement [cm] from the PLT DB
+  s_Conveyor_length : INT ;	//CFG: [cm] Conveyor length
+  s_Free_Win_Prev_Round : INT ;	//Number of free windows during previous round
+  s_Cnt_Recirc_Bags_Del : INT ;	//Delay counter to report recirculating bags (0=delay finished)
+  s_Check_Distance : DINT ;	//Minimum distance to check for items
+  s_FP_Reset_Cnt_Win : BOOL ;	//Positive flank detection reset cntr window available
+  s_Done : BOOL ;	//Lenght carousel is available
+  s_Items_Present : BOOL ;	//Items detected during current revolution
+  s_Nr_Itms_Stable : BOOL ;	//Number of items is stable compared to the previous round
+  s_Reset_Esave_Req_Active : BOOL ;	//-3 found in PLT DB
+END_VAR
+VAR_TEMP
+  t_Last_Window : INT ;	//Last window counter
+  t_Space_Available : DINT ;	//Space available on the carrousel
+  t_Lenght_Carrousel : DINT ;	//Total length of the carrousel
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_Num_Items_Found : INT ;	//Number of items found during search.
+  t_Round_Complete : BOOL ;	//Round complete
+  t_Section_Run : BOOL ;	//TF or TT is running
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Read PLT DB
+
+      OPN   #i_DB_PLT; // Open tracking DB
+      L     DBNO; 
+      T     #s_DB_Num_PLT; // Determine PLT block DB number
+
+      L     DBW    2; //Take the displacement out of the PLT DB.
+      T     #s_Displacement; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run; //Section is running
+
+      L     DBW   12; 
+      T     #s_Conveyor_length; //Length of the Triplaner
+
+      L     #s_Conveyor_length; //Length of the Triplaner
+      L     0; 
+      <>I   ; 
+      AN    #s_Done; 
+      JCN   AA99; 
+
+      SET   ; // Set bit to indicate thatvalid conveyor length is available
+      =     #s_Done; 
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Revolution counter of carrousel
+
+      L     #s_Cnt_Total_Carrousel; // Counter one revolution of the carrousel
+      L     #s_Displacement; 
+      +I    ; 
+      T     #s_Cnt_Total_Carrousel; 
+
+      L     #s_Cnt_Total_Carrousel; // IF a complete revolution is done
+      L     #s_Conveyor_length; 
+      >=I   ; 
+      A     #s_Done; 
+      =     #t_Round_Complete; // THEN make round complete
+NETWORK
+TITLE =CA : Counter windows available
+
+      AN    #i_PEC_Latch; // IF no items present in the PEC
+      JCN   CA01; 
+      L     #s_Cnt_Window_available; // Countup window available
+      L     #s_Displacement; 
+      +I    ; 
+      T     #s_Cnt_Window_available; 
+
+CA01: NOP   0; 
+
+      A     #i_PEC_Latch; // IF items present in the PEC
+      O     #t_Round_Complete; // OR carrousel round complete
+      FP    #s_FP_Reset_Cnt_Win; 
+      JCN   CA99; 
+
+      L     #s_Cnt_Window_available; // Save last window counted before reset
+      T     #t_Last_Window; 
+
+      L     0; // Reset counter when baggage present
+      T     #s_Cnt_Window_available; 
+
+      L     #t_Last_Window; // IF the last window counted available for one or more items
+      L     #i_CFG_Window_Length; 
+      /I    ; 
+      L     #s_Cnt_Number_Of_Windows; // Then update the counter of windows available
+      +I    ; 
+      T     #s_Cnt_Number_Of_Windows; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA : Occupation carrousel
+
+      A     #t_Round_Complete; // IF round complete 
+      JCN   DA99; 
+
+// Update warning 
+      L     #s_Cnt_Number_Of_Windows; // Number of windows available on the carrousel
+      L     #i_CFG_Window_Length; // Lenght of one window
+      *I    ; 
+      T     #s_Space_Available; // Total space free for items
+
+// Calculation percentage free
+      L     #s_Space_Available; 
+      L     100; 
+      *I    ; 
+      T     #t_Space_Available; 
+
+      L     #s_Conveyor_length; 
+      T     #t_Lenght_Carrousel; 
+
+      L     #t_Space_Available; 
+      L     #t_Lenght_Carrousel; 
+      /D    ; 
+      T     #s_Percentage_Available; // Percentage free
+
+      L     100; 
+      L     #s_Percentage_Available; 
+      -I    ; 
+      T     #s_Percentage_Occupied; // Percentage occupied
+
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_4; 
+      >=I   ; 
+      S     #o_ST_Full_level_4; // Determine if full level 4 is reached
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_2; 
+      R     #o_ST_Full_level_1; 
+      JC    DA99; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_3; 
+      >=I   ; 
+      S     #o_ST_Full_level_3; // Determine if full level 3 is reached
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_2; 
+      R     #o_ST_Full_level_1; 
+      JC    DA99; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_2; 
+      >=I   ; 
+      S     #o_ST_Full_level_2; // Determine if full level 2 is reached
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_1; 
+      JC    DA99; 
+
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_1; 
+      >=I   ; 
+      =     #o_ST_Full_level_1; // Determine if full level 1 is reached
+      SET   ; 
+      R     #o_ST_Full_level_4; 
+      R     #o_ST_Full_level_3; 
+      R     #o_ST_Full_level_2; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Error full indication
+//When the carousel reached Level-4 after the configure time 
+//"#i_CFG_Full_Error_Time" Generate the Alarm "#o_ST_Full_Error".
+      A     #o_ST_Full_Error; // IF full error active
+      A     #i_CMD_Reset; // AND reset
+      ON    #o_ST_Full_level_4; // IF no lane full
+      JCN   EA01; 
+      R     #o_ST_Full_Error; // Reset of the full status error
+
+      L     #i_CFG_Full_Error_Time; 
+      T     #s_Cnt_Full_Error_Active; // THEN preset full error active counter
+
+// Countdown of blockage timer
+EA01: A     #o_ST_Full_level_4; // IF lane full active
+      A     "M_OS_/1.0_sec."; 
+      JCN   EA03; 
+      L     #s_Cnt_Full_Error_Active; 
+      L     1; // THEN countdown counter
+      -I    ; 
+      T     #s_Cnt_Full_Error_Active; 
+      JPZ   EA02; 
+      L     0; // IF negative THEN keep counter to zero 
+EA02: T     #s_Cnt_Full_Error_Active; 
+
+// Evaluation of blockage timer
+EA03: A(    ; 
+      L     #s_Cnt_Full_Error_Active; 
+      L     0; 
+      <=I   ; // AND full error active counter is elapsed
+      )     ; 
+      A     #o_ST_Full_level_4; // AND lane full
+      S     #o_ST_Full_Error; // THEN set output full error
+NETWORK
+TITLE =FA: Disable energy saving when items are present
+
+      CALL "FC_PLT_Srch_Inf_Up" (// Check if a reset energy save request is active
+           i_DB_PLT_Num             := #s_DB_Num_PLT,
+           i_Position               := 0,
+           i_Window                 := #s_Conveyor_length,
+           i_Info                   := -3,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #t_Not_Used_Int,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Num_Items_Found);
+
+      L     #t_Num_Items_Found; 
+      L     0; 
+      >I    ; 
+      =     #s_Reset_Esave_Req_Active; 
+
+      A     #i_PEC_Latch; // Check if section is empty
+      O     #s_Reset_Esave_Req_Active; 
+      JCN   FA01; 
+
+      L     #s_Conveyor_length; 
+      L     2; 
+      *D    ; 
+      T     #s_Check_Distance; 
+
+FA01: NOP   0; 
+
+      L     #s_Check_Distance; 
+      L     #s_Displacement; 
+      -D    ; 
+      T     #s_Check_Distance; 
+
+      L     0; 
+      >D    ; 
+      =     #s_Items_Present; 
+
+      AN    #s_Items_Present; 
+      JCN   FA02; 
+
+      L     0; 
+      T     #s_Check_Distance; 
+
+FA02: A     #s_Items_Present; 
+      A     #t_Section_Run; // Never trigger out of Esave, only extend
+      =     #o_Items_Present; 
+
+      NOP   0; 
+NETWORK
+TITLE =GA: Stable number of items
+//When the number of items/bags on a carrousel is not changing for a configurable 
+//time, the remaining bags should be removed to prevent infinite running of the 
+//carrousel. A warning will be issued.
+      L     #i_CFG_Time_Recirc_Bags; 
+      L     0; 
+      ==I   ; 
+      R     #s_Nr_Itms_Stable; 
+      R     #o_ST_Recirculating_Bags; 
+      JC    GA99; 
+
+      A     #s_Reset_Esave_Req_Active; 
+      JCN   GA01; // Only evaluate stable item number when no new items are being introduced
+
+      SET   ; 
+      R     #s_Nr_Itms_Stable; 
+
+      L     -1; // Reset window count
+      T     #s_Free_Win_Prev_Round; // Reset to -1 to enable comparision with 0
+
+GA01: A     #t_Round_Complete; 
+      JCN   GA02; // Evaluate stable situation after each revolution
+
+      A(    ; 
+      L     #s_Free_Win_Prev_Round; 
+      L     0; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Cnt_Number_Of_Windows; 
+      L     1; 
+      +I    ; 
+      L     #s_Free_Win_Prev_Round; 
+      >=I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Cnt_Number_Of_Windows; 
+      L     1; 
+      -I    ; 
+      L     #s_Free_Win_Prev_Round; 
+      <=I   ; 
+      )     ; 
+      =     #s_Nr_Itms_Stable; // The number of items is stable, compared to the previous revolution
+
+      L     #s_Cnt_Number_Of_Windows; 
+      T     #s_Free_Win_Prev_Round; 
+
+GA02: AN    #s_Nr_Itms_Stable; // Run delay after the number of items on the section is stable
+      ON    #t_Section_Run; 
+      JCN   GA03; 
+
+      L     #i_CFG_Time_Recirc_Bags; 
+      T     #s_Cnt_Recirc_Bags_Del; 
+
+GA03: A     #s_Nr_Itms_Stable; 
+      A     #t_Section_Run; 
+      A     "M_OS_/1.0_sec."; 
+      JCN   GA05; 
+
+      L     #s_Cnt_Recirc_Bags_Del; 
+      L     1; 
+      -I    ; 
+      JPZ   GA04; 
+
+      L     0; 
+GA04: T     #s_Cnt_Recirc_Bags_Del; 
+
+GA05: A(    ; 
+      L     #s_Cnt_Recirc_Bags_Del; 
+      L     0; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Percentage_Occupied; 
+      L     #i_CFG_Full_level_1; 
+      <I    ; 
+      )     ; 
+      A     #s_Items_Present; 
+      =     #o_ST_Recirculating_Bags; 
+
+GA99: NOP   0; 
+NETWORK
+TITLE =HA: Reset counts on round completion
+
+      A     #t_Round_Complete; 
+      JCN   HA99; 
+
+      L     0; // Reset counters
+      T     #s_Cnt_Total_Carrousel; 
+      T     #s_Cnt_Number_Of_Windows; 
+      T     #s_Cnt_Window_available; 
+
+HA99: NOP   0; 
+END_FUNCTION_BLOCK
+

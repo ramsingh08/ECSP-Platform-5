@@ -1,0 +1,32 @@
+DATA_BLOCK "DB_HBS_List"
+TITLE =%version: 0.02 % CN: 20
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Wednesday, October 25, 2017 5:01:32 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#24941: Screening pending updates                   nldy     25-10-17   0.02
+//Initial Version based on SIN_T1_CONV_COMPONENT        inajos   28-11-16   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+  STRUCT 	
+   Length_Header : INT  := 16;	//Length of the Header
+   Length_Record : INT ;	//Length of each record
+   Last_Generated : INT ;	//Last generated number
+   Entries_Present : INT ;	//Number of entries present in DB
+   Default_Record_DB : INT ;	//DB number of DB which conteens the default record
+   s_Done : BOOL ;	//Bit to indicate that init of DB has been done
+   s_Pending_Items_Allowed : BOOL ;	//Pending items are allowed in current area
+   Number_Of_Processes : INT ;	//Number of processes defined in current area
+   HBS_Process_Length : INT ;	//Length (in bytes) of UDT_HBS_Process
+   HBS : ARRAY  [0 .. 300 ] OF "UDT_HBS_Record";	
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

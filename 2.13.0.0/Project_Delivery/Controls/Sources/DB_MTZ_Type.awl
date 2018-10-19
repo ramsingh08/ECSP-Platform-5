@@ -1,0 +1,86 @@
+DATA_BLOCK "DB_MTZ_Type"
+TITLE =%version: 0.09 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, December 08, 2017 3:02:23 PM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26909: general state Redundancy to warning         nlHdL    08-12-17   0.09
+//ra#18174: DI NON_RETAIN PLC Memory                    nlHdL    14-12-16   0.08
+//ra#18049: Add recirculating bags status               nldy     21-10-16   0.07
+//ra#13939: RAW: Make MTZ configurable according MCFV   nlHdL    23-05-16   0.06
+//ra#13939: RAW: Make MTZ configurable according MCFV   nlHdL    23-05-16   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//15797: Keyword release added                          nlwwij   26-09-13   0.06
+//14493: ASI Slave errors on 62 and 63                  nlHdL    02-07-13   0.05
+//PR9459 Correct statusses of SLC, PEC blockages        nlHHop   20-03-12   0.04
+//and full message
+//CR8713 Changing after test on site                    nlple    10-01-12   0.03
+//Renamed to DB_MTZ_Type and update by Kiev             nlHdL    15-11-10   0.02
+//Initial Revision                                      inpna    24-09-10   0.01
+//
+FAMILY : RAW
+VERSION : 0.0
+NON_RETAIN
+
+
+  STRUCT 	
+   Type_Component : BYTE ;	//Type of the component (1 = Section, 0 = Other)
+   Record_Length : BYTE ;	//Number of the Detailed Status in the UDT
+   Status : ARRAY  [1 .. 16 ] OF "UDT_Comp_Status";	
+  END_STRUCT ;	
+BEGIN
+   Type_Component := B#16#0; 
+   Record_Length := B#16#16; 
+   Status[1].HMI_Text_Number := 300; 
+   Status[1].Overall_Status_Relation := B#16#5; 
+   Status[1].General_Status_Relation := B#16#4; 
+   Status[2].HMI_Text_Number := 301; 
+   Status[2].Overall_Status_Relation := B#16#5; 
+   Status[2].General_Status_Relation := B#16#4; 
+   Status[3].HMI_Text_Number := 302; 
+   Status[3].Overall_Status_Relation := B#16#5; 
+   Status[3].General_Status_Relation := B#16#4; 
+   Status[4].HMI_Text_Number := 303; 
+   Status[4].Overall_Status_Relation := B#16#5; 
+   Status[4].General_Status_Relation := B#16#4; 
+   Status[5].HMI_Text_Number := 304; 
+   Status[5].Overall_Status_Relation := B#16#4; 
+   Status[5].General_Status_Relation := B#16#3; 
+   Status[6].HMI_Text_Number := 69; 
+   Status[6].Overall_Status_Relation := B#16#4; 
+   Status[6].General_Status_Relation := B#16#3; 
+   Status[7].HMI_Text_Number := 162; 
+   Status[7].Overall_Status_Relation := B#16#4; 
+   Status[7].General_Status_Relation := B#16#3; 
+   Status[8].HMI_Text_Number := 165; 
+   Status[8].Overall_Status_Relation := B#16#4; 
+   Status[8].General_Status_Relation := B#16#3; 
+   Status[9].HMI_Text_Number := 62; 
+   Status[9].Overall_Status_Relation := B#16#4; 
+   Status[9].General_Status_Relation := B#16#3; 
+   Status[10].HMI_Text_Number := 63; 
+   Status[10].Overall_Status_Relation := B#16#4; 
+   Status[10].General_Status_Relation := B#16#3; 
+   Status[11].HMI_Text_Number := 182; 
+   Status[11].Overall_Status_Relation := B#16#4; 
+   Status[11].General_Status_Relation := B#16#3; 
+   Status[12].HMI_Text_Number := 183; 
+   Status[12].Overall_Status_Relation := B#16#4; 
+   Status[12].General_Status_Relation := B#16#3; 
+   Status[13].HMI_Text_Number := 298; 
+   Status[13].Overall_Status_Relation := B#16#5; 
+   Status[13].General_Status_Relation := B#16#4; 
+   Status[14].HMI_Text_Number := -1; 
+   Status[14].Overall_Status_Relation := B#16#0; 
+   Status[14].General_Status_Relation := B#16#0; 
+   Status[15].HMI_Text_Number := -1; 
+   Status[15].Overall_Status_Relation := B#16#0; 
+   Status[15].General_Status_Relation := B#16#0; 
+   Status[16].HMI_Text_Number := -1; 
+   Status[16].Overall_Status_Relation := B#16#0; 
+   Status[16].General_Status_Relation := B#16#0; 
+END_DATA_BLOCK
+

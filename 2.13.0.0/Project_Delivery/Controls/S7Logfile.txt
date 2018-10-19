@@ -1,0 +1,2322 @@
+06/20/18 14:05:09: COMPILE von source_files_library.awl
+Compile: Default_PRJ\SIMATIC 300\319F-3 PN/DP\S7 Program\Sources\source_files_library.awl
+Warning in row 331, column 18, degree 1: Comment cannot be saved.
+Warning in row 11064, column 3, degree 1: Comment cannot be saved.
+Warning in row 11276, column 3, degree 1: Comment cannot be saved.
+W Ln 020551 Col 013: Make sure that your global DB is set correctly.
+W Ln 020557 Col 013: Make sure that your global DB is set correctly.
+W Ln 020562 Col 013: Make sure that your global DB is set correctly.
+W Ln 020568 Col 013: Make sure that your global DB is set correctly.
+W Ln 020573 Col 013: Make sure that your global DB is set correctly.
+W Ln 020579 Col 013: Make sure that your global DB is set correctly.
+W Ln 020584 Col 013: Make sure that your global DB is set correctly.
+W Ln 020590 Col 013: Make sure that your global DB is set correctly.
+W Ln 020595 Col 013: Make sure that your global DB is set correctly.
+W Ln 020601 Col 013: Make sure that your global DB is set correctly.
+W Ln 020606 Col 013: Make sure that your global DB is set correctly.
+W Ln 020612 Col 013: Make sure that your global DB is set correctly.
+W Ln 020617 Col 013: Make sure that your global DB is set correctly.
+W Ln 020623 Col 013: Make sure that your global DB is set correctly.
+W Ln 020628 Col 013: Make sure that your global DB is set correctly.
+W Ln 020634 Col 013: Make sure that your global DB is set correctly.
+W Ln 025705 Col 013: Make sure that your global DB is set correctly.
+W Ln 025708 Col 013: Make sure that your global DB is set correctly.
+W Ln 025711 Col 013: Make sure that your global DB is set correctly.
+W Ln 025714 Col 013: Make sure that your global DB is set correctly.
+W Ln 025717 Col 013: Make sure that your global DB is set correctly.
+W Ln 025720 Col 013: Make sure that your global DB is set correctly.
+W Ln 025723 Col 013: Make sure that your global DB is set correctly.
+W Ln 025806 Col 013: Make sure that your global DB is set correctly.
+W Ln 025809 Col 013: Make sure that your global DB is set correctly.
+W Ln 025812 Col 013: Make sure that your global DB is set correctly.
+W Ln 025815 Col 013: Make sure that your global DB is set correctly.
+W Ln 025912 Col 013: Make sure that your global DB is set correctly.
+W Ln 025915 Col 013: Make sure that your global DB is set correctly.
+W Ln 025918 Col 013: Make sure that your global DB is set correctly.
+W Ln 025921 Col 013: Make sure that your global DB is set correctly.
+W Ln 025924 Col 013: Make sure that your global DB is set correctly.
+W Ln 026044 Col 013: Make sure that your global DB is set correctly.
+W Ln 026047 Col 013: Make sure that your global DB is set correctly.
+W Ln 026050 Col 013: Make sure that your global DB is set correctly.
+W Ln 026053 Col 013: Make sure that your global DB is set correctly.
+W Ln 026056 Col 013: Make sure that your global DB is set correctly.
+W Ln 026059 Col 013: Make sure that your global DB is set correctly.
+W Ln 026062 Col 013: Make sure that your global DB is set correctly.
+W Ln 026537 Col 013: Make sure that your global DB is set correctly.
+W Ln 026540 Col 013: Make sure that your global DB is set correctly.
+W Ln 026543 Col 013: Make sure that your global DB is set correctly.
+W Ln 026546 Col 013: Make sure that your global DB is set correctly.
+W Ln 026549 Col 013: Make sure that your global DB is set correctly.
+W Ln 026592 Col 001: Initialization has no effect.
+W Ln 026772 Col 013: Make sure that your global DB is set correctly.
+W Ln 026777 Col 013: Make sure that your global DB is set correctly.
+W Ln 026788 Col 013: Make sure that your global DB is set correctly.
+W Ln 026870 Col 038: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 026884 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 026913 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 026943 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 026990 Col 013: Make sure that your global DB is set correctly.
+W Ln 026994 Col 013: Make sure that your global DB is set correctly.
+W Ln 026999 Col 013: Make sure that your global DB is set correctly.
+W Ln 027034 Col 013: Make sure that your global DB is set correctly.
+W Ln 027040 Col 013: Make sure that your global DB is set correctly.
+W Ln 027044 Col 013: Make sure that your global DB is set correctly.
+W Ln 027047 Col 013: Make sure that your global DB is set correctly.
+W Ln 027054 Col 013: Make sure that your global DB is set correctly.
+W Ln 027064 Col 013: Make sure that your global DB is set correctly.
+W Ln 027610 Col 013: Make sure that your global DB is set correctly.
+W Ln 027613 Col 013: Make sure that your global DB is set correctly.
+W Ln 027643 Col 013: Make sure that your global DB is set correctly.
+W Ln 027646 Col 013: Make sure that your global DB is set correctly.
+W Ln 027682 Col 013: Make sure that your global DB is set correctly.
+W Ln 027685 Col 013: Make sure that your global DB is set correctly.
+W Ln 027716 Col 013: Make sure that your global DB is set correctly.
+W Ln 027719 Col 013: Make sure that your global DB is set correctly.
+W Ln 027773 Col 013: Make sure that your global DB is set correctly.
+W Ln 027967 Col 013: Make sure that your global DB is set correctly.
+W Ln 028015 Col 031: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 028029 Col 013: Make sure that your global DB is set correctly.
+W Ln 028063 Col 013: Make sure that your global DB is set correctly.
+W Ln 028090 Col 013: Make sure that your global DB is set correctly.
+W Ln 028098 Col 013: Make sure that your global DB is set correctly.
+W Ln 028108 Col 013: Make sure that your global DB is set correctly.
+W Ln 028110 Col 013: Make sure that your global DB is set correctly.
+W Ln 028127 Col 031: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 028140 Col 013: Make sure that your global DB is set correctly.
+W Ln 028164 Col 013: Make sure that your global DB is set correctly.
+W Ln 028187 Col 013: Make sure that your global DB is set correctly.
+W Ln 028206 Col 033: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 028440 Col 015: Make sure that your global DB is set correctly.
+W Ln 029778 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 029793 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 029818 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 029955 Col 013: Make sure that your global DB is set correctly.
+W Ln 030019 Col 013: Make sure that your global DB is set correctly.
+W Ln 030048 Col 013: Make sure that your global DB is set correctly.
+W Ln 030111 Col 013: Make sure that your global DB is set correctly.
+W Ln 030140 Col 013: Make sure that your global DB is set correctly.
+W Ln 030200 Col 013: Make sure that your global DB is set correctly.
+W Ln 030313 Col 013: Make sure that your global DB is set correctly.
+W Ln 030316 Col 013: Make sure that your global DB is set correctly.
+W Ln 030319 Col 013: Make sure that your global DB is set correctly.
+W Ln 030322 Col 013: Make sure that your global DB is set correctly.
+W Ln 030325 Col 013: Make sure that your global DB is set correctly.
+W Ln 030328 Col 013: Make sure that your global DB is set correctly.
+W Ln 030331 Col 013: Make sure that your global DB is set correctly.
+W Ln 030571 Col 013: Make sure that your global DB is set correctly.
+W Ln 030574 Col 013: Make sure that your global DB is set correctly.
+W Ln 030645 Col 013: Make sure that your global DB is set correctly.
+W Ln 030648 Col 013: Make sure that your global DB is set correctly.
+W Ln 030653 Col 013: Make sure that your global DB is set correctly.
+W Ln 030714 Col 015: Make sure that your global DB is set correctly.
+W Ln 031104 Col 013: Make sure that your global DB is set correctly.
+W Ln 031209 Col 013: Make sure that your global DB is set correctly.
+W Ln 031251 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 031258 Col 013: Make sure that your global DB is set correctly.
+W Ln 031264 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 031283 Col 013: Make sure that your global DB is set correctly.
+W Ln 031382 Col 013: Make sure that your global DB is set correctly.
+W Ln 031388 Col 013: Make sure that your global DB is set correctly.
+W Ln 031389 Col 013: Make sure that your global DB is set correctly.
+W Ln 031495 Col 013: Make sure that your global DB is set correctly.
+W Ln 031563 Col 013: Make sure that your global DB is set correctly.
+W Ln 031566 Col 013: Make sure that your global DB is set correctly.
+W Ln 031576 Col 013: Make sure that your global DB is set correctly.
+W Ln 031579 Col 013: Make sure that your global DB is set correctly.
+W Ln 031918 Col 015: Make sure that your global DB is set correctly.
+W Ln 032113 Col 013: Make sure that your global DB is set correctly.
+W Ln 032123 Col 013: Make sure that your global DB is set correctly.
+W Ln 032126 Col 013: Make sure that your global DB is set correctly.
+W Ln 032135 Col 013: Make sure that your global DB is set correctly.
+W Ln 032150 Col 013: Make sure that your global DB is set correctly.
+W Ln 032175 Col 013: Make sure that your global DB is set correctly.
+W Ln 032188 Col 013: Make sure that your global DB is set correctly.
+W Ln 032213 Col 013: Make sure that your global DB is set correctly.
+W Ln 032234 Col 013: Make sure that your global DB is set correctly.
+W Ln 032235 Col 013: Make sure that your global DB is set correctly.
+W Ln 032248 Col 013: Make sure that your global DB is set correctly.
+W Ln 032250 Col 013: Make sure that your global DB is set correctly.
+W Ln 032254 Col 013: Make sure that your global DB is set correctly.
+W Ln 032274 Col 013: Make sure that your global DB is set correctly.
+W Ln 032293 Col 013: Make sure that your global DB is set correctly.
+W Ln 032308 Col 013: Make sure that your global DB is set correctly.
+W Ln 032323 Col 013: Make sure that your global DB is set correctly.
+W Ln 032331 Col 013: Make sure that your global DB is set correctly.
+W Ln 032332 Col 013: Make sure that your global DB is set correctly.
+W Ln 032336 Col 013: Make sure that your global DB is set correctly.
+W Ln 032344 Col 013: Make sure that your global DB is set correctly.
+W Ln 032346 Col 013: Make sure that your global DB is set correctly.
+W Ln 032349 Col 013: Make sure that your global DB is set correctly.
+W Ln 032379 Col 013: Make sure that your global DB is set correctly.
+W Ln 032392 Col 013: Make sure that your global DB is set correctly.
+W Ln 032414 Col 013: Make sure that your global DB is set correctly.
+W Ln 032435 Col 013: Make sure that your global DB is set correctly.
+W Ln 032436 Col 013: Make sure that your global DB is set correctly.
+W Ln 032449 Col 013: Make sure that your global DB is set correctly.
+W Ln 032451 Col 013: Make sure that your global DB is set correctly.
+W Ln 032455 Col 013: Make sure that your global DB is set correctly.
+W Ln 032464 Col 013: Make sure that your global DB is set correctly.
+W Ln 032473 Col 013: Make sure that your global DB is set correctly.
+W Ln 032491 Col 013: Make sure that your global DB is set correctly.
+W Ln 032502 Col 013: Make sure that your global DB is set correctly.
+W Ln 032516 Col 013: Make sure that your global DB is set correctly.
+W Ln 032536 Col 013: Make sure that your global DB is set correctly.
+W Ln 032537 Col 013: Make sure that your global DB is set correctly.
+W Ln 032541 Col 013: Make sure that your global DB is set correctly.
+W Ln 032549 Col 013: Make sure that your global DB is set correctly.
+W Ln 032551 Col 013: Make sure that your global DB is set correctly.
+W Ln 032554 Col 013: Make sure that your global DB is set correctly.
+W Ln 032605 Col 013: Make sure that your global DB is set correctly.
+W Ln 032609 Col 013: Make sure that your global DB is set correctly.
+W Ln 032642 Col 013: Make sure that your global DB is set correctly.
+W Ln 032647 Col 013: Make sure that your global DB is set correctly.
+W Ln 034325 Col 013: Make sure that your global DB is set correctly.
+W Ln 034345 Col 013: Make sure that your global DB is set correctly.
+W Ln 034359 Col 013: Make sure that your global DB is set correctly.
+W Ln 034382 Col 013: Make sure that your global DB is set correctly.
+W Ln 034413 Col 001: Initialization has no effect.
+W Ln 034600 Col 015: Make sure that your global DB is set correctly.
+W Ln 034880 Col 015: Make sure that your global DB is set correctly.
+W Ln 035470 Col 013: Make sure that your global DB is set correctly.
+W Ln 035642 Col 013: Make sure that your global DB is set correctly.
+W Ln 035656 Col 013: Make sure that your global DB is set correctly.
+W Ln 035709 Col 013: Make sure that your global DB is set correctly.
+W Ln 035725 Col 013: Make sure that your global DB is set correctly.
+W Ln 035945 Col 013: Make sure that your global DB is set correctly.
+W Ln 035962 Col 013: Make sure that your global DB is set correctly.
+W Ln 036140 Col 013: Make sure that your global DB is set correctly.
+W Ln 036157 Col 013: Make sure that your global DB is set correctly.
+W Ln 036247 Col 013: Make sure that your global DB is set correctly.
+W Ln 036480 Col 013: Make sure that your global DB is set correctly.
+W Ln 036496 Col 013: Make sure that your global DB is set correctly.
+W Ln 036502 Col 013: Make sure that your global DB is set correctly.
+W Ln 036508 Col 013: Make sure that your global DB is set correctly.
+W Ln 036513 Col 013: Make sure that your global DB is set correctly.
+W Ln 036525 Col 013: Make sure that your global DB is set correctly.
+W Ln 036734 Col 013: Make sure that your global DB is set correctly.
+W Ln 036737 Col 013: Make sure that your global DB is set correctly.
+W Ln 036750 Col 013: Make sure that your global DB is set correctly.
+W Ln 036778 Col 013: Make sure that your global DB is set correctly.
+W Ln 036802 Col 013: Make sure that your global DB is set correctly.
+W Ln 036807 Col 013: Make sure that your global DB is set correctly.
+W Ln 036818 Col 013: Make sure that your global DB is set correctly.
+W Ln 036824 Col 013: Make sure that your global DB is set correctly.
+W Ln 036839 Col 013: Make sure that your global DB is set correctly.
+W Ln 036842 Col 013: Make sure that your global DB is set correctly.
+W Ln 036845 Col 013: Make sure that your global DB is set correctly.
+W Ln 036861 Col 013: Make sure that your global DB is set correctly.
+W Ln 036888 Col 013: Make sure that your global DB is set correctly.
+W Ln 036910 Col 013: Make sure that your global DB is set correctly.
+W Ln 037064 Col 013: Make sure that your global DB is set correctly.
+W Ln 037067 Col 013: Make sure that your global DB is set correctly.
+W Ln 037071 Col 013: Make sure that your global DB is set correctly.
+W Ln 037087 Col 013: Make sure that your global DB is set correctly.
+W Ln 037091 Col 013: Make sure that your global DB is set correctly.
+W Ln 037102 Col 013: Make sure that your global DB is set correctly.
+W Ln 037127 Col 013: Make sure that your global DB is set correctly.
+W Ln 037138 Col 013: Make sure that your global DB is set correctly.
+W Ln 037142 Col 013: Make sure that your global DB is set correctly.
+W Ln 037156 Col 013: Make sure that your global DB is set correctly.
+W Ln 037164 Col 013: Make sure that your global DB is set correctly.
+W Ln 037174 Col 013: Make sure that your global DB is set correctly.
+W Ln 037178 Col 013: Make sure that your global DB is set correctly.
+W Ln 037182 Col 013: Make sure that your global DB is set correctly.
+W Ln 037185 Col 013: Make sure that your global DB is set correctly.
+W Ln 037234 Col 013: Make sure that your global DB is set correctly.
+W Ln 037238 Col 013: Make sure that your global DB is set correctly.
+W Ln 037252 Col 013: Make sure that your global DB is set correctly.
+W Ln 037256 Col 013: Make sure that your global DB is set correctly.
+W Ln 037344 Col 013: Make sure that your global DB is set correctly.
+W Ln 037353 Col 013: Make sure that your global DB is set correctly.
+W Ln 037446 Col 013: Make sure that your global DB is set correctly.
+W Ln 037449 Col 013: Make sure that your global DB is set correctly.
+W Ln 037453 Col 013: Make sure that your global DB is set correctly.
+W Ln 037481 Col 013: Make sure that your global DB is set correctly.
+W Ln 037505 Col 013: Make sure that your global DB is set correctly.
+W Ln 037510 Col 013: Make sure that your global DB is set correctly.
+W Ln 037521 Col 013: Make sure that your global DB is set correctly.
+W Ln 037527 Col 013: Make sure that your global DB is set correctly.
+W Ln 037542 Col 013: Make sure that your global DB is set correctly.
+W Ln 037545 Col 013: Make sure that your global DB is set correctly.
+W Ln 037548 Col 013: Make sure that your global DB is set correctly.
+W Ln 037564 Col 013: Make sure that your global DB is set correctly.
+W Ln 037591 Col 013: Make sure that your global DB is set correctly.
+W Ln 037607 Col 013: Make sure that your global DB is set correctly.
+W Ln 037685 Col 001: Initialization has no effect.
+W Ln 037847 Col 013: Make sure that your global DB is set correctly.
+W Ln 037852 Col 013: Make sure that your global DB is set correctly.
+W Ln 037868 Col 013: Make sure that your global DB is set correctly.
+W Ln 039094 Col 013: Make sure that your global DB is set correctly.
+W Ln 039104 Col 013: Make sure that your global DB is set correctly.
+W Ln 039133 Col 013: Make sure that your global DB is set correctly.
+W Ln 039150 Col 013: Make sure that your global DB is set correctly.
+W Ln 039169 Col 013: Make sure that your global DB is set correctly.
+W Ln 039475 Col 013: Make sure that your global DB is set correctly.
+W Ln 039478 Col 013: Make sure that your global DB is set correctly.
+W Ln 039482 Col 013: Make sure that your global DB is set correctly.
+W Ln 039498 Col 013: Make sure that your global DB is set correctly.
+W Ln 039502 Col 013: Make sure that your global DB is set correctly.
+W Ln 039513 Col 013: Make sure that your global DB is set correctly.
+W Ln 039538 Col 013: Make sure that your global DB is set correctly.
+W Ln 039549 Col 013: Make sure that your global DB is set correctly.
+W Ln 039553 Col 013: Make sure that your global DB is set correctly.
+W Ln 039560 Col 013: Make sure that your global DB is set correctly.
+W Ln 039575 Col 013: Make sure that your global DB is set correctly.
+W Ln 039578 Col 013: Make sure that your global DB is set correctly.
+W Ln 039581 Col 013: Make sure that your global DB is set correctly.
+W Ln 039617 Col 013: Make sure that your global DB is set correctly.
+W Ln 039621 Col 013: Make sure that your global DB is set correctly.
+W Ln 039635 Col 013: Make sure that your global DB is set correctly.
+W Ln 039639 Col 013: Make sure that your global DB is set correctly.
+W Ln 039759 Col 013: Make sure that your global DB is set correctly.
+W Ln 039762 Col 013: Make sure that your global DB is set correctly.
+W Ln 039775 Col 013: Make sure that your global DB is set correctly.
+W Ln 039791 Col 013: Make sure that your global DB is set correctly.
+W Ln 039795 Col 013: Make sure that your global DB is set correctly.
+W Ln 039806 Col 013: Make sure that your global DB is set correctly.
+W Ln 039831 Col 013: Make sure that your global DB is set correctly.
+W Ln 039842 Col 013: Make sure that your global DB is set correctly.
+W Ln 039846 Col 013: Make sure that your global DB is set correctly.
+W Ln 039853 Col 013: Make sure that your global DB is set correctly.
+W Ln 039868 Col 013: Make sure that your global DB is set correctly.
+W Ln 039871 Col 013: Make sure that your global DB is set correctly.
+W Ln 039874 Col 013: Make sure that your global DB is set correctly.
+W Ln 039912 Col 013: Make sure that your global DB is set correctly.
+W Ln 039922 Col 013: Make sure that your global DB is set correctly.
+W Ln 039936 Col 013: Make sure that your global DB is set correctly.
+W Ln 039940 Col 013: Make sure that your global DB is set correctly.
+W Ln 040057 Col 013: Make sure that your global DB is set correctly.
+W Ln 040060 Col 013: Make sure that your global DB is set correctly.
+W Ln 040064 Col 013: Make sure that your global DB is set correctly.
+W Ln 040092 Col 013: Make sure that your global DB is set correctly.
+W Ln 040116 Col 013: Make sure that your global DB is set correctly.
+W Ln 040121 Col 013: Make sure that your global DB is set correctly.
+W Ln 040132 Col 013: Make sure that your global DB is set correctly.
+W Ln 040138 Col 013: Make sure that your global DB is set correctly.
+W Ln 040142 Col 013: Make sure that your global DB is set correctly.
+W Ln 040158 Col 013: Make sure that your global DB is set correctly.
+W Ln 040161 Col 013: Make sure that your global DB is set correctly.
+W Ln 040164 Col 013: Make sure that your global DB is set correctly.
+W Ln 040180 Col 013: Make sure that your global DB is set correctly.
+W Ln 040207 Col 013: Make sure that your global DB is set correctly.
+W Ln 040223 Col 013: Make sure that your global DB is set correctly.
+W Ln 040346 Col 013: Make sure that your global DB is set correctly.
+W Ln 040349 Col 013: Make sure that your global DB is set correctly.
+W Ln 040353 Col 013: Make sure that your global DB is set correctly.
+W Ln 040369 Col 013: Make sure that your global DB is set correctly.
+W Ln 040373 Col 013: Make sure that your global DB is set correctly.
+W Ln 040384 Col 013: Make sure that your global DB is set correctly.
+W Ln 040409 Col 013: Make sure that your global DB is set correctly.
+W Ln 040420 Col 013: Make sure that your global DB is set correctly.
+W Ln 040424 Col 013: Make sure that your global DB is set correctly.
+W Ln 040431 Col 013: Make sure that your global DB is set correctly.
+W Ln 040435 Col 013: Make sure that your global DB is set correctly.
+W Ln 040451 Col 013: Make sure that your global DB is set correctly.
+W Ln 040454 Col 013: Make sure that your global DB is set correctly.
+W Ln 040457 Col 013: Make sure that your global DB is set correctly.
+W Ln 040493 Col 013: Make sure that your global DB is set correctly.
+W Ln 040497 Col 013: Make sure that your global DB is set correctly.
+W Ln 040511 Col 013: Make sure that your global DB is set correctly.
+W Ln 040515 Col 013: Make sure that your global DB is set correctly.
+W Ln 040647 Col 013: Make sure that your global DB is set correctly.
+W Ln 040651 Col 013: Make sure that your global DB is set correctly.
+W Ln 040658 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 040659 Col 013: Make sure that your global DB is set correctly.
+W Ln 040663 Col 013: Make sure that your global DB is set correctly.
+W Ln 040668 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 040670 Col 013: Make sure that your global DB is set correctly.
+W Ln 040677 Col 013: Make sure that your global DB is set correctly.
+W Ln 040703 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 040870 Col 013: Make sure that your global DB is set correctly.
+W Ln 040876 Col 013: Make sure that your global DB is set correctly.
+W Ln 040989 Col 013: Make sure that your global DB is set correctly.
+W Ln 041006 Col 013: Make sure that your global DB is set correctly.
+W Ln 041015 Col 013: Make sure that your global DB is set correctly.
+W Ln 041028 Col 013: Make sure that your global DB is set correctly.
+W Ln 041034 Col 013: Make sure that your global DB is set correctly.
+W Ln 041040 Col 013: Make sure that your global DB is set correctly.
+W Ln 041045 Col 013: Make sure that your global DB is set correctly.
+W Ln 041048 Col 013: Make sure that your global DB is set correctly.
+W Ln 041059 Col 013: Make sure that your global DB is set correctly.
+W Ln 041134 Col 013: Make sure that your global DB is set correctly.
+W Ln 041140 Col 013: Make sure that your global DB is set correctly.
+W Ln 041150 Col 013: Make sure that your global DB is set correctly.
+W Ln 041160 Col 013: Make sure that your global DB is set correctly.
+W Ln 041168 Col 013: Make sure that your global DB is set correctly.
+W Ln 041172 Col 013: Make sure that your global DB is set correctly.
+W Ln 041174 Col 013: Make sure that your global DB is set correctly.
+W Ln 041182 Col 013: Make sure that your global DB is set correctly.
+W Ln 041184 Col 013: Make sure that your global DB is set correctly.
+W Ln 041214 Col 013: Make sure that your global DB is set correctly.
+W Ln 041223 Col 013: Make sure that your global DB is set correctly.
+W Ln 041232 Col 013: Make sure that your global DB is set correctly.
+W Ln 041236 Col 013: Make sure that your global DB is set correctly.
+W Ln 041239 Col 013: Make sure that your global DB is set correctly.
+W Ln 041242 Col 013: Make sure that your global DB is set correctly.
+W Ln 041249 Col 013: Make sure that your global DB is set correctly.
+W Ln 041254 Col 013: Make sure that your global DB is set correctly.
+W Ln 041256 Col 013: Make sure that your global DB is set correctly.
+W Ln 041260 Col 013: Make sure that your global DB is set correctly.
+W Ln 041262 Col 013: Make sure that your global DB is set correctly.
+W Ln 041266 Col 013: Make sure that your global DB is set correctly.
+W Ln 041268 Col 013: Make sure that your global DB is set correctly.
+W Ln 041272 Col 013: Make sure that your global DB is set correctly.
+W Ln 041276 Col 013: Make sure that your global DB is set correctly.
+W Ln 041279 Col 013: Make sure that your global DB is set correctly.
+W Ln 041282 Col 013: Make sure that your global DB is set correctly.
+W Ln 041285 Col 013: Make sure that your global DB is set correctly.
+W Ln 041316 Col 013: Make sure that your global DB is set correctly.
+W Ln 041318 Col 013: Make sure that your global DB is set correctly.
+W Ln 041324 Col 013: Make sure that your global DB is set correctly.
+W Ln 041333 Col 013: Make sure that your global DB is set correctly.
+W Ln 041344 Col 013: Make sure that your global DB is set correctly.
+W Ln 041358 Col 013: Make sure that your global DB is set correctly.
+W Ln 041359 Col 000: Make sure that your global DB is set correctly.
+W Ln 041360 Col 013: Make sure that your global DB is set correctly.
+W Ln 041361 Col 013: Make sure that your global DB is set correctly.
+W Ln 041371 Col 013: Make sure that your global DB is set correctly.
+W Ln 041372 Col 013: Make sure that your global DB is set correctly.
+W Ln 041374 Col 013: Make sure that your global DB is set correctly.
+W Ln 041377 Col 013: Make sure that your global DB is set correctly.
+W Ln 041889 Col 013: Make sure that your global DB is set correctly.
+W Ln 041895 Col 013: Make sure that your global DB is set correctly.
+W Ln 042157 Col 013: Make sure that your global DB is set correctly.
+W Ln 042161 Col 013: Make sure that your global DB is set correctly.
+W Ln 042181 Col 013: Make sure that your global DB is set correctly.
+W Ln 042185 Col 013: Make sure that your global DB is set correctly.
+W Ln 042449 Col 001: Initialization has no effect.
+W Ln 042480 Col 013: Make sure that your global DB is set correctly.
+W Ln 042483 Col 013: Make sure that your global DB is set correctly.
+W Ln 042486 Col 013: Make sure that your global DB is set correctly.
+W Ln 042494 Col 013: Make sure that your global DB is set correctly.
+W Ln 042497 Col 013: Make sure that your global DB is set correctly.
+W Ln 042838 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 042902 Col 013: Make sure that your global DB is set correctly.
+W Ln 042971 Col 013: Make sure that your global DB is set correctly.
+W Ln 043115 Col 013: Make sure that your global DB is set correctly.
+W Ln 043171 Col 013: Make sure that your global DB is set correctly.
+W Ln 043181 Col 013: Make sure that your global DB is set correctly.
+W Ln 043312 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 043380 Col 013: Make sure that your global DB is set correctly.
+W Ln 043451 Col 013: Make sure that your global DB is set correctly.
+W Ln 043590 Col 013: Make sure that your global DB is set correctly.
+W Ln 043643 Col 013: Make sure that your global DB is set correctly.
+W Ln 043654 Col 013: Make sure that your global DB is set correctly.
+W Ln 043793 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 043857 Col 013: Make sure that your global DB is set correctly.
+W Ln 043903 Col 013: Make sure that your global DB is set correctly.
+W Ln 044055 Col 013: Make sure that your global DB is set correctly.
+W Ln 044088 Col 013: Make sure that your global DB is set correctly.
+W Ln 044096 Col 013: Make sure that your global DB is set correctly.
+W Ln 044213 Col 013: Make sure that your global DB is set correctly.
+W Ln 044240 Col 013: Make sure that your global DB is set correctly.
+W Ln 044248 Col 013: Make sure that your global DB is set correctly.
+W Ln 044475 Col 013: Make sure that your global DB is set correctly.
+W Ln 044480 Col 013: Make sure that your global DB is set correctly.
+W Ln 044486 Col 013: Make sure that your global DB is set correctly.
+W Ln 044522 Col 013: Make sure that your global DB is set correctly.
+W Ln 044531 Col 013: Make sure that your global DB is set correctly.
+W Ln 044542 Col 013: Make sure that your global DB is set correctly.
+W Ln 044546 Col 013: Make sure that your global DB is set correctly.
+W Ln 044568 Col 013: Make sure that your global DB is set correctly.
+W Ln 044578 Col 013: Make sure that your global DB is set correctly.
+W Ln 044591 Col 013: Make sure that your global DB is set correctly.
+W Ln 044648 Col 013: Make sure that your global DB is set correctly.
+W Ln 044658 Col 013: Make sure that your global DB is set correctly.
+W Ln 044662 Col 013: Make sure that your global DB is set correctly.
+W Ln 044681 Col 013: Make sure that your global DB is set correctly.
+W Ln 044687 Col 013: Make sure that your global DB is set correctly.
+W Ln 044729 Col 013: Make sure that your global DB is set correctly.
+W Ln 044756 Col 013: Make sure that your global DB is set correctly.
+W Ln 044786 Col 013: Make sure that your global DB is set correctly.
+W Ln 044805 Col 013: Make sure that your global DB is set correctly.
+W Ln 044808 Col 013: Make sure that your global DB is set correctly.
+W Ln 044814 Col 013: Make sure that your global DB is set correctly.
+W Ln 044820 Col 013: Make sure that your global DB is set correctly.
+W Ln 044823 Col 013: Make sure that your global DB is set correctly.
+W Ln 044825 Col 013: Make sure that your global DB is set correctly.
+W Ln 044833 Col 013: Make sure that your global DB is set correctly.
+W Ln 044839 Col 013: Make sure that your global DB is set correctly.
+W Ln 044844 Col 013: Make sure that your global DB is set correctly.
+W Ln 044967 Col 013: Make sure that your global DB is set correctly.
+W Ln 044999 Col 013: Make sure that your global DB is set correctly.
+W Ln 045007 Col 013: Make sure that your global DB is set correctly.
+W Ln 045134 Col 013: Make sure that your global DB is set correctly.
+W Ln 045166 Col 013: Make sure that your global DB is set correctly.
+W Ln 045174 Col 013: Make sure that your global DB is set correctly.
+W Ln 045315 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 045383 Col 013: Make sure that your global DB is set correctly.
+W Ln 045431 Col 013: Make sure that your global DB is set correctly.
+W Ln 045506 Col 013: Make sure that your global DB is set correctly.
+W Ln 045516 Col 013: Make sure that your global DB is set correctly.
+W Ln 045550 Col 013: Make sure that your global DB is set correctly.
+W Ln 045669 Col 013: Make sure that your global DB is set correctly.
+W Ln 045699 Col 013: Make sure that your global DB is set correctly.
+W Ln 045708 Col 013: Make sure that your global DB is set correctly.
+W Ln 045816 Col 013: Make sure that your global DB is set correctly.
+W Ln 045841 Col 013: Make sure that your global DB is set correctly.
+W Ln 045851 Col 013: Make sure that your global DB is set correctly.
+W Ln 045969 Col 013: Make sure that your global DB is set correctly.
+W Ln 045999 Col 013: Make sure that your global DB is set correctly.
+W Ln 046008 Col 013: Make sure that your global DB is set correctly.
+W Ln 046055 Col 013: Make sure that your global DB is set correctly.
+W Ln 046066 Col 013: Make sure that your global DB is set correctly.
+W Ln 046069 Col 013: Make sure that your global DB is set correctly.
+W Ln 046071 Col 013: Make sure that your global DB is set correctly.
+W Ln 046073 Col 013: Make sure that your global DB is set correctly.
+W Ln 046076 Col 013: Make sure that your global DB is set correctly.
+W Ln 046092 Col 013: Make sure that your global DB is set correctly.
+W Ln 046498 Col 015: Make sure that your global DB is set correctly.
+W Ln 046778 Col 015: Make sure that your global DB is set correctly.
+W Ln 046833 Col 013: Make sure that your global DB is set correctly.
+W Ln 046838 Col 013: Make sure that your global DB is set correctly.
+W Ln 046841 Col 013: Make sure that your global DB is set correctly.
+W Ln 046852 Col 013: Make sure that your global DB is set correctly.
+W Ln 046857 Col 013: Make sure that your global DB is set correctly.
+W Ln 046860 Col 013: Make sure that your global DB is set correctly.
+W Ln 046869 Col 013: Make sure that your global DB is set correctly.
+W Ln 046874 Col 013: Make sure that your global DB is set correctly.
+W Ln 046877 Col 013: Make sure that your global DB is set correctly.
+W Ln 046888 Col 013: Make sure that your global DB is set correctly.
+W Ln 046893 Col 013: Make sure that your global DB is set correctly.
+W Ln 046896 Col 013: Make sure that your global DB is set correctly.
+W Ln 047002 Col 013: Make sure that your global DB is set correctly.
+W Ln 047008 Col 013: Make sure that your global DB is set correctly.
+W Ln 047218 Col 013: Make sure that your global DB is set correctly.
+W Ln 047221 Col 013: Make sure that your global DB is set correctly.
+W Ln 047225 Col 013: Make sure that your global DB is set correctly.
+W Ln 047227 Col 013: Make sure that your global DB is set correctly.
+W Ln 047236 Col 013: Make sure that your global DB is set correctly.
+W Ln 047238 Col 013: Make sure that your global DB is set correctly.
+W Ln 047242 Col 013: Make sure that your global DB is set correctly.
+W Ln 047243 Col 013: Make sure that your global DB is set correctly.
+W Ln 047245 Col 013: Make sure that your global DB is set correctly.
+W Ln 047463 Col 013: Make sure that your global DB is set correctly.
+W Ln 047469 Col 013: Make sure that your global DB is set correctly.
+W Ln 047508 Col 013: Make sure that your global DB is set correctly.
+W Ln 047514 Col 013: Make sure that your global DB is set correctly.
+W Ln 047797 Col 015: Make sure that your global DB is set correctly.
+W Ln 047969 Col 015: Make sure that your global DB is set correctly.
+W Ln 048343 Col 013: Make sure that your global DB is set correctly.
+W Ln 048366 Col 013: Make sure that your global DB is set correctly.
+W Ln 048664 Col 013: Make sure that your global DB is set correctly.
+W Ln 048687 Col 013: Make sure that your global DB is set correctly.
+W Ln 048957 Col 013: Make sure that your global DB is set correctly.
+W Ln 048987 Col 013: Make sure that your global DB is set correctly.
+W Ln 048996 Col 013: Make sure that your global DB is set correctly.
+W Ln 049154 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049156 Col 041: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 049168 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049177 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049184 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049191 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049196 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049201 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049239 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049242 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049277 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049280 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049315 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049318 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049353 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049356 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049391 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049394 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049429 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049432 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049467 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049470 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049505 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049508 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049543 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049546 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049581 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049584 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049619 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049622 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049657 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049660 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049695 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049698 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049733 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049736 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049771 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049774 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049809 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049812 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049824 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 049826 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049832 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049838 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049844 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049850 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049856 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049862 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049868 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049874 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049880 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049886 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049892 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049898 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049904 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049910 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049916 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049917 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049918 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049919 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049920 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049921 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049922 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049923 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049924 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049925 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049926 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049927 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049928 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049929 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049930 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 049938 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 050211 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 050244 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050253 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050320 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050327 Col 013: Make sure that your global DB is set correctly.
+W Ln 050329 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050338 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050347 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050358 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050750 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 050783 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050792 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050860 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050867 Col 013: Make sure that your global DB is set correctly.
+W Ln 050869 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050878 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050887 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 050899 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051050 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051052 Col 041: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 051065 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051073 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051077 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051084 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051091 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051096 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051102 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051145 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051148 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051183 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051186 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051221 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051224 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051259 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051262 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051297 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051300 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051335 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051338 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051373 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051376 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051411 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051414 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051449 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051452 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051487 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051490 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051525 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051528 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051563 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051566 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051601 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051604 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051639 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051642 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051677 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051680 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051715 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 051718 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 051726 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 052197 Col 013: Make sure that your global DB is set correctly.
+W Ln 052233 Col 013: Make sure that your global DB is set correctly.
+W Ln 052311 Col 013: Make sure that your global DB is set correctly.
+W Ln 052314 Col 013: Make sure that your global DB is set correctly.
+W Ln 052319 Col 013: Make sure that your global DB is set correctly.
+W Ln 052321 Col 013: Make sure that your global DB is set correctly.
+W Ln 052323 Col 013: Make sure that your global DB is set correctly.
+W Ln 052325 Col 013: Make sure that your global DB is set correctly.
+W Ln 052327 Col 013: Make sure that your global DB is set correctly.
+W Ln 052334 Col 013: Make sure that your global DB is set correctly.
+W Ln 052335 Col 013: Make sure that your global DB is set correctly.
+W Ln 052370 Col 013: Make sure that your global DB is set correctly.
+W Ln 052383 Col 013: Make sure that your global DB is set correctly.
+W Ln 052396 Col 013: Make sure that your global DB is set correctly.
+W Ln 052398 Col 013: Make sure that your global DB is set correctly.
+W Ln 052400 Col 013: Make sure that your global DB is set correctly.
+W Ln 052402 Col 013: Make sure that your global DB is set correctly.
+W Ln 052404 Col 013: Make sure that your global DB is set correctly.
+W Ln 052405 Col 013: Make sure that your global DB is set correctly.
+W Ln 052406 Col 013: Make sure that your global DB is set correctly.
+W Ln 052407 Col 013: Make sure that your global DB is set correctly.
+W Ln 052420 Col 013: Make sure that your global DB is set correctly.
+W Ln 052422 Col 013: Make sure that your global DB is set correctly.
+W Ln 052424 Col 013: Make sure that your global DB is set correctly.
+W Ln 052426 Col 013: Make sure that your global DB is set correctly.
+W Ln 052427 Col 013: Make sure that your global DB is set correctly.
+W Ln 052430 Col 013: Make sure that your global DB is set correctly.
+W Ln 052440 Col 013: Make sure that your global DB is set correctly.
+W Ln 052449 Col 013: Make sure that your global DB is set correctly.
+W Ln 052454 Col 013: Make sure that your global DB is set correctly.
+W Ln 052458 Col 013: Make sure that your global DB is set correctly.
+W Ln 052461 Col 013: Make sure that your global DB is set correctly.
+W Ln 052464 Col 013: Make sure that your global DB is set correctly.
+W Ln 052484 Col 013: Make sure that your global DB is set correctly.
+W Ln 052489 Col 013: Make sure that your global DB is set correctly.
+W Ln 052490 Col 013: Make sure that your global DB is set correctly.
+W Ln 052491 Col 013: Make sure that your global DB is set correctly.
+W Ln 052492 Col 013: Make sure that your global DB is set correctly.
+W Ln 052497 Col 013: Make sure that your global DB is set correctly.
+W Ln 052498 Col 013: Make sure that your global DB is set correctly.
+W Ln 052677 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 052709 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052726 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052793 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052799 Col 013: Make sure that your global DB is set correctly.
+W Ln 052802 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052811 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052820 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 052996 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053151 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 053186 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053244 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053250 Col 013: Make sure that your global DB is set correctly.
+W Ln 053253 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053262 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053271 Col 018: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053396 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053471 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053540 Col 034: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 053569 Col 013: Make sure that your global DB is set correctly.
+W Ln 053581 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053587 Col 013: Make sure that your global DB is set correctly.
+W Ln 053599 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 053603 Col 013: Make sure that your global DB is set correctly.
+W Ln 053674 Col 013: Make sure that your global DB is set correctly.
+W Ln 053677 Col 013: Make sure that your global DB is set correctly.
+W Ln 053679 Col 013: Make sure that your global DB is set correctly.
+W Ln 053684 Col 013: Make sure that your global DB is set correctly.
+W Ln 053724 Col 013: Make sure that your global DB is set correctly.
+W Ln 053738 Col 013: Make sure that your global DB is set correctly.
+W Ln 053755 Col 013: Make sure that your global DB is set correctly.
+W Ln 054839 Col 013: Make sure that your global DB is set correctly.
+W Ln 054859 Col 013: Make sure that your global DB is set correctly.
+W Ln 054878 Col 013: Make sure that your global DB is set correctly.
+W Ln 054881 Col 013: Make sure that your global DB is set correctly.
+W Ln 054905 Col 013: Make sure that your global DB is set correctly.
+W Ln 054908 Col 013: Make sure that your global DB is set correctly.
+W Ln 054911 Col 013: Make sure that your global DB is set correctly.
+W Ln 054954 Col 013: Make sure that your global DB is set correctly.
+W Ln 054988 Col 013: Make sure that your global DB is set correctly.
+W Ln 054989 Col 013: Make sure that your global DB is set correctly.
+W Ln 055000 Col 013: Make sure that your global DB is set correctly.
+W Ln 055001 Col 013: Make sure that your global DB is set correctly.
+W Ln 055002 Col 013: Make sure that your global DB is set correctly.
+W Ln 055003 Col 013: Make sure that your global DB is set correctly.
+W Ln 055004 Col 013: Make sure that your global DB is set correctly.
+W Ln 055005 Col 013: Make sure that your global DB is set correctly.
+W Ln 055025 Col 013: Make sure that your global DB is set correctly.
+W Ln 055033 Col 013: Make sure that your global DB is set correctly.
+W Ln 055037 Col 013: Make sure that your global DB is set correctly.
+W Ln 055041 Col 013: Make sure that your global DB is set correctly.
+W Ln 055044 Col 013: Make sure that your global DB is set correctly.
+W Ln 055047 Col 013: Make sure that your global DB is set correctly.
+W Ln 055329 Col 015: Make sure that your global DB is set correctly.
+W Ln 055578 Col 015: Make sure that your global DB is set correctly.
+W Ln 055638 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 055645 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 055651 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 055654 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 055657 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 055660 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 055835 Col 013: Make sure that your global DB is set correctly.
+W Ln 055854 Col 013: Make sure that your global DB is set correctly.
+W Ln 055872 Col 013: Make sure that your global DB is set correctly.
+W Ln 055875 Col 013: Make sure that your global DB is set correctly.
+W Ln 055898 Col 013: Make sure that your global DB is set correctly.
+W Ln 055901 Col 013: Make sure that your global DB is set correctly.
+W Ln 055904 Col 013: Make sure that your global DB is set correctly.
+W Ln 055949 Col 013: Make sure that your global DB is set correctly.
+W Ln 055979 Col 013: Make sure that your global DB is set correctly.
+W Ln 055994 Col 013: Make sure that your global DB is set correctly.
+W Ln 056005 Col 013: Make sure that your global DB is set correctly.
+W Ln 056006 Col 013: Make sure that your global DB is set correctly.
+W Ln 056016 Col 013: Make sure that your global DB is set correctly.
+W Ln 056017 Col 013: Make sure that your global DB is set correctly.
+W Ln 056018 Col 013: Make sure that your global DB is set correctly.
+W Ln 056019 Col 013: Make sure that your global DB is set correctly.
+W Ln 056020 Col 013: Make sure that your global DB is set correctly.
+W Ln 056021 Col 013: Make sure that your global DB is set correctly.
+W Ln 056039 Col 013: Make sure that your global DB is set correctly.
+W Ln 056046 Col 013: Make sure that your global DB is set correctly.
+W Ln 056048 Col 013: Make sure that your global DB is set correctly.
+W Ln 056050 Col 013: Make sure that your global DB is set correctly.
+W Ln 056053 Col 013: Make sure that your global DB is set correctly.
+W Ln 057045 Col 013: Make sure that your global DB is set correctly.
+W Ln 057279 Col 013: Make sure that your global DB is set correctly.
+W Ln 057282 Col 013: Make sure that your global DB is set correctly.
+W Ln 057285 Col 013: Make sure that your global DB is set correctly.
+W Ln 057290 Col 013: Make sure that your global DB is set correctly.
+W Ln 057293 Col 013: Make sure that your global DB is set correctly.
+W Ln 057300 Col 013: Make sure that your global DB is set correctly.
+W Ln 057303 Col 013: Make sure that your global DB is set correctly.
+W Ln 057306 Col 013: Make sure that your global DB is set correctly.
+W Ln 057311 Col 013: Make sure that your global DB is set correctly.
+W Ln 057314 Col 013: Make sure that your global DB is set correctly.
+W Ln 057323 Col 013: Make sure that your global DB is set correctly.
+W Ln 057332 Col 013: Make sure that your global DB is set correctly.
+W Ln 057364 Col 013: Make sure that your global DB is set correctly.
+W Ln 057369 Col 013: Make sure that your global DB is set correctly.
+W Ln 059156 Col 013: Make sure that your global DB is set correctly.
+W Ln 059167 Col 013: Make sure that your global DB is set correctly.
+W Ln 059170 Col 013: Make sure that your global DB is set correctly.
+W Ln 059178 Col 013: Make sure that your global DB is set correctly.
+W Ln 059184 Col 013: Make sure that your global DB is set correctly.
+W Ln 059187 Col 013: Make sure that your global DB is set correctly.
+W Ln 059190 Col 013: Make sure that your global DB is set correctly.
+W Ln 059193 Col 013: Make sure that your global DB is set correctly.
+W Ln 059196 Col 013: Make sure that your global DB is set correctly.
+W Ln 059201 Col 013: Make sure that your global DB is set correctly.
+W Ln 059204 Col 013: Make sure that your global DB is set correctly.
+W Ln 059206 Col 013: Make sure that your global DB is set correctly.
+W Ln 059209 Col 013: Make sure that your global DB is set correctly.
+W Ln 059211 Col 013: Make sure that your global DB is set correctly.
+W Ln 059216 Col 013: Make sure that your global DB is set correctly.
+W Ln 059221 Col 013: Make sure that your global DB is set correctly.
+W Ln 059224 Col 013: Make sure that your global DB is set correctly.
+W Ln 059393 Col 013: Make sure that your global DB is set correctly.
+W Ln 060343 Col 013: Make sure that your global DB is set correctly.
+W Ln 060451 Col 013: Make sure that your global DB is set correctly.
+W Ln 061861 Col 013: Make sure that your global DB is set correctly.
+W Ln 062094 Col 015: Make sure that your global DB is set correctly.
+W Ln 062210 Col 013: Make sure that your global DB is set correctly.
+W Ln 062378 Col 013: Make sure that your global DB is set correctly.
+W Ln 062454 Col 013: Make sure that your global DB is set correctly.
+W Ln 062461 Col 013: Make sure that your global DB is set correctly.
+W Ln 062470 Col 013: Make sure that your global DB is set correctly.
+W Ln 062495 Col 013: Make sure that your global DB is set correctly.
+W Ln 062587 Col 013: Make sure that your global DB is set correctly.
+W Ln 062591 Col 013: Make sure that your global DB is set correctly.
+W Ln 062595 Col 013: Make sure that your global DB is set correctly.
+W Ln 062602 Col 013: Make sure that your global DB is set correctly.
+W Ln 062611 Col 013: Make sure that your global DB is set correctly.
+W Ln 062636 Col 013: Make sure that your global DB is set correctly.
+W Ln 062637 Col 013: Make sure that your global DB is set correctly.
+W Ln 062658 Col 013: Make sure that your global DB is set correctly.
+W Ln 062731 Col 013: Make sure that your global DB is set correctly.
+W Ln 062748 Col 013: Make sure that your global DB is set correctly.
+W Ln 062757 Col 013: Make sure that your global DB is set correctly.
+W Ln 062770 Col 013: Make sure that your global DB is set correctly.
+W Ln 062775 Col 013: Make sure that your global DB is set correctly.
+W Ln 062781 Col 013: Make sure that your global DB is set correctly.
+W Ln 062794 Col 013: Make sure that your global DB is set correctly.
+W Ln 062815 Col 013: Make sure that your global DB is set correctly.
+W Ln 062817 Col 013: Make sure that your global DB is set correctly.
+W Ln 062820 Col 013: Make sure that your global DB is set correctly.
+W Ln 062833 Col 013: Make sure that your global DB is set correctly.
+W Ln 062834 Col 013: Make sure that your global DB is set correctly.
+W Ln 062835 Col 013: Make sure that your global DB is set correctly.
+W Ln 062836 Col 013: Make sure that your global DB is set correctly.
+W Ln 062846 Col 013: Make sure that your global DB is set correctly.
+W Ln 062847 Col 013: Make sure that your global DB is set correctly.
+W Ln 062849 Col 013: Make sure that your global DB is set correctly.
+W Ln 062852 Col 013: Make sure that your global DB is set correctly.
+W Ln 062987 Col 013: Make sure that your global DB is set correctly.
+W Ln 062995 Col 013: Make sure that your global DB is set correctly.
+W Ln 063007 Col 013: Make sure that your global DB is set correctly.
+W Ln 063022 Col 013: Make sure that your global DB is set correctly.
+W Ln 063026 Col 013: Make sure that your global DB is set correctly.
+W Ln 063038 Col 013: Make sure that your global DB is set correctly.
+W Ln 063042 Col 013: Make sure that your global DB is set correctly.
+W Ln 063043 Col 013: Make sure that your global DB is set correctly.
+W Ln 063102 Col 013: Make sure that your global DB is set correctly.
+W Ln 063105 Col 013: Make sure that your global DB is set correctly.
+W Ln 063128 Col 013: Make sure that your global DB is set correctly.
+W Ln 063130 Col 013: Make sure that your global DB is set correctly.
+W Ln 063136 Col 013: Make sure that your global DB is set correctly.
+W Ln 063139 Col 013: Make sure that your global DB is set correctly.
+W Ln 063163 Col 013: Make sure that your global DB is set correctly.
+W Ln 063166 Col 013: Make sure that your global DB is set correctly.
+W Ln 063175 Col 013: Make sure that your global DB is set correctly.
+W Ln 063178 Col 013: Make sure that your global DB is set correctly.
+W Ln 064041 Col 013: Make sure that your global DB is set correctly.
+W Ln 064129 Col 013: Make sure that your global DB is set correctly.
+W Ln 064405 Col 013: Make sure that your global DB is set correctly.
+W Ln 064507 Col 013: Make sure that your global DB is set correctly.
+W Ln 064509 Col 013: Make sure that your global DB is set correctly.
+W Ln 064512 Col 013: Make sure that your global DB is set correctly.
+W Ln 064516 Col 013: Make sure that your global DB is set correctly.
+W Ln 064524 Col 013: Make sure that your global DB is set correctly.
+W Ln 064527 Col 013: Make sure that your global DB is set correctly.
+W Ln 064530 Col 013: Make sure that your global DB is set correctly.
+W Ln 064554 Col 013: Make sure that your global DB is set correctly.
+W Ln 064557 Col 013: Make sure that your global DB is set correctly.
+W Ln 064560 Col 013: Make sure that your global DB is set correctly.
+W Ln 064596 Col 013: Make sure that your global DB is set correctly.
+W Ln 064833 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 064962 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 064964 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 065232 Col 013: Make sure that your global DB is set correctly.
+W Ln 065243 Col 013: Make sure that your global DB is set correctly.
+W Ln 065246 Col 013: Make sure that your global DB is set correctly.
+W Ln 065254 Col 013: Make sure that your global DB is set correctly.
+W Ln 065260 Col 013: Make sure that your global DB is set correctly.
+W Ln 065262 Col 013: Make sure that your global DB is set correctly.
+W Ln 065266 Col 013: Make sure that your global DB is set correctly.
+W Ln 065269 Col 013: Make sure that your global DB is set correctly.
+W Ln 065271 Col 013: Make sure that your global DB is set correctly.
+W Ln 065274 Col 013: Make sure that your global DB is set correctly.
+W Ln 065275 Col 013: Make sure that your global DB is set correctly.
+W Ln 065280 Col 013: Make sure that your global DB is set correctly.
+W Ln 065284 Col 013: Make sure that your global DB is set correctly.
+W Ln 065287 Col 013: Make sure that your global DB is set correctly.
+W Ln 065714 Col 013: Make sure that your global DB is set correctly.
+W Ln 065724 Col 013: Make sure that your global DB is set correctly.
+W Ln 065727 Col 013: Make sure that your global DB is set correctly.
+W Ln 065730 Col 013: Make sure that your global DB is set correctly.
+W Ln 065807 Col 013: Make sure that your global DB is set correctly.
+W Ln 065809 Col 013: Make sure that your global DB is set correctly.
+W Ln 065811 Col 013: Make sure that your global DB is set correctly.
+W Ln 065870 Col 013: Make sure that your global DB is set correctly.
+W Ln 065872 Col 013: Make sure that your global DB is set correctly.
+W Ln 065874 Col 013: Make sure that your global DB is set correctly.
+W Ln 065914 Col 013: Make sure that your global DB is set correctly.
+W Ln 065915 Col 013: Make sure that your global DB is set correctly.
+W Ln 065919 Col 013: Make sure that your global DB is set correctly.
+W Ln 065928 Col 013: Make sure that your global DB is set correctly.
+W Ln 065931 Col 013: Make sure that your global DB is set correctly.
+W Ln 065934 Col 013: Make sure that your global DB is set correctly.
+W Ln 066587 Col 013: Make sure that your global DB is set correctly.
+W Ln 066739 Col 013: Make sure that your global DB is set correctly.
+W Ln 066755 Col 013: Make sure that your global DB is set correctly.
+W Ln 066772 Col 013: Make sure that your global DB is set correctly.
+W Ln 066816 Col 013: Make sure that your global DB is set correctly.
+W Ln 066819 Col 013: Make sure that your global DB is set correctly.
+W Ln 066822 Col 013: Make sure that your global DB is set correctly.
+W Ln 066956 Col 013: Make sure that your global DB is set correctly.
+W Ln 066970 Col 013: Make sure that your global DB is set correctly.
+W Ln 066973 Col 013: Make sure that your global DB is set correctly.
+W Ln 066976 Col 013: Make sure that your global DB is set correctly.
+W Ln 067030 Col 013: Make sure that your global DB is set correctly.
+W Ln 067031 Col 013: Make sure that your global DB is set correctly.
+W Ln 067037 Col 040: Make sure that your global DB is set correctly.
+W Ln 067038 Col 040: Make sure that your global DB is set correctly.
+W Ln 067226 Col 013: Make sure that your global DB is set correctly.
+W Ln 067228 Col 013: Make sure that your global DB is set correctly.
+W Ln 067230 Col 013: Make sure that your global DB is set correctly.
+W Ln 067441 Col 013: Make sure that your global DB is set correctly.
+W Ln 067469 Col 013: Make sure that your global DB is set correctly.
+W Ln 067608 Col 013: Make sure that your global DB is set correctly.
+W Ln 067616 Col 013: Make sure that your global DB is set correctly.
+W Ln 067617 Col 013: Make sure that your global DB is set correctly.
+W Ln 067630 Col 013: Make sure that your global DB is set correctly.
+W Ln 067666 Col 013: Make sure that your global DB is set correctly.
+W Ln 067675 Col 013: Make sure that your global DB is set correctly.
+W Ln 067711 Col 013: Make sure that your global DB is set correctly.
+W Ln 067714 Col 013: Make sure that your global DB is set correctly.
+W Ln 067717 Col 013: Make sure that your global DB is set correctly.
+W Ln 067720 Col 013: Make sure that your global DB is set correctly.
+W Ln 067723 Col 013: Make sure that your global DB is set correctly.
+W Ln 067726 Col 013: Make sure that your global DB is set correctly.
+W Ln 067731 Col 013: Make sure that your global DB is set correctly.
+W Ln 067735 Col 013: Make sure that your global DB is set correctly.
+W Ln 067738 Col 013: Make sure that your global DB is set correctly.
+W Ln 067741 Col 013: Make sure that your global DB is set correctly.
+W Ln 067816 Col 013: Make sure that your global DB is set correctly.
+W Ln 067819 Col 013: Make sure that your global DB is set correctly.
+W Ln 067822 Col 013: Make sure that your global DB is set correctly.
+W Ln 067825 Col 013: Make sure that your global DB is set correctly.
+W Ln 067844 Col 013: Make sure that your global DB is set correctly.
+W Ln 067847 Col 013: Make sure that your global DB is set correctly.
+W Ln 067850 Col 013: Make sure that your global DB is set correctly.
+W Ln 067945 Col 013: Make sure that your global DB is set correctly.
+W Ln 067950 Col 013: Make sure that your global DB is set correctly.
+W Ln 068017 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 068276 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 068278 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 068808 Col 013: Make sure that your global DB is set correctly.
+W Ln 068821 Col 013: Make sure that your global DB is set correctly.
+W Ln 068825 Col 013: Make sure that your global DB is set correctly.
+W Ln 068945 Col 013: Make sure that your global DB is set correctly.
+W Ln 068948 Col 013: Make sure that your global DB is set correctly.
+W Ln 068951 Col 013: Make sure that your global DB is set correctly.
+W Ln 069114 Col 013: Make sure that your global DB is set correctly.
+W Ln 069123 Col 013: Make sure that your global DB is set correctly.
+W Ln 069125 Col 013: Make sure that your global DB is set correctly.
+W Ln 069135 Col 013: Make sure that your global DB is set correctly.
+W Ln 069141 Col 013: Make sure that your global DB is set correctly.
+W Ln 069146 Col 013: Make sure that your global DB is set correctly.
+W Ln 069152 Col 013: Make sure that your global DB is set correctly.
+W Ln 069169 Col 013: Make sure that your global DB is set correctly.
+W Ln 069182 Col 013: Make sure that your global DB is set correctly.
+W Ln 069190 Col 013: Make sure that your global DB is set correctly.
+W Ln 069245 Col 013: Make sure that your global DB is set correctly.
+W Ln 069256 Col 013: Make sure that your global DB is set correctly.
+W Ln 069268 Col 013: Make sure that your global DB is set correctly.
+W Ln 069271 Col 013: Make sure that your global DB is set correctly.
+W Ln 069274 Col 013: Make sure that your global DB is set correctly.
+W Ln 069286 Col 013: Make sure that your global DB is set correctly.
+W Ln 069298 Col 013: Make sure that your global DB is set correctly.
+W Ln 069301 Col 013: Make sure that your global DB is set correctly.
+W Ln 069304 Col 013: Make sure that your global DB is set correctly.
+W Ln 069320 Col 013: Make sure that your global DB is set correctly.
+W Ln 069323 Col 013: Make sure that your global DB is set correctly.
+W Ln 069329 Col 013: Make sure that your global DB is set correctly.
+W Ln 069332 Col 013: Make sure that your global DB is set correctly.
+W Ln 069341 Col 013: Make sure that your global DB is set correctly.
+W Ln 069344 Col 013: Make sure that your global DB is set correctly.
+W Ln 069346 Col 013: Make sure that your global DB is set correctly.
+W Ln 069355 Col 013: Make sure that your global DB is set correctly.
+W Ln 069366 Col 013: Make sure that your global DB is set correctly.
+W Ln 069371 Col 013: Make sure that your global DB is set correctly.
+W Ln 069381 Col 013: Make sure that your global DB is set correctly.
+W Ln 069391 Col 013: Make sure that your global DB is set correctly.
+W Ln 069394 Col 013: Make sure that your global DB is set correctly.
+W Ln 069423 Col 013: Make sure that your global DB is set correctly.
+W Ln 069443 Col 013: Make sure that your global DB is set correctly.
+W Ln 069444 Col 013: Make sure that your global DB is set correctly.
+W Ln 069448 Col 013: Make sure that your global DB is set correctly.
+W Ln 069450 Col 013: Make sure that your global DB is set correctly.
+W Ln 069452 Col 013: Make sure that your global DB is set correctly.
+W Ln 069454 Col 013: Make sure that your global DB is set correctly.
+W Ln 069457 Col 013: Make sure that your global DB is set correctly.
+W Ln 069458 Col 013: Make sure that your global DB is set correctly.
+W Ln 069459 Col 013: Make sure that your global DB is set correctly.
+W Ln 069460 Col 013: Make sure that your global DB is set correctly.
+W Ln 069463 Col 013: Make sure that your global DB is set correctly.
+W Ln 069465 Col 013: Make sure that your global DB is set correctly.
+W Ln 069467 Col 013: Make sure that your global DB is set correctly.
+W Ln 069469 Col 013: Make sure that your global DB is set correctly.
+W Ln 069508 Col 013: Make sure that your global DB is set correctly.
+W Ln 069528 Col 013: Make sure that your global DB is set correctly.
+W Ln 069529 Col 013: Make sure that your global DB is set correctly.
+W Ln 069533 Col 013: Make sure that your global DB is set correctly.
+W Ln 069535 Col 013: Make sure that your global DB is set correctly.
+W Ln 069537 Col 013: Make sure that your global DB is set correctly.
+W Ln 069539 Col 013: Make sure that your global DB is set correctly.
+W Ln 069542 Col 013: Make sure that your global DB is set correctly.
+W Ln 069543 Col 013: Make sure that your global DB is set correctly.
+W Ln 069544 Col 013: Make sure that your global DB is set correctly.
+W Ln 069545 Col 013: Make sure that your global DB is set correctly.
+W Ln 069548 Col 013: Make sure that your global DB is set correctly.
+W Ln 069550 Col 013: Make sure that your global DB is set correctly.
+W Ln 069552 Col 013: Make sure that your global DB is set correctly.
+W Ln 069554 Col 013: Make sure that your global DB is set correctly.
+W Ln 069586 Col 013: Make sure that your global DB is set correctly.
+W Ln 069606 Col 013: Make sure that your global DB is set correctly.
+W Ln 069607 Col 013: Make sure that your global DB is set correctly.
+W Ln 069611 Col 013: Make sure that your global DB is set correctly.
+W Ln 069612 Col 013: Make sure that your global DB is set correctly.
+W Ln 069624 Col 013: Make sure that your global DB is set correctly.
+W Ln 069625 Col 013: Make sure that your global DB is set correctly.
+W Ln 069626 Col 013: Make sure that your global DB is set correctly.
+W Ln 069627 Col 013: Make sure that your global DB is set correctly.
+W Ln 069645 Col 013: Make sure that your global DB is set correctly.
+W Ln 069646 Col 013: Make sure that your global DB is set correctly.
+W Ln 069648 Col 013: Make sure that your global DB is set correctly.
+W Ln 069651 Col 013: Make sure that your global DB is set correctly.
+W Ln 069770 Col 013: Make sure that your global DB is set correctly.
+W Ln 069787 Col 013: Make sure that your global DB is set correctly.
+W Ln 069789 Col 013: Make sure that your global DB is set correctly.
+W Ln 069807 Col 013: Make sure that your global DB is set correctly.
+W Ln 069813 Col 013: Make sure that your global DB is set correctly.
+W Ln 069820 Col 013: Make sure that your global DB is set correctly.
+W Ln 069831 Col 013: Make sure that your global DB is set correctly.
+W Ln 069853 Col 013: Make sure that your global DB is set correctly.
+W Ln 069859 Col 013: Make sure that your global DB is set correctly.
+W Ln 069871 Col 013: Make sure that your global DB is set correctly.
+W Ln 069895 Col 013: Make sure that your global DB is set correctly.
+W Ln 069908 Col 013: Make sure that your global DB is set correctly.
+W Ln 069964 Col 013: Make sure that your global DB is set correctly.
+W Ln 069976 Col 013: Make sure that your global DB is set correctly.
+W Ln 069989 Col 013: Make sure that your global DB is set correctly.
+W Ln 070001 Col 013: Make sure that your global DB is set correctly.
+W Ln 070028 Col 013: Make sure that your global DB is set correctly.
+W Ln 070037 Col 013: Make sure that your global DB is set correctly.
+W Ln 070048 Col 013: Make sure that your global DB is set correctly.
+W Ln 070053 Col 013: Make sure that your global DB is set correctly.
+W Ln 070063 Col 013: Make sure that your global DB is set correctly.
+W Ln 070073 Col 013: Make sure that your global DB is set correctly.
+W Ln 070076 Col 013: Make sure that your global DB is set correctly.
+W Ln 070105 Col 013: Make sure that your global DB is set correctly.
+W Ln 070125 Col 013: Make sure that your global DB is set correctly.
+W Ln 070126 Col 013: Make sure that your global DB is set correctly.
+W Ln 070130 Col 013: Make sure that your global DB is set correctly.
+W Ln 070132 Col 013: Make sure that your global DB is set correctly.
+W Ln 070134 Col 013: Make sure that your global DB is set correctly.
+W Ln 070136 Col 013: Make sure that your global DB is set correctly.
+W Ln 070139 Col 013: Make sure that your global DB is set correctly.
+W Ln 070140 Col 013: Make sure that your global DB is set correctly.
+W Ln 070141 Col 013: Make sure that your global DB is set correctly.
+W Ln 070142 Col 013: Make sure that your global DB is set correctly.
+W Ln 070145 Col 013: Make sure that your global DB is set correctly.
+W Ln 070147 Col 013: Make sure that your global DB is set correctly.
+W Ln 070149 Col 013: Make sure that your global DB is set correctly.
+W Ln 070151 Col 013: Make sure that your global DB is set correctly.
+W Ln 070190 Col 013: Make sure that your global DB is set correctly.
+W Ln 070210 Col 013: Make sure that your global DB is set correctly.
+W Ln 070211 Col 013: Make sure that your global DB is set correctly.
+W Ln 070215 Col 013: Make sure that your global DB is set correctly.
+W Ln 070217 Col 013: Make sure that your global DB is set correctly.
+W Ln 070219 Col 013: Make sure that your global DB is set correctly.
+W Ln 070221 Col 013: Make sure that your global DB is set correctly.
+W Ln 070224 Col 013: Make sure that your global DB is set correctly.
+W Ln 070225 Col 013: Make sure that your global DB is set correctly.
+W Ln 070226 Col 013: Make sure that your global DB is set correctly.
+W Ln 070227 Col 013: Make sure that your global DB is set correctly.
+W Ln 070230 Col 013: Make sure that your global DB is set correctly.
+W Ln 070232 Col 013: Make sure that your global DB is set correctly.
+W Ln 070234 Col 013: Make sure that your global DB is set correctly.
+W Ln 070236 Col 013: Make sure that your global DB is set correctly.
+W Ln 070268 Col 013: Make sure that your global DB is set correctly.
+W Ln 070288 Col 013: Make sure that your global DB is set correctly.
+W Ln 070289 Col 013: Make sure that your global DB is set correctly.
+W Ln 070293 Col 013: Make sure that your global DB is set correctly.
+W Ln 070294 Col 013: Make sure that your global DB is set correctly.
+W Ln 070306 Col 013: Make sure that your global DB is set correctly.
+W Ln 070307 Col 013: Make sure that your global DB is set correctly.
+W Ln 070308 Col 013: Make sure that your global DB is set correctly.
+W Ln 070309 Col 013: Make sure that your global DB is set correctly.
+W Ln 070327 Col 013: Make sure that your global DB is set correctly.
+W Ln 070328 Col 013: Make sure that your global DB is set correctly.
+W Ln 070330 Col 013: Make sure that your global DB is set correctly.
+W Ln 070333 Col 013: Make sure that your global DB is set correctly.
+W Ln 070420 Col 013: Make sure that your global DB is set correctly.
+W Ln 070423 Col 013: Make sure that your global DB is set correctly.
+W Ln 070639 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 070672 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 070705 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 070736 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 070738 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 070955 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 070957 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 071109 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 071301 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 071303 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 071394 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 071702 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 071704 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 071801 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 072095 Col 013: Make sure that your global DB is set correctly.
+W Ln 072098 Col 013: Make sure that your global DB is set correctly.
+W Ln 072146 Col 013: Make sure that your global DB is set correctly.
+W Ln 072149 Col 013: Make sure that your global DB is set correctly.
+W Ln 072196 Col 013: Make sure that your global DB is set correctly.
+W Ln 072199 Col 013: Make sure that your global DB is set correctly.
+W Ln 072247 Col 013: Make sure that your global DB is set correctly.
+W Ln 072250 Col 013: Make sure that your global DB is set correctly.
+W Ln 072298 Col 013: Make sure that your global DB is set correctly.
+W Ln 072301 Col 013: Make sure that your global DB is set correctly.
+W Ln 072343 Col 013: Make sure that your global DB is set correctly.
+W Ln 072346 Col 013: Make sure that your global DB is set correctly.
+W Ln 072394 Col 013: Make sure that your global DB is set correctly.
+W Ln 072397 Col 013: Make sure that your global DB is set correctly.
+W Ln 072444 Col 013: Make sure that your global DB is set correctly.
+W Ln 072447 Col 013: Make sure that your global DB is set correctly.
+W Ln 072495 Col 013: Make sure that your global DB is set correctly.
+W Ln 072498 Col 013: Make sure that your global DB is set correctly.
+W Ln 072546 Col 013: Make sure that your global DB is set correctly.
+W Ln 072549 Col 013: Make sure that your global DB is set correctly.
+W Ln 072671 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 072702 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 072736 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073008 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073041 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073070 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073591 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073619 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073647 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073729 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 073918 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 073920 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074010 Col 013: Make sure that your global DB is set correctly.
+W Ln 074013 Col 013: Make sure that your global DB is set correctly.
+W Ln 074243 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074517 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 074519 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074611 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074717 Col 024: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 074719 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074870 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 074981 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 075091 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 075351 Col 013: Make sure that your global DB is set correctly.
+W Ln 075354 Col 013: Make sure that your global DB is set correctly.
+W Ln 075357 Col 013: Make sure that your global DB is set correctly.
+W Ln 075630 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 075661 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 075692 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 075816 Col 013: Make sure that your global DB is set correctly.
+W Ln 075819 Col 013: Make sure that your global DB is set correctly.
+W Ln 075822 Col 013: Make sure that your global DB is set correctly.
+W Ln 076195 Col 013: Make sure that your global DB is set correctly.
+W Ln 076206 Col 013: Make sure that your global DB is set correctly.
+W Ln 076209 Col 013: Make sure that your global DB is set correctly.
+W Ln 076217 Col 013: Make sure that your global DB is set correctly.
+W Ln 076693 Col 013: Make sure that your global DB is set correctly.
+W Ln 076695 Col 013: Make sure that your global DB is set correctly.
+W Ln 076703 Col 013: Make sure that your global DB is set correctly.
+W Ln 076705 Col 013: Make sure that your global DB is set correctly.
+W Ln 076849 Col 013: Make sure that your global DB is set correctly.
+W Ln 076855 Col 013: Make sure that your global DB is set correctly.
+W Ln 076975 Col 013: Make sure that your global DB is set correctly.
+W Ln 076976 Col 013: Make sure that your global DB is set correctly.
+W Ln 077221 Col 013: Make sure that your global DB is set correctly.
+W Ln 077222 Col 013: Make sure that your global DB is set correctly.
+W Ln 077245 Col 013: Make sure that your global DB is set correctly.
+W Ln 077254 Col 013: Make sure that your global DB is set correctly.
+W Ln 077385 Col 013: Make sure that your global DB is set correctly.
+W Ln 077387 Col 013: Make sure that your global DB is set correctly.
+W Ln 077395 Col 013: Make sure that your global DB is set correctly.
+W Ln 077397 Col 013: Make sure that your global DB is set correctly.
+W Ln 077543 Col 013: Make sure that your global DB is set correctly.
+W Ln 077552 Col 013: Make sure that your global DB is set correctly.
+W Ln 079350 Col 013: Make sure that your global DB is set correctly.
+W Ln 079358 Col 013: Make sure that your global DB is set correctly.
+W Ln 079400 Col 013: Make sure that your global DB is set correctly.
+W Ln 079414 Col 013: Make sure that your global DB is set correctly.
+W Ln 079417 Col 013: Make sure that your global DB is set correctly.
+W Ln 079425 Col 013: Make sure that your global DB is set correctly.
+W Ln 079426 Col 013: Make sure that your global DB is set correctly.
+W Ln 079464 Col 013: Make sure that your global DB is set correctly.
+W Ln 081631 Col 015: Make sure that your global DB is set correctly.
+W Ln 081701 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 081708 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 081711 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 081714 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 081717 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 081729 Col 027: Addressing by means of AR2 can be replaced during reverse compilation by an existing local variable.
+W Ln 081849 Col 013: Make sure that your global DB is set correctly.
+W Ln 081852 Col 013: Make sure that your global DB is set correctly.
+W Ln 081855 Col 013: Make sure that your global DB is set correctly.
+W Ln 081964 Col 013: Make sure that your global DB is set correctly.
+W Ln 081969 Col 040: Make sure that your global DB is set correctly.
+W Ln 081973 Col 013: Make sure that your global DB is set correctly.
+W Ln 082009 Col 013: Make sure that your global DB is set correctly.
+W Ln 082012 Col 013: Make sure that your global DB is set correctly.
+W Ln 082018 Col 013: Make sure that your global DB is set correctly.
+W Ln 082044 Col 040: Make sure that your global DB is set correctly.
+W Ln 082923 Col 013: Make sure that your global DB is set correctly.
+W Ln 082926 Col 013: Make sure that your global DB is set correctly.
+W Ln 082929 Col 013: Make sure that your global DB is set correctly.
+W Ln 082932 Col 013: Make sure that your global DB is set correctly.
+W Ln 082935 Col 013: Make sure that your global DB is set correctly.
+W Ln 082938 Col 013: Make sure that your global DB is set correctly.
+W Ln 082941 Col 013: Make sure that your global DB is set correctly.
+W Ln 082952 Col 013: Make sure that your global DB is set correctly.
+W Ln 082955 Col 013: Make sure that your global DB is set correctly.
+W Ln 083066 Col 013: Make sure that your global DB is set correctly.
+W Ln 083079 Col 013: Make sure that your global DB is set correctly.
+W Ln 083088 Col 013: Make sure that your global DB is set correctly.
+W Ln 083093 Col 013: Make sure that your global DB is set correctly.
+W Ln 083107 Col 013: Make sure that your global DB is set correctly.
+W Ln 083141 Col 013: Make sure that your global DB is set correctly.
+W Ln 083144 Col 013: Make sure that your global DB is set correctly.
+W Ln 083148 Col 013: Make sure that your global DB is set correctly.
+W Ln 083163 Col 013: Make sure that your global DB is set correctly.
+W Ln 083167 Col 013: Make sure that your global DB is set correctly.
+W Ln 083177 Col 013: Make sure that your global DB is set correctly.
+W Ln 083202 Col 013: Make sure that your global DB is set correctly.
+W Ln 083209 Col 013: Make sure that your global DB is set correctly.
+W Ln 083220 Col 013: Make sure that your global DB is set correctly.
+W Ln 083224 Col 013: Make sure that your global DB is set correctly.
+W Ln 083231 Col 013: Make sure that your global DB is set correctly.
+W Ln 083235 Col 013: Make sure that your global DB is set correctly.
+W Ln 083244 Col 013: Make sure that your global DB is set correctly.
+W Ln 083245 Col 013: Make sure that your global DB is set correctly.
+W Ln 083293 Col 013: Make sure that your global DB is set correctly.
+W Ln 083297 Col 013: Make sure that your global DB is set correctly.
+W Ln 083311 Col 013: Make sure that your global DB is set correctly.
+W Ln 083315 Col 013: Make sure that your global DB is set correctly.
+W Ln 083360 Col 013: Make sure that your global DB is set correctly.
+W Ln 083363 Col 013: Make sure that your global DB is set correctly.
+W Ln 083367 Col 013: Make sure that your global DB is set correctly.
+W Ln 083382 Col 013: Make sure that your global DB is set correctly.
+W Ln 083386 Col 013: Make sure that your global DB is set correctly.
+W Ln 083396 Col 013: Make sure that your global DB is set correctly.
+W Ln 083428 Col 013: Make sure that your global DB is set correctly.
+W Ln 083435 Col 013: Make sure that your global DB is set correctly.
+W Ln 083446 Col 013: Make sure that your global DB is set correctly.
+W Ln 083450 Col 013: Make sure that your global DB is set correctly.
+W Ln 083457 Col 013: Make sure that your global DB is set correctly.
+W Ln 083461 Col 013: Make sure that your global DB is set correctly.
+W Ln 083470 Col 013: Make sure that your global DB is set correctly.
+W Ln 083471 Col 013: Make sure that your global DB is set correctly.
+W Ln 083524 Col 013: Make sure that your global DB is set correctly.
+W Ln 083528 Col 013: Make sure that your global DB is set correctly.
+W Ln 083542 Col 013: Make sure that your global DB is set correctly.
+W Ln 083546 Col 013: Make sure that your global DB is set correctly.
+W Ln 084569 Col 013: Make sure that your global DB is set correctly.
+W Ln 084577 Col 013: Make sure that your global DB is set correctly.
+W Ln 084586 Col 013: Make sure that your global DB is set correctly.
+W Ln 084601 Col 013: Make sure that your global DB is set correctly.
+W Ln 085090 Col 013: Make sure that your global DB is set correctly.
+W Ln 085297 Col 013: Make sure that your global DB is set correctly.
+W Ln 085347 Col 013: Make sure that your global DB is set correctly.
+W Ln 085351 Col 013: Make sure that your global DB is set correctly.
+W Ln 085704 Col 013: Make sure that your global DB is set correctly.
+W Ln 086008 Col 013: Make sure that your global DB is set correctly.
+W Ln 086011 Col 013: Make sure that your global DB is set correctly.
+W Ln 086014 Col 013: Make sure that your global DB is set correctly.
+W Ln 086217 Col 013: Make sure that your global DB is set correctly.
+W Ln 086220 Col 013: Make sure that your global DB is set correctly.
+W Ln 086223 Col 013: Make sure that your global DB is set correctly.
+W Ln 086631 Col 013: Make sure that your global DB is set correctly.
+W Ln 086634 Col 013: Make sure that your global DB is set correctly.
+W Ln 086798 Col 013: Make sure that your global DB is set correctly.
+W Ln 086801 Col 013: Make sure that your global DB is set correctly.
+W Ln 086804 Col 013: Make sure that your global DB is set correctly.
+W Ln 086807 Col 013: Make sure that your global DB is set correctly.
+W Ln 087108 Col 013: Make sure that your global DB is set correctly.
+W Ln 087120 Col 013: Make sure that your global DB is set correctly.
+W Ln 087129 Col 013: Make sure that your global DB is set correctly.
+W Ln 087137 Col 013: Make sure that your global DB is set correctly.
+W Ln 087142 Col 013: Make sure that your global DB is set correctly.
+W Ln 087148 Col 013: Make sure that your global DB is set correctly.
+W Ln 087151 Col 013: Make sure that your global DB is set correctly.
+W Ln 087154 Col 013: Make sure that your global DB is set correctly.
+W Ln 087157 Col 013: Make sure that your global DB is set correctly.
+W Ln 087169 Col 013: Make sure that your global DB is set correctly.
+W Ln 087467 Col 013: Make sure that your global DB is set correctly.
+W Ln 087480 Col 013: Make sure that your global DB is set correctly.
+W Ln 087488 Col 013: Make sure that your global DB is set correctly.
+W Ln 087493 Col 013: Make sure that your global DB is set correctly.
+W Ln 087501 Col 013: Make sure that your global DB is set correctly.
+W Ln 087541 Col 013: Make sure that your global DB is set correctly.
+W Ln 087650 Col 013: Make sure that your global DB is set correctly.
+W Ln 087653 Col 013: Make sure that your global DB is set correctly.
+W Ln 087656 Col 013: Make sure that your global DB is set correctly.
+W Ln 087720 Col 013: Make sure that your global DB is set correctly.
+W Ln 087726 Col 013: Make sure that your global DB is set correctly.
+W Ln 087736 Col 013: Make sure that your global DB is set correctly.
+W Ln 087741 Col 013: Make sure that your global DB is set correctly.
+W Ln 087747 Col 013: Make sure that your global DB is set correctly.
+W Ln 087789 Col 013: Make sure that your global DB is set correctly.
+W Ln 087795 Col 013: Make sure that your global DB is set correctly.
+W Ln 087805 Col 013: Make sure that your global DB is set correctly.
+W Ln 087812 Col 013: Make sure that your global DB is set correctly.
+W Ln 087813 Col 013: Make sure that your global DB is set correctly.
+W Ln 087815 Col 013: Make sure that your global DB is set correctly.
+W Ln 087818 Col 013: Make sure that your global DB is set correctly.
+W Ln 087962 Col 013: Make sure that your global DB is set correctly.
+W Ln 087965 Col 013: Make sure that your global DB is set correctly.
+W Ln 087967 Col 013: Make sure that your global DB is set correctly.
+W Ln 087970 Col 013: Make sure that your global DB is set correctly.
+W Ln 088266 Col 013: Make sure that your global DB is set correctly.
+W Ln 088278 Col 013: Make sure that your global DB is set correctly.
+W Ln 088287 Col 013: Make sure that your global DB is set correctly.
+W Ln 088295 Col 013: Make sure that your global DB is set correctly.
+W Ln 088300 Col 013: Make sure that your global DB is set correctly.
+W Ln 088306 Col 013: Make sure that your global DB is set correctly.
+W Ln 088309 Col 013: Make sure that your global DB is set correctly.
+W Ln 088312 Col 013: Make sure that your global DB is set correctly.
+W Ln 088315 Col 013: Make sure that your global DB is set correctly.
+W Ln 088327 Col 013: Make sure that your global DB is set correctly.
+W Ln 088627 Col 013: Make sure that your global DB is set correctly.
+W Ln 088640 Col 013: Make sure that your global DB is set correctly.
+W Ln 088648 Col 013: Make sure that your global DB is set correctly.
+W Ln 088653 Col 013: Make sure that your global DB is set correctly.
+W Ln 088661 Col 013: Make sure that your global DB is set correctly.
+W Ln 088699 Col 013: Make sure that your global DB is set correctly.
+W Ln 089031 Col 013: Make sure that your global DB is set correctly.
+W Ln 089148 Col 013: Make sure that your global DB is set correctly.
+W Ln 089433 Col 013: Make sure that your global DB is set correctly.
+W Ln 089438 Col 013: Make sure that your global DB is set correctly.
+W Ln 089441 Col 013: Make sure that your global DB is set correctly.
+W Ln 089451 Col 013: Make sure that your global DB is set correctly.
+W Ln 091816 Col 013: Make sure that your global DB is set correctly.
+W Ln 091819 Col 013: Make sure that your global DB is set correctly.
+W Ln 091823 Col 013: Make sure that your global DB is set correctly.
+W Ln 091826 Col 013: Make sure that your global DB is set correctly.
+W Ln 091834 Col 013: Make sure that your global DB is set correctly.
+W Ln 092381 Col 013: Make sure that your global DB is set correctly.
+W Ln 092417 Col 013: Make sure that your global DB is set correctly.
+W Ln 092485 Col 013: Make sure that your global DB is set correctly.
+W Ln 092486 Col 000: Make sure that your global DB is set correctly.
+W Ln 092653 Col 013: Make sure that your global DB is set correctly.
+W Ln 092661 Col 013: Make sure that your global DB is set correctly.
+W Ln 092703 Col 013: Make sure that your global DB is set correctly.
+W Ln 092717 Col 013: Make sure that your global DB is set correctly.
+W Ln 092720 Col 013: Make sure that your global DB is set correctly.
+W Ln 092728 Col 013: Make sure that your global DB is set correctly.
+W Ln 092729 Col 013: Make sure that your global DB is set correctly.
+W Ln 092763 Col 013: Make sure that your global DB is set correctly.
+W Ln 092952 Col 013: Make sure that your global DB is set correctly.
+W Ln 092955 Col 013: Make sure that your global DB is set correctly.
+W Ln 092958 Col 013: Make sure that your global DB is set correctly.
+W Ln 092991 Col 013: Make sure that your global DB is set correctly.
+W Ln 092998 Col 013: Make sure that your global DB is set correctly.
+W Ln 093000 Col 013: Make sure that your global DB is set correctly.
+W Ln 093005 Col 013: Make sure that your global DB is set correctly.
+W Ln 093025 Col 013: Make sure that your global DB is set correctly.
+W Ln 093063 Col 013: Make sure that your global DB is set correctly.
+W Ln 093067 Col 013: Make sure that your global DB is set correctly.
+W Ln 093081 Col 013: Make sure that your global DB is set correctly.
+W Ln 093085 Col 013: Make sure that your global DB is set correctly.
+W Ln 093086 Col 013: Make sure that your global DB is set correctly.
+W Ln 093096 Col 013: Make sure that your global DB is set correctly.
+W Ln 093100 Col 013: Make sure that your global DB is set correctly.
+W Ln 093101 Col 013: Make sure that your global DB is set correctly.
+W Ln 093105 Col 013: Make sure that your global DB is set correctly.
+W Ln 093278 Col 013: Make sure that your global DB is set correctly.
+W Ln 093281 Col 013: Make sure that your global DB is set correctly.
+W Ln 093284 Col 013: Make sure that your global DB is set correctly.
+W Ln 093305 Col 013: Make sure that your global DB is set correctly.
+W Ln 093308 Col 013: Make sure that your global DB is set correctly.
+W Ln 093311 Col 013: Make sure that your global DB is set correctly.
+W Ln 093314 Col 013: Make sure that your global DB is set correctly.
+W Ln 093317 Col 013: Make sure that your global DB is set correctly.
+W Ln 094514 Col 013: Make sure that your global DB is set correctly.
+W Ln 094566 Col 013: Make sure that your global DB is set correctly.
+W Ln 094569 Col 013: Make sure that your global DB is set correctly.
+W Ln 094572 Col 013: Make sure that your global DB is set correctly.
+W Ln 094581 Col 013: Make sure that your global DB is set correctly.
+W Ln 094584 Col 013: Make sure that your global DB is set correctly.
+W Ln 094587 Col 013: Make sure that your global DB is set correctly.
+W Ln 094590 Col 013: Make sure that your global DB is set correctly.
+W Ln 094599 Col 013: Make sure that your global DB is set correctly.
+W Ln 094608 Col 013: Make sure that your global DB is set correctly.
+W Ln 094611 Col 013: Make sure that your global DB is set correctly.
+W Ln 094661 Col 013: Make sure that your global DB is set correctly.
+W Ln 094663 Col 013: Make sure that your global DB is set correctly.
+W Ln 094695 Col 013: Make sure that your global DB is set correctly.
+W Ln 094697 Col 013: Make sure that your global DB is set correctly.
+W Ln 094705 Col 013: Make sure that your global DB is set correctly.
+W Ln 094733 Col 013: Make sure that your global DB is set correctly.
+W Ln 094739 Col 013: Make sure that your global DB is set correctly.
+W Ln 094750 Col 013: Make sure that your global DB is set correctly.
+W Ln 094756 Col 013: Make sure that your global DB is set correctly.
+W Ln 094763 Col 013: Make sure that your global DB is set correctly.
+W Ln 094776 Col 013: Make sure that your global DB is set correctly.
+W Ln 094851 Col 013: Make sure that your global DB is set correctly.
+W Ln 094853 Col 013: Make sure that your global DB is set correctly.
+W Ln 094874 Col 013: Make sure that your global DB is set correctly.
+W Ln 094880 Col 013: Make sure that your global DB is set correctly.
+W Ln 094921 Col 013: Make sure that your global DB is set correctly.
+W Ln 094927 Col 013: Make sure that your global DB is set correctly.
+W Ln 094936 Col 013: Make sure that your global DB is set correctly.
+W Ln 094939 Col 013: Make sure that your global DB is set correctly.
+W Ln 094945 Col 013: Make sure that your global DB is set correctly.
+W Ln 095062 Col 013: Make sure that your global DB is set correctly.
+W Ln 095069 Col 013: Make sure that your global DB is set correctly.
+W Ln 095080 Col 013: Make sure that your global DB is set correctly.
+W Ln 095089 Col 013: Make sure that your global DB is set correctly.
+W Ln 095755 Col 013: Make sure that your global DB is set correctly.
+W Ln 095758 Col 013: Make sure that your global DB is set correctly.
+W Ln 095772 Col 013: Make sure that your global DB is set correctly.
+W Ln 095775 Col 013: Make sure that your global DB is set correctly.
+W Ln 097859 Col 013: Make sure that your global DB is set correctly.
+W Ln 098244 Col 013: Make sure that your global DB is set correctly.
+W Ln 098284 Col 013: Make sure that your global DB is set correctly.
+W Ln 098294 Col 013: Make sure that your global DB is set correctly.
+W Ln 098297 Col 013: Make sure that your global DB is set correctly.
+W Ln 098300 Col 013: Make sure that your global DB is set correctly.
+W Ln 098303 Col 013: Make sure that your global DB is set correctly.
+W Ln 098306 Col 013: Make sure that your global DB is set correctly.
+W Ln 098367 Col 013: Make sure that your global DB is set correctly.
+W Ln 098376 Col 013: Make sure that your global DB is set correctly.
+W Ln 098378 Col 013: Make sure that your global DB is set correctly.
+W Ln 098391 Col 013: Make sure that your global DB is set correctly.
+W Ln 098394 Col 013: Make sure that your global DB is set correctly.
+W Ln 098755 Col 013: Make sure that your global DB is set correctly.
+W Ln 098762 Col 013: Make sure that your global DB is set correctly.
+W Ln 098820 Col 013: Make sure that your global DB is set correctly.
+W Ln 098839 Col 013: Make sure that your global DB is set correctly.
+W Ln 098842 Col 013: Make sure that your global DB is set correctly.
+W Ln 098845 Col 013: Make sure that your global DB is set correctly.
+W Ln 098855 Col 013: Make sure that your global DB is set correctly.
+W Ln 098858 Col 013: Make sure that your global DB is set correctly.
+W Ln 098861 Col 013: Make sure that your global DB is set correctly.
+W Ln 098864 Col 013: Make sure that your global DB is set correctly.
+W Ln 098873 Col 013: Make sure that your global DB is set correctly.
+W Ln 098883 Col 013: Make sure that your global DB is set correctly.
+W Ln 098886 Col 013: Make sure that your global DB is set correctly.
+W Ln 099219 Col 013: Make sure that your global DB is set correctly.
+W Ln 099229 Col 013: Make sure that your global DB is set correctly.
+W Ln 099234 Col 013: Make sure that your global DB is set correctly.
+W Ln 099284 Col 013: Make sure that your global DB is set correctly.
+W Ln 099294 Col 013: Make sure that your global DB is set correctly.
+W Ln 099303 Col 013: Make sure that your global DB is set correctly.
+W Ln 099339 Col 013: Make sure that your global DB is set correctly.
+W Ln 099785 Col 013: Make sure that your global DB is set correctly.
+W Ln 099833 Col 013: Make sure that your global DB is set correctly.
+W Ln 099875 Col 013: Make sure that your global DB is set correctly.
+W Ln 099887 Col 013: Make sure that your global DB is set correctly.
+W Ln 099890 Col 013: Make sure that your global DB is set correctly.
+W Ln 100778 Col 013: Make sure that your global DB is set correctly.
+W Ln 100781 Col 013: Make sure that your global DB is set correctly.
+W Ln 100784 Col 013: Make sure that your global DB is set correctly.
+W Ln 100787 Col 013: Make sure that your global DB is set correctly.
+W Ln 101003 Col 013: Make sure that your global DB is set correctly.
+W Ln 102102 Col 013: Make sure that your global DB is set correctly.
+W Ln 102622 Col 013: Make sure that your global DB is set correctly.
+W Ln 102625 Col 013: Make sure that your global DB is set correctly.
+W Ln 102628 Col 013: Make sure that your global DB is set correctly.
+W Ln 102629 Col 013: Make sure that your global DB is set correctly.
+W Ln 102630 Col 013: Make sure that your global DB is set correctly.
+W Ln 102632 Col 013: Make sure that your global DB is set correctly.
+W Ln 102634 Col 013: Make sure that your global DB is set correctly.
+W Ln 102635 Col 013: Make sure that your global DB is set correctly.
+W Ln 102636 Col 013: Make sure that your global DB is set correctly.
+W Ln 102638 Col 013: Make sure that your global DB is set correctly.
+W Ln 102641 Col 013: Make sure that your global DB is set correctly.
+W Ln 102644 Col 013: Make sure that your global DB is set correctly.
+W Ln 103083 Col 013: Make sure that your global DB is set correctly.
+W Ln 103107 Col 013: Make sure that your global DB is set correctly.
+W Ln 103110 Col 013: Make sure that your global DB is set correctly.
+W Ln 103148 Col 013: Make sure that your global DB is set correctly.
+W Ln 103150 Col 013: Make sure that your global DB is set correctly.
+W Ln 103316 Col 013: Make sure that your global DB is set correctly.
+W Ln 103319 Col 013: Make sure that your global DB is set correctly.
+W Ln 103416 Col 013: Make sure that your global DB is set correctly.
+W Ln 103425 Col 013: Make sure that your global DB is set correctly.
+W Ln 103428 Col 013: Make sure that your global DB is set correctly.
+W Ln 103435 Col 013: Make sure that your global DB is set correctly.
+W Ln 103457 Col 013: Make sure that your global DB is set correctly.
+W Ln 103462 Col 013: Make sure that your global DB is set correctly.
+W Ln 103466 Col 013: Make sure that your global DB is set correctly.
+W Ln 103473 Col 013: Make sure that your global DB is set correctly.
+W Ln 103524 Col 013: Make sure that your global DB is set correctly.
+W Ln 104436 Col 013: Make sure that your global DB is set correctly.
+W Ln 104660 Col 013: Make sure that your global DB is set correctly.
+W Ln 104700 Col 013: Make sure that your global DB is set correctly.
+W Ln 104710 Col 013: Make sure that your global DB is set correctly.
+W Ln 104713 Col 013: Make sure that your global DB is set correctly.
+W Ln 104716 Col 013: Make sure that your global DB is set correctly.
+W Ln 104719 Col 013: Make sure that your global DB is set correctly.
+W Ln 104722 Col 013: Make sure that your global DB is set correctly.
+W Ln 104837 Col 013: Make sure that your global DB is set correctly.
+W Ln 104868 Col 013: Make sure that your global DB is set correctly.
+W Ln 104871 Col 013: Make sure that your global DB is set correctly.
+W Ln 105003 Col 013: Make sure that your global DB is set correctly.
+W Ln 105006 Col 013: Make sure that your global DB is set correctly.
+W Ln 105014 Col 013: Make sure that your global DB is set correctly.
+W Ln 105358 Col 013: Make sure that your global DB is set correctly.
+W Ln 105361 Col 013: Make sure that your global DB is set correctly.
+W Ln 105607 Col 013: Make sure that your global DB is set correctly.
+W Ln 105632 Col 013: Make sure that your global DB is set correctly.
+W Ln 105635 Col 013: Make sure that your global DB is set correctly.
+W Ln 105728 Col 013: Make sure that your global DB is set correctly.
+W Ln 105766 Col 013: Make sure that your global DB is set correctly.
+W Ln 105771 Col 013: Make sure that your global DB is set correctly.
+W Ln 105776 Col 013: Make sure that your global DB is set correctly.
+W Ln 105781 Col 013: Make sure that your global DB is set correctly.
+W Ln 105786 Col 013: Make sure that your global DB is set correctly.
+W Ln 105791 Col 013: Make sure that your global DB is set correctly.
+W Ln 105797 Col 013: Make sure that your global DB is set correctly.
+W Ln 105837 Col 013: Make sure that your global DB is set correctly.
+W Ln 105838 Col 013: Make sure that your global DB is set correctly.
+W Ln 105841 Col 013: Make sure that your global DB is set correctly.
+W Ln 105842 Col 013: Make sure that your global DB is set correctly.
+W Ln 105843 Col 013: Make sure that your global DB is set correctly.
+W Ln 105844 Col 013: Make sure that your global DB is set correctly.
+W Ln 105857 Col 013: Make sure that your global DB is set correctly.
+W Ln 106019 Col 013: Make sure that your global DB is set correctly.
+W Ln 106022 Col 013: Make sure that your global DB is set correctly.
+W Ln 106032 Col 013: Make sure that your global DB is set correctly.
+W Ln 106050 Col 013: Make sure that your global DB is set correctly.
+W Ln 106061 Col 013: Make sure that your global DB is set correctly.
+W Ln 106080 Col 013: Make sure that your global DB is set correctly.
+W Ln 106139 Col 013: Make sure that your global DB is set correctly.
+W Ln 106153 Col 013: Make sure that your global DB is set correctly.
+W Ln 106189 Col 013: Make sure that your global DB is set correctly.
+W Ln 106205 Col 041: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 106378 Col 029: Changes of the instance DB can destroy local variable accesses in FBs of your project.
+W Ln 106610 Col 013: Make sure that your global DB is set correctly.
+W Ln 106613 Col 013: Make sure that your global DB is set correctly.
+W Ln 106618 Col 013: Make sure that your global DB is set correctly.
+W Ln 106627 Col 013: Make sure that your global DB is set correctly.
+W Ln 106630 Col 013: Make sure that your global DB is set correctly.
+W Ln 106635 Col 013: Make sure that your global DB is set correctly.
+W Ln 106653 Col 013: Make sure that your global DB is set correctly.
+W Ln 106667 Col 013: Make sure that your global DB is set correctly.
+W Ln 106673 Col 013: Make sure that your global DB is set correctly.
+W Ln 106676 Col 013: Make sure that your global DB is set correctly.
+W Ln 106679 Col 013: Make sure that your global DB is set correctly.
+W Ln 106682 Col 013: Make sure that your global DB is set correctly.
+W Ln 106693 Col 013: Make sure that your global DB is set correctly.
+W Ln 106696 Col 013: Make sure that your global DB is set correctly.
+W Ln 106731 Col 013: Make sure that your global DB is set correctly.
+W Ln 106736 Col 013: Make sure that your global DB is set correctly.
+W Ln 106747 Col 013: Make sure that your global DB is set correctly.
+W Ln 106752 Col 013: Make sure that your global DB is set correctly.
+W Ln 106754 Col 013: Make sure that your global DB is set correctly.
+W Ln 106756 Col 013: Make sure that your global DB is set correctly.
+W Ln 106758 Col 013: Make sure that your global DB is set correctly.
+W Ln 106911 Col 013: Make sure that your global DB is set correctly.
+W Ln 106914 Col 013: Make sure that your global DB is set correctly.
+W Ln 106917 Col 013: Make sure that your global DB is set correctly.
+W Ln 106928 Col 013: Make sure that your global DB is set correctly.
+W Ln 106933 Col 013: Make sure that your global DB is set correctly.
+W Ln 107031 Col 013: Make sure that your global DB is set correctly.
+W Ln 107034 Col 013: Make sure that your global DB is set correctly.
+W Ln 107037 Col 013: Make sure that your global DB is set correctly.
+W Ln 107040 Col 013: Make sure that your global DB is set correctly.
+W Ln 107203 Col 013: Make sure that your global DB is set correctly.
+W Ln 107211 Col 013: Make sure that your global DB is set correctly.
+W Ln 107212 Col 013: Make sure that your global DB is set correctly.
+W Ln 107214 Col 013: Make sure that your global DB is set correctly.
+W Ln 107217 Col 013: Make sure that your global DB is set correctly.
+W Ln 107550 Col 013: Make sure that your global DB is set correctly.
+W Ln 107622 Col 013: Make sure that your global DB is set correctly.
+W Ln 107625 Col 013: Make sure that your global DB is set correctly.
+W Ln 107628 Col 013: Make sure that your global DB is set correctly.
+W Ln 107631 Col 013: Make sure that your global DB is set correctly.
+W Ln 107706 Col 013: Make sure that your global DB is set correctly.
+W Ln 107709 Col 013: Make sure that your global DB is set correctly.
+W Ln 107712 Col 013: Make sure that your global DB is set correctly.
+W Ln 107715 Col 013: Make sure that your global DB is set correctly.
+W Ln 107789 Col 013: Make sure that your global DB is set correctly.
+W Ln 107792 Col 013: Make sure that your global DB is set correctly.
+W Ln 107795 Col 013: Make sure that your global DB is set correctly.
+W Ln 107798 Col 013: Make sure that your global DB is set correctly.
+W Ln 107873 Col 013: Make sure that your global DB is set correctly.
+W Ln 107876 Col 013: Make sure that your global DB is set correctly.
+W Ln 107879 Col 013: Make sure that your global DB is set correctly.
+W Ln 107882 Col 012: Make sure that your global DB is set correctly.
+W Ln 107957 Col 013: Make sure that your global DB is set correctly.
+W Ln 107960 Col 013: Make sure that your global DB is set correctly.
+W Ln 107963 Col 013: Make sure that your global DB is set correctly.
+W Ln 107966 Col 013: Make sure that your global DB is set correctly.
+W Ln 108041 Col 013: Make sure that your global DB is set correctly.
+W Ln 108044 Col 013: Make sure that your global DB is set correctly.
+W Ln 108047 Col 013: Make sure that your global DB is set correctly.
+W Ln 108050 Col 013: Make sure that your global DB is set correctly.
+W Ln 108314 Col 013: Make sure that your global DB is set correctly.
+W Ln 108338 Col 013: Make sure that your global DB is set correctly.
+W Ln 108342 Col 013: Make sure that your global DB is set correctly.
+W Ln 108354 Col 013: Make sure that your global DB is set correctly.
+W Ln 108358 Col 013: Make sure that your global DB is set correctly.
+W Ln 108370 Col 013: Make sure that your global DB is set correctly.
+W Ln 108374 Col 013: Make sure that your global DB is set correctly.
+W Ln 108386 Col 013: Make sure that your global DB is set correctly.
+W Ln 108390 Col 013: Make sure that your global DB is set correctly.
+W Ln 108401 Col 013: Make sure that your global DB is set correctly.
+W Ln 108405 Col 013: Make sure that your global DB is set correctly.
+W Ln 108417 Col 013: Make sure that your global DB is set correctly.
+W Ln 108421 Col 013: Make sure that your global DB is set correctly.
+W Ln 108433 Col 013: Make sure that your global DB is set correctly.
+W Ln 108437 Col 013: Make sure that your global DB is set correctly.
+W Ln 108449 Col 013: Make sure that your global DB is set correctly.
+W Ln 108453 Col 013: Make sure that your global DB is set correctly.
+W Ln 108465 Col 013: Make sure that your global DB is set correctly.
+W Ln 108469 Col 013: Make sure that your global DB is set correctly.
+W Ln 108481 Col 013: Make sure that your global DB is set correctly.
+W Ln 108485 Col 013: Make sure that your global DB is set correctly.
+W Ln 108497 Col 013: Make sure that your global DB is set correctly.
+W Ln 108501 Col 013: Make sure that your global DB is set correctly.
+W Ln 108513 Col 013: Make sure that your global DB is set correctly.
+W Ln 108517 Col 013: Make sure that your global DB is set correctly.
+W Ln 108560 Col 013: Make sure that your global DB is set correctly.
+W Ln 108564 Col 013: Make sure that your global DB is set correctly.
+W Ln 108575 Col 013: Make sure that your global DB is set correctly.
+W Ln 108579 Col 013: Make sure that your global DB is set correctly.
+W Ln 108590 Col 013: Make sure that your global DB is set correctly.
+W Ln 108594 Col 013: Make sure that your global DB is set correctly.
+W Ln 108613 Col 013: Make sure that your global DB is set correctly.
+W Ln 108617 Col 013: Make sure that your global DB is set correctly.
+W Ln 108630 Col 013: Make sure that your global DB is set correctly.
+W Ln 108634 Col 013: Make sure that your global DB is set correctly.
+W Ln 108646 Col 013: Make sure that your global DB is set correctly.
+W Ln 108816 Col 013: Make sure that your global DB is set correctly.
+W Ln 108819 Col 013: Make sure that your global DB is set correctly.
+W Ln 108934 Col 013: Make sure that your global DB is set correctly.
+W Ln 108943 Col 013: Make sure that your global DB is set correctly.
+W Ln 108946 Col 013: Make sure that your global DB is set correctly.
+W Ln 108953 Col 013: Make sure that your global DB is set correctly.
+W Ln 108982 Col 013: Make sure that your global DB is set correctly.
+W Ln 108987 Col 013: Make sure that your global DB is set correctly.
+W Ln 108991 Col 013: Make sure that your global DB is set correctly.
+W Ln 108998 Col 013: Make sure that your global DB is set correctly.
+W Ln 109049 Col 013: Make sure that your global DB is set correctly.
+W Ln 110066 Col 013: Make sure that your global DB is set correctly.
+W Ln 110070 Col 013: Make sure that your global DB is set correctly.
+W Ln 110439 Col 013: Make sure that your global DB is set correctly.
+W Ln 112099 Col 013: Make sure that your global DB is set correctly.
+W Ln 112102 Col 013: Make sure that your global DB is set correctly.
+W Ln 112105 Col 013: Make sure that your global DB is set correctly.
+W Ln 113975 Col 015: Make sure that your global DB is set correctly.
+W Ln 114129 Col 013: Make sure that your global DB is set correctly.
+W Ln 114166 Col 013: Make sure that your global DB is set correctly.
+W Ln 114231 Col 013: Make sure that your global DB is set correctly.
+W Ln 114232 Col 013: Make sure that your global DB is set correctly.
+W Ln 114664 Col 013: Make sure that your global DB is set correctly.
+W Ln 114667 Col 013: Make sure that your global DB is set correctly.
+W Ln 114670 Col 013: Make sure that your global DB is set correctly.
+W Ln 115058 Col 013: Make sure that your global DB is set correctly.
+W Ln 115571 Col 013: Make sure that your global DB is set correctly.
+W Ln 115574 Col 013: Make sure that your global DB is set correctly.
+W Ln 115577 Col 013: Make sure that your global DB is set correctly.
+W Ln 115580 Col 013: Make sure that your global DB is set correctly.
+W Ln 116021 Col 013: Make sure that your global DB is set correctly.
+W Ln 116499 Col 013: Make sure that your global DB is set correctly.
+W Ln 116502 Col 013: Make sure that your global DB is set correctly.
+W Ln 116505 Col 013: Make sure that your global DB is set correctly.
+W Ln 116508 Col 013: Make sure that your global DB is set correctly.
+W Ln 116511 Col 013: Make sure that your global DB is set correctly.
+W Ln 116521 Col 013: Make sure that your global DB is set correctly.
+W Ln 116524 Col 013: Make sure that your global DB is set correctly.
+W Ln 116527 Col 013: Make sure that your global DB is set correctly.
+W Ln 116530 Col 013: Make sure that your global DB is set correctly.
+W Ln 116889 Col 013: Make sure that your global DB is set correctly.
+W Ln 116892 Col 013: Make sure that your global DB is set correctly.
+W Ln 117185 Col 013: Make sure that your global DB is set correctly.
+W Ln 117188 Col 013: Make sure that your global DB is set correctly.
+W Ln 117191 Col 013: Make sure that your global DB is set correctly.
+W Ln 117194 Col 013: Make sure that your global DB is set correctly.
+W Ln 117197 Col 013: Make sure that your global DB is set correctly.
+W Ln 117200 Col 013: Make sure that your global DB is set correctly.
+W Ln 117203 Col 013: Make sure that your global DB is set correctly.
+W Ln 117207 Col 013: Make sure that your global DB is set correctly.
+W Ln 117211 Col 013: Make sure that your global DB is set correctly.
+W Ln 117212 Col 013: Make sure that your global DB is set correctly.
+W Ln 117214 Col 013: Make sure that your global DB is set correctly.
+W Ln 117571 Col 013: Make sure that your global DB is set correctly.
+W Ln 117582 Col 013: Make sure that your global DB is set correctly.
+W Ln 117585 Col 013: Make sure that your global DB is set correctly.
+W Ln 117588 Col 013: Make sure that your global DB is set correctly.
+W Ln 120823 Col 013: Make sure that your global DB is set correctly.
+W Ln 120928 Col 013: Make sure that your global DB is set correctly.
+W Ln 121117 Col 013: Make sure that your global DB is set correctly.
+W Ln 121753 Col 013: Make sure that your global DB is set correctly.
+W Ln 121939 Col 013: Make sure that your global DB is set correctly.
+W Ln 121954 Col 013: Make sure that your global DB is set correctly.
+W Ln 121957 Col 013: Make sure that your global DB is set correctly.
+W Ln 121962 Col 013: Make sure that your global DB is set correctly.
+W Ln 121974 Col 013: Make sure that your global DB is set correctly.
+W Ln 121977 Col 013: Make sure that your global DB is set correctly.
+W Ln 121981 Col 013: Make sure that your global DB is set correctly.
+W Ln 121985 Col 013: Make sure that your global DB is set correctly.
+W Ln 121989 Col 013: Make sure that your global DB is set correctly.
+W Ln 121993 Col 013: Make sure that your global DB is set correctly.
+W Ln 121997 Col 013: Make sure that your global DB is set correctly.
+W Ln 122000 Col 013: Make sure that your global DB is set correctly.
+W Ln 122004 Col 013: Make sure that your global DB is set correctly.
+W Ln 122116 Col 013: Make sure that your global DB is set correctly.
+W Ln 122119 Col 013: Make sure that your global DB is set correctly.
+W Ln 122122 Col 013: Make sure that your global DB is set correctly.
+W Ln 122188 Col 015: Make sure that your global DB is set correctly.
+W Ln 122498 Col 013: Make sure that your global DB is set correctly.
+W Ln 122501 Col 013: Make sure that your global DB is set correctly.
+W Ln 122504 Col 013: Make sure that your global DB is set correctly.
+W Ln 122509 Col 013: Make sure that your global DB is set correctly.
+W Ln 122513 Col 013: Make sure that your global DB is set correctly.
+W Ln 122517 Col 013: Make sure that your global DB is set correctly.
+W Ln 122583 Col 013: Make sure that your global DB is set correctly.
+W Ln 123019 Col 013: Make sure that your global DB is set correctly.
+W Ln 123030 Col 013: Make sure that your global DB is set correctly.
+W Ln 123033 Col 013: Make sure that your global DB is set correctly.
+W Ln 123036 Col 013: Make sure that your global DB is set correctly.
+W Ln 126143 Col 013: Make sure that your global DB is set correctly.
+W Ln 126154 Col 013: Make sure that your global DB is set correctly.
+W Ln 126157 Col 013: Make sure that your global DB is set correctly.
+W Ln 126160 Col 013: Make sure that your global DB is set correctly.
+W Ln 128995 Col 013: Make sure that your global DB is set correctly.
+W Ln 128998 Col 013: Make sure that your global DB is set correctly.
+W Ln 129012 Col 013: Make sure that your global DB is set correctly.
+W Ln 129083 Col 013: Make sure that your global DB is set correctly.
+W Ln 129091 Col 013: Make sure that your global DB is set correctly.
+W Ln 129092 Col 013: Make sure that your global DB is set correctly.
+W Ln 129105 Col 013: Make sure that your global DB is set correctly.
+W Ln 129129 Col 013: Make sure that your global DB is set correctly.
+W Ln 129463 Col 013: Make sure that your global DB is set correctly.
+W Ln 129466 Col 013: Make sure that your global DB is set correctly.
+W Ln 129516 Col 013: Make sure that your global DB is set correctly.
+W Ln 129519 Col 013: Make sure that your global DB is set correctly.
+W Ln 129522 Col 013: Make sure that your global DB is set correctly.
+W Ln 129525 Col 013: Make sure that your global DB is set correctly.
+W Ln 129610 Col 012: Make sure that your global DB is set correctly.
+W Ln 129614 Col 013: Make sure that your global DB is set correctly.
+W Ln 129644 Col 013: Make sure that your global DB is set correctly.
+W Ln 129647 Col 013: Make sure that your global DB is set correctly.
+W Ln 129651 Col 013: Make sure that your global DB is set correctly.
+W Ln 131365 Col 013: Make sure that your global DB is set correctly.
+W Ln 131485 Col 013: Make sure that your global DB is set correctly.
+W Ln 132310 Col 013: Make sure that your global DB is set correctly.
+W Ln 132313 Col 013: Make sure that your global DB is set correctly.
+W Ln 132316 Col 013: Make sure that your global DB is set correctly.
+W Ln 132319 Col 013: Make sure that your global DB is set correctly.
+W Ln 132417 Col 013: Make sure that your global DB is set correctly.
+W Ln 132421 Col 013: Make sure that your global DB is set correctly.
+W Ln 132452 Col 013: Make sure that your global DB is set correctly.
+W Ln 132455 Col 013: Make sure that your global DB is set correctly.
+W Ln 132459 Col 013: Make sure that your global DB is set correctly.
+W Ln 134217 Col 013: Make sure that your global DB is set correctly.
+W Ln 135134 Col 013: Make sure that your global DB is set correctly.
+W Ln 135137 Col 013: Make sure that your global DB is set correctly.
+W Ln 135140 Col 013: Make sure that your global DB is set correctly.
+W Ln 135497 Col 013: Make sure that your global DB is set correctly.
+W Ln 135500 Col 013: Make sure that your global DB is set correctly.
+W Ln 135503 Col 013: Make sure that your global DB is set correctly.
+W Ln 136083 Col 013: Make sure that your global DB is set correctly.
+W Ln 136095 Col 013: Make sure that your global DB is set correctly.
+W Ln 136098 Col 013: Make sure that your global DB is set correctly.
+W Ln 136101 Col 013: Make sure that your global DB is set correctly.
+W Ln 136104 Col 013: Make sure that your global DB is set correctly.
+W Ln 136107 Col 013: Make sure that your global DB is set correctly.
+W Ln 136110 Col 013: Make sure that your global DB is set correctly.
+W Ln 136130 Col 013: Make sure that your global DB is set correctly.
+W Ln 136136 Col 013: Make sure that your global DB is set correctly.
+W Ln 136160 Col 013: Make sure that your global DB is set correctly.
+W Ln 136168 Col 013: Make sure that your global DB is set correctly.
+W Ln 136180 Col 013: Make sure that your global DB is set correctly.
+W Ln 136183 Col 013: Make sure that your global DB is set correctly.
+W Ln 136189 Col 013: Make sure that your global DB is set correctly.
+W Ln 136192 Col 013: Make sure that your global DB is set correctly.
+W Ln 136195 Col 013: Make sure that your global DB is set correctly.
+W Ln 136199 Col 013: Make sure that your global DB is set correctly.
+W Ln 136210 Col 013: Make sure that your global DB is set correctly.
+W Ln 136214 Col 013: Make sure that your global DB is set correctly.
+W Ln 136218 Col 013: Make sure that your global DB is set correctly.
+W Ln 136247 Col 013: Make sure that your global DB is set correctly.
+W Ln 136250 Col 013: Make sure that your global DB is set correctly.
+W Ln 136253 Col 013: Make sure that your global DB is set correctly.
+W Ln 136256 Col 013: Make sure that your global DB is set correctly.
+W Ln 136259 Col 013: Make sure that your global DB is set correctly.
+W Ln 136262 Col 013: Make sure that your global DB is set correctly.
+W Ln 136265 Col 013: Make sure that your global DB is set correctly.
+W Ln 136313 Col 013: Make sure that your global DB is set correctly.
+W Ln 136327 Col 013: Make sure that your global DB is set correctly.
+W Ln 136345 Col 013: Make sure that your global DB is set correctly.
+W Ln 136346 Col 013: Make sure that your global DB is set correctly.
+W Ln 136359 Col 013: Make sure that your global DB is set correctly.
+W Ln 136365 Col 013: Make sure that your global DB is set correctly.
+W Ln 136369 Col 013: Make sure that your global DB is set correctly.
+W Ln 136414 Col 013: Make sure that your global DB is set correctly.
+W Ln 136419 Col 013: Make sure that your global DB is set correctly.
+W Ln 136422 Col 013: Make sure that your global DB is set correctly.
+W Ln 136425 Col 013: Make sure that your global DB is set correctly.
+W Ln 136428 Col 013: Make sure that your global DB is set correctly.
+W Ln 136429 Col 013: Make sure that your global DB is set correctly.
+W Ln 136433 Col 013: Make sure that your global DB is set correctly.
+W Ln 136449 Col 013: Make sure that your global DB is set correctly.
+W Ln 137126 Col 013: Make sure that your global DB is set correctly.
+W Ln 137378 Col 013: Make sure that your global DB is set correctly.
+W Ln 137391 Col 013: Make sure that your global DB is set correctly.
+W Ln 137405 Col 013: Make sure that your global DB is set correctly.
+W Ln 137406 Col 013: Make sure that your global DB is set correctly.
+W Ln 137410 Col 013: Make sure that your global DB is set correctly.
+W Ln 137418 Col 013: Make sure that your global DB is set correctly.
+W Ln 137420 Col 013: Make sure that your global DB is set correctly.
+W Ln 137423 Col 013: Make sure that your global DB is set correctly.
+W Ln 137977 Col 013: Make sure that your global DB is set correctly.
+W Ln 137991 Col 013: Make sure that your global DB is set correctly.
+W Ln 138012 Col 013: Make sure that your global DB is set correctly.
+W Ln 138013 Col 013: Make sure that your global DB is set correctly.
+W Ln 138026 Col 013: Make sure that your global DB is set correctly.
+W Ln 138028 Col 013: Make sure that your global DB is set correctly.
+W Ln 138031 Col 013: Make sure that your global DB is set correctly.
+W Ln 138033 Col 013: Make sure that your global DB is set correctly.
+W Ln 138038 Col 013: Make sure that your global DB is set correctly.
+W Ln 138133 Col 013: Make sure that your global DB is set correctly.
+W Ln 138136 Col 013: Make sure that your global DB is set correctly.
+W Ln 138139 Col 013: Make sure that your global DB is set correctly.
+W Ln 138142 Col 013: Make sure that your global DB is set correctly.
+W Ln 138150 Col 013: Make sure that your global DB is set correctly.
+W Ln 138273 Col 013: Make sure that your global DB is set correctly.
+W Ln 138277 Col 013: Make sure that your global DB is set correctly.
+W Ln 138280 Col 013: Make sure that your global DB is set correctly.
+W Ln 138286 Col 013: Make sure that your global DB is set correctly.
+W Ln 138550 Col 013: Make sure that your global DB is set correctly.
+W Ln 138556 Col 013: Make sure that your global DB is set correctly.
+W Ln 138559 Col 013: Make sure that your global DB is set correctly.
+W Ln 138560 Col 013: Make sure that your global DB is set correctly.
+W Ln 138565 Col 013: Make sure that your global DB is set correctly.
+W Ln 138567 Col 013: Make sure that your global DB is set correctly.
+W Ln 138570 Col 013: Make sure that your global DB is set correctly.
+W Ln 138573 Col 013: Make sure that your global DB is set correctly.
+W Ln 138837 Col 013: Make sure that your global DB is set correctly.
+W Ln 138842 Col 013: Make sure that your global DB is set correctly.
+W Ln 138850 Col 013: Make sure that your global DB is set correctly.
+W Ln 138853 Col 013: Make sure that your global DB is set correctly.
+W Ln 138856 Col 013: Make sure that your global DB is set correctly.
+W Ln 138859 Col 013: Make sure that your global DB is set correctly.
+W Ln 138862 Col 013: Make sure that your global DB is set correctly.
+W Ln 138887 Col 013: Make sure that your global DB is set correctly.
+W Ln 138895 Col 013: Make sure that your global DB is set correctly.
+W Ln 138907 Col 013: Make sure that your global DB is set correctly.
+W Ln 138910 Col 013: Make sure that your global DB is set correctly.
+W Ln 138916 Col 013: Make sure that your global DB is set correctly.
+W Ln 138919 Col 013: Make sure that your global DB is set correctly.
+W Ln 138923 Col 013: Make sure that your global DB is set correctly.
+W Ln 138934 Col 013: Make sure that your global DB is set correctly.
+W Ln 138938 Col 013: Make sure that your global DB is set correctly.
+W Ln 138942 Col 013: Make sure that your global DB is set correctly.
+W Ln 138988 Col 013: Make sure that your global DB is set correctly.
+W Ln 138993 Col 013: Make sure that your global DB is set correctly.
+W Ln 138996 Col 013: Make sure that your global DB is set correctly.
+W Ln 138999 Col 013: Make sure that your global DB is set correctly.
+W Ln 139002 Col 013: Make sure that your global DB is set correctly.
+W Ln 139003 Col 013: Make sure that your global DB is set correctly.
+W Ln 139012 Col 013: Make sure that your global DB is set correctly.
+W Ln 139017 Col 013: Make sure that your global DB is set correctly.
+W Ln 139032 Col 013: Make sure that your global DB is set correctly.
+W Ln 139520 Col 013: Make sure that your global DB is set correctly.
+W Ln 139681 Col 013: Make sure that your global DB is set correctly.
+W Ln 139684 Col 013: Make sure that your global DB is set correctly.
+W Ln 139824 Col 013: Make sure that your global DB is set correctly.
+W Ln 139832 Col 013: Make sure that your global DB is set correctly.
+W Ln 139835 Col 013: Make sure that your global DB is set correctly.
+W Ln 139843 Col 013: Make sure that your global DB is set correctly.
+W Ln 139846 Col 013: Make sure that your global DB is set correctly.
+W Ln 139870 Col 013: Make sure that your global DB is set correctly.
+W Ln 139873 Col 013: Make sure that your global DB is set correctly.
+W Ln 139880 Col 013: Make sure that your global DB is set correctly.
+W Ln 139886 Col 013: Make sure that your global DB is set correctly.
+W Ln 139893 Col 013: Make sure that your global DB is set correctly.
+W Ln 139944 Col 013: Make sure that your global DB is set correctly.
+W Ln 139949 Col 013: Make sure that your global DB is set correctly.
+W Ln 139952 Col 013: Make sure that your global DB is set correctly.
+W Ln 139955 Col 013: Make sure that your global DB is set correctly.
+W Ln 139958 Col 013: Make sure that your global DB is set correctly.
+W Ln 139959 Col 013: Make sure that your global DB is set correctly.
+W Ln 139975 Col 013: Make sure that your global DB is set correctly.
+W Ln 140338 Col 013: Make sure that your global DB is set correctly.
+W Ln 140345 Col 013: Make sure that your global DB is set correctly.
+W Ln 140348 Col 013: Make sure that your global DB is set correctly.
+W Ln 140353 Col 013: Make sure that your global DB is set correctly.
+W Ln 146488 Col 013: Make sure that your global DB is set correctly.
+W Ln 146577 Col 013: Make sure that your global DB is set correctly.
+W Ln 146596 Col 013: Make sure that your global DB is set correctly.
+W Ln 146612 Col 013: Make sure that your global DB is set correctly.
+W Ln 146613 Col 013: Make sure that your global DB is set correctly.
+W Ln 146614 Col 013: Make sure that your global DB is set correctly.
+W Ln 146617 Col 013: Make sure that your global DB is set correctly.
+W Ln 146642 Col 013: Make sure that your global DB is set correctly.
+W Ln 146730 Col 013: Make sure that your global DB is set correctly.
+W Ln 146732 Col 013: Make sure that your global DB is set correctly.
+W Ln 146736 Col 013: Make sure that your global DB is set correctly.
+W Ln 146964 Col 013: Make sure that your global DB is set correctly.
+W Ln 146988 Col 013: Make sure that your global DB is set correctly.
+W Ln 146992 Col 013: Make sure that your global DB is set correctly.
+W Ln 147439 Col 013: Make sure that your global DB is set correctly.
+W Ln 147458 Col 013: Make sure that your global DB is set correctly.
+W Ln 147462 Col 013: Make sure that your global DB is set correctly.
+W Ln 147615 Col 013: Make sure that your global DB is set correctly.
+W Ln 147616 Col 013: Make sure that your global DB is set correctly.
+W Ln 147619 Col 013: Make sure that your global DB is set correctly.
+W Ln 147620 Col 013: Make sure that your global DB is set correctly.
+W Ln 147621 Col 013: Make sure that your global DB is set correctly.
+W Ln 147622 Col 013: Make sure that your global DB is set correctly.
+W Ln 147635 Col 013: Make sure that your global DB is set correctly.
+W Ln 147682 Col 013: Make sure that your global DB is set correctly.
+W Ln 148590 Col 013: Make sure that your global DB is set correctly.
+W Ln 148595 Col 013: Make sure that your global DB is set correctly.
+W Ln 148598 Col 013: Make sure that your global DB is set correctly.
+W Ln 148604 Col 013: Make sure that your global DB is set correctly.
+W Ln 148607 Col 013: Make sure that your global DB is set correctly.
+W Ln 148610 Col 013: Make sure that your global DB is set correctly.
+W Ln 148622 Col 013: Make sure that your global DB is set correctly.
+W Ln 149580 Col 013: Make sure that your global DB is set correctly.
+W Ln 149587 Col 013: Make sure that your global DB is set correctly.
+W Ln 149590 Col 013: Make sure that your global DB is set correctly.
+W Ln 149593 Col 013: Make sure that your global DB is set correctly.
+W Ln 149596 Col 013: Make sure that your global DB is set correctly.
+W Ln 150182 Col 013: Make sure that your global DB is set correctly.
+W Ln 150185 Col 013: Make sure that your global DB is set correctly.
+W Ln 150188 Col 013: Make sure that your global DB is set correctly.
+W Ln 150191 Col 013: Make sure that your global DB is set correctly.
+W Ln 150571 Col 013: Make sure that your global DB is set correctly.
+W Ln 150644 Col 013: Make sure that your global DB is set correctly.
+W Ln 150709 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 151050 Col 013: Make sure that your global DB is set correctly.
+W Ln 151054 Col 013: Make sure that your global DB is set correctly.
+W Ln 151058 Col 013: Make sure that your global DB is set correctly.
+W Ln 151066 Col 013: Make sure that your global DB is set correctly.
+W Ln 151152 Col 013: Make sure that your global DB is set correctly.
+W Ln 151154 Col 013: Make sure that your global DB is set correctly.
+W Ln 151156 Col 013: Make sure that your global DB is set correctly.
+W Ln 151168 Col 013: Make sure that your global DB is set correctly.
+W Ln 151176 Col 013: Make sure that your global DB is set correctly.
+W Ln 151179 Col 013: Make sure that your global DB is set correctly.
+W Ln 151189 Col 013: Make sure that your global DB is set correctly.
+W Ln 151696 Col 013: Make sure that your global DB is set correctly.
+W Ln 151717 Col 013: Make sure that your global DB is set correctly.
+W Ln 151720 Col 013: Make sure that your global DB is set correctly.
+W Ln 151725 Col 013: Make sure that your global DB is set correctly.
+W Ln 151822 Col 013: Make sure that your global DB is set correctly.
+W Ln 153102 Col 013: Make sure that your global DB is set correctly.
+W Ln 153103 Col 013: Make sure that your global DB is set correctly.
+W Ln 153107 Col 013: Make sure that your global DB is set correctly.
+W Ln 153111 Col 013: Make sure that your global DB is set correctly.
+W Ln 153112 Col 013: Make sure that your global DB is set correctly.
+W Ln 153116 Col 013: Make sure that your global DB is set correctly.
+W Ln 153168 Col 013: Make sure that your global DB is set correctly.
+W Ln 153175 Col 013: Make sure that your global DB is set correctly.
+W Ln 153178 Col 013: Make sure that your global DB is set correctly.
+W Ln 153179 Col 013: Make sure that your global DB is set correctly.
+W Ln 153182 Col 013: Make sure that your global DB is set correctly.
+W Ln 153191 Col 013: Make sure that your global DB is set correctly.
+W Ln 153200 Col 013: Make sure that your global DB is set correctly.
+W Ln 153226 Col 013: Make sure that your global DB is set correctly.
+W Ln 153227 Col 013: Make sure that your global DB is set correctly.
+W Ln 153231 Col 013: Make sure that your global DB is set correctly.
+W Ln 153234 Col 013: Make sure that your global DB is set correctly.
+W Ln 153627 Col 013: Make sure that your global DB is set correctly.
+W Ln 153630 Col 013: Make sure that your global DB is set correctly.
+W Ln 153633 Col 013: Make sure that your global DB is set correctly.
+W Ln 153636 Col 013: Make sure that your global DB is set correctly.
+W Ln 153655 Col 013: Make sure that your global DB is set correctly.
+W Ln 153669 Col 013: Make sure that your global DB is set correctly.
+W Ln 153672 Col 013: Make sure that your global DB is set correctly.
+W Ln 153675 Col 013: Make sure that your global DB is set correctly.
+W Ln 153961 Col 013: Make sure that your global DB is set correctly.
+W Ln 153964 Col 013: Make sure that your global DB is set correctly.
+W Ln 153968 Col 013: Make sure that your global DB is set correctly.
+W Ln 153971 Col 013: Make sure that your global DB is set correctly.
+W Ln 153974 Col 013: Make sure that your global DB is set correctly.
+W Ln 153977 Col 013: Make sure that your global DB is set correctly.
+W Ln 153980 Col 013: Make sure that your global DB is set correctly.
+W Ln 154305 Col 013: Make sure that your global DB is set correctly.
+W Ln 154308 Col 013: Make sure that your global DB is set correctly.
+W Ln 154404 Col 013: Make sure that your global DB is set correctly.
+W Ln 154406 Col 013: Make sure that your global DB is set correctly.
+W Ln 154408 Col 013: Make sure that your global DB is set correctly.
+W Ln 154583 Col 013: Make sure that your global DB is set correctly.
+W Ln 154585 Col 013: Make sure that your global DB is set correctly.
+W Ln 154588 Col 013: Make sure that your global DB is set correctly.
+W Ln 154593 Col 013: Make sure that your global DB is set correctly.
+W Ln 154831 Col 013: Make sure that your global DB is set correctly.
+W Ln 155214 Col 013: Make sure that your global DB is set correctly.
+W Ln 155294 Col 013: Make sure that your global DB is set correctly.
+W Ln 155321 Col 013: Make sure that your global DB is set correctly.
+W Ln 155324 Col 013: Make sure that your global DB is set correctly.
+W Ln 155897 Col 013: Make sure that your global DB is set correctly.
+W Ln 155912 Col 013: Make sure that your global DB is set correctly.
+W Ln 155915 Col 013: Make sure that your global DB is set correctly.
+W Ln 155917 Col 013: Make sure that your global DB is set correctly.
+W Ln 155918 Col 013: Make sure that your global DB is set correctly.
+W Ln 155944 Col 013: Make sure that your global DB is set correctly.
+W Ln 155962 Col 013: Make sure that your global DB is set correctly.
+W Ln 155993 Col 013: Make sure that your global DB is set correctly.
+W Ln 156085 Col 013: Make sure that your global DB is set correctly.
+W Ln 156088 Col 013: Make sure that your global DB is set correctly.
+W Ln 156430 Col 013: Make sure that your global DB is set correctly.
+W Ln 156433 Col 013: Make sure that your global DB is set correctly.
+W Ln 156436 Col 013: Make sure that your global DB is set correctly.
+W Ln 156455 Col 013: Make sure that your global DB is set correctly.
+W Ln 156469 Col 013: Make sure that your global DB is set correctly.
+W Ln 156472 Col 013: Make sure that your global DB is set correctly.
+W Ln 156672 Col 013: Make sure that your global DB is set correctly.
+W Ln 156675 Col 013: Make sure that your global DB is set correctly.
+W Ln 156679 Col 013: Make sure that your global DB is set correctly.
+W Ln 156682 Col 013: Make sure that your global DB is set correctly.
+W Ln 156683 Col 013: Make sure that your global DB is set correctly.
+W Ln 156686 Col 013: Make sure that your global DB is set correctly.
+W Ln 156689 Col 013: Make sure that your global DB is set correctly.
+W Ln 156774 Col 013: Make sure that your global DB is set correctly.
+W Ln 156940 Col 013: Make sure that your global DB is set correctly.
+W Ln 156943 Col 013: Make sure that your global DB is set correctly.
+W Ln 156946 Col 013: Make sure that your global DB is set correctly.
+W Ln 156963 Col 013: Make sure that your global DB is set correctly.
+W Ln 156966 Col 013: Make sure that your global DB is set correctly.
+W Ln 157123 Col 013: Make sure that your global DB is set correctly.
+W Ln 157124 Col 013: Make sure that your global DB is set correctly.
+W Ln 157127 Col 013: Make sure that your global DB is set correctly.
+W Ln 157130 Col 013: Make sure that your global DB is set correctly.
+W Ln 157133 Col 013: Make sure that your global DB is set correctly.
+W Ln 157136 Col 013: Make sure that your global DB is set correctly.
+W Ln 157139 Col 013: Make sure that your global DB is set correctly.
+W Ln 157435 Col 013: Make sure that your global DB is set correctly.
+W Ln 157452 Col 013: Make sure that your global DB is set correctly.
+W Ln 157455 Col 013: Make sure that your global DB is set correctly.
+W Ln 157460 Col 013: Make sure that your global DB is set correctly.
+W Ln 157562 Col 013: Make sure that your global DB is set correctly.
+W Ln 158761 Col 013: Make sure that your global DB is set correctly.
+W Ln 158762 Col 013: Make sure that your global DB is set correctly.
+W Ln 158766 Col 013: Make sure that your global DB is set correctly.
+W Ln 159459 Col 013: Make sure that your global DB is set correctly.
+W Ln 159466 Col 013: Make sure that your global DB is set correctly.
+W Ln 159469 Col 013: Make sure that your global DB is set correctly.
+W Ln 159472 Col 013: Make sure that your global DB is set correctly.
+W Ln 159479 Col 013: Make sure that your global DB is set correctly.
+W Ln 159482 Col 013: Make sure that your global DB is set correctly.
+W Ln 159485 Col 013: Make sure that your global DB is set correctly.
+W Ln 159488 Col 013: Make sure that your global DB is set correctly.
+W Ln 160502 Col 013: Make sure that your global DB is set correctly.
+W Ln 161688 Col 013: Make sure that your global DB is set correctly.
+W Ln 162919 Col 013: Make sure that your global DB is set correctly.
+W Ln 163929 Col 013: Make sure that your global DB is set correctly.
+W Ln 163933 Col 013: Make sure that your global DB is set correctly.
+W Ln 163937 Col 013: Make sure that your global DB is set correctly.
+W Ln 163941 Col 013: Make sure that your global DB is set correctly.
+W Ln 165087 Col 013: Make sure that your global DB is set correctly.
+W Ln 165184 Col 013: Make sure that your global DB is set correctly.
+W Ln 165188 Col 013: Make sure that your global DB is set correctly.
+W Ln 165191 Col 013: Make sure that your global DB is set correctly.
+W Ln 165318 Col 013: Make sure that your global DB is set correctly.
+W Ln 165586 Col 013: Make sure that your global DB is set correctly.
+W Ln 165592 Col 013: Make sure that your global DB is set correctly.
+W Ln 165606 Col 013: Make sure that your global DB is set correctly.
+W Ln 165612 Col 013: Make sure that your global DB is set correctly.
+W Ln 165685 Col 013: Make sure that your global DB is set correctly.
+W Ln 165740 Col 013: Make sure that your global DB is set correctly.
+W Ln 165846 Col 013: Make sure that your global DB is set correctly.
+W Ln 166285 Col 013: Make sure that your global DB is set correctly.
+W Ln 166288 Col 013: Make sure that your global DB is set correctly.
+W Ln 166291 Col 013: Make sure that your global DB is set correctly.
+W Ln 166299 Col 013: Make sure that your global DB is set correctly.
+W Ln 166302 Col 013: Make sure that your global DB is set correctly.
+W Ln 166305 Col 013: Make sure that your global DB is set correctly.
+W Ln 166427 Col 013: Make sure that your global DB is set correctly.
+W Ln 167104 Col 013: Make sure that your global DB is set correctly.
+W Ln 167547 Col 013: Make sure that your global DB is set correctly.
+W Ln 167550 Col 013: Make sure that your global DB is set correctly.
+W Ln 167553 Col 013: Make sure that your global DB is set correctly.
+W Ln 167556 Col 013: Make sure that your global DB is set correctly.
+W Ln 167560 Col 013: Make sure that your global DB is set correctly.
+W Ln 167569 Col 013: Make sure that your global DB is set correctly.
+W Ln 167572 Col 013: Make sure that your global DB is set correctly.
+W Ln 167575 Col 013: Make sure that your global DB is set correctly.
+W Ln 167697 Col 013: Make sure that your global DB is set correctly.
+W Ln 168385 Col 013: Make sure that your global DB is set correctly.
+W Ln 168807 Col 013: Make sure that your global DB is set correctly.
+W Ln 168810 Col 013: Make sure that your global DB is set correctly.
+W Ln 168813 Col 013: Make sure that your global DB is set correctly.
+W Ln 168816 Col 013: Make sure that your global DB is set correctly.
+W Ln 168825 Col 013: Make sure that your global DB is set correctly.
+W Ln 168833 Col 013: Make sure that your global DB is set correctly.
+W Ln 168836 Col 013: Make sure that your global DB is set correctly.
+W Ln 168839 Col 013: Make sure that your global DB is set correctly.
+W Ln 169564 Col 013: Make sure that your global DB is set correctly.
+W Ln 169943 Col 013: Make sure that your global DB is set correctly.
+W Ln 169952 Col 013: Make sure that your global DB is set correctly.
+W Ln 169955 Col 013: Make sure that your global DB is set correctly.
+W Ln 169958 Col 013: Make sure that your global DB is set correctly.
+W Ln 169961 Col 013: Make sure that your global DB is set correctly.
+W Ln 169972 Col 013: Make sure that your global DB is set correctly.
+W Ln 169984 Col 013: Make sure that your global DB is set correctly.
+W Ln 169989 Col 013: Make sure that your global DB is set correctly.
+W Ln 170590 Col 013: Make sure that your global DB is set correctly.
+W Ln 170732 Col 013: Make sure that your global DB is set correctly.
+W Ln 171162 Col 013: Make sure that your global DB is set correctly.
+W Ln 171165 Col 013: Make sure that your global DB is set correctly.
+W Ln 171168 Col 013: Make sure that your global DB is set correctly.
+W Ln 171171 Col 013: Make sure that your global DB is set correctly.
+W Ln 171181 Col 013: Make sure that your global DB is set correctly.
+W Ln 171184 Col 013: Make sure that your global DB is set correctly.
+W Ln 171187 Col 013: Make sure that your global DB is set correctly.
+W Ln 171309 Col 013: Make sure that your global DB is set correctly.
+W Ln 171914 Col 013: Make sure that your global DB is set correctly.
+W Ln 172877 Col 013: Make sure that your global DB is set correctly.
+W Ln 172880 Col 013: Make sure that your global DB is set correctly.
+W Ln 172893 Col 013: Make sure that your global DB is set correctly.
+W Ln 172901 Col 013: Make sure that your global DB is set correctly.
+W Ln 172905 Col 013: Make sure that your global DB is set correctly.
+W Ln 172919 Col 013: Make sure that your global DB is set correctly.
+W Ln 172927 Col 013: Make sure that your global DB is set correctly.
+W Ln 172931 Col 013: Make sure that your global DB is set correctly.
+W Ln 173828 Col 013: Make sure that your global DB is set correctly.
+W Ln 173832 Col 013: Make sure that your global DB is set correctly.
+W Ln 174174 Col 013: Make sure that your global DB is set correctly.
+W Ln 174177 Col 013: Make sure that your global DB is set correctly.
+W Ln 174455 Col 013: Make sure that your global DB is set correctly.
+W Ln 174537 Col 013: Make sure that your global DB is set correctly.
+W Ln 174541 Col 013: Make sure that your global DB is set correctly.
+W Ln 174574 Col 013: Make sure that your global DB is set correctly.
+W Ln 174578 Col 013: Make sure that your global DB is set correctly.
+W Ln 175145 Col 013: Make sure that your global DB is set correctly.
+W Ln 175148 Col 013: Make sure that your global DB is set correctly.
+W Ln 175151 Col 013: Make sure that your global DB is set correctly.
+W Ln 175154 Col 013: Make sure that your global DB is set correctly.
+W Ln 175157 Col 013: Make sure that your global DB is set correctly.
+W Ln 175161 Col 013: Make sure that your global DB is set correctly.
+W Ln 175175 Col 013: Make sure that your global DB is set correctly.
+W Ln 175178 Col 013: Make sure that your global DB is set correctly.
+W Ln 175181 Col 013: Make sure that your global DB is set correctly.
+W Ln 175191 Col 013: Make sure that your global DB is set correctly.
+W Ln 175193 Col 013: Make sure that your global DB is set correctly.
+W Ln 176235 Col 013: Make sure that your global DB is set correctly.
+W Ln 176238 Col 013: Make sure that your global DB is set correctly.
+W Ln 176247 Col 013: Make sure that your global DB is set correctly.
+W Ln 176250 Col 013: Make sure that your global DB is set correctly.
+W Ln 176259 Col 013: Make sure that your global DB is set correctly.
+W Ln 176262 Col 013: Make sure that your global DB is set correctly.
+W Ln 176266 Col 013: Make sure that your global DB is set correctly.
+W Ln 176272 Col 013: Make sure that your global DB is set correctly.
+W Ln 176273 Col 013: Make sure that your global DB is set correctly.
+W Ln 176277 Col 013: Make sure that your global DB is set correctly.
+W Ln 176851 Col 013: Make sure that your global DB is set correctly.
+W Ln 176854 Col 013: Make sure that your global DB is set correctly.
+W Ln 176857 Col 013: Make sure that your global DB is set correctly.
+W Ln 176859 Col 013: Make sure that your global DB is set correctly.
+W Ln 176861 Col 013: Make sure that your global DB is set correctly.
+W Ln 176865 Col 013: Make sure that your global DB is set correctly.
+W Ln 176868 Col 013: Make sure that your global DB is set correctly.
+W Ln 176883 Col 013: Make sure that your global DB is set correctly.
+W Ln 176886 Col 013: Make sure that your global DB is set correctly.
+W Ln 176889 Col 013: Make sure that your global DB is set correctly.
+W Ln 176894 Col 013: Make sure that your global DB is set correctly.
+W Ln 176899 Col 013: Make sure that your global DB is set correctly.
+W Ln 176923 Col 013: Make sure that your global DB is set correctly.
+W Ln 176980 Col 013: Make sure that your global DB is set correctly.
+W Ln 176983 Col 013: Make sure that your global DB is set correctly.
+W Ln 177028 Col 013: Make sure that your global DB is set correctly.
+W Ln 177031 Col 013: Make sure that your global DB is set correctly.
+W Ln 178636 Col 013: Make sure that your global DB is set correctly.
+W Ln 178993 Col 013: Make sure that your global DB is set correctly.
+W Ln 178996 Col 013: Make sure that your global DB is set correctly.
+W Ln 179007 Col 013: Make sure that your global DB is set correctly.
+W Ln 179010 Col 013: Make sure that your global DB is set correctly.
+W Ln 179022 Col 013: Make sure that your global DB is set correctly.
+W Ln 179025 Col 013: Make sure that your global DB is set correctly.
+W Ln 179037 Col 013: Make sure that your global DB is set correctly.
+W Ln 179040 Col 013: Make sure that your global DB is set correctly.
+W Ln 179044 Col 013: Make sure that your global DB is set correctly.
+W Ln 179055 Col 013: Make sure that your global DB is set correctly.
+W Ln 179058 Col 013: Make sure that your global DB is set correctly.
+W Ln 179069 Col 013: Make sure that your global DB is set correctly.
+W Ln 179073 Col 013: Make sure that your global DB is set correctly.
+W Ln 179077 Col 013: Make sure that your global DB is set correctly.
+W Ln 179078 Col 013: Make sure that your global DB is set correctly.
+W Ln 179082 Col 013: Make sure that your global DB is set correctly.
+W Ln 179408 Col 013: Make sure that your global DB is set correctly.
+W Ln 179413 Col 013: Make sure that your global DB is set correctly.
+W Ln 179423 Col 013: Make sure that your global DB is set correctly.
+W Ln 179429 Col 013: Make sure that your global DB is set correctly.
+W Ln 179430 Col 013: Make sure that your global DB is set correctly.
+W Ln 179431 Col 013: Make sure that your global DB is set correctly.
+W Ln 179432 Col 013: Make sure that your global DB is set correctly.
+W Ln 179434 Col 013: Make sure that your global DB is set correctly.
+W Ln 179437 Col 013: Make sure that your global DB is set correctly.
+W Ln 179646 Col 013: Make sure that your global DB is set correctly.
+W Ln 179647 Col 013: Make sure that your global DB is set correctly.
+W Ln 179648 Col 013: Make sure that your global DB is set correctly.
+W Ln 179931 Col 013: Make sure that your global DB is set correctly.
+W Ln 179935 Col 013: Make sure that your global DB is set correctly.
+W Ln 180157 Col 013: Make sure that your global DB is set correctly.
+W Ln 180663 Col 013: Make sure that your global DB is set correctly.
+W Ln 180667 Col 013: Make sure that your global DB is set correctly.
+W Ln 180946 Col 013: Make sure that your global DB is set correctly.
+W Ln 181703 Col 013: Make sure that your global DB is set correctly.
+W Ln 181704 Col 013: Make sure that your global DB is set correctly.
+W Ln 181705 Col 013: Make sure that your global DB is set correctly.
+W Ln 182195 Col 013: Make sure that your global DB is set correctly.
+W Ln 182198 Col 013: Make sure that your global DB is set correctly.
+W Ln 182201 Col 013: Make sure that your global DB is set correctly.
+W Ln 182230 Col 013: Make sure that your global DB is set correctly.
+W Ln 182234 Col 013: Make sure that your global DB is set correctly.
+W Ln 182238 Col 013: Make sure that your global DB is set correctly.
+W Ln 182246 Col 013: Make sure that your global DB is set correctly.
+W Ln 182251 Col 013: Make sure that your global DB is set correctly.
+W Ln 182255 Col 013: Make sure that your global DB is set correctly.
+W Ln 182626 Col 013: Make sure that your global DB is set correctly.
+W Ln 182633 Col 013: Make sure that your global DB is set correctly.
+W Ln 182710 Col 013: Make sure that your global DB is set correctly.
+W Ln 182996 Col 013: Make sure that your global DB is set correctly.
+W Ln 183005 Col 013: Make sure that your global DB is set correctly.
+W Ln 183612 Col 013: Make sure that your global DB is set correctly.
+W Ln 183615 Col 013: Make sure that your global DB is set correctly.
+W Ln 183618 Col 013: Make sure that your global DB is set correctly.
+W Ln 183621 Col 013: Make sure that your global DB is set correctly.
+W Ln 183629 Col 013: Make sure that your global DB is set correctly.
+W Ln 183637 Col 013: Make sure that your global DB is set correctly.
+W Ln 184280 Col 013: Make sure that your global DB is set correctly.
+W Ln 184292 Col 013: Make sure that your global DB is set correctly.
+W Ln 184299 Col 013: Make sure that your global DB is set correctly.
+W Ln 184301 Col 013: Make sure that your global DB is set correctly.
+W Ln 184344 Col 013: Make sure that your global DB is set correctly.
+W Ln 184498 Col 013: Make sure that your global DB is set correctly.
+W Ln 184501 Col 013: Make sure that your global DB is set correctly.
+W Ln 184547 Col 013: Make sure that your global DB is set correctly.
+W Ln 185517 Col 013: Make sure that your global DB is set correctly.
+W Ln 185520 Col 013: Make sure that your global DB is set correctly.
+W Ln 185523 Col 013: Make sure that your global DB is set correctly.
+W Ln 185532 Col 013: Make sure that your global DB is set correctly.
+W Ln 185539 Col 013: Make sure that your global DB is set correctly.
+W Ln 185542 Col 013: Make sure that your global DB is set correctly.
+W Ln 185545 Col 013: Make sure that your global DB is set correctly.
+W Ln 185553 Col 013: Make sure that your global DB is set correctly.
+W Ln 185564 Col 013: Make sure that your global DB is set correctly.
+W Ln 185567 Col 013: Make sure that your global DB is set correctly.
+W Ln 185570 Col 013: Make sure that your global DB is set correctly.
+W Ln 185581 Col 013: Make sure that your global DB is set correctly.
+W Ln 185584 Col 013: Make sure that your global DB is set correctly.
+W Ln 185587 Col 013: Make sure that your global DB is set correctly.
+W Ln 185974 Col 013: Make sure that your global DB is set correctly.
+W Ln 185978 Col 013: Make sure that your global DB is set correctly.
+W Ln 185988 Col 013: Make sure that your global DB is set correctly.
+W Ln 185992 Col 013: Make sure that your global DB is set correctly.
+W Ln 186003 Col 013: Make sure that your global DB is set correctly.
+W Ln 186007 Col 013: Make sure that your global DB is set correctly.
+W Ln 186011 Col 013: Make sure that your global DB is set correctly.
+W Ln 186015 Col 013: Make sure that your global DB is set correctly.
+W Ln 186027 Col 013: Make sure that your global DB is set correctly.
+W Ln 186031 Col 013: Make sure that your global DB is set correctly.
+W Ln 186035 Col 013: Make sure that your global DB is set correctly.
+W Ln 186039 Col 013: Make sure that your global DB is set correctly.
+W Ln 189103 Col 013: Make sure that your global DB is set correctly.
+W Ln 190568 Col 013: Changes of AR2 can destroy local variable accesses in FBs of your project.
+W Ln 191010 Col 013: Make sure that your global DB is set correctly.
+W Ln 191013 Col 013: Make sure that your global DB is set correctly.
+W Ln 191017 Col 013: Make sure that your global DB is set correctly.
+W Ln 191020 Col 013: Make sure that your global DB is set correctly.
+W Ln 191027 Col 013: Make sure that your global DB is set correctly.
+W Ln 191030 Col 013: Make sure that your global DB is set correctly.
+W Ln 191034 Col 013: Make sure that your global DB is set correctly.
+W Ln 191037 Col 013: Make sure that your global DB is set correctly.
+W Ln 191044 Col 013: Make sure that your global DB is set correctly.
+W Ln 191047 Col 013: Make sure that your global DB is set correctly.
+W Ln 191050 Col 013: Make sure that your global DB is set correctly.
+W Ln 191053 Col 013: Make sure that your global DB is set correctly.
+W Ln 191063 Col 013: Make sure that your global DB is set correctly.
+W Ln 191064 Col 013: Make sure that your global DB is set correctly.
+W Ln 191067 Col 013: Make sure that your global DB is set correctly.
+W Ln 191072 Col 013: Make sure that your global DB is set correctly.
+W Ln 191073 Col 013: Make sure that your global DB is set correctly.
+W Ln 191076 Col 013: Make sure that your global DB is set correctly.
+W Ln 191597 Col 013: Make sure that your global DB is set correctly.
+W Ln 191644 Col 013: Make sure that your global DB is set correctly.
+W Ln 191990 Col 013: Make sure that your global DB is set correctly.
+W Ln 191994 Col 013: Make sure that your global DB is set correctly.
+W Ln 192000 Col 013: Make sure that your global DB is set correctly.
+W Ln 192178 Col 013: Make sure that your global DB is set correctly.
+W Ln 192182 Col 013: Make sure that your global DB is set correctly.
+W Ln 192188 Col 013: Make sure that your global DB is set correctly.
+W Ln 192334 Col 013: Make sure that your global DB is set correctly.
+W Ln 192823 Col 013: Make sure that your global DB is set correctly.
+W Ln 192824 Col 013: Make sure that your global DB is set correctly.
+W Ln 193018 Col 013: Make sure that your global DB is set correctly.
+W Ln 193158 Col 013: Make sure that your global DB is set correctly.
+W Ln 193816 Col 013: Make sure that your global DB is set correctly.
+W Ln 193821 Col 013: Make sure that your global DB is set correctly.
+W Ln 193831 Col 013: Make sure that your global DB is set correctly.
+W Ln 193837 Col 013: Make sure that your global DB is set correctly.
+W Ln 193838 Col 013: Make sure that your global DB is set correctly.
+W Ln 193839 Col 013: Make sure that your global DB is set correctly.
+W Ln 193840 Col 013: Make sure that your global DB is set correctly.
+W Ln 193842 Col 013: Make sure that your global DB is set correctly.
+W Ln 193845 Col 013: Make sure that your global DB is set correctly.
+W Ln 196695 Col 013: Make sure that your global DB is set correctly.
+W Ln 196700 Col 013: Make sure that your global DB is set correctly.
+W Ln 196710 Col 013: Make sure that your global DB is set correctly.
+W Ln 196716 Col 013: Make sure that your global DB is set correctly.
+W Ln 196717 Col 013: Make sure that your global DB is set correctly.
+W Ln 196718 Col 013: Make sure that your global DB is set correctly.
+W Ln 196719 Col 013: Make sure that your global DB is set correctly.
+W Ln 196721 Col 013: Make sure that your global DB is set correctly.
+W Ln 196724 Col 013: Make sure that your global DB is set correctly.
+W Ln 197973 Col 013: Make sure that your global DB is set correctly.
+W Ln 197976 Col 013: Make sure that your global DB is set correctly.
+W Ln 198005 Col 013: Make sure that your global DB is set correctly.
+W Ln 198009 Col 013: Make sure that your global DB is set correctly.
+W Ln 198013 Col 013: Make sure that your global DB is set correctly.
+W Ln 198020 Col 013: Make sure that your global DB is set correctly.
+W Ln 198025 Col 013: Make sure that your global DB is set correctly.
+W Ln 198029 Col 013: Make sure that your global DB is set correctly.
+W Ln 198402 Col 013: Make sure that your global DB is set correctly.
+W Ln 198409 Col 013: Make sure that your global DB is set correctly.
+W Ln 198486 Col 013: Make sure that your global DB is set correctly.
+W Ln 198814 Col 013: Make sure that your global DB is set correctly.
+W Ln 198823 Col 013: Make sure that your global DB is set correctly.
+Compiler result: 0 Error(s), 2317 Warning(s)
+
+

@@ -1,0 +1,362 @@
+FUNCTION "FC_Crt_TrackingRep" : VOID
+TITLE =%version: 0.22 %  CN: 32
+//Function:
+//Prepare and send message 'TrackingReport'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, February 14, 2018 9:21:26 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27817: Tracking and Deregister messages no LIC     nlHdL    14-02-18   0.22
+//ra#25689: Default decision level 5 in TrackingReport  nlHdL    19-10-17   0.21
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.20
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.19
+//ra#9916: No PID clear rep_route from tracking report  nlHdL    11-12-15   0.19
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.18
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.18
+//23155: TIR in message for tubtrace                    nlHdL    24-04-15   0.18
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.17
+//21890: Trackingreport message ID 2201 when LIC = 0    nlHdL    26-11-14   0.07
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.06
+//18060: Update messages ID's for Vibes 3.2             nlHdL    19-02-14   0.05
+//17270: Check PID <> 0 when message to HLC             nlHdL    13-12-13   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.11 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Prepare and send message 'TrackingReport'
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_Data : INT ;	//Data needed to send the message
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_TEMP
+  t_ANY_Pointer : DWORD ;	//ANY pointer to the Destination
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_Rep_Route : INT ;	//Report Route record number
+  t_RoutingTableDB : INT ;	//RoutingTableDB number from ECS reocrd
+  t_RoutingTableType : INT ;	
+  t_Preference_A : BYTE ;	//Preference for Direction A
+  t_Preference_B : BYTE ;	//Preference for Direction B
+  t_DB_No_Route : INT ;	//DB number of Route List
+  t_LIC : INT ;	//LIC number from the LNK
+  t_TIC_Number : INT ;	//TIC number
+  t_Start_Adress : INT ;	//Start adress of routing record tracking report
+  t_End_Adress : INT ;	//End adress of routing record tracking report
+  t_Number_bytes : INT ;	//Number of bytes
+  t_No_LIC : BOOL ;	//No LIC number present, Don't send
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".TrackingReport.Body.EventTime);
+
+NETWORK
+TITLE =BA: Write messageID
+
+      AN    "M_Comm_Degraded"; 
+      JCN   BA01; 
+
+      L     201; // When NOT in degraded mode
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.MessageID; 
+
+      JU    BA99; 
+
+BA01: L     1201; // When in degraded mode
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.MessageID; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.EquipmentID; // Transfer to outgoing messages
+NETWORK
+TITLE =DA: Copy LIC
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Rep_Route);
+
+      L     #t_Rep_Route; 
+      L     0; 
+      ==I   ; 
+      JCN   DA01; 
+//Check if Rep_route = 0 create new number
+
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_No_Route; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #i_Data,
+           i_DB_List                := #t_DB_No_Route,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_LNK                    := #t_Rep_Route);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_Rep_Route);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_LIC);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".bir,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (//Default decision level if no Route Record is present = 5
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,// 5 = Transport Default
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+DA01: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := "DB_Outgoing_Msgs".TrackingReport.Body.LIC);
+
+      CALL "FC_Read_Dint_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_DINT_Record          := "DB_UDT_Route_Record".bir.pid,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_DINT                   := "DB_Outgoing_Msgs".TrackingReport.Body.BIR.PID);
+
+// Check if LIC number is valid
+      L     "DB_Outgoing_Msgs".TrackingReport.Body.LIC; 
+      L     0; 
+      ==I   ; 
+      =     #t_No_LIC; 
+
+// Check if PID number is valid   
+      L     "DB_Outgoing_Msgs".TrackingReport.Body.BIR.PID; 
+      L     0; 
+      ==D   ; 
+      JCN   DA03; 
+
+      L     2201; // When PID = 0 or LIC = 0 then send log message Tracking Report No PID
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.MessageID; 
+
+DA03: NOP   0; 
+      L     0; 
+      T     "DB_Outgoing_Msgs".TrackingReport.Body.TIR.ID; 
+
+      L     "DB_Setting".common.External_Log_Level; 
+      L     4; 
+      >I    ; 
+      JCN   DA99; 
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #i_Data,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := #t_TIC_Number);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_TIC_Number,
+           i_ANY_Data_Record        := "DB_UDT_TIC_Record".TIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.TIR,
+           i_DB                     := "DB_TIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+DA99: NOP   0; 
+NETWORK
+TITLE =FA: Routing decisions
+
+      CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].Status,
+           o_Adress                 := #t_Start_Adress);
+
+      CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := "DB_Route_List".Rep_Route[1].LNK,
+           o_Adress                 := #t_End_Adress);
+
+//Always clear rep_route[0] to prevent wrong info in tracking report
+      L     #t_End_Adress; 
+      L     #t_Start_Adress; 
+      -I    ; 
+      T     #t_Number_bytes; 
+
+      OPN   "DB_Route_List"; 
+
+      L     #t_Start_Adress; // Pointer to start adress
+      SLW   3; // Shift bytes to make pointer
+      LAR1  ; 
+
+FA02: L     0; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #t_Number_bytes; 
+      L     2; 
+      -I    ; 
+      JMZ   FA03; 
+      T     #t_Number_bytes; 
+
+      TAR1  ; 
+      L     P#2.0; 
+      +D    ; 
+      LAR1  ; 
+
+      JU    FA02; //Loop until record length is done
+
+FA03: CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".successdirection,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection1,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".faileddirection2,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Status,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := "DB_Outgoing_Msgs".TrackingReport.Body.Status);
+
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".RoutingTableType,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_INT                    := "DB_Outgoing_Msgs".TrackingReport.Body.RoutingTableType);
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".Routing_Records,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.Routing_Records,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =EA: Copy BIR
+
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".bir,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =GA: Deassign Route record from LNK
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route,
+           i_P_INT_Record           := "DB_UDT_Route_Record".LNK,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #i_Data,//LNK
+           i_P_INT_Record           := "DB_UDT_LNK_Record".rep_route,
+           i_DB                     := "DB_LNK_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #i_DB_Event_Num);
+
+NETWORK
+TITLE =HA: Put message in buffer
+
+      AN    #t_No_LIC; 
+      JCN   HA99; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".TrackingReport,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

@@ -1,0 +1,32 @@
+TYPE "UDT_OPS_Msg_ModeReq"
+TITLE =%version: 0.01 % CN: 10 
+//Function:                         
+//
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Wednesday, September 21, 2016 2:48:41 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+
+
+  STRUCT 	
+   Header : STRUCT 	
+    EventTime : DATE_AND_TIME ;	//Time stamp when message was send
+    Message_Type_ID : INT ;	//Msg Type ID defines what kind of the message it is
+    Message_Identifier : DINT ;	//Unique Number to link the HandOver Msg with the handed over item 
+    Source_ID : DINT ;	//Identification of the Station that is Sending the Message
+   END_STRUCT ;	
+   Msg_Body_ModeRequest : STRUCT 	//Message Body Structure : WS Mode request
+    OperationalMode : INT ;	//1 - System, 2 - Degraded
+    FunctionMode : WORD ;	//Depends on WS Type (For details mode description look at block header)
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

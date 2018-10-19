@@ -1,0 +1,237 @@
+FUNCTION "FC_Crt_SegmentStatus" : VOID
+TITLE =%version: 0.11 %  CN: 31
+//Function:
+//Prepare and send message 'SegmentStatusReport'
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Wednesday, August 10, 2016 8:14:06 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#16405: Data Layer Update ECS-P for VI_System 5.2   nlHdL    10-08-16   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.10
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.10
+//7434: Segment status send multiple bites in 1 Seg     nlHdL    09-07-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.09
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.09
+//17935: Changed to fit new concept                     nlHHop   07-02-14   0.04
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.03
+//15170: Changed BTI to BTD for 4 digit Area num        nlHdL    13-08-13   0.02
+//Initial Version based on version 0.05 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Prepare and send message 'SegmentStatusReport'
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ID : DWORD ;	//ID Record HEX AAAA - ZZSS/OO.
+  i_SegmentID : INT ;	//SegmentID from event DATA needed to send the message
+  i_FIFO_PLC_DB_num : INT ;	//Number of DB PLC FIFO
+END_VAR
+VAR_TEMP
+  t_AR1_Backup : DINT ;	//Save the contents of AR1
+  t_Ret_Val_Word : WORD ;	//Return value Word, not used
+  t_Ret_Val_Int : INT ;	//Return value Integer, not Used
+  t_Loop_Counter : INT ;	//Number of entries in TableDB  Number of entries in the DB index
+  t_status : INT ;	//Status segment
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Store AR1 and Get Date and Time
+
+      TAR1  ; // Store AR1
+      T     #t_AR1_Backup; 
+
+      CALL "READ_CLK" (
+           RET_VAL                  := #t_Ret_Val_Int,
+           CDT                      := "DB_Outgoing_Msgs".SegmentStatusReport.Body.EventTime);
+
+NETWORK
+TITLE =BA: Write messageID
+
+      AN    "M_Comm_Degraded"; // When in degraded mode
+      JCN   BA01; 
+
+      L     401; // When NOT in degraded mode
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.MessageID; 
+
+      JU    BA99; 
+
+BA01: L     1401; // When in degraded mode
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.MessageID; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Copy AreaID, ZoneID and SectionID
+
+      L     #i_ID; // Load ID
+      L     DW#16#FFFF0000; // Filter Area number only
+      AD    ; 
+      SRD   16; // Slide Area nubmer to beginning AAAA0000 -> AAAA
+      BTD   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.AreaID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF00; // Filter Zone number only
+      AD    ; 
+      SRD   8; // Slide Zone nubmer to beginning 0000ZZ00 -> 0000ZZ
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.ZoneID; // Transfer to outgoing messages
+
+      L     #i_ID; // Load ID
+      L     DW#16#FF; // Filter Section number only
+      AD    ; 
+      BTI   ; // Convert HEX to INT
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.EquipmentID; // Transfer to outgoing messages
+NETWORK
+TITLE =DA: Retreive status from segment status DB
+
+      NOP   0; 
+
+// Open segment status DB to retreive the segment status
+      OPN   "DB_Segment_Status"; 
+
+      L     DBLG; 
+      L     6; // One entry is 6 bytes long
+      /D    ; 
+      T     #t_Loop_Counter; 
+
+      L     #t_Loop_Counter; 
+      L     1; 
+      <I    ; 
+      BEC   ; //Check if enrty is present
+
+// Set a pointer to the first entry
+      L     P#DBX 0.0; 
+      LAR1  ; 
+      JU    DA01; 
+
+// Set the pointer to the next entry
+LOOP: L     P#6.0; 
+      +AR1  ; 
+
+// Decrease the loop counter
+DA01: L     #t_Loop_Counter; 
+      L     1; 
+      -I    ; 
+      T     #t_Loop_Counter; 
+
+// Load and compare Segment_ID
+      L     W [AR1,P#2.0]; 
+      L     #i_SegmentID; 
+      ==I   ; 
+      JC    DA03; 
+
+// Check loop counter
+      L     #t_Loop_Counter; 
+      L     0; 
+      <=I   ; 
+      JCN   LOOP; 
+
+// If not found end block no message
+      BE    ; 
+
+DA03: L     0; 
+      T     #t_status; 
+
+// Segment status - Stopped safety
+      A      [AR1,P#0.0]; 
+      JCN   DA11; 
+      L     512; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Out of service
+DA11: A      [AR1,P#0.1]; 
+      JCN   DA12; 
+      L     1024; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Technical error
+DA12: A      [AR1,P#0.2]; 
+      JCN   DA13; 
+      L     2048; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Operational error
+DA13: A      [AR1,P#0.3]; 
+      JCN   DA14; 
+      L     4096; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Stopped due to error
+DA14: A      [AR1,P#0.4]; 
+      JCN   DA15; 
+      L     8192; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Entry temp not available
+DA15: A      [AR1,P#0.5]; 
+      JCN   DA16; 
+      L     16384; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+// Segment status - Operational
+DA16: A      [AR1,P#0.6]; 
+      JCN   DA98; 
+      L     L#32768; 
+      L     #t_status; 
+      +I    ; 
+      T     #t_status; 
+
+      L     0; 
+      L     #t_status; 
+      ==I   ; 
+      JCN   DA98; 
+
+// If no status then default value of 256 (unknown) for segment status
+      L     256; 
+
+DA98: T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.Status; 
+
+      L     #i_SegmentID; 
+      T     "DB_Outgoing_Msgs".SegmentStatusReport.Body.SegmentID; 
+
+NETWORK
+TITLE =EA: Put message in buffer
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".Default,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "BLKMOV" (
+           SRCBLK                   := "DB_Outgoing_Msgs".SegmentStatusReport,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := "DB_Outgoing_Msgs".Merged_Message);
+
+      CALL "FC_FIFO" (
+           i_FIFO_DB_Num            := #i_FIFO_PLC_DB_num,
+           i_Mode                   := 'L',
+           i_ANY_Data               := "DB_Outgoing_Msgs".Merged_Message,
+           i_ID                     := #i_ID,
+           o_RET_VAL_FIFO           := #t_Ret_Val_Word);
+
+NETWORK
+TITLE =FA: Restore AR1
+
+      L     #t_AR1_Backup; 
+      LAR1  ; 
+END_FUNCTION
+

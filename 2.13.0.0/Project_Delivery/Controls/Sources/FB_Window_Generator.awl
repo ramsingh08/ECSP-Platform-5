@@ -1,0 +1,1153 @@
+FUNCTION_BLOCK "FB_Window_Generator"
+TITLE =%version: 1.11 % CN: 33 
+//Function:
+//This FB generates empty and/or reserved windows with a specific window-length. 
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 28, 2018 9:52:32 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9335: Clr upstr win after halt with PLT check     nlHdL    28-05-18   1.11
+//ra#23582: Loop function clear empty windows           nlHdL    05-07-17   1.10
+//ra#23582: Remove empty windows before start slave     nlHdL    23-06-17   1.09
+//ina#4613: remove empty windows after window mode      nlHdL    10-05-17   1.08
+//ra#21689: Modify check upstream clear windows         nlHdL    05-04-17   1.07
+//ra#20327: disable Lenght writing incase of halt WG    nlJClo   31-01-17   1.06
+//ra#19854: Add function for additional reservation     nlHdL    18-01-17   1.05
+//ina#2172: Window gen not check empty codes (-99 -90)  nlHdL    12-12-16   1.04
+//ra#17399: Add cfg input windows generating position   nlHdL    29-09-16   1.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//8964: Generator halt while section start-up not corr  nlHdL    19-10-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.01
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.01
+//13971: Modified PLT concept with state Version1       nlHdL    29-05-13   1.00
+// Init version based on version 0.17 of PLT version 0
+//
+//Description:
+//Each time the insert area is free of code an reservation code is 
+//written in the PLT at the insert-position corrected with the the 
+//displacement. When the reservation FIFO is empty or not used an empty window 
+//code is written in tracking when no upstream window generator is active.
+//
+//If there is an upstream window generator active, the window generator will 
+//written in the upstream FIFO.
+//
+//Remark: If the reservation FIFO is not filled in because it is not used the 
+//default (Siemens) value is 1. Result is that DB-1 can not be used !!
+//                                                            
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Most_DwnStr : BLOCK_DB ;	//Data Structure: Position DataBlock most Downstream section
+  i_DB_PLT_Most_UpStr : BLOCK_DB ;	//Data Structure: Position DataBlock most Upstream section
+  i_DB_Reservation : BLOCK_DB ;	//Data Structure: reservation DataBlock (leave empty if not used)
+  i_DB_Event : BLOCK_DB ;	//Data Structure: Event DB
+  i_CFG_Upstr_Induct_Pos : INT ;	//CFG: [cm] Create Window on must upstream section and add startup
+  i_CFG_Window_Length : INT ;	//CFG: [cm] Length of the generated window 
+  i_CFG_In_Flow_Function : BOOL ;	//CFG: Generation window in flow
+  i_Section_Run_Reverse : BOOL ;	//Section Run Signal Reverse
+  i_Request_Halt : BOOL ;	//CMD: Request to halt the generator
+END_VAR
+VAR
+  s_DB_PLT_Info : ARRAY  [1 .. 10 ] OF //Info of used PLT DB's for window generator
+  STRUCT 	
+   DB_PLT_Number : INT ;	//Number of PLT DB
+   DB_PLT_Number_Upstream : INT ;	//Number of upstream PLT DB
+   Conveyor_Length : INT ;	//Conveyor length of PLT DB
+   Conveyor_Run : BOOL ;	//Conveyor is running
+  END_STRUCT ;	
+  s_DB_Num_Event : INT ;	//Number of the Event DB
+  s_Info_Loop_Nr : INT ;	//Loop number for used PLT info search
+  s_Clear_Loop_Nr : INT ;	//Loop number for clearing reservation at direction change
+  s_Displacement : INT ;	//Displacement from master PLT DB
+  s_Window_Code : INT ;	//Used for empty window or reservation-code
+  s_Reservation_Code : INT ;	//Reservation-code = - (Induct-number  * 100)
+  s_Total_Conveyor_Length : INT ;	//Total length of all conveyors used for window generating
+  s_Length_To_Generator : INT ;	//Length to active generating position
+  s_Insert_PLT_DB_Nr : INT ;	//PLT DB to insert windows
+  s_Insert_Position : INT ;	//Position to insert windows
+  s_DB_PLT_nr_Most_Upstrm : INT ;	//DB PLT number of the upstream conveyor
+  s_FIFO_DB_Number : INT ;	//Extracted DB number of i_DB_reservation
+  s_FIFO_Last_Record : INT ;	//FIFO address of last used record
+  s_Entries_Used : INT ;	//Entries Used in i_DB_Reservation
+  s_Entries_Max : INT ;	//Maximum Entries in i_DB_Reservation
+  s_Shift_Pointer : INT ;	//Pointer to shift records
+  s_Offset_FIFO_Data : INT ;	//Constant Offset to fifo record in reservation DB. Value = 14
+  s_PLT_DB_Nr_Read : INT ;	//DB PLT number where tracking has to be read for remove code
+  s_Search_Window_Corr : INT ;	//Correction of the close window area free inserting
+  s_Search_Start_Position : INT ;	//s_Search_Start_Position = i_Position + i_Close_Window_Offset
+  s_Entries_Found : INT ;	//Number of entries founded in the insert area
+  s_Trailing_Edge_Found : INT ;	//Number of trailing edges found in insert area
+  s_PLT_DB_Remove_In : INT ;	//PLT DB number to search for remove action
+  s_PLT_DB_Remove_Out : INT ;	//PLT DB number where found for remove action
+  s_Pos_Remove_In : INT ;	//Position where the empty code has to be removed
+  s_Pos_Remove_Out : INT ;	//Position where data and info to remove are found
+  s_Info_Remove : INT ;	//Info to remove
+  s_OS_FP_Reverse : BOOL ;	//One Shot positive flank when reverse
+  s_OS_Copy_FP_Reverse : BOOL ;	//Copy one shot on positive flank
+  s_OS_FN_Reverse : BOOL ;	//One Shot negative flank when reverse
+  s_OS_Copy_FN_Reverse : BOOL ;	//Copy one shot on negative flank
+  s_FIFO_Entries_Present : BOOL ;	//Used entries present in reservation FIFO
+  s_Request_Windows : BOOL ;	//Request Window in reservation DB
+  s_Res_FIFO_Used : BOOL ;	//Reservation DB is used
+  s_Upstream_PLT_Not_Used : BOOL ;	//Upstream PLT is not used for window generator
+  s_Conveyor_Run : BOOL ;	//Conveyor run signal of active conveyor to generate
+  s_Halt_Generator : BOOL ;	
+  s_FN_Request_Windows : BOOL ;	//Flank negative on Request windows from Reservation DB
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address' mask
+  t_INT_Not_Used : INT ;	//Interger for not used outputs
+  t_Loaded_PLT : INT ;	//Current loaded PLT DB number for loop search function
+  t_DB_Insert_PLT_Nr : INT ;	//DB PLT number
+  t_DB_Upstream : INT ;	//DB PLT number of the upstream
+  t_Number_items_Dwn : INT ;	// Number of items found Down
+  t_Number_items_up : INT ;	// Number of items found Up
+  t_Found_Items : INT ;	// Number of found items
+  t_Operational_On_Up : BOOL ;	// Check if Upstream is operational
+  t_Section_Run_Up : BOOL ;	// Check if Upstream is running
+  t_E_Save_Up : BOOL ;	// Check if Upstream is not in E-Save
+  t_Section_Length : INT ;	//Length section to check
+  t_Found_Empty_Code : INT ;	//Number of found empty window codes
+  t_Found_E_Save : INT ;	//Number of found E Save
+  t_Position_Fnd : INT ;	//Position of found item
+  t_Info : INT ;	//Info of found item
+  t_DB_PLT : INT ;	//DB PLT found item
+  t_Gen_Pos_Loop_Nr : INT ;	//Loop number for setting generator position
+  t_Offset_Entry_PLT : DWORD ;	//Pointer offset of the PLT entries
+  t_Search_window : INT ;	//Search window for entry check
+  t_AR1_BackUp : DWORD ;	//Back up pointer of AR1
+  t_Position : INT ;	//Search position
+  t_loop_cnt : INT ;	//Loop counter
+  t_PLT_Changed : BOOL ;	//PLT where generator active is changed
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Obtain relative address from AR2
+//Address register:      10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//                 Z=Operand area      y=Byte address    x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register' 
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Determine Initial variables
+//The input parameter i_DB_Track is of the type BLOCK_DB.
+      OPN   #i_DB_Event; 
+      L     DBNO; 
+      T     #s_DB_Num_Event; 
+
+      OPN   #i_DB_Reservation; 
+      L     DBW    0; // load data from fifo DB on temps
+      T     #s_Entries_Used; 
+
+      L     14; 
+      T     #s_Offset_FIFO_Data; // Offset to fifo record in reservation DB
+
+      L     P#8.0; 
+      T     #t_Offset_Entry_PLT; // Offset each entry in PLT struct 
+
+      AN    #i_Section_Run_Reverse; // IF section is running reversed
+      JCN   BA01; // THEN Most upstream PLT is most downstream PLT
+
+      OPN   #i_DB_PLT_Most_DwnStr; // ELSE Most downstream is loaded as first PLT for generator
+      L     DBNO; 
+      T     #s_DB_PLT_Info[1].DB_PLT_Number; 
+
+      L     DBW    2; // Collect displacement of PLT DB
+      T     #s_Displacement; 
+
+      OPN   #i_DB_PLT_Most_UpStr; // Open Most upstream PLT DB number 
+      L     DBNO; 
+      T     #s_DB_PLT_nr_Most_Upstrm; // Store as last PLT number for PLT loop detection end
+
+      L     #s_DB_PLT_nr_Most_Upstrm; // Set Upstream PLT not used when Most upstream PLT DB is not configured
+      L     1; 
+      <=I   ; 
+      =     #s_Upstream_PLT_Not_Used; 
+      JU    BA99; 
+
+BA01: OPN   #i_DB_PLT_Most_UpStr; // Most upstream is loaded as first PLT for generator
+      L     DBNO; 
+      T     #s_DB_PLT_Info[1].DB_PLT_Number; 
+
+      L     DBW    2; // Collect displacement of PLT DB
+      T     #s_Displacement; 
+
+      OPN   #i_DB_PLT_Most_DwnStr; // Open Most downstream PLT DB number 
+      L     DBNO; 
+      T     #s_DB_PLT_nr_Most_Upstrm; // Store as last PLT number for PLT loop detection end
+
+      L     #s_DB_PLT_nr_Most_Upstrm; // Set Upstream PLT not used when Most upstream PLT DB is not configured
+      L     1; 
+      <=I   ; 
+      =     #s_Upstream_PLT_Not_Used; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Loop for all DB PLT information in generating area
+//All the PLT DB's starting from the most downstream PLT DB till the most 
+//upstream 
+//PLT DB are scanned for there PLT number, upstream PLT number, conveyor length 
+//end Conveyor run signal. This can be done for a maximum of 10 PLT DB's. When the
+// 
+//most upstream PLT DB number is found or the next upstream PLT number is invalid,
+// 
+//the search will be ended. When this search loop exceeds the storage array 
+//(configured for 10 PLT DB's), the PLC will be forced to stop. For using the 
+//window generator over 10 PLT DB's the array should be extended. When extending 
+//the array the maximum array number must be set correctly at the loop number 
+//check at the end of this network.
+      L     P##s_DB_PLT_Info; // Create pointer for PLT DB info array
+      L     #t_AR2_Mask; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; 
+
+      A     "M_First_Scan"; 
+      BEC   ; 
+
+      L     0; 
+      T     #s_Total_Conveyor_Length; // Initialize with zero
+      T     #s_Info_Loop_Nr; // Initialize with zero
+
+CA01: L     W [AR1,P#0.0]; // Load PLT DB number from current array position
+      T     #t_Loaded_PLT; 
+
+      OPN   DB [#t_Loaded_PLT]; // Open current PLT DB
+
+      L     DBW    6; // Store upstream PLT DB number in current info array
+      T     W [AR1,P#2.0]; 
+
+      L     DBW   12; // Store conveyor length in current info array
+      T     W [AR1,P#4.0]; 
+
+      A     DBX   10.1; // Store conveyor run signal in current info array
+      =      [AR1,P#6.0]; 
+
+      L     #s_Total_Conveyor_Length; // Add current conveyor length to total
+      L     W [AR1,P#4.0]; 
+      +I    ; 
+      T     #s_Total_Conveyor_Length; 
+
+      ON    #s_Upstream_PLT_Not_Used; // End Loop search function for next PLT DB when upstream is not used
+      JCN   CA99; 
+
+      L     #t_Loaded_PLT; // ELSE compare current PLT DB number
+      L     #s_DB_PLT_nr_Most_Upstrm; // with most upstream PLT DB number
+      <>I   ; 
+      JCN   CA99; // If equal upstream PLT DB has reached and loop can be ended
+
+      L     W [AR1,P#2.0]; // IF upstream PLT DB number is legal
+      L     1; 
+      >I    ; 
+      JCN   CA99; 
+
+      L     W [AR1,P#2.0]; // THEN copy upstream PLT DB number to next array
+      T     W [AR1,P#8.0]; 
+
+      L     #t_Offset_Entry_PLT; 
+      +AR1  ; // Raise DB_PLT info pointer to next array
+
+      L     #s_Info_Loop_Nr; // Raise loop number with one
+      L     1; 
+      +I    ; 
+      T     #s_Info_Loop_Nr; 
+      L     10; // Load configured loop number. This should be equal with the array length
+      >=I   ; // Compare new loop number with maximum array length
+      JCN   CA01; // Jump for next PLT DB check
+
+      CALL "STP" ;// PLC Stop! The PLT DB Info array must be extended when the generator is
+      NOP   0; // is configured for more then 10 conveyor belts (see also network comment)
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Loop for most active upstream conveyor
+//From the most upstream conveyor to generate there will be searched for the most 
+//active conveyor. The first active conveyor will be the point to insert the 
+//windows. This will be done by looping backwards with the loop number of the 
+//previous loop. When the most upstream active conveyor is found, the PLT number 
+//and the conveyor length will be stored to insert the windows. Also the the 
+//length till the generator will be calculated by subtracting the conveyor 
+//lengths 
+//of none active conveyor from the total length.
+      L     #s_Info_Loop_Nr; // Load maximum loop number from info search loop
+      T     #t_Gen_Pos_Loop_Nr; // For generator position loop
+
+      L     #s_Total_Conveyor_Length; // Initialize the length till the generator with the 
+      T     #s_Length_To_Generator; // total length of conveyors in the generating area
+
+      L     P##s_DB_PLT_Info; // Create pointer for PLT DB info array
+      L     #t_AR2_Mask; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; 
+
+      L     #t_Gen_Pos_Loop_Nr; // Add the search offset till the most upstream conveyor
+      L     #t_Offset_Entry_PLT; // with use of the previous loop number
+      *D    ; 
+      +AR1  ; 
+
+DA02: A      [AR1,P#6.0]; // IF the current conveyor is running
+      JCN   DA03; 
+
+      JU    DA04; // THEN write the PLT number and conveyor length as insert point
+
+DA03: L     #t_Gen_Pos_Loop_Nr; // ELSE check the loop number when most downstream conveyor is reached
+      L     0; 
+      >I    ; 
+      JCN   DA04; // THEN write the PLT number and conveyor length as insert point
+
+      L     #s_Length_To_Generator; // ELSE subtract current conveyor length from the length to generator
+      L     W [AR1,P#4.0]; 
+      -I    ; 
+      T     #s_Length_To_Generator; 
+
+      L     #t_Gen_Pos_Loop_Nr; // Lower loop number with one
+      L     1; 
+      -I    ; 
+      T     #t_Gen_Pos_Loop_Nr; 
+
+      TAR1  ; 
+      L     #t_Offset_Entry_PLT; // Lower array pointer to the next downstream conveyor
+      -D    ; 
+      LAR1  ; 
+      JU    DA02; // Jump for next conveyor run check
+
+DA04: L     W [AR1,P#0.0]; // Store PLT DB number to insert windows
+      T     #t_DB_Insert_PLT_Nr; 
+
+      L     W [AR1,P#4.0]; // Store conveyor length as insert position for windows
+      L     #i_CFG_Window_Length; // Add extra window length for the position of the windows
+      +I    ; 
+      T     #s_Insert_Position; 
+
+// Check if configuration for fixed position of window is used.
+      L     #i_CFG_Upstr_Induct_Pos; 
+      L     0; 
+      <>I   ; 
+      JCN   DA05; // If equal upstream PLT DB has reached and loop can be ended
+
+//Check if selected PLT DB is the upstream
+      L     #s_DB_PLT_nr_Most_Upstrm; 
+      L     #t_DB_Insert_PLT_Nr; 
+      ==I   ; 
+      JCN   DA05; 
+
+      L     #i_CFG_Upstr_Induct_Pos; 
+      T     #s_Insert_Position; 
+
+DA05: A      [AR1,P#6.0]; // Store conveyor run signal
+      =     #s_Conveyor_Run; 
+      JCN   DA06; 
+
+//If the PLT is changed compared with previous PLT the t_PLT Changed
+      L     #s_Insert_PLT_DB_Nr; 
+      L     #t_DB_Insert_PLT_Nr; 
+      <>I   ; 
+      =     #t_PLT_Changed; 
+      T     #s_Insert_PLT_DB_Nr; 
+
+DA06: NOP   0; 
+NETWORK
+TITLE =EA: Check downstream for halt generator 
+
+      SET   ; 
+      R     #s_Halt_Generator; 
+
+      OPN   DB [#t_DB_Insert_PLT_Nr]; 
+
+      L     DBW    6; 
+      T     #t_DB_Upstream; 
+
+      L     #t_DB_Upstream; 
+      L     1; 
+      >I    ; 
+      A(    ; 
+      L     #t_DB_Insert_PLT_Nr; 
+      L     #s_DB_PLT_nr_Most_Upstrm; 
+      <>I   ; 
+      )     ; 
+      JCN   EA99; 
+
+      OPN   DB [#t_DB_Upstream]; 
+      A     DBX   10.5; 
+      =     #t_Operational_On_Up; 
+
+      A     DBX   10.1; 
+      =     #t_Section_Run_Up; 
+
+      L     DBW   12; 
+      T     #t_Section_Length; 
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := -100,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Found_Empty_Code);
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Found_Items);
+
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := 0,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := -3,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Found_E_Save);
+
+      L     #t_Found_Items; 
+      L     #t_Found_E_Save; 
+      +I    ; 
+      L     #t_Found_Empty_Code; 
+      -I    ; 
+      L     0; 
+      ==I   ; 
+      =     #t_E_Save_Up; 
+
+      A     #t_Operational_On_Up; 
+      AN    #t_Section_Run_Up; 
+      AN    #t_E_Save_Up; 
+      A     #t_PLT_Changed; 
+      =     #s_Halt_Generator; 
+
+      A     #s_Halt_Generator; 
+      JCN   EA99; 
+
+      OPN   DB [#t_DB_Upstream]; 
+      L     DBW   14; 
+      L     DBW   12; 
+      >I    ; 
+      JCN   EA01; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := DBW   14,
+           i_Info_Physical          := DBW   18,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+//Delete first window part of upstream
+EA01: CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := 0,
+           i_Window                 := #i_CFG_Window_Length,
+           o_Position               := #t_Position_Fnd,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT,
+           o_Number_Items_Found     := #t_Number_items_up);
+
+      L     #t_DB_PLT; 
+      L     #t_DB_Upstream; 
+      ==I   ; 
+      JCN   EA99; 
+
+      L     #t_Info; 
+      L     -3; 
+      <I    ; 
+      JCN   EA90; 
+
+      L     #t_Info; 
+      L     -100; 
+      >=I   ; 
+      JCN   EA90; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := #t_Position_Fnd,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+EA90: NOP   0; 
+      L     #t_Number_items_up; 
+      L     1; 
+      -I    ; 
+      T     #t_Number_items_up; 
+      L     0; 
+      >I    ; 
+      JCN   EA99; 
+// Check and loop until all enrties found are checked for Empty windows
+
+      L     #t_Position_Fnd; 
+      L     1; 
+      +I    ; 
+      T     #t_Position; 
+      L     #i_CFG_Window_Length; 
+      L     #t_Position_Fnd; 
+      -I    ; 
+      T     #t_Search_window; 
+
+//Check the next found entry for empty window
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := #t_Position,
+           i_Window                 := #t_Search_window,
+           o_Position               := #t_Position_Fnd,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT,
+           o_Number_Items_Found     := #t_INT_Not_Used);
+
+      L     #t_DB_PLT; 
+      L     #t_DB_Upstream; 
+      ==I   ; 
+      JCN   EA99; 
+
+      L     #t_Info; 
+      L     -3; 
+      <I    ; 
+      JCN   EA90; 
+
+      L     #t_Info; 
+      L     -100; 
+      >=I   ; 
+      JCN   EA90; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Upstream,
+           i_Position               := #t_Position_Fnd,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      JU    EA90; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Delete claimed and unclaimed windows at direction change
+//At a positive or negative trigger of the run reversed signal all empty windows 
+//and reservated windows must be deleted to prevent bad merge actions. After 
+//clearing all the PLT DB's the window generator will start again with generating 
+//empty windows at the begining of the most active conveyor.
+      A     #i_Section_Run_Reverse; // Create positive flank trigger at reverse signal
+      FP    #s_OS_Copy_FP_Reverse; 
+      =     #s_OS_FP_Reverse; 
+
+      A     #i_Section_Run_Reverse; // Create negative flank trigger at reverse signal
+      FN    #s_OS_Copy_FN_Reverse; 
+      =     #s_OS_FN_Reverse; 
+
+      A     #s_OS_FP_Reverse; // Run network only once at direction change
+      O     #s_OS_FN_Reverse; 
+      JCN   FA99; 
+
+      L     #s_Info_Loop_Nr; // Load maximum loop number from info search loop
+      T     #s_Clear_Loop_Nr; // For clearing loop
+
+FA01: L     P##s_DB_PLT_Info; // Create pointer for PLT DB info array
+      L     #t_AR2_Mask; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; 
+
+      L     #s_Clear_Loop_Nr; // Add the search offset till the most upstream conveyor
+      L     P#8.0; // with use of the previous loop number
+      *D    ; 
+      +AR1  ; 
+
+      L     W [AR1,P#0.0]; // Load PLT DB number to which should be cleared
+      T     #s_PLT_DB_Remove_In; 
+
+      L     W [AR1,P#4.0]; // Load length conveyor to clear
+      T     #s_Pos_Remove_In; 
+
+FA02: CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Remove_In,
+           i_Position               := #s_Pos_Remove_In,
+           i_Window                 := #s_Pos_Remove_In,
+           o_Position               := #s_Pos_Remove_Out,
+           o_Info                   := #s_Info_Remove,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #s_PLT_DB_Remove_Out,
+           o_Number_Items_Found     := #s_Entries_Found);
+
+      L     #s_Entries_Found; // If no more entries are found in this DB
+      L     0; 
+      >I    ; 
+      JCN   FA06; // Jump to load the next PLT DB to clear
+
+      L     #s_Info_Remove; // IF entry is found and is a reservation
+      L     -90; // THEN clear that position
+      <=I   ; 
+      JCN   FA05; // ELSE change search position and window to continue search
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #s_PLT_DB_Remove_Out,
+           i_Position               := #s_Pos_Remove_Out,
+           i_Info_Physical          := #s_Info_Remove,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+FA05: L     #s_Pos_Remove_Out; 
+      L     1; 
+      -I    ; 
+      T     #s_Pos_Remove_In; 
+      JU    FA02; // Resume search with new position
+
+FA06: L     #s_Clear_Loop_Nr; // IF loop number is 0
+      L     0; 
+      >I    ; 
+      JCN   FA99; // THEN Stop clearing loop when all PLT DB's are cleared
+
+      L     #s_Clear_Loop_Nr; // ELSE lower loop number with one to clear next PLT DB
+      L     1; 
+      -I    ; 
+      T     #s_Clear_Loop_Nr; 
+      JU    FA01; // Run search/clearing for next PLT DB
+
+FA99: NOP   0; 
+NETWORK
+TITLE =GA: Determine DB_Reservation_FIFO 
+//The input parameter i_DB_Reservation_FIFO is of the type BLOCK_DB. 
+//If the DB_Reservation_FIFO is not used the input parameter must not be filled 
+//in. The default value given by Siemens is DB-1, which can not be used !!
+//
+      L     P##i_DB_Reservation; // Load pointer relative to start of instance,
+      L     #t_AR2_Mask; // load offset to instance
+      +D    ; // adding both
+      LAR1  ; // gives the absolute pointer
+      L     W [AR1,P#0.0]; // Load the DB_Block_number out of i_DB_FIFO  
+      T     #s_FIFO_DB_Number; // and store on a temp of the type INT
+      L     1; 
+      >I    ; // IF reservation DB-number > 1 (Siemens Default)
+      =     #s_Res_FIFO_Used; // THEN reservation DB is used
+      JCN   GA99; // THEN
+
+      OPN   #i_DB_Reservation; 
+      L     DBW    0; // load data from fifo DB on temps
+      T     #s_Entries_Used; 
+      L     DBW    2; 
+      T     #s_Entries_Max; 
+      A     DBX   12.0; 
+      =     #s_Request_Windows; 
+
+      L     0; 
+      L     #s_Entries_Used; // Number of entries used in FIFO > 0
+      <I    ; 
+      =     #s_FIFO_Entries_Present; // Used entries present in FIFO
+      SLW   1; // Multiply by 2
+      L     #s_Offset_FIFO_Data; // Add offset to first FIFO record
+      +I    ; // for pointer to start of last record
+      L     2; // MINUS 2 to compensate for not using 0 in FIFO array 
+      -I    ; 
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+      L     #s_Entries_Max; // Max number of possible entries in reservation FIFO-DB  
+      L     0; 
+      ==I   ; // IF Max number of possible entries in FIFO-DB = 0
+      JCN   GA99; 
+      L     DBLG; // THEN load FIFO-DB length
+      L     #s_Offset_FIFO_Data; 
+      -I    ; 
+      L     2; // divide by record length in byte 
+      /I    ; 
+      T     #s_Entries_Max; // Max number off entries in FIFO-DB
+GA99: NOP   0; 
+NETWORK
+TITLE =GB: Clear window codes when stopped with request window
+
+      A     #s_Request_Windows; 
+      FN    #s_FN_Request_Windows; 
+      JCN   GB99; 
+// Clear windows after the windows are not active.
+
+      L     #s_Info_Loop_Nr; // Load maximum loop number from info search loop
+      L     1; 
+      +I    ; 
+      T     #t_Gen_Pos_Loop_Nr; // For generator position loop
+
+      L     P##s_DB_PLT_Info; // Create pointer for PLT DB info array
+      L     #t_AR2_Mask; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; 
+
+GB01: L     W [AR1,P#0.0]; // Store PLT DB number to insert windows
+      T     #t_DB_Insert_PLT_Nr; 
+
+      L     W [AR1,P#4.0]; // Store conveyor length as insert position for windows
+      L     #i_CFG_Window_Length; // Add extra window length for the position of the windows
+      +I    ; 
+      T     #t_Search_window; 
+
+      TAR1  #t_AR1_BackUp; 
+
+GB02: CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Insert_PLT_Nr,
+           i_Position               := #t_Search_window,
+           i_Window                 := #t_Search_window,
+           i_Info                   := -100,
+           o_Position               := #t_Position_Fnd,
+           o_Info                   := #t_Info,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_DB_PLT,
+           o_Number_Items_Found     := #t_Found_Items);
+
+      L     #t_Found_Items; 
+      L     0; 
+      >I    ; 
+      JCN   GB04; 
+
+      CALL "FC_PLT_Clr_Position" (
+           i_DB_PLT_Num             := #t_DB_Insert_PLT_Nr,
+           i_Position               := #t_Position_Fnd,
+           i_Info_Physical          := #t_Info,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      JU    GB02; 
+//Loop for next entry in PLT
+
+GB04: NOP   0; 
+//Loop next PLT
+      L     #t_Gen_Pos_Loop_Nr; // Lower loop number with one
+      L     1; 
+      -I    ; 
+      JMZ   GB99; //Check in there is a next PLT DB
+      T     #t_Gen_Pos_Loop_Nr; 
+
+      LAR1  #t_AR1_BackUp; // Restore AR1 for next entry
+      TAR1  ; 
+      L     #t_Offset_Entry_PLT; // with use of the previous loop number
+      +D    ; 
+      LAR1  ; 
+
+      JU    GB01; // Jump for next conveyor run check
+
+GB99: NOP   0; 
+NETWORK
+TITLE =HA: Removing code from tracking
+//
+//
+//Fly through configuration
+//  _
+//--|----   -----------------------|--------------------------
+//  |   |   |  -1|                -1               |  
+//  |   |   |   0| window length   0 window length |
+//  |   |   |   3|                 6               |
+//--|----   -----------------------|--------------------------
+//  V           |  Insert Postiion ^
+//PEC update    |                  |
+//              |                  |
+//              |--->| -105 |------|
+//                   |______|
+//                   |______|
+//
+//                  DB_Reservation
+//
+//Each reservation code detected before the inserting area is removed from the 
+//tracking DB added in the DB reservation and insert at the insert position if 
+//the 
+//area is free of code.
+//
+//
+//
+//  _                       Insert Postiion
+//--|----   -----------------------|--------------------------
+//  |   |   |    |                 |               |  
+//  |   |   |  -1| window length  -1 window length |
+//  |   |   |    |                 |               |
+//--|----   -----------------------|--------------------------
+//  V           |                  ^
+//PEC update    |                  |
+//              |                  |
+//              v                   
+//        Empty code            Empty code
+//        removing              Inserting if no reservation code 
+//
+//
+//
+//
+//
+      NOP   0; 
+// Calculation start search PLT DB
+      L     #s_Insert_Position; // #i_CFG_Insert_Position
+      L     #i_CFG_Window_Length; 
+      +I    ; 
+      T     #s_Search_Start_Position; // Search_Start_Position = Position + Window
+
+      L     #s_Insert_PLT_DB_Nr; 
+      T     #s_PLT_DB_Nr_Read; 
+
+      A     #i_CFG_In_Flow_Function; 
+      JCN   HA99; 
+
+      NOP   0; 
+// Calculation postion where reservation code has to be removed
+      L     #i_CFG_Window_Length; 
+      L     1; 
+      +I    ; 
+      T     #s_Pos_Remove_In; 
+
+      CALL "FC_PLT_Srch_Win_Up" (
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #s_Pos_Remove_In,
+           o_Position               := #s_Pos_Remove_Out,
+           o_Info                   := #s_Info_Remove,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_Loaded_PLT,
+           o_Number_Items_Found     := #t_INT_Not_Used);
+
+      L     #s_Info_Remove; 
+      L     -100; // IF the entry is an empty code
+      ==I   ; 
+      JCN   HA01; // THEN remove it from the tracking
+
+      CALL "FC_PLT_Clr_Position" (// AND clear entry from PLT          
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Pos_Remove_Out,
+           i_Info_Physical          := #s_Info_Remove,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+      JU    HA99; 
+
+HA01: L     #s_Info_Remove; // IF the entry is a reservation code
+      L     -100; 
+      <I    ; 
+      JCN   HA99; // THEN memorise it to add in FIFO
+
+      L     #s_Info_Remove; 
+      T     #s_Reservation_Code; 
+
+      CALL "FC_PLT_Clr_Position" (// AND clear entry from PLT          
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Pos_Remove_Out,
+           i_Info_Physical          := #s_Info_Remove,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+// Make reservation in FIFO
+      OPN   #i_DB_Reservation; // Open FIFO-DB to make reservation
+      NOP   0; // First look for existing reservation 
+
+      L     #s_Entries_Used; // Number of entries used in FIFO > 0
+      SLW   1; // Multiply by 2
+      L     2; // Add two bytes
+      +I    ; // for pointer to start of last record
+      T     #s_FIFO_Last_Record; // FIFO address of last record
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+HA02: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Load entry
+      L     #s_Reservation_Code; // Load reservation code
+      <>I   ; // IF reservation has already been made
+      JCN   HA99; // skip reservation 
+
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >I    ; // IF not last record
+      JCN   HA02; // THEN continue loop
+
+// ELSE continue with reservation
+
+      L     #s_Entries_Max; // Maximum number of entries used in FIFO
+      L     #s_Entries_Used; // Number of entries used in FIFO
+      >I    ; // IF maximum of entries not reached
+      JCN   HA99; // THEN
+
+      L     #s_Entries_Used; // Number of entries
+      SLW   4; // Shift bytes to make pointer to last entry
+      L     #s_Offset_FIFO_Data; // Offset to fifo record in reservation DB
+      SLW   3; 
+      +D    ; // Add Header-length to jump over FIFO header
+      LAR1  ; // Pointer to last used entry in FIFO
+
+      L     #s_Reservation_Code; // Write reservation code in FIFO
+      T     DBW [AR1,P#0.0]; 
+
+      L     #s_Entries_Used; 
+      L     1; 
+      +I    ; // Increment Number of entries in FIFO
+      T     #s_Entries_Used; 
+
+HA99: NOP   0; 
+NETWORK
+TITLE =IA: Inserting code in tracking
+//Inserting code in tracking is made with help of the function search in tracking.
+//If in a known area no codes are present a new code is inserted at the 
+//insert postion
+//Because of the function search in tracking, the area is declared free when the 
+//last code is outside the area 
+//
+//
+//
+//  _                       Insert Postiion
+//--|----   -----------------------|--------------------------
+//  |   |   |    |                 |             -1|  
+//  |   |   |    |                 |              0|
+//  |   |   |    |                 |              0|
+//--|----   -----------------------|--------------------------
+//  V                               
+//PEC update             AREA NOT FREE           
+//                                  
+//  _                       Insert Postiion
+//--|----   -----------------------|--------------------------
+//  |   |   |    |                 |               | -1 
+//  |   |   |    |                 |               |  0
+//  |   |   |    |                 |               |  0
+//--|----   -----------------------|--------------------------
+//  V                                             |   |
+//PEC update                  AREA FREE          >-----< 
+//                                              Displacement 
+//
+//The displacement is always deducted from the close window offset to adjust the 
+//distance.
+//
+      O     #s_Request_Windows; 
+      O     #s_FIFO_Entries_Present; 
+      A     #s_Conveyor_Run; 
+      AN    #i_Request_Halt; 
+      AN    #s_Halt_Generator; // Internal start-up check
+      JCN   IA99; // THEN jump the function
+
+      A     #i_CFG_In_Flow_Function; 
+      JCN   IA01; 
+
+// Search in tracking for code present in the inserting area
+      CALL "FC_PLT_Srch_Inf_Up" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr_Read,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #i_CFG_Window_Length,
+           i_Info                   := 1,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_items_up);
+
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr_Read,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #i_CFG_Window_Length,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_items_Dwn);
+
+      L     #t_Number_items_up; 
+      L     #t_Number_items_Dwn; 
+      +I    ; 
+      T     #s_Entries_Found; 
+
+// Subtrax the number of trailing edge's (2)
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_PLT_DB_Nr_Read,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #i_CFG_Window_Length,
+           i_Info                   := 2,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Number_items_Dwn);
+
+      L     #s_Entries_Found; 
+      L     #t_Number_items_Dwn; 
+      -I    ; 
+      T     #s_Entries_Found; 
+
+      JU    IA02; 
+
+// Correction close offset window
+IA01: L     #i_CFG_Window_Length; 
+      L     #s_Displacement; 
+      -I    ; 
+      T     #s_Search_Window_Corr; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #s_Search_Window_Corr,
+           i_Info                   := 2,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #s_Trailing_Edge_Found);
+
+// Search in tracking for code present in the inserting area
+      CALL "FC_PLT_Srch_Win_Dwn" (
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Insert_Position,
+           i_Window                 := #s_Search_Window_Corr,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #s_Entries_Found);
+
+// Check if area is free of code
+IA02: L     #s_Entries_Found; 
+      L     #s_Trailing_Edge_Found; 
+      ==I   ; 
+      JCN   IA99; 
+
+      A     #s_Res_FIFO_Used; // IF Reservation FIFO-DB is used
+      A     #s_FIFO_Entries_Present; // AND used entries present
+      JCN   IA04; // THEN
+
+      OPN   #i_DB_Reservation; // Open FIFO-DB to make reservation
+      L     #s_Offset_FIFO_Data; 
+      SLW   3; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Collect first entry in FIFO
+      T     #s_Window_Code; 
+
+      L     #s_Offset_FIFO_Data; // Initialize pointer
+      T     #s_Shift_Pointer; // with start address entries
+IA03: L     #s_Shift_Pointer; // Start Loop
+      SLW   3; // Pointer to Word-address
+      LAR1  ; 
+      L     DBW [AR1,P#2.0]; // Load next entry
+      T     DBW [AR1,P#0.0]; // Transfer to pointer entry
+      L     #s_Shift_Pointer; 
+      L     2; // 2 bytes integer 
+      +I    ; // Pointer := Pointer + 2 bytes
+      T     #s_Shift_Pointer; 
+      L     #s_FIFO_Last_Record; 
+      >=I   ; // IF not last record
+      JCN   IA03; // THEN continue loop
+
+      L     #s_FIFO_Last_Record; // ELSE FIFO end address
+      SLW   3; // Pointer to word address
+      LAR1  ; // Pointer to last used entry
+      L     0; 
+      T     DBW [AR1,P#0.0]; // Clear last record in FIFO  
+
+      L     #s_Entries_Used; 
+      L     1; 
+      -I    ; // Decrement Number of entries in FIFO-DB
+      T     #s_Entries_Used; 
+
+      JU    IA05; // Jump to write reservation in tracking
+
+IA04: L     -100; // ELSE Write empty window code 
+      T     #s_Window_Code; // when no FIFO entry available
+
+IA05: CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #s_Insert_PLT_DB_Nr,
+           i_Position               := #s_Insert_Position,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := #s_Window_Code,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+IA99: NOP   0; 
+NETWORK
+TITLE =JA: Check merge out of E Save when reservation is active
+
+      AN    #s_Conveyor_Run; 
+      AN    #i_Request_Halt; 
+      JCN   JA99; 
+
+      A     #s_Res_FIFO_Used; // IF Reservation FIFO-DB is used
+      A     #s_FIFO_Entries_Present; // AND used entries present
+      JCN   JA99; // THEN
+
+      OPN   #i_DB_Reservation; // Open FIFO-DB to make reservation
+      L     #s_Offset_FIFO_Data; 
+      SLW   3; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; // Collect first entry in FIFO
+      T     #s_Window_Code; 
+
+      L     #s_Window_Code; 
+      L     -100; 
+      <I    ; 
+      JCN   JA99; 
+
+      OPN   DB [#t_DB_Insert_PLT_Nr]; 
+      L     DBW   12; 
+      T     #t_Section_Length; 
+
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_DB_Insert_PLT_Nr,
+           i_Position               := #t_Section_Length,
+           i_Window                 := #t_Section_Length,
+           i_Info                   := -3,
+           o_Position               := #t_INT_Not_Used,
+           o_Info                   := #t_INT_Not_Used,
+           o_LNK                    := #t_INT_Not_Used,
+           o_DB_PLT_Num             := #t_INT_Not_Used,
+           o_Number_Items_Found     := #t_Found_Items);
+
+      L     #t_Found_Items; 
+      L     1; 
+      <I    ; 
+      JCN   JA99; 
+
+      CALL "FC_PLT_Write" (
+           i_DB_PLT_Num             := #t_DB_Insert_PLT_Nr,
+           i_Position               := #t_Section_Length,
+           i_Info_State             := W#16#0,
+           i_Info_Physical          := -3,
+           i_LNK                    := 0,
+           i_DB_Event_Num           := #s_DB_Num_Event);
+
+JA99: NOP   0; 
+NETWORK
+TITLE =KA: Copy shared data to FIFO DB   
+// 
+      A     #s_Res_FIFO_Used; 
+      JCN   KA99; 
+
+      OPN   #i_DB_Reservation; 
+      L     #s_Entries_Used; 
+      T     DBW    0; // Copy data to FIFO DB
+
+      L     #s_Entries_Max; 
+      T     DBW    2; 
+
+      L     #i_CFG_Window_Length; 
+      T     DBW    4; 
+
+      L     #s_Insert_PLT_DB_Nr; //  PLT DB for inserting windows
+      T     DBW    6; 
+
+      L     #s_Insert_Position; //  #i_CFG_Insert_Position
+      T     DBW    8; 
+
+      L     #s_Length_To_Generator; 
+      T     DBW   10; 
+
+      AN    #i_Request_Halt; //disable Lenght when generator is halted
+      JCN   KA01; 
+      L     #s_Length_To_Generator; 
+      T     DBW   10; 
+KA01: NOP   0; 
+
+      CLR   ; 
+      =     DBX   12.0; // CLEAR request window bit for this window generator
+
+      A     #s_Request_Windows; 
+      =     DBX   12.1; // Write windows are generated for upstream window generator and induct functions.
+
+      A     #i_Section_Run_Reverse; // Write merge area is running reversed
+      =     DBX   12.2; 
+
+KA99: NOP   0; 
+END_FUNCTION_BLOCK
+

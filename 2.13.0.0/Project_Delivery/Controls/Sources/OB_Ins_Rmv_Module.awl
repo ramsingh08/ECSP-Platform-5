@@ -1,0 +1,68 @@
+ORGANIZATION_BLOCK "OB_Ins_Rmv_Module"
+TITLE =%version: 0.03 % CN: 90
+//Function: 
+//Module called by CPU when card is removed or inserted
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:16:37 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.03
+//16544: Update profinet diagnose and add OB83 failure  nlHdL    12-03-14   0.03
+//15797: Keyword release added                          nlwwij   26-09-13   0.02
+//Initial revision                                      nlMRe    22-07-10   0.01
+//
+//Description: 
+//The CPU operating system calls OB83 in following situations:
+//- after insertion / removal of a configured module
+//- after modifications of module parameters under STEP 7 and 
+//  download of changes to the CPU during RUN
+//If you have not programmed OB83, the CPU changes to STOP mode
+//You can disable/delay/enable the insert/remove interrupt OB with
+//the help of SFCs 39 to 42.
+//
+//Special considerations for S7-300
+//- Central IO devices cannot be inserted and removed with S7-300.
+//- With respect to distributed IO devices, CPU 318 behaves like an S7-400-CPU. 
+//  With all other S7-300 CPUs, there is an insert/remove interrupt only for 
+//  31x PN/DP CPUs, but then only for PROFINET IO components.
+//
+//- With IM151/CPU (CPU with ET 200S), there is an insert/remove 
+//  interrupt only for central IO devices.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_TEMP
+  OB83_EV_CLASS : BYTE ;	//16#38/39, Event class 3, module inserted/removed (8/9)
+  OB83_FLT_ID : BYTE ;	//16#XX, Fault identifcation code
+  OB83_PRIORITY : BYTE ;	//26/28 (Priority of 1 is lowest)
+  OB83_OB_NUMBR : BYTE ;	//83 (Organization block 83, OB83)
+  OB83_RESERVED_1 : BYTE ;	//Reserved for system
+  OB83_MDL_ID : BYTE ;	//Input module (01010100), Output module (01010101)
+  OB83_MDL_ADDR : WORD ;	//Base address of module with point fault
+  OB83_RACK_NUM : WORD ;	//Number of rack that has module with point fault
+  OB83_MDL_TYPE : WORD ;	//Module type with point fault
+  OB83_DATE_TIME : DATE_AND_TIME ;	//Date and time OB83 started   
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Call OB83 handling
+//Input: ANY Pointer to HW Not Present Bitmap (length 18 bits)
+//Input: ANY Pointer to HW Error Bitmap (length 18 bits)
+      CALL "FB_OB83_Ins_Rmv_Mod" , "DI_OB83_Ins_Rmv_Mod" (
+           i_HW_Not_Present_Bitmap  := "DB_Diagnose_HW".Module_Not_Present,
+           i_HW_Error_Bitmap        := "DB_Diagnose_HW".Module_Error);
+
+      CALL "FC_OB83_PN_Error" (
+           i_PN_IO_System_ID        := 100,
+           i_PN_Error_Bitmap        := "DB_Diagnose_PN".PNIO_System_100.Device_Error);
+
+END_ORGANIZATION_BLOCK
+

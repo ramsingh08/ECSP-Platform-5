@@ -1,0 +1,121 @@
+FUNCTION "FC_PLT_Read_State" : VOID
+TITLE =%version: 1.02 % CN: 30
+//Function:
+//Retreive the Info State from a position and info physical.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:02:32 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   1.02
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   1.02
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   1.02
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   1.02
+//14825: Update history in header (comment)             nlHdL    12-08-13   1.01
+//Initial revision used for upstream update tracking    nlHdL    28-06-13   1.00
+//
+//Description:
+//This function reads the info State from a i_Position with the 
+//same info_physical.
+//
+//                                                               
+//                                                                 
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_PLT_Num : INT ;	//Number of DB Position Leading Trailing Edge
+  i_Position : INT ;	//SETT: [cm] Position in PLT
+  i_Info_Physical : INT ;	//Info physical for check
+END_VAR
+VAR_OUTPUT
+  o_Info_State : WORD ;	//Info State found in PLT DB
+END_VAR
+VAR_TEMP
+  t_PLT_DB_Nr : INT ;	//Copy of i_DB_Num_PLT
+  t_Cnt_Entry : INT ;	//Counter for number of entries searched
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Open PLT DB
+// 
+      L     0; 
+      T     #o_Info_State; //Preset output
+
+      L     #i_DB_PLT_Num; 
+      T     #t_PLT_DB_Nr; 
+      L     1; 
+      <=I   ; 
+      BEC   ; 
+
+      OPN   DB [#t_PLT_DB_Nr]; // Open PLT DB
+
+NETWORK
+TITLE =BA: Check if entries are filled in PLT DB
+// 
+      L     DBW    0; 
+      L     0; // Number of entry,s used in PLT DB
+      <=I   ; 
+      BEC   ; // end function
+NETWORK
+TITLE =CA: Calculate pointer to data in first record PLT DB  
+// 
+      L     1; 
+      T     #t_Cnt_Entry; 
+
+      L     14; // First entry starts at P#14.0
+      SLW   3; // Shift bytes to make pointer to last entry
+      LAR1  ; // Pointer to last used entry in PLT DB  
+NETWORK
+TITLE =DA: Search for data in search-window
+// 
+DA01: L     DBW [AR1,P#0.0]; // Actual entry position 
+      L     #i_Position; // START OF SEARCH-LOOP
+      >I    ; // IF Search-position > read position THEN jump to decrease pointer  
+      JC    DA03; // THEN jump to decrement pointer 
+
+      L     #i_Position; 
+      L     DBW [AR1,P#0.0]; // Actual-position 
+      ==I   ; // ELSE Actual-position == Search-Position jump to make outputs  
+      JC    DA02; // THEN data found  
+
+      JU    DA99; // ELSE jump to no data found end of search-loop
+
+DA02: L     DBW [AR1,P#4.0]; 
+      L     #i_Info_Physical; 
+      ==I   ; 
+      JCN   DA03; // Check if info_physical is correct
+
+      L     DBW [AR1,P#2.0]; 
+      T     #o_Info_State; 
+
+      BEU   ; 
+
+DA03: L     #t_Cnt_Entry; 
+      L     1; 
+      +I    ; 
+      T     #t_Cnt_Entry; 
+
+// Check loop counter
+      L     #t_Cnt_Entry; 
+      L     DBW    0; 
+      >I    ; 
+      JC    DA99; // IF Entry pointer > 0
+
+      TAR1  ; // Read Entry pointer of address-register
+
+      L     P#8.0; // 8 bytes for each record increase pointer with 1 entry.
+      +D    ; // Entry pointer = Entry pointer - P#8.0
+
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    DA01; // GOTO START OF SEARCH-LOOP
+
+DA99: NOP   0; 
+
+END_FUNCTION
+

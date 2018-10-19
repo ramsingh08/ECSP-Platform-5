@@ -1,0 +1,88 @@
+FUNCTION_BLOCK "FB_Rel_Hist_ECSp_Gen"
+TITLE =Release 1.8.0 of 'S7 Library ECS-P' CN: 00 
+//Release History of product library 'S7 Library ECS-P General'
+//
+//The blocks belonging to this library do have the block property family: 
+//'General'.
+//
+//This release is archived with document number: A_DOC278210 EN xxx
+//(xxx letter of release).
+//       
+//For detailed information about this release see 'ECS-P GENERAL RELEASE NOTES (VI
+//_RAW)'
+// with document number a_doc278210 x.                               
+//
+//Release History:                                              Date:     Rel:
+//-------------------------------------------------------------------------------
+//
+//Minor release update PR/CR                                    14-06-18  1.8.0
+//      Solved Bug
+//
+//Minor release update PR/CR                                    16-03-18  1.7.0
+//      Solved Bug
+//
+//Minor release update PR/CR                                    06-02-18  1.6.1
+//      Solved Bug
+//
+//Minor release update PR/CR                                    12-12-17  1.6.0
+//      Solved Bugs
+//
+//Minor release update PR/CR                                    31-10-17  1.5.1
+//      Solved Bugs / Update screen pending
+//
+//Minor release update PR/CR                                    20-09-17  1.5.0
+//      Solved Bugs / Update screen pending
+//
+//Minor release update PR/CR                                    21-06-17  1.4.0
+//      Solved Bugs / Added HBO
+//
+//Minor release update PR/CR                                    26-04-17  1.3.1
+//      Solved Bugs / Added SW functions
+//
+//Minor release update PR/CR                                    24-03-17  1.3.0
+//      Solved Bugs / Added HBO
+//
+//Minor release update PR/CR                                    09-02-17  1.2.1
+//      Solved Bugs / Added CIO
+//
+//Minor release update PR/CR                                    15-12-16  1.2.0
+//      Added HOO 2Dir / Screen Pending
+//
+//Minor release update PR/CR                                    28-10-16  1.1.0
+//      Added OPS / Safety / BSO40
+//
+//Patch release update PR/CR                                    30-09-16  1.0.1
+//      Solved Bugs / Area HMI
+//
+//Minor release update PR/CR                                    26-08-16  1.0.0
+//      Added vibes 5.2 / Solved Bugs
+//
+//Minor release update PR/CR                                    17-06-16  2.4.0
+//      Solved bugs Induct / Report Add CHO / LMS11
+//
+//Minor release update PR/CR                                    22-04-16  2.3.0
+//      Solved bugs / PNPN / Shutter / Report 
+//
+//First release GEN Platfrom 5                                  24-12-15  2.2.0
+//      Solved bugs equal to PL4 R29.2 
+//
+//Minor release update PR/CR                                    09-10-15 29.1.0
+//      Solved bugs / PNPN SVD 
+//
+//Minor release update PR/CR                                    31-07-15 29.0.0
+//      Solved bugs / Library based on RA Platform 1 + 4 added
+//
+//Minor release update PR/CR                                    24-07-15 28.1.0
+//      Solved bugs / Library moved to RA Release Platform 1
+//
+FAMILY : General
+VERSION : 0.0
+
+BEGIN
+NETWORK
+TITLE =Empty Network
+
+
+
+END_FUNCTION_BLOCK
+

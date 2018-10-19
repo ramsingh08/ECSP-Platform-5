@@ -1,0 +1,20 @@
+TYPE "UDT_HBZ_Int_Prog"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by:  nldy %
+//              %date_created: Thursday, February 23, 2017 11:16:59 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                        nldy    23-02-17  0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   TEP_Downstream : INT ;	//TEP value of the downstream sections of the HBZ
+   Req_Dis_Send_Upstr : BOOL ;	//Request Disable Send on an upstream section of the HBZ
+  END_STRUCT ;	
+END_TYPE
+

@@ -1,0 +1,215 @@
+FUNCTION_BLOCK "FB_SW_ROU03"
+TITLE =%version: 0.04 % CN: 40
+//Function:
+//Send tracking report at node-segment border.
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, September 15, 2017 4:08:41 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#7194: Revert to version 0.02                      nldy     15-09-17   0.04
+//ra#22685: Add direction taken to tracking report      inrjoi   28-07-17   0.03
+//ina#6144: Check LIC or TIC before send track-rep      nlHdL    05-07-17   0.02
+//Initial version                                       inrjoi   26-04-17   0.01
+//
+//Description:
+//Tracking node can be used in a straight flow with a route segment border. The 
+//last section in the route segment shall send a tracking report. The tracking 
+//report shall be sent when the item leaves the transport section.
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Search_Pos : INT  := 5;	//CFG: [cm] Position to search for the data of item
+  i_TRS_DB_PLT : BLOCK_DB ;	//Data Structure: DB PLT
+  i_DB_Event_Section : BLOCK_DB ;	//Data Structure: DB event section
+END_VAR
+VAR
+  s_FP_Send_Trk_Report : BOOL ;	//Send the tracking report
+  s_LNK : INT ;	//Link number found in DB PLT within the search window
+END_VAR
+VAR_TEMP
+  t_Not_Used_Int : INT ;	//Not used integer
+  t_TRS_DB_PLT_Num : INT ;	//Number of DB PLT
+  t_DB_Event_Section_Num : INT ;	//Number of DB event section
+  t_Rep_Route_Record : INT ;	//Report route record number
+  t_DB_Route_Num : INT ;	//Number of DB route list
+  t_LIC : INT ;	//LIC number
+  t_TIC : INT ;	//TIC number
+  t_LIC_Present : BOOL ;	//LIC is present
+  t_TIC_Present : BOOL ;	//TIC is present
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get information from Data Blocks
+// Copy PLT information
+      OPN   #i_TRS_DB_PLT; 
+      L     DBNO; 
+      T     #t_TRS_DB_PLT_Num; 
+
+// Copy section event DB number
+      OPN   #i_DB_Event_Section; 
+      L     DBNO; 
+      T     #t_DB_Event_Section_Num; 
+
+// Copy route list DB number 
+      OPN   "DB_Route_List"; 
+      L     DBNO; 
+      T     #t_DB_Route_Num; 
+
+NETWORK
+TITLE =BA: Search for the LNK data and send tracking report
+//For sending the tracking report the PLT of the TRS will be searched and when 
+//data is found at the downstream end of this DB PLT the tracking report will be 
+//send.
+      CALL "FC_PLT_Srch_Inf_Dwn" (
+           i_DB_PLT_Num             := #t_TRS_DB_PLT_Num,
+           i_Position               := #i_CFG_Search_Pos,
+           i_Window                 := #i_CFG_Search_Pos,
+           i_Info                   := 1,
+           o_Position               := #t_Not_Used_Int,
+           o_Info                   := #t_Not_Used_Int,
+           o_LNK                    := #s_LNK,
+           o_DB_PLT_Num             := #t_Not_Used_Int,
+           o_Number_Items_Found     := #t_Not_Used_Int);
+
+      L     #s_LNK; 
+      L     0; 
+      >I    ; 
+      FP    #s_FP_Send_Trk_Report; 
+      JCN   BA99; 
+
+// Read LIC number from Link list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".LIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_LIC);
+
+// Check if LIC number is valid
+      L     #t_LIC; 
+      L     0; 
+      >I    ; 
+      =     #t_LIC_Present; 
+
+// Read TIC number from Link list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".TIC,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_TIC);
+
+// Check if TIC number is valid
+      L     #t_TIC; 
+      L     0; 
+      >I    ; 
+      =     #t_TIC_Present; 
+
+      A     #t_LIC_Present; 
+      O     #t_TIC_Present; 
+      JCN   BA99; 
+
+// Read report route number from Link list
+      CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+      L     #t_Rep_Route_Record; 
+      L     0; 
+      <=I   ; 
+      JCN   BA01; 
+
+      CALL "FC_Generator_LNK" (
+           i_LNK                    := #s_LNK,
+           i_DB_List                := #t_DB_Route_Num,
+           i_Default_Record         := -1,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_LNK                    := #t_Rep_Route_Record);
+
+// Read report route number from Link list
+BA01: CALL "FC_Read_Int_Record" (
+           i_Record_Number          := #s_LNK,
+           i_P_INT_Record           := "DB_UDT_LNK_Record".Rep_Route,
+           i_DB                     := "DB_LNK_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_INT                    := #t_Rep_Route_Record);
+
+// Copy BIR record from LIC list to route record
+      CALL "FC_Read_ANY_Record" (
+           i_Record_Number          := #t_LIC,
+           i_ANY_Data_Record        := "DB_UDT_LIC_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".BIR,
+           i_ANY_Data               := "DB_Outgoing_Msgs".TrackingReport.Body.BIR,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Clear route record
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".SuccessDirection,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].SuccessDirection,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection1,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection1,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_ANY_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_ANY_Data_Record        := "DB_UDT_Route_Record".FailedDirection2,
+           i_ANY_Data               := "DB_Route_List".Rep_Route[0].FailedDirection2,
+           i_DB                     := "DB_Route_List",
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".Status,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".RoutingTableType,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 0,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write "decision level = 5" (TRANSPORT EQUIPMENT-DEFAULT DIRECTION) into report route record
+      CALL "FC_Write_Int_Record" (
+           i_Record_Number          := #t_Rep_Route_Record,
+           i_P_INT_Record           := "DB_UDT_Route_Record".SuccessDirection.DecisionLevel,
+           i_DB                     := "DB_Route_List",
+           i_INT                    := 5,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num);
+
+// Write tracking report
+      CALL "FC_Write_Event" (
+           i_Message_ID             := 1201,
+           i_Event_value            := #s_LNK,
+           i_DB_Event_Num           := #t_DB_Event_Section_Num,
+           o_Return_Value           := #t_Not_Used_Int);
+
+BA99: NOP   0; 
+END_FUNCTION_BLOCK
+

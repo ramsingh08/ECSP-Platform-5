@@ -1,0 +1,51 @@
+TYPE "UDT_SCZ_CMD"
+TITLE =%version: 0.01 % CN: 10
+//History:
+//This version  %created_by: inrjoi %
+//              %date_created: Tuesday, June 20, 2017 8:04:04 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version aligned with PF5                      inrjoi   20-06-17   0.01                                                                                                                        
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Auto : BOOL ;	//Automatic mode
+   Manual : BOOL ;	//Manual mode
+   Semi_Auto : BOOL ;	//Semi-auto mode
+   SemiAuto_Fix_Up : BOOL ;	//Semi-auto fixed up mode
+   SemiAuto_Fix_St : BOOL ;	//Semi-auto fixed straight mode
+   SemiAuto_Fix_Dn : BOOL ;	//Semi-auto fixed down mode
+   Auto_Redun_Up : BOOL ;	//Auto redundant up mode
+   Auto_Redun_Dn : BOOL ;	//Auto redundant down mode
+   Auto_Redun_St : BOOL ;	//Auto redundant straight mode
+   Man_TRS1_Start : BOOL ;	//TRS1 conveyor manual run start
+   Man_TRS1_Stop : BOOL ;	//TRS1 conveyor manual run stop
+   Man_TRS2_Start : BOOL ;	//TRS2 conveyor manual run start
+   Man_TRS2_Stop : BOOL ;	//TRS2 conveyor manual run stop
+   Man_TRS3_Start : BOOL ;	//TRS3 conveyor manual run start
+   Man_TRS3_Stop : BOOL ;	//TRS3 conveyor manual run stop
+   Man_TRS4_Start : BOOL ;	//TRS4 conveyor manual run start
+   Man_TRS4_Stop : BOOL ;	//TRS4 conveyor manual run stop
+   Man_TRS5_Start : BOOL ;	//TRS5 conveyor manual run start
+   Man_TRS5_Stop : BOOL ;	//TRS5 conveyor manual run stop
+   Man_TRS6_Start : BOOL ;	//TRS6 conveyor manual run start
+   Man_TRS6_Stop : BOOL ;	//TRS6 conveyor manual run stop
+   Man_TRS7_Start : BOOL ;	//TRS7 conveyor manual run start
+   Man_TRS7_Stop : BOOL ;	//TRS7 conveyor manual run stop
+   Man_TRS8_Start : BOOL ;	//TRS8 conveyor manual run start
+   Man_TRS8_Stop : BOOL ;	//TRS8 conveyor manual run stop
+   Man_Jog_Up : BOOL ;	//Jog the switch motor up manually
+   Man_Jog_Dn : BOOL ;	//Jog the switch motor down manually
+   Man_Fix_Up : BOOL ;	//Conveyor manual fixed up position
+   Man_Fix_St : BOOL ;	//Conveyor manual fixed straight position
+   Man_Fix_Dn : BOOL ;	//Conveyor manual fixed down position
+   Spare_3_6 : BOOL ;	//Spare_3_6
+   Spare_3_7 : BOOL ;	//Spare_3_7
+   Operation_Mode_HMI : INT ;	//Operating mode of SCZ to HMI
+  END_STRUCT ;	
+END_TYPE
+

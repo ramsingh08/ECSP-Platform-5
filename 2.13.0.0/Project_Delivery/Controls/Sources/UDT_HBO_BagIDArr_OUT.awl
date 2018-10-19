@@ -1,0 +1,55 @@
+TYPE "UDT_HBO_BagIDArr_OUT"
+TITLE =%version: 0.03 % CN: 10
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Monday, March 13, 2017 4:32:11 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:      Date:   Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#21036: Correct typo                                 nldy    13-03-17  0.03
+//ra#21036: Move to GEN                                  nldy    06-03-17  0.02
+//Initial version                                        nldy    15-11-16  0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   BagIDArray : STRUCT 	
+    Barcode_Type : INT ;	//BagIDArray[0].LO Barcode type
+    Pass_Number : INT ;	//BagIDArray[0].HO Pass number of the bag
+    LNK : INT ;	//BagIDArray[1].LO Project specific LNK number
+    Spare_Int_6 : INT ;	//BagIDArray[1].HO project specific requirement
+    Airport_Code : INT ;	//BagIDArray[2].LO Airport code (IATA)
+    Sub_Identifier : INT ;	//BagIDArray[2].HO Sub system Identifier
+    Special_Routing : INT ;	//BagIDArray[3].LO Special security routing requirements
+    Dynamic_Screening : INT ;	//BagIDArray[3].HO Dynamic bag screening algorithm
+    Second_Passed : INT ;	//BagIDArray[4].LO Time message send (Sec)
+    Minute_Passed : INT ;	//BagIDArray[4].HO Time message send (Min)
+    Hour_Passed : INT ;	//BagIDArray[5].LO Time message send (Hour)
+    Day_Passed : INT ;	//BagIDArray[5].HO Time message send (Day)
+    Month_Passed : INT ;	//BagIDArray[6].LO Time message send (Month)
+    Year_Passed : INT ;	//BagIDArray[6].HO Time message send (Year)
+    Spare_Int_28 : INT ;	//BagIDArray[7].LO Project specific SPARE
+    Spare_Int_30 : INT ;	//BagIDArray[7].HO Project specific SPARE
+    Spare_Int_32 : INT ;	//BagIDArray[8].LO Project specific SPARE
+    Spare_Int_34 : INT ;	//BagIDArray[8].HO Project specific SPARE
+    Spare_Int_36 : INT ;	//BagIDArray[9].LO Project specific SPARE
+    Spare_Int_38 : INT ;	//BagIDArray[9].HO Project specific SPARE
+    Pseudo_ID : DINT ;	//BagIDArray[10]    Secondary Pseudo bag ID
+    Tag_ID1 : DINT ;	//BagIDArray[11]    First  5 digits LPC of bag Unique Bag ID LPN[1..5]
+    Tag_ID2 : DINT ;	//BagIDArray[12]    Second 5 digits LPC of bag Unique Bag ID LPN[6..10]
+    Spare_Int_52 : INT ;	//BagIDArray[13].LO Reserved
+    Spare_Int_54 : INT ;	//BagIDArray[13].HO Reserved
+   END_STRUCT ;	
+   IATA : STRUCT 	
+    Bag_ID : ARRAY  [0 .. 11 ] OF //IATAData[0]..[11] License Plate Code of the bag
+    CHAR ;	
+   END_STRUCT ;	
+   Pseudo : STRUCT 	
+    Bag_ID : ARRAY  [0 .. 11 ] OF //PseudoData[0]..[11] Pseudo Code of the bag
+    CHAR ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

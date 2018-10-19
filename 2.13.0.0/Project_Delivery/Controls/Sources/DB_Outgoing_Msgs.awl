@@ -1,0 +1,52 @@
+DATA_BLOCK "DB_Outgoing_Msgs"
+TITLE =%version: 0.08 % CN: 20
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Friday, February 17, 2017 11:25:54 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#18111: Implement ICS trace to the GEN Libray       nlHdL    20-02-17   0.08
+//ra#14076: Package Instruct and report with pseudoID   nlHdL    14-06-16   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.06
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.06
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.06
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    08-01-15   0.06
+//18060: Update messages ID's for Vibes 3.2             nlHdL    01-04-14   0.05
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.04
+//Correct modification History                          nlLvdG   03-06-13   0.03
+//Remove default values                                 nlLvdG   03-06-13   0.02
+//Initial Version based on version 0.02 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+  STRUCT 	
+   LifeSignRequest : "UDT_Msg_LifeSignReq";	//Layout of LifeSignRequest message to High Level
+   InitSync : "UDT_Msg_InitSync";	//Layout of InitSync message to High Level
+   TrackingReport : "UDT_Msg_TrackingRep";	//Layout of TrackingReport message to High Level
+   TransportDirReport : "UDT_Msg_TransportDir";	//Layout of TransportDirectionReport message to High Level
+   IDChangeReport : "UDT_Msg_IDChangeRep";	//Layout of IDChangeReport message to High Level
+   CapacityReport : "UDT_Msg_CapacityRep";	//Layout of CapacityReport message to High Level
+   Register : "UDT_Msg_Register";	//Layout of RegisterPackage message to High Level
+   DeRegister : "UDT_Msg_DeRegister";	//Layout of DeRegisterPackage message to High Level
+   AvailabilityReport : "UDT_Msg_Available";	//Layout of AvailabilityReport message to High Level
+   PackageReport_Scrn : "UDT_Msg_PackRep_Scrn";	//Layout of PackageReport message with ScreeningResult to High Level
+   PackageReport_Scan : "UDT_Msg_PackRep_Scan";	//Layout of PackageReport message with (Reclaim)ScanResult to High Level
+   PackageReport_Rout : "UDT_Msg_PackRep_Rout";	//Layout of PackageReport message with RouteResult to High Level
+   PackageReport_Volu : "UDT_Msg_PackRep_Volu";	//Layout of PackageReport message with VolumeScanResult to High Level
+   SegmentStatusReport : "UDT_Msg_SegmentState";	//Layout of SegmentStatusReport message to High Level
+   Statisticals : "UDT_Msg_Statistics";	//Layout of Statisticals Message to BPI
+   SegmentPerformanceReport : "UDT_Msg_SegmentPerf";	//Layout of SegmentPerformanceReport message to High Level
+   EBSLaneStatusReport : "UDT_Msg_EBSLaneSt";	//Layout of EBSLaneStatusReport message to High Level
+   Logging : "UDT_Msg_Log";	//Layout of Log message to BPI
+   ICSExceptionTrace : "UDT_Msg_ICSExcepTrac";	//Layout of ICS Exception Trace
+   ICSMaintenanceRequest : "UDT_Msg_ICSMaintReq";	//Layout of ICS Maintenance Request
+   ICSMaintenanceReply : "UDT_Msg_ICSMaintRep";	//Layout of ICS Maintenance Reply
+   Default : "UDT_Msg_Snd_Body";	//Default message filled with FF as fillers
+   Merged_Message : "UDT_Msg_Snd_Body";	//Merge of Default and Report
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK

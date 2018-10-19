@@ -1,0 +1,70 @@
+TYPE "UDT_VDZ_Status"
+TITLE =%version: 0.02 % CN: 10 
+//
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Monday, October 09, 2017 9:07:10 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#23218: Align symbol not_present                    nlHdL    09-10-17   0.02
+//ra#21768: Add VDZ21 - ECS-P                           nlHdL    22-05-17   0.01
+//Initial version                                       nlHdL    08-05-17   0.01
+//
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Fixed_Infeed : BOOL ;	//Mode Semi automatic fixed to Infeed
+   Fixed_Infeed2 : BOOL ;	//Mode Semi automatic fixed to Infeed2
+   Manual : BOOL ;	//Manual mode activated in HMI
+   Mainswitch_OFF : BOOL ;	//Mainswitch OFF
+   TH_Main_Power : BOOL ;	//Thermal Overload Main
+   TH_Hoist_Carrier_Power : BOOL ;	//Thermal Overload hoist/carrier
+   KS_LCC_not_in_Auto : BOOL ;	//LCC Local Mode(no power to hoist)
+   PBB_Infeed_Not_Auto : BOOL ;	//Infeed Local Mode
+   PBB_Infeed2_Not_Auto : BOOL ;	//Infeed 2 Local Mode
+   PBB_Outfeed_Not_Auto : BOOL ;	//Outfeed Local Mode
+   PBB_KS_SHO_Not_Auto : BOOL ;	//Shutter in Local Mode
+   PBB_KS_SHO_Overrule : BOOL ;	//Shutter interlock Overrule
+   Fieldbus_Not_Prsnt : BOOL ;	//Fieldbus slave not Present
+   Fieldbus_Error : BOOL ;	//Fieldbus slave error
+   PBB_Inf_ASI_Error : BOOL ;	//PBB Infeed ASI Error
+   PBB_Inf_ASI_Not_Prsnt : BOOL ;	//PBB Infeed ASI Not Present
+   PBB_Inf_ASI2_Error : BOOL ;	//PBB Infeed ASI2 Error
+   PBB_Inf_ASI2_Not_Prsnt : BOOL ;	//PBB Infeed ASI2 Not Present
+   PBB_Inf2_ASI_Error : BOOL ;	//PBB Infeed 2 ASI Error
+   PBB_Inf2_ASI_Not_Prsnt : BOOL ;	//PBB Infeed 2 ASI Not Present
+   PBB_Inf2_ASI2_Error : BOOL ;	//PBB Infeed 2 ASI2 Error
+   PBB_Inf2_ASI2_Not_Prsnt : BOOL ;	//PBB Infeed 2 ASI2 Not Present
+   PBB_Outf_ASI_Error : BOOL ;	//PBB Outfeed ASI Error
+   PBB_Outf_ASI_Not_Prsnt : BOOL ;	//PBB Outfeed ASI Not Present
+   PBB_Outf_ASI2_Error : BOOL ;	//PBB Outfeed ASI2 Error
+   PBB_Outf_ASI2_Not_Prsnt : BOOL ;	//PBB Outfeed ASI2 Not Present
+   Spare_3_2 : BOOL ;	//Spare_3_2
+   Hoist_Not_At_Infeed : BOOL ;	//Carrier is not detected at the Infeed when the Software says it is.
+   Hoist_Not_At_Infeed2 : BOOL ;	//Carrier is not detected at the infeed2 when the Software says it is.
+   Shutter_Not_Closed : BOOL ;	//Shutter safety circuit reports shutter not closed
+   Fieldbus2_Not_Prsnt : BOOL ;	//Fieldbus2 slave not Present
+   Fieldbus2_Error : BOOL ;	//Fieldbus2 slave error
+   Infeed_Gap_Not_Clear : BOOL ;	//Gap at Infeed not clear
+   Infeed2_Gap_Not_Clear : BOOL ;	//Gap at infeed2 not clear
+   Outfeed_Gap_Not_Clear : BOOL ;	//Gap at outfeed not clear
+   Safety_relais_Error : BOOL ;	//Safety Relais for hatches error
+   Safety_fencing_infeed : BOOL ;	//Safety fencing-tunnel at infeed opened
+   Safety_fencing_infeed2 : BOOL ;	//Safety fencing-tunnel at infeed opened
+   Safety_fencing_outfeed : BOOL ;	//Safety fencing-tunnel at outfeed opened
+   Spare_4_7 : BOOL ;	//Spare_4_7
+   Position_Maint_Down : BOOL ;	//Carrier in second maintenance position
+   Position_Maint_Up : BOOL ;	//Carrier in first maintenance position
+   Position_Infeed : BOOL ;	//Carrier at the Infeed position
+   Position_Infeed2 : BOOL ;	//Carrier at the infeed2 position
+   Position_Outfeed : BOOL ;	//Carrier at outfeed position
+   Fieldbus3_Not_Prsnt : BOOL ;	//Fieldbus3 slave not Present
+   Fieldbus3_Error : BOOL ;	//Fieldbus3 slave error
+   Spare_5_7 : BOOL ;	//Spare_5_7
+  END_STRUCT ;	
+END_TYPE
+

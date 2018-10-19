@@ -1,0 +1,242 @@
+FUNCTION "FC_Security_Check" : VOID
+TITLE =%version: 0.07 %  CN: 32
+//Function:
+//Check if item is secure
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:07:27 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.07
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.07
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.07
+//22337: Remove the vibes1.x with the vibes 3.x         nlHdL    09-01-15   0.07
+//19518: Block call update of FC_xxx_Record             nltny    07-08-14   0.04
+//16799: Added Level 5 for proces1 explosive            nlHdL    12-11-13   0.03
+//15799: Block consistency update IO symbols, comment   nlHdL    23-09-13   0.02
+//Initial Version based on version 0.03 ECS-P GEN       nlLvdG   31-05-13   0.01
+//
+//Description:
+//Check if item is secure
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LIC : INT ;	//LIC number
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_Item_Secure : BOOL ;	//When TRUE item is secure
+END_VAR
+VAR_TEMP
+  t_Required_Screen_L1 : BOOL ;	
+  t_Required_Screen_L2 : BOOL ;	
+  t_Required_Screen_L3 : BOOL ;	
+  t_Required_Screen_L4 : BOOL ;	
+  t_Required_Screen_L5 : BOOL ;	
+  t_Reached_Screen_L1 : BOOL ;	
+  t_Reached_Screen_L2 : BOOL ;	
+  t_Reached_Screen_L3 : BOOL ;	
+  t_Reached_Screen_L4 : BOOL ;	
+  t_Reached_Screen_L5 : BOOL ;	
+  t_fail_level_1 : BOOL ;	
+  t_fail_level_2 : BOOL ;	
+  t_fail_level_3 : BOOL ;	
+  t_fail_level_4 : BOOL ;	
+  t_fail_level_5 : BOOL ;	
+  t_Level_1_Secure : BOOL ;	
+  t_Level_2_Secure : BOOL ;	
+  t_Level_3_Secure : BOOL ;	
+  t_Level_4_Secure : BOOL ;	
+  t_Level_5_Secure : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Security explosive
+// Security
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Required_Screen_L1);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Required_Screen_L2);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Required_Screen_L3);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Required_Screen_L4);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Required_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Required_Screen_L5);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Reached_Screen_L1);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Reached_Screen_L2);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Reached_Screen_L3);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Reached_Screen_L4);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Reached_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_Reached_Screen_L5);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_1,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_fail_level_1);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_2,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_fail_level_2);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_3,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_fail_level_3);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_4,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_fail_level_4);
+
+      CALL "FC_Read_Bool_Record" (
+           i_Record_Number          := #i_LIC,
+           i_P_BOOL_Record          := "DB_UDT_LIC_Record".BIR.Process_1.Failed_Screen_Level_5,
+           i_DB                     := "DB_LIC_List",
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_BOOL                   := #t_fail_level_5);
+
+//Check if item is secure
+
+// check If bag has reached screening level 1 and no other levels are failed.
+      AN    #t_fail_level_1; 
+      AN    #t_fail_level_2; 
+      AN    #t_fail_level_3; 
+      AN    #t_fail_level_4; 
+      AN    #t_fail_level_5; 
+      A     #t_Reached_Screen_L1; 
+      =     #t_Level_1_Secure; 
+
+// check If bag has reached screening level 2 and no higher levels are failed.
+      AN    #t_fail_level_2; 
+      AN    #t_fail_level_3; 
+      AN    #t_fail_level_4; 
+      AN    #t_fail_level_5; 
+      A     #t_Reached_Screen_L2; 
+      =     #t_Level_2_Secure; 
+
+// check If bag has reached screening level 3 and no higher levels are failed
+      AN    #t_fail_level_3; 
+      AN    #t_fail_level_4; 
+      AN    #t_fail_level_5; 
+      A     #t_Reached_Screen_L3; 
+      =     #t_Level_3_Secure; 
+
+// check If bag has reached screening level 4 
+      AN    #t_fail_level_4; 
+      AN    #t_fail_level_5; 
+      A     #t_Reached_Screen_L4; 
+      =     #t_Level_4_Secure; 
+
+// check If bag has reached screening level 5
+      AN    #t_fail_level_5; 
+      A     #t_Reached_Screen_L5; 
+      =     #t_Level_5_Secure; 
+
+// check if bag is secure
+      A     #t_Level_1_Secure; 
+      AN    #t_Required_Screen_L2; 
+      AN    #t_Required_Screen_L3; 
+      AN    #t_Required_Screen_L4; 
+      AN    #t_Required_Screen_L5; 
+      O(    ; 
+      A     #t_Level_2_Secure; 
+      AN    #t_Required_Screen_L3; 
+      AN    #t_Required_Screen_L4; 
+      AN    #t_Required_Screen_L5; 
+      )     ; 
+      O(    ; 
+      A     #t_Level_3_Secure; 
+      AN    #t_Required_Screen_L4; 
+      AN    #t_Required_Screen_L5; 
+      )     ; 
+      O(    ; 
+      A     #t_Level_4_Secure; 
+      AN    #t_Required_Screen_L5; 
+      )     ; 
+      O(    ; 
+      A     #t_Level_5_Secure; 
+      )     ; 
+      O(    ; 
+      AN    #t_Required_Screen_L1; 
+      AN    #t_Required_Screen_L2; 
+      AN    #t_Required_Screen_L3; 
+      AN    #t_Required_Screen_L4; 
+      AN    #t_Required_Screen_L5; 
+      AN    #t_fail_level_1; 
+      AN    #t_fail_level_2; 
+      AN    #t_fail_level_3; 
+      AN    #t_fail_level_4; 
+      AN    #t_fail_level_5; 
+      )     ; 
+      =     #o_Item_Secure; 
+END_FUNCTION
+

@@ -1,0 +1,32 @@
+TYPE "UDT_Log_Data"
+TITLE =%version: 0.01 % CN: 10 
+//History:
+//This version  %created_by:   nlhdl %
+//              %date_created:   Tuesday, April 10, 2018 11:13:04 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    10-04-18   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Event_Time : TIME_OF_DAY ;	//Moment of logging
+   Event : STRUCT 	//User defined
+    Signal_BOOL_0 : BOOL ;	//Example of boolean signal
+    Signal_BOOL_1 : BOOL ;	//Example of another boolean signal
+    Signal_Byte : BYTE ;	//Example of hexadecimal signal
+    Signal_Word : WORD ;	//Example of 2-byte hexadecimal signal
+    Signal_DoubleWord : DWORD ;	//Example of 4-byte hexadecimal signal
+    Signal_Int : INT ;	//Example of integer signal
+    Signal_DoubleInt : DINT ;	//Example of double integer signal
+    Signal_Char : CHAR ;	//Exanple of character signal
+    Signal_analog : INT ;	//Example of "analog" signal
+    Signal_array : ARRAY  [1 .. 6 ] OF //Example of array
+    BOOL ;	
+   END_STRUCT ;	
+  END_STRUCT ;	
+END_TYPE
+

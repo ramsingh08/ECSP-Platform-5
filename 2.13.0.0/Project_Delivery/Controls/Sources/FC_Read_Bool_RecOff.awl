@@ -1,0 +1,181 @@
+FUNCTION "FC_Read_Bool_RecOff" : VOID
+TITLE =%version: 0.01 % CN: 31
+//Function: 
+//Reads a BOOL from a specified position in a specified Record within a DB.
+//
+//History:
+//This version  %created_by: nldy %
+//              %date_created: Friday, September 15, 2017 2:16:43 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version based on v0.09 of FC_Read_Bool_Record nldy     15-09-17  0.01
+//
+//Description:
+//This module is based on FC_Read_PIC_Rec.AWL
+//
+//  Return value:
+//   FALSE: error if event supplied
+//   other: return value from reading
+//  Event code
+//    3122: DB_Number not valid
+//    3123: Record_Number not valid
+//    3124: DB is too small or record number too big
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_Record_Number : INT ;	//Record number
+  i_Pointer_Offset : INT ;	//[bytes] offset from pointer on i_ANY_Data_Record
+  i_P_BOOL_Record : POINTER ;	//Pointer to BOOL in Record
+  i_DB : BLOCK_DB ;	//DataBlock of the record where to read from
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_BOOL : BOOL ;	//Output of the BOOL 
+END_VAR
+VAR_TEMP
+  t_DB_Number : INT ;	//DB number of Record DB lay-out
+  t_Record_Length : INT ;	//Length of one record
+  t_Offset : INT ;	//Offset from the start of the record to information to read
+  t_Event_Data : INT ;	//Temp event data
+  t_Ret_Event : INT ;	//Return value for Write Event
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Check DB number
+//If the DB number is not a valid DB number then the FB is ended.
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+      L     0; // IF DB_number is not correct
+      <=I   ; // Then end this module
+      JCN   CA01; 
+      SET   ; 
+      R     #o_BOOL; //End this module with result zero
+
+      L     0; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "DB Number Doesn't exist" (3122)
+           i_Message_ID             := 3122,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+NETWORK
+TITLE =BA: Check Record Number
+//If the record number is not a valid Record number then the FC is ended.
+      L     #i_Record_Number; 
+      L     0; 
+      <I    ; // IF Record Num < 0 THEN..
+      JCN   BA99; 
+      SET   ; 
+      R     #o_BOOL; //End this module with result zero
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      CALL "FC_Write_Event" (// Report event "Invalid Record Number" (3123)
+           i_Message_ID             := 3123,
+           i_Event_value            := #i_Record_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Calculate 
+//Fetch information out of the pointer
+CA01: L     P##i_P_BOOL_Record; //Load pointer to Input parameter 
+      LAR1  ; //of the type Pointer
+
+      L     W [AR1,P#0.0]; //Load DB number out of the Pointer
+      T     #t_DB_Number; //This DB contains only one UDT of a specific record
+
+      OPN   DB [#t_DB_Number]; //Open this DB
+      L     DBLG; //and determine the length, which is also the length of the record
+      T     #t_Record_Length; 
+
+      L     D [AR1,P#2.0]; //Load the pointer to the requested BOOL
+      T     #t_Offset; //This is the offset from the start of the record    
+NETWORK
+TITLE =DA: Check if DB is too small or record number too big
+
+      OPN   #i_DB; // Open DB
+      L     DBLG; // AND get its length..
+      L     DBW    0; // Length of Header
+      -D    ; 
+      L     #t_Record_Length; 
+      /D    ; // Maximum record number
+      L     #i_Record_Number; // Actual record number
+      >=I   ; 
+      JC    DA01; 
+
+      CLR   ; 
+      =     #o_BOOL; //End this module with result zero
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+
+      CALL "FC_Write_Event" (// Report event "DB is too small" (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+DA01: L     #t_Offset; 
+      SRD   3; 
+      L     #i_Pointer_Offset; 
+      +D    ; 
+      L     #t_Record_Length; 
+      >D    ; 
+      JCN   DA99; 
+
+      L     #i_Record_Number; 
+      T     #t_Event_Data; 
+
+      OPN   #i_DB; 
+      L     DBNO; 
+      T     #t_DB_Number; 
+
+      CALL "FC_Write_Event" (// Report event "DB is too small" (3124)
+           i_Message_ID             := 3124,
+           i_Event_value            := #t_DB_Number,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BEU   ; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Read destination
+
+      L     #i_Record_Number; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; // Added offset of Header
+      +D    ; // Included the header
+      L     #i_Pointer_Offset; // Including requested offset
+      +D    ; 
+      SLD   3; //Convert byte address to Pointer format
+      L     #t_Offset; //offset to Bool in record
+      +D    ; 
+      LAR1  ; //Pointer is ready
+
+      OPN   #i_DB; 
+      A     DBX [AR1,P#0.0]; //get BOOL
+      =     #o_BOOL; //and output
+END_FUNCTION
+

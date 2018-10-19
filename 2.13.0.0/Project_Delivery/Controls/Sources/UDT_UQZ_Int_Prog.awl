@@ -1,0 +1,24 @@
+TYPE "UDT_UQZ_Int_Prog"
+TITLE =%version: 1.03 % CN: 10 
+//History:
+//This version  %created_by:   nldy %
+//              %date_created:   Tuesday, August 09, 2016 9:29:50 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#15675: Variable removed                             nlDY     09-08-16  1.03
+//ra#13659: Update according to coding standard          nljclo   15-06-16  1.02
+//ra#13659: Initial revision                             nljclo   13-06-16  1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Capacity : INT ;  // Capacity of UQZ
+   Calculated_H2H_Length : INT ; // calculated Head to Head lenght
+   UQZ_Disabled : BOOL ; // UQZ disabled
+   UQZ_Error : BOOL ;	 // UQZ is in error
+  END_STRUCT ;	
+END_TYPE
+

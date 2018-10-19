@@ -1,0 +1,243 @@
+FUNCTION_BLOCK "FB_Sick_Comm_PN"
+TITLE =%version: 0.06 % CN: 33 
+//Function:
+//Communication with Sick scanner. 
+//
+//Based on version 0.8 FB_sick_Comm
+//
+//This version  %created_by:  nlhdl %
+//              %date_created:  Thursday, January 18, 2018 8:20:54 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ina#9057: CIO communication wrong offset data         nlHdL    18-01-18   0.06
+//ina#7972: CIO block IO range not correct              nlHdL    19-10-17   0.05
+//ra#23607: Calculate offset for message copy           nlHdL    04-07-17   0.04
+//ra#23607: Wrong offset message receive copy           nlHdL    03-07-17   0.03
+//ra#18928: Add CIO to library                          nlHdL    22-12-16   0.02
+//ra#15851: Add BSO from RAW to General Library         nlHdL    19-07-16   0.01
+//ra#15851: Add BSO from RAW to General Library         nlHdL    19-07-16   0.01
+//Initial version based on v0.03 of toronto             nlhdl    17-12-15   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_CFG_Sick_startAddr : INT ;	//CFG: Adress of the sick module
+  i_CFG_DB_SICK_Data : BLOCK_DB ;	//CFG: SICK Scanner DATABLOCK
+  i_Trigger_Scanner : BOOL ;	//Trigger input to start/stop the scanner by software
+  i_CFG_CIO_Data : BOOL ;	//CFG: Data receive is CIO Data
+END_VAR
+VAR
+  s_FB_Sick_COM_PNDP : "FB_SICK_CMCOMM_PNDP";	
+  s_arrReceive : ARRAY  [0 .. 128 ] OF CHAR ;	
+  s_arrSend : ARRAY  [0 .. 128 ] OF CHAR ;	
+  s_I_Barcode_Length : INT ;	//Input length for communication to barcode scanners
+  s_O_Barcode_Length : INT ;	//Output length for communication to barcode scanners
+  s_SCN_Start_Address : INT ;	//Start Address of Barcode Scanner in DB_SICK_DATA
+  s_Data_Length : INT ;	//DATA length of Barcode Scanner in DB_SICK_DATA
+  s_Sick_startAddr : WORD ;	//CFG: Adress of the sick module [HEX]
+  s_Done : BOOL ;	//Bit to indicate that pointer calculation has been done
+  s_Trigger_Scanner : BOOL ;	
+  s_Send_req : BOOL ;	
+  s_FP_Trigger : BOOL ;	//Flank Positive trigger
+  s_FN_Trigger : BOOL ;	//Flank Negative trigger
+END_VAR
+VAR_TEMP
+  t_Any_Pointer_Data : ANY ;	//ANY pointer to the data in the DB_data
+  t_Read_Any_Pointer : ANY ;	//ANY pointer to the data in the DB_data
+  t_Data_Start_address : DWORD ;	//Start Address in DB_SICK_DATA
+  t_Data_Length : INT ;	//Data Length in DB_SICK_DATA
+  t_Input_Length : INT ;	//Input length in number of bytes used for BMV communication
+  t_Output_Length : INT ;	//Output length in number of bytes used for BMV communication
+  t_DBno_Sick_Data : INT ;	//DB number of Data from Sick scanner
+  t_New_Data_Received : BOOL ;	//New data received from scanner
+  t_Error : BOOL ;	
+  t_Error_Code : WORD ;	
+  t_Rcv_Length : INT ;	
+  t_ret_val_int : INT ;	
+  t_DI_Num : INT ;	
+  t_Start_Adress_Rcv : INT ;	//Start adress of arr Receive pointer
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Initial function
+
+      NOP   0; 
+
+// Load instance DB to Temp
+      L     DINO; 
+      T     #t_DI_Num; 
+
+      A     #i_Trigger_Scanner; 
+      =     #s_Trigger_Scanner; 
+
+// Configure addresses
+      O     "M_First_Scan"; 
+      ON    #s_Done; 
+      JCN   AA99; 
+
+      SET   ; 
+      =     #s_Done; 
+
+      L     #i_CFG_Sick_startAddr; 
+      T     #s_Sick_startAddr; 
+
+//-------configured Input & Output address Length of the Scanner-----------//
+      L     128; 
+      T     #s_I_Barcode_Length; // Input address length for BSO
+
+      L     128; 
+      T     #s_O_Barcode_Length; // Output address length for BSO
+
+      A     #i_CFG_CIO_Data; 
+      JCN   AA01; 
+
+//---------------Data Length in the DB_SICK_DATA ------------------//
+      L     80; //Number of Bytes in DB_SICK_DATA for CIO
+      T     #s_Data_Length; 
+
+//--------------Start Address in the DB_SICK_DATA ------------------//
+      L     40; //Start address in DB_SICK_DATA for CIO
+      T     #s_SCN_Start_Address; 
+
+      JU    AA99; 
+
+//---------------Data Length in the DB_SICK_DATA ------------------//
+AA01: L     32; //Number of Bytes in DB_SICK_DATA for BSO
+      T     #s_Data_Length; 
+
+//--------------Start Address in the DB_SICK_DATA ------------------//
+      L     4; //Start address in DB_SICK_DATA for BSO
+      T     #s_SCN_Start_Address; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Scanner type identification
+// Set configuration for BSO Automatic Tag Reader
+      L     #s_I_Barcode_Length; //Input address length
+      T     #t_Input_Length; 
+
+      L     #s_O_Barcode_Length; //Output address length
+      T     #t_Output_Length; 
+
+      L     #s_SCN_Start_Address; //Data Start Address in DB_DATA_SICK
+      T     #t_Data_Start_address; 
+
+      L     #s_Data_Length; //Data Length in DB_DATA_SICK
+      T     #t_Data_Length; 
+NETWORK
+TITLE =CA: Handling Send & Receieve Data to SICK Scanner
+
+      NOP   0; 
+//--------Open the DB_SICK_DATA Datablock-----------// 
+      OPN   #i_CFG_DB_SICK_Data; // BSO Data DB
+      L     DBNO; 
+      T     #t_DBno_Sick_Data; // Determine data block DB number  
+
+//Assemble the DATA Output pointer for DB_SICK_DATA
+//-------------------------------------------------   
+      LAR1  P##t_Any_Pointer_Data; 
+/// Syntax ID 
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; 
+/// Load data type "Bytes"
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; 
+/// Load ANY Pointer length
+      L     #t_Data_Length; // Data Length in DB_SICK_DATA
+      T     LW [AR1,P#2.0]; 
+/// Load ANY Pointer DB no (0 if no DB)
+      L     #t_DBno_Sick_Data; 
+      T     LW [AR1,P#4.0]; 
+/// Load ANY Pointer start address
+      L     #t_Data_Start_address; // Start Address in DB_SICK_DATA
+      SLD   3; 
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; //Store 84H: DBX Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+// ---------------------------------------------
+// Scanner trigger ON
+      A     #s_Trigger_Scanner; 
+      FP    #s_FP_Trigger; 
+      JCN   CA01; 
+      =     #s_Send_req; 
+      L     50; 
+      T     #s_arrSend[0]; 
+      L     49; 
+      T     #s_arrSend[1]; 
+// ---------------------------------------------
+
+// ---------------------------------------------
+// Scanner trigger OFF
+CA01: A     #s_Trigger_Scanner; 
+      FN    #s_FN_Trigger; 
+      JCN   CA02; 
+      =     #s_Send_req; 
+      L     50; 
+      T     #s_arrSend[0]; 
+      L     50; 
+      T     #s_arrSend[1]; 
+// ---------------------------------------------
+
+// Profinet communication Sick scanner 
+CA02: CALL #s_FB_Sick_COM_PNDP (
+           InAddr                   := #s_Sick_startAddr,//hex of the startadress
+           InLen                    := #s_I_Barcode_Length,
+           OutAddr                  := #s_Sick_startAddr,//hex of the startadress
+           OutLen                   := #s_O_Barcode_Length,
+           SendReq                  := #s_Send_req,
+           SendLen                  := 2,
+           SendData                 := #s_arrSend,
+           RcvData                  := #s_arrReceive,
+           RcvDone                  := #t_New_Data_Received,
+           RcvLen                   := #t_Rcv_Length,
+           Error                    := #t_Error,
+           Errorcode                := #t_Error_Code);
+
+      CLR   ; 
+      =     #s_Send_req; 
+
+//write data to   "DB_SICK_data"
+      CALL "FC_Any_To_Adress" (
+           i_ANY_Data               := #s_arrReceive,
+           o_Adress                 := #t_Start_Adress_Rcv);
+
+      LAR1  P##t_Read_Any_Pointer; 
+/// Syntax ID 
+      L     B#16#10; 
+      T     LB [AR1,P#0.0]; 
+/// Load data type "Bytes"
+      L     B#16#2; 
+      T     LB [AR1,P#1.0]; 
+/// Load ANY Pointer length
+      L     #t_Data_Length; // Data Length in DB_SICK_DATA
+      T     LW [AR1,P#2.0]; 
+/// Load ANY Pointer DB no (0 if no DB)
+      L     #t_DI_Num; 
+      T     LW [AR1,P#4.0]; 
+/// Load ANY Pointer start address
+      L     #t_Start_Adress_Rcv; // Start Address of the data
+      SLD   3; 
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; //Store 84H: DBX Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_Read_Any_Pointer,
+           RET_VAL                  := #t_ret_val_int,
+           DSTBLK                   := #t_Any_Pointer_Data);
+
+//--------Open the DB_SICK_DATA Datablock---------// 
+      OPN   DB [#t_DBno_Sick_Data]; 
+
+      A     #t_New_Data_Received; 
+      =     DBX    0.0; 
+
+      NOP   0; 
+END_FUNCTION_BLOCK
+

@@ -1,0 +1,442 @@
+FUNCTION "FC_Generator_LNK" : VOID
+TITLE =%version: 0.12 % CN: 31 
+//Function:        :
+//Generates LNK number if i_LNK = 0, else add default records to LNK
+//
+//History:                                                                        
+//This version  %created_by: nlhdl %
+//              %date_created: Monday, May 07, 2018 8:31:18 AM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27974: Error Generator LNK number > 510            nlHdL    07-05-18   0.12
+//ina#7282: generated empty rep route for track report  nlHdL    07-09-17   0.11
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.10
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.10
+//12269: LNK Generator update for Default LNK           nlHdL    09-01-14   0.10
+//15807: Block consistency update IO symbols, comment   nlHdL    18-09-13   0.09
+//PR11918: Adopted Decision point update with Dir A & B nlHdL    02-04-13   0.08
+//CR19512 Update sources according S7 Manager           nlHdL    08-03-13   0.07
+//CR8255 Update internal event logging value            nlcsu    11-11-11   0.06
+//PR6313 Modified AR1 pointers to Dint                  nlJBax   21-01-11   0.05 
+//PR6157 Modified AR1 pointers to Dint                  nlHdL    23-12-10   0.04 
+//Change CLR back into SET                              nlMRe    18-10-10   0.03
+//Update FC_Event to FC_Write_Event                     nlMRe    03-09-10   0.02
+//CR5293 Modified Event and data LNK record             nlHdL    11-06-10   0.01 
+//
+//Description:
+//Generated a List type (example LIC) number, and create the link between LNK- Lis
+//t type DB.
+//Via the i_DB_List the List type is selected.
+//Also the list type record is preset with the default record which is selected 
+//(i_Default_Record).
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_LNK : INT ;	//LNK number to create the Link to, 0 = New LNK
+  i_DB_List : INT ;	//Block DB of List DB, selection of which TYPE of Link (LIC, TIC, ect)
+  i_Default_Record : INT ;	//Number of default record to be used to create link.
+  i_DB_Event_Num : INT ;	//Number of DB event
+END_VAR
+VAR_OUTPUT
+  o_LNK : INT ;	//Output LNK number
+END_VAR
+VAR_TEMP
+  t_ANY_SRC_Default : ANY ;	//ANY pointer to source in Default DB
+  t_ANY_DST_Default : ANY ;	//ANY pointer to destination in list DB
+  t_LNK_Nr : INT ;	//Temp LNK number
+  t_Record_Length : INT ;	//Temp length of used record
+  t_LNK_Start_Nr : INT ;	//Temp Start number of LNK to check if all are assigned
+  t_List_Start_Nr : INT ;	//Temp Start number of List DB to check if all are assigned
+  t_List_Nr : INT ;	//Temp List DB number
+  t_RET_VAL_INT : INT ;	//Retour Value
+  t_DB_Number_List : INT ;	//DB Number of the request List
+  t_Chk_Loop_DB_List : INT ;	//Count loop amount of DB check
+  t_Ret_Event : INT ;	//Return value for Write Event
+  t_New_LNK_Request : BOOL ;	//Temp if new LNK number is requested
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Search for position in LNK record for DB number
+
+      L     #i_DB_List; 
+      T     #t_DB_Number_List; 
+
+      OPN   "DB_LNK_List"; 
+      L     DBW    0; 
+      L     12; // Start DB List check from DBW12
+      -I    ; 
+      T     #t_Chk_Loop_DB_List; // Loop in Bytes length of check DB position in LNK list
+
+      L     DBW    0; // Length header
+      L     #t_Chk_Loop_DB_List; 
+      -I    ; 
+      SLW   3; 
+      LAR1  ; // Pointer to DB numbers in DB_LNK
+
+AA01: L     DBW [AR1,P#0.0]; 
+      L     #t_DB_Number_List; 
+      <>I   ; 
+      JCN   AA99; // IF DB number is found end search
+
+      L     #t_Chk_Loop_DB_List; 
+      L     2; 
+      -I    ; 
+      T     #t_Chk_Loop_DB_List; 
+      JZ    AA02; 
+
+      TAR1  ; 
+      L     P#2.0; // THEN set pointer to next integer 
+      +D    ; 
+      LAR1  ; 
+
+      JU    AA01; // Loop
+
+AA02: L     #t_DB_Number_List; // Check if DB is connected
+      L     2; 
+      >I    ; 
+      JCN   AA99; // IF there is a DB connected and not found, end block no LNK number
+
+      L     0; 
+      T     #o_LNK; 
+
+      BE    ; 
+
+AA99: NOP   0; 
+NETWORK
+TITLE =BA: Create new LNK number.
+
+      CLR   ; 
+      =     #t_New_LNK_Request; 
+
+      OPN   "DB_LNK_List"; 
+      L     DBW    4; 
+      T     #t_LNK_Start_Nr; // Copy start number to check if all are assigned
+
+      L     #i_LNK; 
+      T     #t_LNK_Nr; 
+      L     0; 
+      ==I   ; 
+      JCN   BA02; // IF i_LNK = 0 then create new number
+
+      L     DBW    4; // Load last assigned 
+      T     #t_LNK_Nr; 
+      SET   ; 
+      =     #t_New_LNK_Request; 
+
+// Create new number
+BA01: L     #t_LNK_Nr; 
+      +     1; //Increment number
+      T     #t_LNK_Nr; 
+
+// Check if number within DB range
+BA02: L     DBW    2; 
+      T     #t_Record_Length; 
+      L     #t_LNK_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      L     DBLG; 
+      <D    ; 
+      JCN   BA03; // If length is > then goto first (loop)
+
+      JU    BA99; 
+
+// Set LNK number to first
+BA03: L     1; 
+      T     #t_LNK_Nr; 
+
+BA99: NOP   0; 
+NETWORK
+TITLE =CA: Check Assigned LNK number
+
+      A     #t_New_LNK_Request; 
+      JCN   CA00; 
+
+      L     #t_Record_Length; 
+      L     #t_LNK_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+      JU    CA01; 
+
+CA00: L     #t_Record_Length; 
+      L     #t_LNK_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      L     #t_Record_Length; 
+      +D    ; 
+      L     #t_Chk_Loop_DB_List; // Offset position in the record = Length (DBW2) - Position found DB number in reocrd (Chk_Loop_DB_List)
+      -D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+      L     2; 
+      T     #t_Record_Length; // Only check the position not assigned if i_LNK is used
+
+// Loop to check if entry = 0
+CA01: L     DBW [AR1,P#0.0]; 
+      L     0; 
+      ==I   ; 
+      JCN   CA02; // LNK is Assigned goto new LNK number
+
+      L     #t_Record_Length; 
+      L     2; 
+      -I    ; 
+      JZ    CA99; // Check entries stop if entry = 0
+      T     #t_Record_Length; 
+
+      TAR1  ; 
+      L     P#2.0; 
+      +D    ; // Goto next integer
+      LAR1  ; // Store Entry pointer in address-register 
+
+      JU    CA01; 
+
+// LNK is Assigned goto new LNK number
+CA02: NOP   0; 
+      A     #t_New_LNK_Request; 
+      JCN   CA03; // LNK already used
+
+      L     #t_LNK_Nr; 
+      L     #t_LNK_Start_Nr; 
+      ==I   ; // AND Last_Assigned_LNK is not equal to New LNK (Complete Loop)
+      JCN   BA01; // THEN loop
+
+      L     0; // ELSE Reset Output (Do not update last assigned LIC)
+      T     #o_LNK; // (Do not update last assigned LNK in DB_LNK_List)
+
+      CALL "FC_Write_Event" (// Report event "All LNK's assigned" (3204)
+           i_Message_ID             := 3204,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BE    ; 
+
+CA03: NOP   0; 
+      L     0; // Assign excisting LNK to used List
+      T     #o_LNK; // (Do not update last assigned LNK in DB_LNK_List)
+
+      CALL "FC_Write_Event" (// Report event "The LNK is already assigned to a list DB" (3204)
+           i_Message_ID             := 3130,
+           i_Event_value            := 1,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BE    ; 
+
+CA99: NOP   0; 
+NETWORK
+TITLE =DA: Create new Type number.
+//Type number can be different types of list numbers.
+//Example of a Type is LIC or TIC.
+      OPN   DB [#t_DB_Number_List]; 
+      L     DBW    4; 
+      T     #t_List_Start_Nr; // Copy start number to check if all are assigned
+      T     #t_List_Nr; 
+
+// Create new number
+DA01: L     #t_List_Nr; 
+      +     1; //Increment number
+      T     #t_List_Nr; 
+
+// Check if number within DB range
+      L     DBW    2; 
+      T     #t_Record_Length; 
+      L     #t_List_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      L     DBLG; 
+      <D    ; 
+      JCN   DA03; // If length is > then goto first (loop)
+
+      JU    DA99; 
+
+// Set List type number to first
+DA03: L     1; 
+      T     #t_List_Nr; 
+
+DA99: NOP   0; 
+NETWORK
+TITLE =EA: Check Assigned type number
+
+      L     #t_Record_Length; 
+      L     #t_List_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+// Loop to check if entry = 0
+      L     DBW [AR1,P#0.0]; 
+      L     0; 
+      ==I   ; 
+      JCN   EA02; // List type number is Assigned goto new number
+
+      JU    EA99; // Entry checked
+
+// List type number is Assigned goto new List type number
+EA02: NOP   0; 
+      L     #t_List_Nr; 
+      L     #t_List_Start_Nr; 
+      ==I   ; // AND Last_Assigned_LNK is not equal to New LNK (Complete Loop)
+      JCN   DA01; // THEN loop
+
+      L     0; 
+      T     #o_LNK; 
+
+      CALL "FC_Write_Event" (// Report event "Related record list is all assigned (LIC, TIC, etc)" (3129)
+           i_Message_ID             := 3129,
+           i_Event_value            := #t_DB_Number_List,
+           i_DB_Event_Num           := #i_DB_Event_Num,
+           o_Return_Value           := #t_Ret_Event);
+
+      BE    ; 
+
+EA99: NOP   0; 
+NETWORK
+TITLE =FA: Copy default record to type List DB
+// Source ANY pointer to Default Record in Default DB
+      L     #i_Default_Record; //Calculate pointer to record number
+      L     0; 
+      >=I   ; 
+      JCN   FA01; 
+
+      LAR1  P##t_ANY_SRC_Default; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     #t_Record_Length; // Number of bytes can be copied = record length
+      T     LW [AR1,P#2.0]; 
+      OPN   DB [#t_DB_Number_List]; 
+      L     DBW    8; // Load default DB number from List DB
+      T     LW [AR1,P#4.0]; 
+
+      L     #i_Default_Record; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      SLD   3; //Convert byte address to Pointer format
+
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; // DB type global 
+      T     LB [AR1,P#6.0]; 
+
+// Destination ANY pointer to Record in List DB
+      LAR1  P##t_ANY_DST_Default; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     #t_Record_Length; // Number of bytes can be copied = record length
+      T     LW [AR1,P#2.0]; 
+      OPN   DB [#t_DB_Number_List]; 
+      L     DBNO; // Write DB number of List DB
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_List_Nr; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; //Load Header for DB List and Add 
+      +D    ; 
+      SLD   3; //Convert byte address to Pointer format
+
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; // DB type global 
+      T     LB [AR1,P#6.0]; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_SRC_Default,
+           RET_VAL                  := #t_RET_VAL_INT,
+           DSTBLK                   := #t_ANY_DST_Default);
+
+      JU    FA02; 
+
+// Destination ANY pointer to Record in List DB
+FA01: LAR1  P##t_ANY_DST_Default; // Create ANY pointer
+      L     B#16#10; // Standard S7 code
+      T     LB [AR1,P#0.0]; 
+      L     B#16#2; // Data type 2=byte
+      T     LB [AR1,P#1.0]; 
+      L     #t_Record_Length; // Number of bytes can be copied = record length
+      T     LW [AR1,P#2.0]; 
+      OPN   DB [#t_DB_Number_List]; 
+      L     DBNO; // Write DB number of List DB
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_List_Nr; //Calculate pointer to record number
+      L     #t_Record_Length; 
+      *D    ; 
+      L     DBW    0; //Load Header for DB List and Add 
+      +D    ; 
+      SLD   3; //Convert byte address to Pointer format
+
+      T     LD [AR1,P#6.0]; 
+      L     B#16#84; // DB type global 
+      T     LB [AR1,P#6.0]; 
+
+      L     0; 
+      T     #t_RET_VAL_INT; 
+
+      CALL "FILL" (//Clear record write all to 0
+           BVAL                     := #t_RET_VAL_INT,
+           RET_VAL                  := #t_Ret_Event,
+           BLK                      := #t_ANY_DST_Default);
+
+//Write LNK into type list
+FA02: OPN   DB [#t_DB_Number_List]; 
+
+      L     DBW    2; 
+      L     #t_List_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to List type DB entry in DB_xxx_List
+
+      L     #t_LNK_Nr; 
+      T     DBW [AR1,P#0.0]; 
+
+NETWORK
+TITLE =GA: Make link between LNK-List type
+
+      OPN   "DB_LNK_List"; 
+      L     DBW    2; 
+      L     #t_LNK_Nr; 
+      *D    ; 
+      L     DBW    0; // Length header
+      +D    ; 
+      L     DBW    2; 
+      +D    ; 
+      L     #t_Chk_Loop_DB_List; // Offset position in the record = Length (DBW2) - Position found DB number in reocrd (Chk_Loop_DB_List)
+      -D    ; 
+      SLD   3; 
+      LAR1  ; // Pointer to LNK entry in DB_LNK
+
+      L     #t_List_Nr; 
+      T     DBW [AR1,P#0.0]; 
+NETWORK
+TITLE =HA: Write ouput
+
+      OPN   "DB_LNK_List"; 
+      L     #t_LNK_Nr; 
+      T     DBW    4; // Write last generated LNK number
+      T     #o_LNK; 
+
+      OPN   DB [#t_DB_Number_List]; 
+      L     #t_List_Nr; 
+      T     DBW    4; // Write last generated type number
+
+END_FUNCTION
+

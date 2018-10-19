@@ -1,0 +1,20 @@
+TYPE "UDT_VCZ_Sett"
+TITLE =%version: 0.02 % CN: 11
+//History:
+//This version  %created_by: inajos %
+//              %date_created: Thursday, November 23, 2017 6:17:32 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26555:Review Updates                               inajos   23-11-17   0.02
+//Initial version                                       inajos   06-10-17   0.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Offset_Trig1 : INT ;	//[cm] Distance between TRIG1 Proximity Switch and induct position
+  END_STRUCT ;	
+END_TYPE
+

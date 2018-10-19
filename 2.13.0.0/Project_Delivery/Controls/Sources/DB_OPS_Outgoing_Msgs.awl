@@ -1,0 +1,27 @@
+DATA_BLOCK "DB_OPS_Outgoing_Msgs"
+TITLE =%version: 0.01 % CN: 20
+//History:
+//This version  %created_by: nljclo %
+//              %date_created: Wednesday, September 21, 2016 1:45:35 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#17264: Moved from RAW to GEN                       nlJClo   21-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//ra#16996: Update the OPZ according MCFV decomposition nlJClo   09-09-16   0.01
+//Initial Revision                                      nlHdL    29-04-15   0.01
+//
+FAMILY : GEN
+VERSION : 0.0
+
+
+  STRUCT 	
+   Lifesign_Message : "UDT_OPS_Msg_Lifesign";	//Lifesign request message	
+   Encode_Message : "UDT_OPS_Msg_EncodReq";	//Encode message for encode and cancel 
+   Mode_Req_Message : "UDT_OPS_Msg_ModeReq";	//Mode request to workstation message
+   Default : "UDT_OPS_Msg_Body";	//Default message filled with FF as fillers
+   Merged_Message : "UDT_OPS_Msg_Body";	//Merge of Default and Report
+  END_STRUCT ;	
+BEGIN
+END_DATA_BLOCK
+

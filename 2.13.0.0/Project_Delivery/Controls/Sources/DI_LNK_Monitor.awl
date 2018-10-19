@@ -1,0 +1,16 @@
+DATA_BLOCK "DI_LNK_Monitor"
+TITLE =%version: 0.01 % CN: 49
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: Thursday, January 26, 2017 3:23:38 PM %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//Initial version                                       nlHdL    26-01-17   0.01
+//
+FAMILY : General
+VERSION : 0.0
+
+"FB_LNK_Monitor"
+BEGIN
+END_DATA_BLOCK

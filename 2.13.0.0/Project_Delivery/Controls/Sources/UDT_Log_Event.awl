@@ -1,0 +1,30 @@
+TYPE "UDT_Log_Event"
+TITLE =%version: 0.05 % CN: 10
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 15:48:35 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.05
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.05
+//7324: ECS-P General from the RD to RA for platform    nlHdL    06-07-15   0.05
+//15797: Keyword release added                          nlwwij   26-09-13   0.05
+//No modification, updated version header               nlcsu    27-10-11   0.04
+//CR8005 Added new field "Value"                        nlcsu    27-10-11   0.03
+//Changed according to new logging                      nlMRe    03-09-10   0.02
+//Initial revision                                      nlHdL    22-03-10   0.01
+//
+FAMILY : General
+
+
+  STRUCT 	
+   Event_Date : DATE ;	//Data of the error event
+   Event_Time : TIME_OF_DAY ;	//Time of the error event
+   Event_ID : INT ;	//Identification of the error event
+   ID : DWORD ;	//ID Record HEX AAAA - ZZSS
+   Value : INT ;	//Value of the event
+  END_STRUCT ;	
+END_TYPE
+

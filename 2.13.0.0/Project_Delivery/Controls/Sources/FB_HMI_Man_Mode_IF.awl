@@ -1,0 +1,563 @@
+FUNCTION_BLOCK "FB_HMI_Man_Mode_IF"
+TITLE =%version: 0.01 % CN: 40
+//Function:
+//HMI functions to interface with Manual mode screen.
+//
+//History:
+//This version  %created_by:  inajos %
+//              %date_created: Monday, November 14, 2016 3:06:52 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#13189:Initial version based on FB_HMI_IF_SSM       inajos   27-10-16   0.01
+//
+//Description:
+//The functions control are:
+//- Interface with multiple Manual screen defined in DB_HMI_Man_IF_Mode
+//- Get Manual ID which is shown on HMI
+//- Handle Manual HMI commands 
+//- Active screen no and total screen no for that zone in Manual 
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Mode_Index : BLOCK_DB ;	//Index DB for zones with modes
+  i_DB_HMI_IF_Mode : BLOCK_DB ;	//HMI Interface DB for zones with modes
+  i_DB_HMI_Command : BLOCK_DB ;	//HMI_Man_Command
+  i_Screen_Current : INT  := 1;	//Current Selected Screen number 
+  i_HMI_Command : INT ;	//HMI Command number (as defined in HMI-node configuration)
+  i_DB_Status_Index_ID : DWORD ;	//DB status Index Pointer
+  i_Status_Number : INT ;	//Status Number
+END_VAR
+VAR_OUTPUT
+  o_Total_No_Screens : INT ;	//Total configured zones with modes
+END_VAR
+VAR
+  s_Mode_Zone : STRUCT 	//Zone mode
+   Fixed_Straight : BOOL ;	//Semi-Auto Fixed Straight
+   Fixed_Sort1 : BOOL ;	//Semi-Auto Fixed Sort1
+   Fixed_Sort2 : BOOL ;	//Semi-Auto Fixed Sort2
+  END_STRUCT ;	
+  s_Num_Of_Screens_Present : INT ;	//Number of Zones present in interface DB
+  s_Current_Screen_Data : "UDT_IF_HMI_Man";	//Current selected Zone data
+  s_Status : INT ;	//Zone Status to HMI 
+  s_ID_to_HMI : STRING  [18 ];	//Zone indentification which is to be shown on HMI
+  s_HMI_Cmd : STRUCT 	//HMI Commands
+   Button1 : BOOL ;	//Button1
+   Button2 : BOOL ;	//Button2
+   Button3 : BOOL ;	//Button3
+   Button4 : BOOL ;	//Button4
+  END_STRUCT ;	
+  s_Cmd_Ref : STRUCT 	//Command number of HMI commands
+   K1_Auto : INT  := 1311;	//Auto
+   K2_Fixed_Straight : INT  := 1312;	//Semi-Auto Fixed Straight
+   K3_Fixed_Sort1 : INT  := 1313;	//Semi-Auto Fixed Sort1
+   K4_Fixed_Sort2 : INT  := 1314;	//Semi-Auto Fixed Sort2
+  END_STRUCT ;	
+  s_Function_No_Status : STRUCT 	
+   s_Status_Bits_00 : BOOL ;	//Status Bits
+   s_Status_Bits_01 : BOOL ;	//Status Bits
+   s_Status_Bits_02 : BOOL ;	//Status Bits
+   s_Status_Bits_03 : BOOL ;	//Status Bits
+   s_Status_Bits_04 : BOOL ;	//Status Bits
+   s_Status_Bits_05 : BOOL ;	//Status Bits
+   s_Status_Bits_06 : BOOL ;	//Status Bits
+   s_Status_Bits_07 : BOOL ;	//Status Bits
+   s_Status_Bits_10 : BOOL ;	//Status Bits
+   s_Status_Bits_11 : BOOL ;	//Status Bits
+   s_Status_Bits_12 : BOOL ;	//Status Bits
+   s_Status_Bits_13 : BOOL ;	//Status Bits
+   s_Status_Bits_14 : BOOL ;	//Status Bits
+   s_Status_Bits_15 : BOOL ;	//Status Bits
+   s_Status_Bits_16 : BOOL ;	//Status Bits
+   s_Status_Bits_17 : BOOL ;	//Status Bits
+  END_STRUCT ;	
+  s_Command_Present : STRUCT 	
+   Auto : BOOL ;	//Auto
+   Fixed_Straight : BOOL ;	//Semi-Auto Fixed Straight
+   Fixed_Sort1 : BOOL ;	//Semi-Auto Fixed Sort1
+   Fixed_Sort2 : BOOL ;	//Semi-Auto Fixed Sort2
+  END_STRUCT ;	
+END_VAR
+VAR_TEMP
+  t_AR2_Mask : DWORD ;	//'relative address'-mask
+  t_Record_Data_length : INT ;	//Record lenght in DB Mode interface
+  t_Cmd_Record_Data_length : INT ;	//Record lenght in DB Mode interface
+  t_HMI_Command_offset : INT ;	//Record lenght in DB Mode interface
+  t_ANY_Source : ANY ;	//ANY source
+  t_Ret_Val : INT ;	//Temp Return Value
+  t_DBNO_IF_Mode_Index : WORD ;	//Interface Mode DB number
+  t_Zone_Status : WORD ;	//Temp Variable for Zone Status
+  t_HMI_IF_Offset_ID : DWORD ;	
+  t_HMI_IF_offset_Status : DWORD ;	
+  t_HMI_IF_offset_commands : DWORD ;	
+  t_ID : DWORD ;	//Temp variable for indentification
+  t_DBNO_IF_HMI : WORD ;	//Interfcae HMI DB number
+  t_ANY_P_To_ID_On_HMI : ANY ;	
+  t_HMI_Cmd : WORD ;	//Temp variable for HMI commands
+  t_Zone_Function_no : INT ;	//Zone Function Number
+  t_Display_Bits : INT ;	
+  t_Par_Name : INT ;	//Parameter Name Offset
+  t_Par_Mode : INT ;	//Parameter Mode
+  t_ID_Text : INT ;	//Selected ID
+  t_Status_Text : INT ;	//Mode/Status text
+  t_Button1 : INT ;	//Button 1 Text
+  t_Button2 : INT ;	//Button 2 Text
+  t_Button3 : INT ;	//Button 3 Text
+  t_Button4 : INT ;	//Button 4 Text
+  t_Status_No : INT ;	//Status Number
+  t_Active_No : INT ;	//Active Number
+  t_Total_No : INT ;	//Total Number
+  t_Function_No : INT ;	//Function Number
+  t_Display_Bits_Value : INT ;	//Display Bits Value
+  t_Manual_Mode_Active : BOOL ;	//Manual Mode Active
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Get relative addres out of AR2
+//Address register:10000ZZZ 00000yyy yyyyyyyy yyyyyxxx
+//Z=Operand area y=Byte address   x=Bit address
+//Mask Byte and Bit address only
+      TAR2  ; // Load 'base address register'
+      AD    DW#16#FFFFFF; // Mask 'address only' out of area-internal-pointer
+      T     #t_AR2_Mask; // 'relative address'-mask
+NETWORK
+TITLE =BA: Offsets
+
+      NOP   0; // Hold the command line
+// Offset in "UDT_HMI_Man_Input"
+      L     32; // Record length of "UDT_HMI_Man_Input"
+      T     #t_Record_Data_length; 
+
+
+//Offsets of i_DB_HMI_Command    
+      L     2; // 2 bytes
+      T     #t_Cmd_Record_Data_length; 
+
+      L     0; 
+      T     #t_HMI_Command_offset; //Commands Offset
+
+
+// Offset for DB_HMI_Zone_IF_OP_TP
+
+
+      L     P#84.0; //  Offset of Display Bits
+      T     #t_Display_Bits; 
+
+      L     P#86.0; //  Offset of Parameter Name
+      T     #t_Par_Name; 
+
+      L     P#88.0; //Offset of Parameter Mode
+      T     #t_Par_Mode; 
+
+      L     P#90.0; // Offset of the ID  (ID String 30)
+      T     #t_HMI_IF_Offset_ID; 
+
+      L     P#122.0; 
+      T     #t_Status_Text; //Offset of Status Text
+
+      L     P#124.0; 
+      T     #t_Button1; //Offset of Button1
+
+      L     P#126.0; 
+      T     #t_Button2; //Offset of Button2
+
+      L     P#128.0; 
+      T     #t_Button3; //Offset of Button3
+
+      L     P#130.0; 
+      T     #t_Button4; //Offset of Button4
+
+      L     P#132.0; 
+      T     #t_Status_No; //Status Number
+
+      L     P#134.0; 
+      T     #t_Active_No; //Active Number
+
+      L     P#136.0; 
+      T     #t_Total_No; //Total Number
+
+      L     P#138.0; 
+      T     #t_Function_No; //Function Number
+
+
+NETWORK
+TITLE =CA: Calculate numbers of Screens interface present
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBLG; // Get the DB length..
+      L     #t_Record_Data_length; 
+      /I    ; // AND calculate the nr of Zones present 
+      T     #s_Num_Of_Screens_Present; 
+      T     #o_Total_No_Screens; 
+
+      OPN   #i_DB_HMI_Mode_Index; 
+      L     DBNO; // Load Zone interface DB number
+      T     #t_DBNO_IF_Mode_Index; 
+
+      L     #s_Num_Of_Screens_Present; 
+      L     0; 
+      <=I   ; //IF Number of zones with modes <=0
+      BEC   ; //THEN end this block
+
+NETWORK
+TITLE =DA: Load the data for current selected Zone Manual screen
+
+      LAR1  P##t_ANY_Source; // Load pointer to local any destination for blockmove
+
+      L     W#16#1002; // Load 10 hex (for S7) and data type     
+      T     LW [AR1,P#0.0]; 
+
+      L     32; // No of Byte
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_Mode_Index; // Load DB number
+      T     LW [AR1,P#4.0]; 
+
+      L     #i_Screen_Current; // Load SSM number
+      L     1; // Start with 0
+      -I    ; 
+      L     #t_Record_Data_length; // length of one record in comp. type DB
+      *I    ; // pointer to current record
+      SLW   3; // convert byte => bit pointer
+      L     DW#16#84000000; // 84=DB 
+      +D    ; 
+      T     LD [AR1,P#6.0]; // Memory area / start address of the data
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Source,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #s_Current_Screen_Data);
+
+NETWORK
+TITLE =EA: Current zone ID conversion to ASCII 
+//The current zone ID convert into the ASCII Chatrer to display ON HMI
+//ID is in format MC AAAAZZSS Where 
+//   MC = 
+//   AAAAZZSS = HEX format
+//The ID is converted to ASCII and shown on the HMI
+//MC.AAAA.ZZ.SS
+//
+
+//Use Zone Number details from DB Status Index
+      L     #i_DB_Status_Index_ID; 
+      L     DW#16#FFFFFF00; 
+      AD    ; // mask to clear last to digits
+      T     #t_ID; 
+
+      L     #s_Current_Screen_Data.Mark_Code[1]; //First char of markcode
+      T     #s_ID_to_HMI[1]; 
+
+      L     #s_Current_Screen_Data.Mark_Code[2]; //Second char of markcode
+      T     #s_ID_to_HMI[2]; 
+
+      L     #s_Current_Screen_Data.Mark_Code[3]; //Third char of markcode
+      T     #s_ID_to_HMI[3]; 
+
+      L     #s_Current_Screen_Data.Mark_Code[4]; 
+      L     B#16#0; //Check third char <> $00 
+      ==I   ; //IF Mark_Code is only 2 chars long
+      JCN   EA01; //ELSE
+
+      L     ' '; //THEN Fill with a "space"
+      T     #s_ID_to_HMI[4]; 
+
+EA01: L     ' '; //Fill with a "space"
+      T     #s_ID_to_HMI[5]; 
+      T     #s_ID_to_HMI[6]; 
+      T     #s_ID_to_HMI[7]; 
+
+      L     #s_Current_Screen_Data.ID; // Load Current zone ID
+      L     #t_ID; 
+      OD    ; 
+      T     #t_ID; // Transfer to temp
+
+// ID format AAAAZZSS
+// Convert Section ID to ASCII
+      L     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[17]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[16]; 
+
+      L     '.'; // Add '.' Add dot
+      T     #s_ID_to_HMI[15]; 
+
+// Convert the ZZ ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID
+      L     DW#16#F; //select last
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[14]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[13]; 
+
+      L     '.'; //Add '.'  (dot)
+      T     #s_ID_to_HMI[12]; 
+
+// Convert AAAA ID to ASCII
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[11]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[10]; 
+
+      L     #t_ID; //Zone ID
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[9]; 
+
+      L     #t_ID; //Zone ID 
+      SRD   4; 
+      T     #t_ID; //Zone ID 
+      L     DW#16#F; //select last 
+      AW    ; 
+      L     DW#16#30; //add hex30 to char (convert to ASCII)
+      OW    ; 
+      T     #s_ID_to_HMI[8]; 
+
+
+NETWORK
+TITLE =FA: Copy Current Zone ID to HMI 
+
+
+      OPN   #i_DB_HMI_IF_Mode; 
+      L     DBNO; //Get DB number of interface DB
+      T     #t_DBNO_IF_HMI; 
+
+      L     P##t_ANY_P_To_ID_On_HMI; //Load pointer to temp of type ANY
+      LAR1  ; 
+
+      L     B#16#10; //Store 10 (hex) for S7
+      T     LB [AR1,P#0.0]; 
+
+      L     B#16#2; //Store datatype BYTE in ANY
+      T     LB [AR1,P#1.0]; 
+
+      L     30; //Store data length in ANY
+      T     LW [AR1,P#2.0]; 
+
+      L     #t_DBNO_IF_HMI; //Store DB number in ANY
+      T     LW [AR1,P#4.0]; 
+
+      L     #t_HMI_IF_Offset_ID; 
+      T     LD [AR1,P#6.0]; //and store in ANY
+
+      L     B#16#84; //Store 84H: DB Global data area in ANY
+      T     LB [AR1,P#6.0]; 
+
+
+//  Write Actul length in the ID pointer
+      L     P##s_ID_to_HMI; //Set pointer to ID variable
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+
+      L     17; // Copy only 17 CHAR
+      T     B [AR1,P#1.0]; // Write string 'actual' length
+
+// Move the current Zone ID to the HMI display location
+      CALL "BLKMOV" (// Write ID to HMI interface DB
+           SRCBLK                   := #s_ID_to_HMI,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_ANY_P_To_ID_On_HMI);
+
+
+NETWORK
+TITLE =GA : Requested cmd and Output HMI cmd to current Manual screen
+
+
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K1_Auto; // K1: Auto
+      ==I   ; 
+      A     #s_Current_Screen_Data.Display_Bits.Button1_bit; //only if command is available on zone
+      =     #s_HMI_Cmd.Button1; // THEN Auto request
+
+//Operation screen commands:
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K2_Fixed_Straight; // K2: Semi-Auto Fixed Straight
+      ==I   ; 
+      A     #s_Current_Screen_Data.Display_Bits.Button2_bit; //only if command is available on zone
+      =     #s_HMI_Cmd.Button2; // THEN Fixed Straight request
+
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K3_Fixed_Sort1; // K3: Semi-Auto Fixed Sort
+      ==I   ; 
+      A     #s_Current_Screen_Data.Display_Bits.Button3_bit; //only if command is available on zone
+      =     #s_HMI_Cmd.Button3; // THEN Fixed Sort request
+
+
+      L     #i_HMI_Command; // Striked command
+      L     #s_Cmd_Ref.K4_Fixed_Sort2; // K4: Semi-Auto Fixed Sort
+      ==I   ; 
+      A     #s_Current_Screen_Data.Display_Bits.Button4_bit; //only if command is available on zone
+      =     #s_HMI_Cmd.Button4; // THEN Fixed Sort request
+
+// Copy the HMI Commands word
+      L     P##s_HMI_Cmd; // Pointer to command bools
+      L     #t_AR2_Mask; 
+      +D    ; 
+      LAR1  ; 
+      L     W [AR1,P#0.0]; // read data (word)
+      T     #t_HMI_Cmd; 
+
+// Transfer the HMI command word to current selected zone
+
+      L     #i_Screen_Current; // Current selected zone
+      L     0; 
+      ==I   ; 
+      JCN   GA99; 
+      L     1; 
+      T     #i_Screen_Current; 
+GA99: L     #i_Screen_Current; // Current selected zone
+      L     1; 
+      -I    ; 
+      L     #t_Cmd_Record_Data_length; // Data record length 
+      *I    ; 
+      L     #t_HMI_Command_offset; // Add offset for command
+      +I    ; 
+      SLD   3; // Convet to pointer format
+      LAR1  ; 
+      OPN   #i_DB_HMI_Command; // Open zone interfce DB
+
+      L     #t_HMI_Cmd; // Load HMI Command
+      T     DBW [AR1,P#0.0]; 
+
+
+NETWORK
+TITLE =HA: Copy All Required Statuses To HMI
+
+      NOP   0; 
+      A(    ; 
+      L     #i_Status_Number; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #i_Screen_Current; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Current_Screen_Data.Fixed.Function_No; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      =     #t_Manual_Mode_Active; 
+
+      A     #t_Manual_Mode_Active; 
+      A(    ; 
+      L     #i_Screen_Current; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      A(    ; 
+      L     #s_Current_Screen_Data.Fixed.Function_No; 
+      L     1; 
+      ==I   ; 
+      )     ; 
+      JCN   HA01; 
+      R     #s_Current_Screen_Data.Display_Bits.Button2_bit; 
+      R     #s_Current_Screen_Data.Display_Bits.Button3_bit; 
+
+HA01: NOP   0; 
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #s_Current_Screen_Data.Display_Bits,
+           RET_VAL                  := #t_Ret_Val,
+           DSTBLK                   := #t_Display_Bits_Value);
+
+// Copy the info to HMI interface DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Display_Bits; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #t_Display_Bits_Value; //Active zone No.to HMI interface
+      T     DBW [AR1,P#0.0]; 
+
+      L     #s_Current_Screen_Data.Fixed.Par_ID_Name; //Total No.of zones to HMI Interfcae
+      T     DBW [AR1,P#2.0]; 
+
+      L     #s_Current_Screen_Data.Fixed.Par_Mode_Name; //Total No.of zones to HMI Interfcae
+      T     DBW [AR1,P#4.0]; 
+
+
+// Copy the info to HMI interface DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Button1; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #s_Current_Screen_Data.Fixed.Button1; 
+      T     DBW [AR1,P#0.0]; 
+
+      L     #s_Current_Screen_Data.Fixed.Button2; 
+      T     DBW [AR1,P#2.0]; 
+
+      L     #s_Current_Screen_Data.Fixed.Button3; 
+      T     DBW [AR1,P#4.0]; 
+
+      L     #s_Current_Screen_Data.Fixed.Button4; 
+      T     DBW [AR1,P#6.0]; 
+
+
+// Copy the info to HMI interface DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Function_No; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #s_Current_Screen_Data.Fixed.Function_No; 
+      T     DBW [AR1,P#0.0]; 
+
+
+// Copy the info to HMI interface DB
+      OPN   #i_DB_HMI_IF_Mode; //Open Interfce DB
+      L     #t_Active_No; //Set pointer to mode variable in interface DB
+      LAR1  ; 
+
+      L     #i_Screen_Current; //Active zone No.to HMI interface
+      T     DBW [AR1,P#0.0]; 
+
+      L     #s_Num_Of_Screens_Present; //Total No.of zones to HMI Interfcae
+      T     DBW [AR1,P#2.0]; 
+
+END_FUNCTION_BLOCK
+

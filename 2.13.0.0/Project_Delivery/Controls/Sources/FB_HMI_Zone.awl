@@ -1,0 +1,212 @@
+FUNCTION_BLOCK "FB_HMI_Zone"
+TITLE =%version: 0.03 % CN: 55
+//Function:    
+//Control HMI Operator Display on behalf of system
+// 
+//History:
+//This version  %created_by:  nlhdl %
+//              %date_created:  Friday, December 01, 2017 4:29:12 PM %
+//              %release: VI_GEN/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#26556: FB_HMI_Zone change CN to 55                 nlHdL    01-12-17   0.03
+//ra#13189 Symbol Name Corrected                        inajos  15-11-16   0.02
+//ra#13189:Initial revision based on FB_HMI_Area 0.06   inajos  27-10-16   0.01
+//
+//Description:
+//
+//Different functions can be distinguished on behalf of the HMI Operator 
+//Display
+//- Navigate through the various screens (menu control is specified within a DB)
+//
+FAMILY : General
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_DB_HMI_Menu : BLOCK_DB ;	//DB HMI Menu navigation configuration 
+  i_DB_HMI_IF : BLOCK_DB ;	//HMI Interface DB
+  i_UDT_HMI_Mode_Index : "UDT_IF_HMI_Mode";	//Index DB for zones with modes
+  i_DB_HMI_Man_Mode_Index : BLOCK_DB ;	//Index DB for Manual Screens
+  i_DB_HMI_Oper_Mode_Index : BLOCK_DB ;	//Index DB for Operator Screens
+  i_DB_HMI_Man_Cmd : BLOCK_DB ;	//i DB HMI Man Command
+  i_DB_HMI_Oper_Cmd : BLOCK_DB ;	//i DB HMI Operator Command
+  i_OP_Status : BLOCK_DB ;	//Status to OP
+  i_DB_Status_Index_ID : DWORD ;	//DB status Index ID
+END_VAR
+VAR_OUTPUT
+  o_ST_Communication_Error : BOOL ;	//ST: Communication error
+END_VAR
+VAR
+  s_FB_HMI_Menu_Control : "FB_HMI_Menu_Control";	//FB Menu Control
+  s_HMI_zone : "FB_HMI_Zone_Mode_IF";	//FB HMI Zone
+  s_HMI_Man_Mode_IF : "FB_HMI_Man_Mode_IF";	
+  s_HMI_Oper_Mode_IF : "FB_HMI_Oper_Mode_IF";	//FB Operator Mode
+  s_FB_Status : "FB_HMI_Status";	//FB HMI Status
+  s_Done : BOOL ;	//Done Bit
+  s_HMI : STRUCT 	//HMI Structure
+   Amount_Active_Alarms : INT ;	//Amount of active alarms
+   New_Activated_Alarm : INT ;	//Index number of new activated alarm
+   Pntr_Visible_Alarm : INT ;	//Index number displayed alarm on HMI
+   Command : INT ;	//HMI Command interface
+   Act_Node_ID : DWORD ;	//Actual Node-ID Root/Tree/Branch/Leaf [4-bytes]
+   Req_Node_ID : DWORD ;	//External Request Node-ID Root/Tree/Branch/Leaf [4-bytes]
+   Current_No_Man_Scrn : INT  := 1;	//Current Selected zone number
+   Total_No_Man_Scrn : INT ;	//Total number of zones with modes present
+   Current_No_Oper_Scrn : INT  := 1;	//Current Selected zone number
+   Total_No_Oper_Scrn : INT ;	//Total number of zones with modes present
+  END_STRUCT ;	
+  s_Status_No : INT ;	//Status Number of HMI
+END_VAR
+VAR_TEMP
+  t_menu_Screen_Navigation : INT ;	//Menu Screen Navigation
+  t_Menu_Display_Bits : INT ;	//Menu Display bits
+  t_Ret_val : INT ;	//Return Value
+  t_Function_No : INT ;	//Zone Function Number
+  t_Func_Add_Man_Index : INT ;	//Pointer to Function number in DB Man Mode Index
+  t_Func_Add_Oper_Index : INT ;	//Pointer to Function number in DB Oper Mode Index
+  t_Func_Add_CMD_Index : INT ;	//Pointer to `Command Bits number in DB Mode Index
+  t_Func_Add_Oper_CMD_Ind : INT ;	//Pointer to `Command Bits number in DB Oper Mode Index
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA:Init
+
+      L     0; 
+      T     #t_Function_No; 
+
+// From DB_HMI_OP_TP
+
+      L     P#40.0; 
+      T     #t_menu_Screen_Navigation; 
+
+//From UDT_HMI_Man first pointer address only
+//Used in Man Type DB
+
+      L     P#14.0; 
+      T     #t_Func_Add_Man_Index; 
+
+      L     P#30.0; 
+      T     #t_Func_Add_CMD_Index; 
+
+//From UDT_HMI_Int first pointer address only
+//Used in Oper Type DB
+
+      L     P#2.0; 
+      T     #t_Func_Add_Oper_Index; 
+
+      L     P#18.0; 
+      T     #t_Func_Add_Oper_CMD_Ind; 
+
+      OPN   #i_DB_HMI_Man_Mode_Index; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   AA01; 
+
+      OPN   #i_DB_HMI_Man_Mode_Index; 
+      L     #t_Func_Add_Man_Index; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Function_No; 
+
+      OPN   #i_DB_HMI_Man_Mode_Index; 
+      L     #t_Func_Add_CMD_Index; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Menu_Display_Bits; 
+
+      JU    AA02; 
+
+AA01: OPN   #i_DB_HMI_Oper_Mode_Index; 
+      L     DBNO; 
+      L     1; 
+      >I    ; 
+      JCN   AA02; 
+
+      OPN   #i_DB_HMI_Oper_Mode_Index; 
+      L     #t_Func_Add_Oper_Index; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Function_No; 
+
+      OPN   #i_DB_HMI_Oper_Mode_Index; 
+      L     #t_Func_Add_Oper_CMD_Ind; 
+      LAR1  ; 
+      L     DBW [AR1,P#0.0]; 
+      T     #t_Menu_Display_Bits; 
+
+AA02: NOP   0; 
+NETWORK
+TITLE =BA: HMI Zone Mode Interface
+
+      CALL #s_HMI_zone (
+           i_DB_HMI_Mode_Index      := #i_UDT_HMI_Mode_Index,
+           i_DB_HMI_IF_Mode         := #i_DB_HMI_IF,
+           i_HMI_Command            := #s_HMI.Command);
+
+NETWORK
+TITLE =CA:Status FB
+
+      CALL #s_FB_Status (
+           i_DB_HMI_IF_Mode         := #i_DB_HMI_IF,
+           i_OP_Status              := #i_OP_Status,
+           i_Screen_Number          := #s_HMI.Current_No_Man_Scrn,
+           i_Function_No            := #t_Function_No,
+           o_Status_No              := #s_Status_No);
+
+NETWORK
+TITLE =DA: HMI Manual Mode Interface
+
+      CALL #s_HMI_Man_Mode_IF (
+           i_DB_HMI_Mode_Index      := #i_DB_HMI_Man_Mode_Index,
+           i_DB_HMI_IF_Mode         := #i_DB_HMI_IF,
+           i_DB_HMI_Command         := #i_DB_HMI_Man_Cmd,
+           i_Screen_Current         := #s_HMI.Current_No_Man_Scrn,
+           i_HMI_Command            := #s_HMI.Command,
+           i_DB_Status_Index_ID     := #i_DB_Status_Index_ID,
+           i_Status_Number          := #s_Status_No,
+           o_Total_No_Screens       := #s_HMI.Total_No_Man_Scrn);
+
+NETWORK
+TITLE =EA:Operator Mode Interface
+
+      CALL #s_HMI_Oper_Mode_IF (
+           i_DB_HMI_Mode_Index      := #i_DB_HMI_Oper_Mode_Index,
+           i_DB_HMI_IF_Mode         := #i_DB_HMI_IF,
+           i_DB_HMI_Command         := #i_DB_HMI_Oper_Cmd,
+           i_OP_Status              := #i_OP_Status,
+           i_Screen_Current         := #s_HMI.Current_No_Oper_Scrn,
+           i_HMI_Command            := #s_HMI.Command,
+           o_Total_No_Screens       := #s_HMI.Total_No_Oper_Scrn);
+
+NETWORK
+TITLE =FA: HMI menu control
+//
+//
+      CALL #s_FB_HMI_Menu_Control (
+           i_DB_HMI_Menu            := #i_DB_HMI_Menu,
+           i_DB_HMI_IF              := #i_DB_HMI_IF,
+           i_Total_No_Manual_Scrn   := #s_HMI.Total_No_Man_Scrn,
+           i_Total_No_Oper_Scrn     := #s_HMI.Total_No_Oper_Scrn,
+           i_HMI_Req_Node_ID        := #s_HMI.Req_Node_ID,
+           o_HMI_Command            := #s_HMI.Command,
+           o_HMI_Act_Node_ID        := #s_HMI.Act_Node_ID,
+           o_HMI_Error              := #o_ST_Communication_Error,
+           o_Current_Manual_Scrn_No := #s_HMI.Current_No_Man_Scrn,
+           o_Current_Oper_Scrn_No   := #s_HMI.Current_No_Oper_Scrn,
+           o_HMI_Req_Node_ID        := #s_HMI.Req_Node_ID);
+
+NETWORK
+TITLE =GA: Zone Menu Navigation
+//This Network Enables and Disables the Navigation buttons used for zone KTP.
+//
+//Retreive the Display commands from the DB Index
+      OPN   #i_DB_HMI_IF; 
+      L     #t_menu_Screen_Navigation; 
+      LAR1  ; 
+      L     #t_Menu_Display_Bits; 
+      T     DBW [AR1,P#0.0]; 
+END_FUNCTION_BLOCK
+

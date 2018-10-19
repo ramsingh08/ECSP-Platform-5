@@ -1,0 +1,96 @@
+FUNCTION_BLOCK "FB_Rcv_ItemRequest"
+TITLE =%version: 0.03 %  CN: 40
+//Function:
+//Handle received message 'ItemRequest'
+//According to the AAAA.ZZ.SS number the bit is set in the table.
+//
+//History:
+//This version  %created_by: nlhdl %
+//              %date_created: maandag 7 december 2015 16:12:30 %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                 By:      Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    14-12-15   0.03
+//ra#9751: Add source files ECS-P to VI_RAW             nlHdL    07-12-15   0.03
+//7632: Add TFC blocks to platform 4                    nlHdL    30-07-15   0.03
+//20645: Tubs Bags report blocks updated                nlHdL    09-09-14   0.03
+//19398: AreaID with 4digits not correct handled        nlHdL    20-05-14   0.02
+//18060: Update messages ID's for Vibes 3.2             nlHdL    31-03-14   0.01
+//Initial Version                                       nlHdL    26-02-14   0.01
+//
+//Description:
+//Handle received message 'ItemRequest'
+//The message is loaded and transfered to the FC. 
+//According to the AAAA.ZZ.SS number the bit is set in the table.
+//
+FAMILY : VIBES
+VERSION : 0.0
+
+
+VAR_INPUT
+  i_ANY_RCV_Msg_Body : ANY ;	//ANY pointer to received message body
+END_VAR
+VAR
+  s_ItemRequest : "UDT_Msg_ItemRequest";	
+END_VAR
+VAR_TEMP
+  t_Base_Address : DWORD ;	//Relative address of instance-DB
+  t_AR2_Store_Restore : DWORD ;	//Backup addres register AR2
+  t_ANY_Rcv_Msg_Body : ANY ;	//Any pointer to received message body
+  t_Ret_Val_Int : INT ;	//Return value function call (int)
+  t_ID : DWORD ;	//ID 
+END_VAR
+BEGIN
+NETWORK
+TITLE =AA: Copy i_ANY_RCV_Msg_Body on temps
+//ANY pointer has to be copied to use as parameter for function calls
+      TAR2  ; // Load 'base address' of instance-DB   
+      AD    DW#16#FFFFFF; // Filter last 3 bytes
+      T     #t_Base_Address; // 'relative address'
+
+      TAR2  #t_AR2_Store_Restore; // AR2 Store
+
+      L     P##i_ANY_RCV_Msg_Body; // 'area-crossing pointer'
+      L     #t_Base_Address; // 'relative address'-mask
+      +D    ; 
+      LAR1  ; // 'absolute address' Source
+      LAR2  P##t_ANY_Rcv_Msg_Body; //  address Destination
+
+      L     W [AR1,P#0.0]; // Copy ANY pointer
+      T     LW [AR2,P#0.0]; // Byte0=$10 (for S7), Byte1=data type
+
+      L     W [AR1,P#2.0]; 
+      T     LW [AR2,P#2.0]; // Byte2..3=Repetition factor
+
+      L     W [AR1,P#4.0]; 
+      T     LW [AR2,P#4.0]; // Byte4..5=DB number
+
+      L     D [AR1,P#6.0]; 
+      T     LD [AR2,P#6.0]; // Byte6=memory area, Byte7..9=Byte,Bit address
+
+      LAR2  #t_AR2_Store_Restore; // AR2 Restore
+NETWORK
+TITLE =BA: Copy Received message body
+
+      CALL "BLKMOV" (
+           SRCBLK                   := #t_ANY_Rcv_Msg_Body,
+           RET_VAL                  := #t_Ret_Val_Int,
+           DSTBLK                   := #s_ItemRequest.body);
+
+NETWORK
+TITLE =CA: Tubs and Bags Report
+
+      L     #s_ItemRequest.body.AreaID; 
+      DTB   ; 
+      SLD   16; 
+      T     #t_ID; 
+
+      CALL "FC_Crt_TubsRep_T" (
+           i_ID                     := #t_ID);
+
+      CALL "FC_Crt_BagsRep_T" (
+           i_ID                     := #t_ID);
+
+END_FUNCTION_BLOCK
+

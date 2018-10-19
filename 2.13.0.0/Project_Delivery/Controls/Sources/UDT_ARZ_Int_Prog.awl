@@ -1,0 +1,37 @@
+TYPE "UDT_ARZ_Int_Prog"
+TITLE =%version: 1.09 % CN: 10 
+//History:
+//This version  %created_by:   inpgh %
+//              %date_created:   Thursday, February 15, 2018 10:07:06 AM %
+//              %release: VI_RAW/RA_Dev %
+//
+//Modification History:                                   By:    Date:     Rev:
+//----------------------------------------------------  -------  --------  -----
+//ra#27590: Add SHO PEC Latch signal                    inpgh    15-02-18   1.09
+//ra#18049: Add HAC PEC_Latch signal                    nlDY     20-10-16   1.08
+//ra#16800: Add PEC_Latch signal                        nlDY     30-09-16   1.07
+//ra#16800: Add Disable_E_save, remove flap filter      nlDY     28-09-16   1.06
+//ra#15680:Add "Num_DB_Event"                           nlJClo   18-07-16   1.05
+//ra#15680:relocate section marcode to start            nlJClo   14-07-16   1.04
+//ra#14899: Ad variables for internal zone programming  nlJClo   22-06-16   1.03
+//ra#13806: Update accoording coding standard           nlHdL    15-06-16   1.02
+//ra#13806: Initial revision                            nljclo   24-05-16   1.01
+//
+FAMILY : RAW
+
+
+  STRUCT 	
+   Error : BOOL ;	//Error status on Zone
+   TRS1_PEC_Latch : BOOL ;	//PEC latch signal (ESave PEC)
+   TRS1_Req_Halt : BOOL ;	//Request halt triplaner
+   TRS1_Items_Present : BOOL ;	//Items present on carousel
+   TRS1_Disbl_E_Save : BOOL ;	//Disable energy saving
+   TRS2_PEC_Latch_HAC : BOOL ;	//PEC latch signal (HAC PEC)
+   SHO_PEC_Latch_GAP : BOOL ;	//PEC latch signal (GAP PEC)
+   TRS2_Num_DB_PLT : INT ;	//DB number from PLT DB TRS2
+   TRS3_Num_DB_PLT : INT ;	//DB number from PLT DB TRS3
+   TRS4_Num_DB_PLT : INT ;	//DB number from PLT DB TRS4
+   Num_DB_Event : INT ;	//DB number from Event DB 
+  END_STRUCT ;	
+END_TYPE
+
